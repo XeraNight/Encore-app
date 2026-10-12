@@ -207,6 +207,14 @@ final class CalendarExporter {
         return .removed(removed.count)
     }
 
+    /// Removes one event the app created (a competition or a one-off training). An event that is already
+    /// gone counts as removed; false means access was denied or removing failed.
+    func removeEvent(id: String) async -> Bool {
+        guard await requestFullAccess() else { return false }
+        guard let event = store.event(withIdentifier: id) else { return true }
+        return remove(event)
+    }
+
     private func remove(_ event: EKEvent) -> Bool {
         do {
             try store.remove(event, span: .futureEvents)

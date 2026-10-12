@@ -145,7 +145,7 @@ struct CompetitionEditorSheet: View {
     @State private var categories = ""
     @State private var intent: CompetitionIntent = .interested
     @State private var isTarget = false
-    @State private var addToCalendar = false
+    @State private var inCalendar = false
     @State private var confirmDelete = false
 
     var body: some View {
@@ -173,10 +173,8 @@ struct CompetitionEditorSheet: View {
                     Toggle("Hlavná súťaž sezóny", isOn: $isTarget)
                 }
 
-                if competition?.calendarEventId == nil {
-                    Section {
-                        Toggle("Pridať do Apple Kalendára", isOn: $addToCalendar)
-                    }
+                Section {
+                    Toggle("V Apple Kalendári", isOn: $inCalendar)
                 }
 
                 if competition != nil {
@@ -198,7 +196,12 @@ struct CompetitionEditorSheet: View {
             }
             .confirmationDialog("Zmazať súťaž?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Zmazať", role: .destructive) {
-                    if let competition { modelContext.delete(competition) }
+                    if let competition {
+                        if let eventId = competition.calendarEventId {
+                            Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }
+                        }
+                        modelContext.delete(competition)
+                    }
                     try? modelContext.save()
                     dismiss()
                 }
@@ -218,9 +221,11 @@ struct CompetitionEditorSheet: View {
         categories = competition.targetCategories.joined(separator: ", ")
         intent = competition.intent
         isTarget = competition.isTargetCompetition
+        inCalendar = competition.calendarEventId != nil
     }
 
     private func save() {
+        let eventBefore = competition.map { [$0.name, $0.city, "\($0.date)", $0.targetCategories.joined()] }
         let target: PlannedCompetition
         if let competition {
             target = competition
@@ -240,15 +245,24 @@ struct CompetitionEditorSheet: View {
         target.isTargetCompetition = isTarget
         try? modelContext.save()
 
-        let wantsCalendar = addToCalendar
+        let wantsCalendar = inCalendar
+        let oldEventId = target.calendarEventId
+        let eventChanged = eventBefore != [target.name, target.city, "\(target.date)", target.targetCategories.joined()]
         Task {
             if !NotificationManager.shared.isAuthorized {
                 _ = await NotificationManager.shared.requestAuthorization()
             }
+            if let oldEventId {
+                // Unchanged and still wanted: keep the event as it is.
+                guard !wantsCalendar || eventChanged else { return }
+                // Changed or no longer wanted: remove it (a changed one is created again below).
+                guard await CalendarExporter.shared.removeEvent(id: oldEventId) else { return }
+                target.calendarEventId = nil
+            }
             if wantsCalendar, let id = await CalendarExporter.shared.export(competition: target) {
                 target.calendarEventId = id
-                try? modelContext.save()
             }
+            try? modelContext.save()
         }
         dismiss()
     }
