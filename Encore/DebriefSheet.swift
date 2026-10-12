@@ -11,6 +11,7 @@ struct DebriefSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Dance.name) private var dances: [Dance]
     @Query private var priorities: [LessonPriority]
+    @Query private var sessions: [PlannedSession]
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
 
     @StateObject private var speech = SpeechRecognizerHelper()
@@ -20,6 +21,13 @@ struct DebriefSheet: View {
     @State private var saveTick = 0
     @State private var priorityTexts = ["", "", ""]
     @State private var showPaywall = false
+    @State private var goalOutcome: SessionGoalOutcome?
+
+    /// The one-off training this reflection is for, when it had a goal.
+    private var sessionWithGoal: PlannedSession? {
+        guard let id = entry.sessionId, let session = sessions.first(where: { $0.id == id }), !session.goal.isEmpty else { return nil }
+        return session
+    }
 
     private var canWritePriorities: Bool { subscriptionManager.currentTier >= .plus }
 
@@ -34,7 +42,7 @@ struct DebriefSheet: View {
     }
 
     private var canSave: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feeling != nil || prioritiesChanged
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feeling != nil || prioritiesChanged || goalOutcome != nil
     }
 
     var body: some View {
@@ -73,6 +81,10 @@ struct DebriefSheet: View {
                         .buttonStyle(.pressable)
                     }
                     .plannerCard()
+
+                    if let session = sessionWithGoal {
+                        goalSection(session)
+                    }
 
                     VStack(alignment: .leading, spacing: 10) {
                         plannerSectionTitle("TANEC")
@@ -149,6 +161,7 @@ struct DebriefSheet: View {
                 text = entry.reflectionNote
                 danceName = entry.danceName
                 feeling = entry.feeling
+                goalOutcome = sessionWithGoal?.goalOutcome
             }
             .onDisappear { _ = speech.stopTranscribing() }
             .onChange(of: danceName, initial: true) { _, dance in
@@ -162,6 +175,41 @@ struct DebriefSheet: View {
             .sensoryFeedback(.success, trigger: saveTick)
         }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: Goal of a one-off training
+    /// The plan and the floor often differ: the goal can be met, half met, or the training went elsewhere.
+    private func goalSection(_ session: PlannedSession) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            plannerSectionTitle("CIEĽ")
+            VStack(alignment: .leading, spacing: 12) {
+                Label(session.goal, systemImage: "target")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                PlannerChoice(
+                    options: SessionGoalOutcome.allCases.map { (Optional($0), $0.title) },
+                    selection: $goalOutcome
+                )
+                if let hint = goalHint(session) {
+                    Text(hint)
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.6))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
+            }
+            .plannerCard()
+            .animation(.easeOut(duration: 0.2), value: goalOutcome)
+        }
+    }
+
+    private func goalHint(_ session: PlannedSession) -> String? {
+        switch goalOutcome {
+        case .done: return session.goalPriorityId == nil ? nil : "Priorita sa v Top 3 odškrtne."
+        case .partly: return "Cieľ ostáva otvorený na ďalší tréning."
+        case .other: return "Napíš hore, čo ste riešili namiesto toho. Cieľ ostáva otvorený."
+        case nil: return nil
+        }
     }
 
     // MARK: Top 3
@@ -236,6 +284,14 @@ struct DebriefSheet: View {
         entry.danceName = danceName
         entry.feeling = feeling
         entry.status = .attended
+
+        if let session = sessionWithGoal {
+            session.goalOutcome = goalOutcome
+            if goalOutcome == .done, let priorityId = session.goalPriorityId,
+               let priority = priorities.first(where: { $0.id == priorityId }), priority.isOpen {
+                priority.doneAt = Date()
+            }
+        }
 
         if prioritiesChanged, let danceName {
             LessonPriorities.save(priorityTexts, danceName: danceName, logEntryId: entry.id, in: modelContext)
