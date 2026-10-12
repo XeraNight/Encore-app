@@ -33,6 +33,7 @@ struct DancePlannerView: View {
     @Query(sort: \TrainingCadence.startMinutes) private var cadences: [TrainingCadence]
     @Query(sort: \TrainingLogEntry.day, order: .reverse) private var logs: [TrainingLogEntry]
     @Query(sort: \PlannedCompetition.date) private var competitions: [PlannedCompetition]
+    @Query(sort: \PlannedSession.start) private var sessions: [PlannedSession]
 
     @State private var section: Section = .today
     @Namespace private var sectionNamespace
@@ -42,7 +43,8 @@ struct DancePlannerView: View {
         let c = cadences.map { "\($0.id)\($0.weekday)\($0.startMinutes)\($0.durationMinutes)\($0.isEnabled)" }
         let l = logs.filter { $0.status == .skipped }.map { "\($0.id)" }
         let k = competitions.map { "\($0.id)\($0.date.timeIntervalSince1970)\($0.entryDeadline?.timeIntervalSince1970 ?? 0)\($0.intentRaw)" }
-        return (c + l + k).joined(separator: "|")
+        let s = sessions.map { "\($0.id)\($0.start.timeIntervalSince1970)\($0.durationMinutes)\($0.goal)" }
+        return (c + l + k + s).joined(separator: "|")
     }
 
     var body: some View {
@@ -82,11 +84,11 @@ struct DancePlannerView: View {
             .environment(\.locale, Locale(identifier: "sk"))
         }
         .task(id: planSignature) {
-            await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions)
+            await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions)
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions) }
+            Task { await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions) }
         }
         .sensoryFeedback(.selection, trigger: section)
     }

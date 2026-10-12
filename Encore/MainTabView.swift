@@ -87,6 +87,7 @@ struct MainTabView: View {
         TrainingCadence.self,
         TrainingLogEntry.self,
         PlannedCompetition.self,
+        PlannedSession.self,
         LessonPriority.self
     ])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)

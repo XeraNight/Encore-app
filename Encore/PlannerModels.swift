@@ -82,6 +82,10 @@ final class TrainingLogEntry {
     /// The `InstantNote` created from the reflection, so it can be edited later.
     var noteId: UUID? = nil
     var associatedRoutineId: UUID? = nil
+    /// The one-off training (`PlannedSession`) this entry belongs to; nil for weekly trainings.
+    var sessionId: UUID? = nil
+    /// A cancelled weekly occurrence that was restored gets its own single event in Apple Calendar.
+    var calendarEventId: String? = nil
 
     init(id: UUID = UUID(), day: Date, cadenceId: UUID?, title: String) {
         self.id = id
@@ -142,6 +146,73 @@ final class PlannedCompetition {
         get { CompetitionIntent(rawValue: intentRaw) ?? .interested }
         set { intentRaw = newValue.rawValue }
     }
+}
+
+// MARK: - One-off training
+enum SessionKind: String, CaseIterable, Identifiable {
+    case solo, lesson
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .solo: return "Samotréning"
+        case .lesson: return "Lekcia"
+        }
+    }
+}
+
+/// How the goal of a one-off training turned out, answered in the reflection.
+enum SessionGoalOutcome: String, CaseIterable, Identifiable {
+    case done, partly, other
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .done: return "Splnené"
+        case .partly: return "Čiastočne"
+        case .other: return "Riešili sme iné"
+        }
+    }
+}
+
+/// A single training on one day (samotréning or an extra lesson), unlike the weekly `TrainingCadence`.
+/// Going / cancelled and the reflection live in a `TrainingLogEntry` with `sessionId`.
+@Model
+final class PlannedSession {
+    @Attribute(.unique) var id: UUID
+    var start: Date = Date()
+    var durationMinutes: Int = 60
+    var title: String = ""
+    var kindRaw: String = SessionKind.solo.rawValue
+    var location: String = ""
+    /// "Standard", "Latin", "Mixed" or "Free", as `TrainingCadence.danceCategory`.
+    var danceCategory: String = "Standard"
+    /// What to work on. Empty = no plan yet (it can be added later, also in the reflection).
+    var goal: String = ""
+    /// Set when the goal is one of the Top 3 priorities.
+    var goalPriorityId: UUID? = nil
+    var goalOutcomeRaw: String? = nil
+    var calendarEventId: String? = nil
+
+    init(id: UUID = UUID(), start: Date, durationMinutes: Int = 60, kind: SessionKind = .solo) {
+        self.id = id
+        self.start = start
+        self.durationMinutes = durationMinutes
+        self.kindRaw = kind.rawValue
+    }
+
+    var kind: SessionKind {
+        get { SessionKind(rawValue: kindRaw) ?? .solo }
+        set { kindRaw = newValue.rawValue }
+    }
+
+    var goalOutcome: SessionGoalOutcome? {
+        get { goalOutcomeRaw.flatMap(SessionGoalOutcome.init(rawValue:)) }
+        set { goalOutcomeRaw = newValue?.rawValue }
+    }
+
+    var end: Date { start.addingTimeInterval(TimeInterval(durationMinutes * 60)) }
+    var displayTitle: String { title.isEmpty ? kind.title : title }
 }
 
 // MARK: - Top 3 after a lesson

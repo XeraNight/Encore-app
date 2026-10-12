@@ -120,6 +120,17 @@ private nonisolated struct DeviceData: Encodable, Sendable {
         let ksisCompetitionId: String?
     }
 
+    struct OneOffTraining: Encodable, Sendable {
+        let start: Date
+        let durationMinutes: Int
+        let kind: String
+        let title: String
+        let location: String
+        let category: String
+        let goal: String
+        let goalOutcome: String?
+    }
+
     struct DanceNotes: Encodable, Sendable {
         let name: String
         let category: String
@@ -165,6 +176,7 @@ private nonisolated struct DeviceData: Encodable, Sendable {
     let trainingDiary: [TrainingDay]
     let lessonPriorities: [LessonPriorityCopy]
     let plannedCompetitions: [Competition]
+    let oneOffTrainings: [OneOffTraining]
     let danceNotes: [DanceNotes]
     let figureLibrary: [Figure]
     let routines: [RoutineCopy]
@@ -223,6 +235,14 @@ private extension DeviceData {
             .map {
                 LessonPriorityCopy(dance: $0.danceName, text: $0.text, rank: $0.rank,
                                    createdAt: $0.createdAt, doneAt: $0.doneAt, replacedAt: $0.replacedAt)
+            }
+
+        oneOffTrainings = fetch(PlannedSession.self)
+            .sorted { $0.start > $1.start }
+            .map {
+                OneOffTraining(start: $0.start, durationMinutes: $0.durationMinutes, kind: $0.kindRaw, title: $0.title,
+                               location: $0.location, category: $0.danceCategory, goal: $0.goal,
+                               goalOutcome: $0.goalOutcomeRaw)
             }
 
         plannedCompetitions = fetch(PlannedCompetition.self)

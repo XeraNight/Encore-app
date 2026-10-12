@@ -29,6 +29,7 @@ struct EncoreApp: App {
             TrainingCadence.self,
             TrainingLogEntry.self,
             PlannedCompetition.self,
+            PlannedSession.self,
             LessonPriority.self
         ])
         let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)

@@ -14,7 +14,8 @@ enum PlannerNotifications {
     static func reschedule(
         cadences: [TrainingCadence],
         logs: [TrainingLogEntry],
-        competitions: [PlannedCompetition]
+        competitions: [PlannedCompetition],
+        sessions: [PlannedSession]
     ) async {
         let center = UNUserNotificationCenter.current()
         let pending = await center.pendingNotificationRequests()
@@ -45,6 +46,22 @@ enum PlannerNotifications {
                     center: center
                 )
             }
+        }
+
+        let skippedSessions = Set(logs.filter { $0.status == .skipped }.compactMap(\.sessionId))
+        let horizon = cal.date(byAdding: .day, value: horizonDays, to: today) ?? today
+        for session in sessions where !skippedSessions.contains(session.id) && session.start < horizon {
+            let fire = session.end.addingTimeInterval(5 * 60)
+            guard fire > now else { continue }
+            add(
+                id: "\(prefix)session.\(session.id.uuidString)",
+                title: "\(session.displayTitle) skončil",
+                body: session.goal.isEmpty
+                    ? "Čo ste riešili? Zapíš to za 20 sekúnd."
+                    : "Cieľ: \(session.goal). Ako to dopadlo?",
+                at: fire,
+                center: center
+            )
         }
 
         for comp in competitions where comp.intent != .declined {
@@ -108,6 +125,7 @@ final class CalendarExporter {
     /// Every event the app creates carries this line, so it can find and remove only its own events later.
     private static let trainingMarker = "Encore · týždenný tréning"
     private static let competitionMarker = "Encore · súťaž"
+    private static let sessionMarker = "Encore · tréning"
 
     private func requestAccess() async -> Bool {
         (try? await store.requestWriteOnlyAccessToEvents()) ?? false
@@ -175,6 +193,54 @@ final class CalendarExporter {
         ))
         event.addAlarm(EKAlarm(relativeOffset: -30 * 60))
         return save(event)
+    }
+
+    /// One-off training: a single timed event with a reminder 30 minutes before.
+    func export(session: PlannedSession) async -> String? {
+        guard await requestAccess() else { return nil }
+        let event = EKEvent(eventStore: store)
+        event.calendar = store.defaultCalendarForNewEvents
+        event.title = session.displayTitle
+        event.location = session.location.isEmpty ? nil : session.location
+        event.notes = session.goal.isEmpty ? Self.sessionMarker : "\(Self.sessionMarker)\nCieľ: \(session.goal)"
+        event.startDate = session.start
+        event.endDate = session.end
+        event.addAlarm(EKAlarm(relativeOffset: -30 * 60))
+        return save(event)
+    }
+
+    /// One occurrence of a weekly training as its own event: used when a cancelled day is restored, because
+    /// Apple Calendar cannot bring back a deleted occurrence of a series.
+    func export(cadence: TrainingCadence, on day: Date) async -> String? {
+        guard await requestAccess() else { return nil }
+        let event = EKEvent(eventStore: store)
+        event.calendar = store.defaultCalendarForNewEvents
+        event.title = cadence.title.isEmpty ? "Tréning" : cadence.title
+        event.location = cadence.location.isEmpty ? nil : cadence.location
+        event.notes = Self.trainingMarker
+        event.startDate = PlannerCalendar.date(on: day, minutes: cadence.startMinutes)
+        event.endDate = PlannerCalendar.date(on: day, minutes: cadence.endMinutes)
+        event.addAlarm(EKAlarm(relativeOffset: -30 * 60))
+        return save(event)
+    }
+
+    /// Removes the occurrence of a weekly series on one day, so Apple Calendar does not remind it.
+    /// A day without an occurrence (or a series already gone) counts as done.
+    func removeOccurrence(seriesId: String, on day: Date) async -> Bool {
+        guard await requestFullAccess() else { return false }
+        guard let series = store.event(withIdentifier: seriesId) else { return true }
+        let start = PlannerCalendar.startOfDay(day)
+        guard let end = PlannerCalendar.calendar.date(byAdding: .day, value: 1, to: start) else { return false }
+        let predicate = store.predicateForEvents(withStart: start, end: end, calendars: [series.calendar])
+        guard let occurrence = store.events(matching: predicate)
+            .first(where: { $0.calendarItemIdentifier == series.calendarItemIdentifier }) else { return true }
+        do {
+            try store.remove(occurrence, span: .thisEvent)
+            return true
+        } catch {
+            Logger.general.warning("Calendar occurrence removal failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     enum RemovalResult {
