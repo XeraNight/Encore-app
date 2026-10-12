@@ -25,7 +25,7 @@ func plannerSectionTitle(_ text: String) -> some View {
 /// Third dock tab: today's training, the permanent weekly rhythm and tracked competitions.
 struct DancePlannerView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case today = "Dnes", routine = "Režim", competitions = "Súťaže"
+        case today = "Dnes", calendar = "Kalendár", routine = "Režim"
         var id: String { rawValue }
     }
 
@@ -64,12 +64,21 @@ struct DancePlannerView: View {
                                     cadences: cadences,
                                     logs: logs,
                                     competitions: competitions,
+                                    sessions: sessions,
                                     onOpenRoutine: { section = .routine }
                                 )
+                            case .calendar:
+                                VStack(alignment: .leading, spacing: 24) {
+                                    PlannerCalendarView(
+                                        cadences: cadences,
+                                        logs: logs,
+                                        competitions: competitions,
+                                        sessions: sessions
+                                    )
+                                    PlannerCompetitionsView(competitions: competitions)
+                                }
                             case .routine:
                                 PlannerRoutineView(cadences: cadences)
-                            case .competitions:
-                                PlannerCompetitionsView(competitions: competitions)
                             }
                         }
                         .padding(.horizontal, 20)

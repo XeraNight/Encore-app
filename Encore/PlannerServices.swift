@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import EventKit
 import OSLog
 import UserNotifications
@@ -110,6 +111,85 @@ enum PlannerNotifications {
         let comps = PlannerCalendar.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
         center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+    }
+}
+
+// MARK: - Going / cancelled for one day
+/// Status of one training day, kept in `TrainingLogEntry`. Cancelling ("Nejdem") also takes that day out of
+/// Apple Calendar, so it does not remind it; undoing puts it back.
+@MainActor
+enum PlannerAttendance {
+    static func entry(cadence: TrainingCadence, on day: Date, in logs: [TrainingLogEntry]) -> TrainingLogEntry? {
+        logs.first { $0.cadenceId == cadence.id && PlannerCalendar.calendar.isDate($0.day, inSameDayAs: day) }
+    }
+
+    static func entry(session: PlannedSession, in logs: [TrainingLogEntry]) -> TrainingLogEntry? {
+        logs.first { $0.sessionId == session.id }
+    }
+
+    static func entryCreatingIfNeeded(cadence: TrainingCadence, on day: Date, in logs: [TrainingLogEntry],
+                                      context: ModelContext) -> TrainingLogEntry {
+        if let existing = entry(cadence: cadence, on: day, in: logs) { return existing }
+        let created = TrainingLogEntry(day: PlannerCalendar.startOfDay(day), cadenceId: cadence.id, title: cadence.title)
+        context.insert(created)
+        return created
+    }
+
+    static func entryCreatingIfNeeded(session: PlannedSession, in logs: [TrainingLogEntry],
+                                      context: ModelContext) -> TrainingLogEntry {
+        if let existing = entry(session: session, in: logs) { return existing }
+        let created = TrainingLogEntry(day: PlannerCalendar.startOfDay(session.start), cadenceId: nil, title: session.displayTitle)
+        created.sessionId = session.id
+        context.insert(created)
+        return created
+    }
+
+    static func setStatus(_ status: TrainingStatus, cadence: TrainingCadence, on day: Date,
+                          logs: [TrainingLogEntry], context: ModelContext) {
+        let entry = entryCreatingIfNeeded(cadence: cadence, on: day, in: logs, context: context)
+        let wasSkipped = entry.status == .skipped
+        entry.status = status
+        try? context.save()
+
+        if status == .skipped, !wasSkipped {
+            Task {
+                if let single = entry.calendarEventId {
+                    if await CalendarExporter.shared.removeEvent(id: single) { entry.calendarEventId = nil }
+                } else if let series = cadence.calendarEventId {
+                    _ = await CalendarExporter.shared.removeOccurrence(seriesId: series, on: day)
+                }
+                try? context.save()
+            }
+        } else if wasSkipped, status != .skipped, cadence.calendarEventId != nil, entry.calendarEventId == nil,
+                  PlannerCalendar.date(on: day, minutes: cadence.startMinutes) > Date() {
+            Task {
+                entry.calendarEventId = await CalendarExporter.shared.export(cadence: cadence, on: day)
+                try? context.save()
+            }
+        }
+    }
+
+    static func setStatus(_ status: TrainingStatus, session: PlannedSession,
+                          logs: [TrainingLogEntry], context: ModelContext) {
+        let entry = entryCreatingIfNeeded(session: session, in: logs, context: context)
+        let wasSkipped = entry.status == .skipped
+        entry.status = status
+        try? context.save()
+
+        if status == .skipped, !wasSkipped, let eventId = session.calendarEventId {
+            Task {
+                guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
+                session.calendarEventId = nil
+                entry.calendarEventId = eventId
+                try? context.save()
+            }
+        } else if wasSkipped, status != .skipped, entry.calendarEventId != nil, session.start > Date() {
+            Task {
+                session.calendarEventId = await CalendarExporter.shared.export(session: session)
+                entry.calendarEventId = nil
+                try? context.save()
+            }
+        }
     }
 }
 

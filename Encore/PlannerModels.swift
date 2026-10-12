@@ -84,7 +84,9 @@ final class TrainingLogEntry {
     var associatedRoutineId: UUID? = nil
     /// The one-off training (`PlannedSession`) this entry belongs to; nil for weekly trainings.
     var sessionId: UUID? = nil
-    /// A cancelled weekly occurrence that was restored gets its own single event in Apple Calendar.
+    /// Apple Calendar link of this one day. Weekly training: the single event of a cancelled day that was
+    /// restored (a deleted occurrence of a series cannot come back). One-off training: the event it had when
+    /// it was cancelled, so undoing the cancel puts it back.
     var calendarEventId: String? = nil
 
     init(id: UUID = UUID(), day: Date, cadenceId: UUID?, title: String) {

@@ -6,19 +6,19 @@ struct PlannerTodayView: View {
     let cadences: [TrainingCadence]
     let logs: [TrainingLogEntry]
     let competitions: [PlannedCompetition]
+    let sessions: [PlannedSession]
     let onOpenRoutine: () -> Void
 
     @Environment(\.modelContext) private var modelContext
     @State private var debriefEntry: TrainingLogEntry?
+    @State private var editingCadence: TrainingCadence?
+    @State private var editingSession: PlannedSession?
     @State private var changeTick = 0
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
 
-    private var todaysCadences: [TrainingCadence] {
-        let weekday = PlannerCalendar.isoWeekday(of: Date())
-        return cadences
-            .filter { $0.isEnabled && $0.weekday == weekday }
-            .sorted { $0.startMinutes < $1.startMinutes }
+    private var todaysTrainings: [TrainingOccurrence] {
+        TrainingOccurrence.on(today, cadences: cadences, sessions: sessions, logs: logs)
     }
 
     private var nextSession: (cadence: TrainingCadence, day: Date)? {
@@ -50,7 +50,7 @@ struct PlannerTodayView: View {
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
 
-            sessions
+            trainingsSection
 
             LessonPrioritiesSection()
 
@@ -72,12 +72,14 @@ struct PlannerTodayView: View {
             DebriefSheet(entry: entry)
                 .presentationDetents([.large])
         }
+        .sheet(item: $editingCadence) { CadenceEditorSheet(cadence: $0) }
+        .sheet(item: $editingSession) { SessionEditorSheet(session: $0) }
     }
 
-    // MARK: Sessions
+    // MARK: Trainings
     @ViewBuilder
-    private var sessions: some View {
-        if cadences.isEmpty {
+    private var trainingsSection: some View {
+        if cadences.isEmpty && todaysTrainings.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Nastav si týždenný režim")
                     .font(.system(size: 16, weight: .bold))
@@ -97,7 +99,7 @@ struct PlannerTodayView: View {
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .plannerCard()
-        } else if todaysCadences.isEmpty {
+        } else if todaysTrainings.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Dnes máš voľno")
                     .font(.system(size: 16, weight: .bold))
@@ -111,34 +113,41 @@ struct PlannerTodayView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .plannerCard()
         } else {
-            ForEach(todaysCadences) { cadence in
-                TodaySessionCard(
-                    cadence: cadence,
-                    entry: entry(for: cadence),
-                    onSetStatus: { setStatus($0, for: cadence) },
-                    onDebrief: { debriefEntry = entryCreatingIfNeeded(for: cadence) }
+            ForEach(todaysTrainings) { occurrence in
+                TrainingOccurrenceCard(
+                    occurrence: occurrence,
+                    entry: occurrence.entry(in: logs),
+                    onSetStatus: { setStatus($0, for: occurrence) },
+                    onDebrief: { debriefEntry = entryCreatingIfNeeded(for: occurrence) },
+                    onEdit: {
+                        switch occurrence.source {
+                        case .weekly(let cadence): editingCadence = cadence
+                        case .session(let session): editingSession = session
+                        }
+                    }
                 )
             }
         }
     }
 
-    private func entry(for cadence: TrainingCadence) -> TrainingLogEntry? {
-        logs.first { $0.cadenceId == cadence.id && PlannerCalendar.calendar.isDate($0.day, inSameDayAs: today) }
-    }
-
-    private func entryCreatingIfNeeded(for cadence: TrainingCadence) -> TrainingLogEntry {
-        if let existing = entry(for: cadence) { return existing }
-        let created = TrainingLogEntry(day: today, cadenceId: cadence.id, title: cadence.title)
-        modelContext.insert(created)
-        return created
-    }
-
-    private func setStatus(_ status: TrainingStatus, for cadence: TrainingCadence) {
-        let target = entryCreatingIfNeeded(for: cadence)
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            target.status = status
+    private func entryCreatingIfNeeded(for occurrence: TrainingOccurrence) -> TrainingLogEntry {
+        switch occurrence.source {
+        case .weekly(let cadence):
+            return PlannerAttendance.entryCreatingIfNeeded(cadence: cadence, on: today, in: logs, context: modelContext)
+        case .session(let session):
+            return PlannerAttendance.entryCreatingIfNeeded(session: session, in: logs, context: modelContext)
         }
-        try? modelContext.save()
+    }
+
+    private func setStatus(_ status: TrainingStatus, for occurrence: TrainingOccurrence) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            switch occurrence.source {
+            case .weekly(let cadence):
+                PlannerAttendance.setStatus(status, cadence: cadence, on: today, logs: logs, context: modelContext)
+            case .session(let session):
+                PlannerAttendance.setStatus(status, session: session, logs: logs, context: modelContext)
+            }
+        }
         changeTick += 1
     }
 
@@ -195,115 +204,5 @@ struct PlannerTodayView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .plannerCard(cornerRadius: 14)
-    }
-}
-
-// MARK: - One session card
-private struct TodaySessionCard: View {
-    let cadence: TrainingCadence
-    let entry: TrainingLogEntry?
-    let onSetStatus: (TrainingStatus) -> Void
-    let onDebrief: () -> Void
-
-    private var status: TrainingStatus { entry?.status ?? .planned }
-
-    private var hasEnded: Bool {
-        Date() > PlannerCalendar.date(on: PlannerCalendar.startOfDay(Date()), minutes: cadence.endMinutes)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(PlannerCalendar.timeRange(of: cadence))
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundColor(Color.gold400)
-                Text(cadence.title.isEmpty ? "Tréning" : cadence.title)
-                    .font(.system(size: 17, weight: .bold))
-                    .foregroundColor(.white)
-                if !cadence.location.isEmpty {
-                    Label(cadence.location, systemImage: "mappin.and.ellipse")
-                        .font(.system(size: 12))
-                        .foregroundColor(Color.white.opacity(0.55))
-                }
-            }
-
-            switch status {
-            case .planned:
-                if hasEnded {
-                    HStack(spacing: 10) {
-                        pill("Zapísať reflexiu", icon: "square.and.pencil", filled: true, action: onDebrief)
-                        pill("Nebol som", icon: "xmark", filled: false) { onSetStatus(.skipped) }
-                    }
-                } else {
-                    HStack(spacing: 10) {
-                        pill("Idem", icon: "checkmark", filled: true) { onSetStatus(.going) }
-                        pill("Vynechávam", icon: "xmark", filled: false) { onSetStatus(.skipped) }
-                    }
-                }
-            case .going:
-                if hasEnded {
-                    pill("Zapísať reflexiu", icon: "square.and.pencil", filled: true, action: onDebrief)
-                } else {
-                    HStack {
-                        Label("Ideš", systemImage: "checkmark.circle.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Color.syncEmerald)
-                        Spacer()
-                        Button("Zmeniť") { onSetStatus(.planned) }
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.55))
-                            .buttonStyle(.pressable)
-                    }
-                }
-            case .skipped:
-                HStack {
-                    Label("Dnes vynechávaš", systemImage: "moon.zzz.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.55))
-                    Spacer()
-                    Button("Vrátiť") { onSetStatus(.planned) }
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color.gold400)
-                        .buttonStyle(.pressable)
-                }
-            case .attended:
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Label("Reflexia uložená", systemImage: "checkmark.seal.fill")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Color.syncEmerald)
-                        if let feeling = entry?.feeling {
-                            Text(feeling.emoji)
-                        }
-                        Spacer()
-                        Button("Upraviť", action: onDebrief)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.gold400)
-                            .buttonStyle(.pressable)
-                    }
-                    if let note = entry?.reflectionNote, !note.isEmpty {
-                        Text(note)
-                            .font(.system(size: 13))
-                            .foregroundColor(Color.white.opacity(0.75))
-                            .lineLimit(3)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .plannerCard()
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: status)
-    }
-
-    private func pill(_ title: String, icon: String, filled: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: icon)
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(filled ? Color.obsidian900 : Color.white.opacity(0.85))
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(filled ? Color.gold400 : Color.white.opacity(0.08), in: Capsule())
-        }
-        .buttonStyle(.pressable)
     }
 }

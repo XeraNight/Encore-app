@@ -152,6 +152,8 @@ struct PlannerRoutineView: View {
 // MARK: - Editor
 struct CadenceEditorSheet: View {
     let cadence: TrainingCadence?
+    /// Day of the week to start from when adding (a day tapped in the calendar).
+    var initialWeekday: Int? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -213,7 +215,10 @@ struct CadenceEditorSheet: View {
     }
 
     private func load() {
-        guard let cadence else { return }
+        guard let cadence else {
+            if let initialWeekday { weekday = initialWeekday }
+            return
+        }
         title = cadence.title
         weekday = cadence.weekday
         startDate = PlannerCalendar.date(on: Date(), minutes: cadence.startMinutes)

@@ -8,6 +8,7 @@ struct SessionEditorSheet: View {
     let session: PlannedSession?
     /// Day to start from when adding (a day tapped in the calendar).
     var initialDate: Date? = nil
+    var initialKind: SessionKind = .solo
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -144,6 +145,7 @@ struct SessionEditorSheet: View {
     private func load() {
         guard let session else {
             if let initialDate { day = initialDate }
+            kind = initialKind
             return
         }
         kind = session.kind
