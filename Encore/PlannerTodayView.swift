@@ -50,13 +50,15 @@ struct PlannerTodayView: View {
                 .font(.system(size: 22, weight: .bold, design: .rounded))
                 .foregroundColor(.white)
 
-            trainingsSection
-
             LessonPrioritiesSection()
+
+            trainingsSection
 
             if let comp = nextCompetition {
                 competitionCard(comp)
             }
+
+            PlannerWeekSummary(cadences: cadences, sessions: sessions, logs: logs)
 
             if !recentReflections.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
@@ -204,5 +206,105 @@ struct PlannerTodayView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .plannerCard(cornerRadius: 14)
+    }
+}
+
+// MARK: - This week
+/// Hours trained this week against the plan, how much of it was samotréning, and the dance worked on most
+/// (from the reflections). A training counts once it has ended and was not cancelled.
+struct PlannerWeekSummary: View {
+    let cadences: [TrainingCadence]
+    let sessions: [PlannedSession]
+    let logs: [TrainingLogEntry]
+
+    private struct Totals: Equatable {
+        var doneMinutes = 0
+        var plannedMinutes = 0
+        var soloMinutes = 0
+        var topDance: String?
+    }
+
+    private var totals: Totals {
+        let cal = PlannerCalendar.calendar
+        let now = Date()
+        let today = PlannerCalendar.startOfDay(now)
+        let monday = cal.date(byAdding: .day, value: 1 - PlannerCalendar.isoWeekday(of: today), to: today) ?? today
+        var totals = Totals()
+        var entryIds = Set<UUID>()
+        for offset in 0..<7 {
+            guard let day = cal.date(byAdding: .day, value: offset, to: monday) else { continue }
+            for occurrence in TrainingOccurrence.on(day, cadences: cadences, sessions: sessions, logs: logs) {
+                let entry = occurrence.entry(in: logs)
+                guard entry?.status != .skipped else { continue }
+                let minutes = Int(occurrence.end.timeIntervalSince(occurrence.start) / 60)
+                totals.plannedMinutes += minutes
+                guard occurrence.end <= now else { continue }
+                totals.doneMinutes += minutes
+                if case .session(let session) = occurrence.source, session.kind == .solo {
+                    totals.soloMinutes += minutes
+                }
+                if let entry { entryIds.insert(entry.id) }
+            }
+        }
+        let dances = logs.filter { entryIds.contains($0.id) }.compactMap(\.danceName)
+        totals.topDance = Dictionary(grouping: dances, by: { $0 }).max { $0.value.count < $1.value.count }?.key
+        return totals
+    }
+
+    var body: some View {
+        let totals = totals
+        if totals.plannedMinutes > 0 {
+            VStack(alignment: .leading, spacing: 10) {
+                HomeSectionHeader(title: "TENTO TÝŽDEŇ", systemImage: "chart.bar.fill")
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(spacing: 10) {
+                        tile(hours(totals.doneMinutes), "z \(hours(totals.plannedMinutes)) odtrénované")
+                        tile(hours(totals.soloMinutes), "samotréning")
+                        tile(totals.topDance.map(DanceNames.display) ?? "–", "najviac riešené")
+                    }
+                    progressBar(done: totals.doneMinutes, planned: totals.plannedMinutes)
+                }
+                .padding(14)
+                .homeCard(cornerRadius: 20)
+                .animation(.spring(response: 0.5, dampingFraction: 0.85), value: totals)
+            }
+        }
+    }
+
+    private func tile(_ value: String, _ caption: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(value)
+                .font(.system(.title3, design: .rounded).weight(.heavy))
+                .foregroundColor(Color.gold300)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .contentTransition(.numericText())
+            Text(caption)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(.white.opacity(0.6))
+                .lineLimit(2)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+
+    private func progressBar(done: Int, planned: Int) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.white.opacity(0.08))
+                Capsule()
+                    .fill(LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: geo.size.width * min(1, CGFloat(done) / CGFloat(max(planned, 1))))
+            }
+        }
+        .frame(height: 6)
+        .accessibilityHidden(true)
+    }
+
+    /// "4,5 h", "45 min".
+    private func hours(_ minutes: Int) -> String {
+        if minutes > 0 && minutes < 60 { return "\(minutes) min" }
+        let value = Double(minutes) / 60
+        return "\(value.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h"
     }
 }
