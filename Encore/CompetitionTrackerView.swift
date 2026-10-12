@@ -13,6 +13,8 @@ struct CompetitionTrackerView: View {
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
+    @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
+    @Namespace private var resultsModeNamespace
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -278,7 +280,9 @@ struct CompetitionTrackerView: View {
         let years = Dictionary(grouping: manager.results) { String($0.date.prefix(4)) }
         let sortedYears = years.keys.sorted(by: >)
         return VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill", count: manager.results.count)
+            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill", count: manager.results.count) {
+                if !manager.results.isEmpty { resultsModeSwitch }
+            }
 
             if manager.results.isEmpty {
                 Text(manager.loadFailed
@@ -289,6 +293,9 @@ struct CompetitionTrackerView: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .homeCard(cornerRadius: 20)
+            } else if showsCalendar {
+                CompetitionCalendarView(results: manager.results) { selectedResult = $0 }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
             } else {
                 ForEach(sortedYears, id: \.self) { year in
                     Text(year)
@@ -300,7 +307,7 @@ struct CompetitionTrackerView: View {
                             Button {
                                 selectedResult = result
                             } label: {
-                                resultRow(result)
+                                CompetitionResultRow(result: result)
                             }
                             .buttonStyle(.pressable(scale: 0.98))
                             if result.id != years[year]?.last?.id {
@@ -314,7 +321,65 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    private func resultRow(_ result: CompetitionResult) -> some View {
+    private var resultsModeSwitch: some View {
+        HStack(spacing: 2) {
+            ForEach([false, true], id: \.self) { asCalendar in
+                let isOn = showsCalendar == asCalendar
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { showsCalendar = asCalendar }
+                } label: {
+                    Image(systemName: asCalendar ? "calendar" : "list.bullet")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.6))
+                        .frame(width: 34, height: 26)
+                        .background {
+                            if isOn {
+                                Capsule()
+                                    .fill(Color.gold400)
+                                    .matchedGeometryEffect(id: "resultsMode", in: resultsModeNamespace)
+                            }
+                        }
+                }
+                .buttonStyle(.pressable(scale: 0.9))
+                .accessibilityLabel(asCalendar ? "Kalendár" : "Zoznam")
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Color.white.opacity(0.07), in: Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
+        .sensoryFeedback(.selection, trigger: showsCalendar)
+    }
+
+    private func unlink(_ couple: UserCouple) {
+        Task {
+            do {
+                try await manager.unlink(couple)
+            } catch {
+                errorText = error.localizedDescription
+            }
+        }
+    }
+
+    private static func parseTimestamp(_ text: String) -> Date? {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: text) { return date }
+        formatter.formatOptions = [.withInternetDateTime]
+        return formatter.date(from: text)
+    }
+}
+
+struct KSISBrowserTarget: Identifiable {
+    let url: URL
+    var id: String { url.absoluteString }
+}
+
+/// One saved competition: date, category, event, place and points. Used in the list and in the calendar.
+struct CompetitionResultRow: View {
+    let result: CompetitionResult
+
+    var body: some View {
         HStack(spacing: 12) {
             VStack(spacing: 0) {
                 Text(result.dateValue?.formatted(.dateTime.day()) ?? "")
@@ -360,27 +425,4 @@ struct CompetitionTrackerView: View {
         .contentShape(Rectangle())
         .accessibilityElement(children: .combine)
     }
-
-    private func unlink(_ couple: UserCouple) {
-        Task {
-            do {
-                try await manager.unlink(couple)
-            } catch {
-                errorText = error.localizedDescription
-            }
-        }
-    }
-
-    private static func parseTimestamp(_ text: String) -> Date? {
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = formatter.date(from: text) { return date }
-        formatter.formatOptions = [.withInternetDateTime]
-        return formatter.date(from: text)
-    }
-}
-
-struct KSISBrowserTarget: Identifiable {
-    let url: URL
-    var id: String { url.absoluteString }
 }
