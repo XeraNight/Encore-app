@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 
-private extension InstantNote {
+extension InstantNote {
     var kindIcon: String {
         if audioPath != nil { return "waveform" }
         if videoPath != nil { return "video.fill" }
