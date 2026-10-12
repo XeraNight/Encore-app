@@ -84,7 +84,7 @@ struct PlannerTodayView: View {
                 Text("Nastav si týždenný režim")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
-                Text("Raz zadáš, kedy trénuješ. Potom ti stačí v daný deň ťuknúť Idem alebo Vynechávam a po tréningu zapísať, čo si sa naučil.")
+                Text("Raz zadáš, kedy trénuješ. Potom ti stačí v daný deň ťuknúť Idem alebo Nejdem a po tréningu zapísať, čo si sa naučil.")
                     .font(.system(size: 13))
                     .foregroundColor(Color.white.opacity(0.6))
                 Button(action: onOpenRoutine) {

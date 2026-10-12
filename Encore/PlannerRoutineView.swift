@@ -11,6 +11,9 @@ struct PlannerRoutineView: View {
     @State private var confirmRemoveFromCalendar = false
     @State private var calendarMessage: String?
     @State private var isRemovingFromCalendar = false
+    @State private var isSelecting = false
+    @State private var selected: Set<UUID> = []
+    @State private var confirmDeleteSelected = false
 
     private var sorted: [TrainingCadence] {
         cadences.sorted { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }
@@ -18,10 +21,23 @@ struct PlannerRoutineView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            plannerSectionTitle("MÔJ TÝŽDENNÝ REŽIM")
+            HomeSectionHeader(title: "MÔJ TÝŽDENNÝ REŽIM", systemImage: "repeat") {
+                if !sorted.isEmpty {
+                    Button(isSelecting ? "Hotovo" : "Vybrať") {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            isSelecting.toggle()
+                            selected = []
+                        }
+                    }
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 44)
+                    .buttonStyle(.pressable)
+                }
+            }
 
             if sorted.isEmpty {
-                Text("Zatiaľ tu nič nie je. Pridaj tréningy, ktoré máš každý týždeň, a appka ti v daný deň ponúkne Idem / Vynechávam a po tréningu reflexiu.")
+                Text("Zatiaľ tu nič nie je. Pridaj tréningy, ktoré máš každý týždeň, a appka ti v daný deň ponúkne Idem / Nejdem a po tréningu reflexiu.")
                     .font(.system(size: 13))
                     .foregroundColor(Color.white.opacity(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -32,18 +48,33 @@ struct PlannerRoutineView: View {
                 row(cadence)
             }
 
-            Button { showNew = true } label: {
-                Label("Pridať tréning", systemImage: "plus")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Color.obsidian900)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 11)
-                    .background(Color.gold400, in: Capsule())
-            }
-            .buttonStyle(.pressable)
+            if isSelecting {
+                Button { confirmDeleteSelected = true } label: {
+                    Label(selected.isEmpty ? "Označ tréningy na zmazanie" : "Zmazať vybrané (\(selected.count))", systemImage: "trash")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(selected.isEmpty ? .white.opacity(0.5) : .white)
+                        .contentTransition(.numericText())
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(selected.isEmpty ? Color.white.opacity(0.06) : Color.latinRed,
+                                    in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                .disabled(selected.isEmpty)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            } else {
+                Button { showNew = true } label: {
+                    Label("Pridať tréning", systemImage: "plus")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 11)
+                        .background(Color.gold400, in: Capsule())
+                }
+                .buttonStyle(.pressable)
 
-            if !sorted.isEmpty {
-                calendarCleanup
+                if !sorted.isEmpty {
+                    calendarCleanup
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -57,8 +88,34 @@ struct PlannerRoutineView: View {
         } message: {
             Text("Zmažú sa len udalosti, ktoré vytvorila Encore. Tvoj týždenný režim v aplikácii ostane.")
         }
+        .confirmationDialog(
+            "Zmazať \(slovakCount(selected.count, one: "tréning", few: "tréningy", many: "tréningov"))?",
+            isPresented: $confirmDeleteSelected,
+            titleVisibility: .visible
+        ) {
+            Button("Zmazať všetky budúce", role: .destructive, action: deleteSelected)
+        } message: {
+            Text("Zmiznú z Plánu a ich budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.")
+        }
+        .sensoryFeedback(.selection, trigger: selected)
         .sheet(isPresented: $showNew) { CadenceEditorSheet(cadence: nil) }
         .sheet(item: $editing) { CadenceEditorSheet(cadence: $0) }
+    }
+
+    private func deleteSelected() {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            for cadence in cadences where selected.contains(cadence.id) {
+                cadence.delete(in: modelContext)
+            }
+            selected = []
+            isSelecting = false
+        }
+    }
+
+    private func toggleSelection(_ cadence: TrainingCadence) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            if selected.contains(cadence.id) { selected.remove(cadence.id) } else { selected.insert(cadence.id) }
+        }
     }
 
     private var calendarCleanup: some View {
@@ -102,7 +159,15 @@ struct PlannerRoutineView: View {
 
     private func row(_ cadence: TrainingCadence) -> some View {
         HStack(alignment: .top, spacing: 12) {
-            Button { editing = cadence } label: {
+            if isSelecting {
+                Image(systemName: selected.contains(cadence.id) ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundColor(selected.contains(cadence.id) ? Color.latinRed : .white.opacity(0.35))
+                    .contentTransition(.symbolEffect(.replace))
+                    .transition(.scale.combined(with: .opacity))
+                    .accessibilityHidden(true)
+            }
+            Button { isSelecting ? toggleSelection(cadence) : (editing = cadence) } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(PlannerCalendar.weekdayName(iso: cadence.weekday)) · \(PlannerCalendar.timeRange(of: cadence))")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
@@ -121,12 +186,14 @@ struct PlannerRoutineView: View {
             }
             .buttonStyle(.pressable)
 
-            Toggle("", isOn: Binding(
-                get: { cadence.isEnabled },
-                set: { cadence.isEnabled = $0; try? modelContext.save() }
-            ))
-            .labelsHidden()
-            .tint(Color.gold500)
+            if !isSelecting {
+                Toggle("", isOn: Binding(
+                    get: { cadence.isEnabled },
+                    set: { cadence.isEnabled = $0; try? modelContext.save() }
+                ))
+                .labelsHidden()
+                .tint(Color.gold500)
+            }
         }
         .plannerCard()
         .opacity(cadence.isEnabled ? 1 : 0.55)
