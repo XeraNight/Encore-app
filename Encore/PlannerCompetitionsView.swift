@@ -107,8 +107,7 @@ struct PlannerCompetitionsView: View {
                 }
             }
             Button(role: .destructive) {
-                modelContext.delete(comp)
-                try? modelContext.save()
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { comp.delete(in: modelContext) }
             } label: { Label("Zmazať", systemImage: "trash") }
         }
     }
@@ -133,6 +132,8 @@ struct PlannerCompetitionsView: View {
 // MARK: - Editor
 struct CompetitionEditorSheet: View {
     let competition: PlannedCompetition?
+    /// Day to start from when adding (a day tapped in the calendar).
+    var initialDate: Date? = nil
 
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
@@ -140,85 +141,80 @@ struct CompetitionEditorSheet: View {
     @State private var name = ""
     @State private var city = ""
     @State private var date = Date()
+    @State private var discipline = "Štandard"
     @State private var hasDeadline = false
     @State private var deadline = Date()
-    @State private var categories = ""
     @State private var intent: CompetitionIntent = .interested
     @State private var isTarget = false
     @State private var inCalendar = false
-    @State private var confirmDelete = false
+    @State private var saveTick = 0
+
+    private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Súťaž") {
-                    TextField("Názov (napr. Grand Prix Žilina)", text: $name)
-                    TextField("Mesto", text: $city)
-                    DatePicker("Dátum", selection: $date, displayedComponents: .date)
-                    TextField("Kategórie (oddelené čiarkou)", text: $categories)
-                }
+        PlannerEditorScaffold(
+            title: competition == nil ? "Nová súťaž" : "Upraviť súťaž",
+            canSave: !trimmedName.isEmpty,
+            disabledHint: "Doplň názov súťaže.",
+            onSave: save,
+            delete: competition.map { competition in
+                PlannerEditorDelete(
+                    buttonTitle: "Zmazať súťaž",
+                    question: "Zmazať súťaž?",
+                    message: "Zmizne z Plánu aj z Apple Kalendára.",
+                    actions: [.init(title: "Zmazať") { competition.delete(in: modelContext) }]
+                )
+            }
+        ) {
+            PlannerFormSection(title: "SÚŤAŽ", systemImage: "trophy.fill") {
+                PlannerTextField(placeholder: "Názov (napr. Grand Prix Žilina)", text: $name, systemImage: "textformat")
+                PlannerTextField(placeholder: "Mesto", text: $city, systemImage: "mappin.and.ellipse")
+                PlannerDateRow(title: "Dátum", systemImage: "calendar", date: $date)
+                PlannerChoice(options: PlannerDisciplineChoice.competition, selection: $discipline)
+            }
 
-                Section("Prihlášky") {
-                    Toggle("Uzávierka prihlášok", isOn: $hasDeadline)
-                    if hasDeadline {
-                        DatePicker("Uzávierka", selection: $deadline, displayedComponents: .date)
-                    }
-                }
-
-                Section("Môj plán") {
-                    Picker("Idem?", selection: $intent) {
-                        ForEach(CompetitionIntent.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    Toggle("Hlavná súťaž sezóny", isOn: $isTarget)
-                }
-
-                Section {
-                    Toggle("V Apple Kalendári", isOn: $inCalendar)
-                }
-
-                if competition != nil {
-                    Section {
-                        Button("Zmazať súťaž", role: .destructive) { confirmDelete = true }
-                    }
+            PlannerFormSection(title: "PRIHLÁŠKY", systemImage: "envelope.fill") {
+                PlannerToggleRow(
+                    title: "Uzávierka prihlášok",
+                    subtitle: "Pripomenieme ti ju 3 dni a 1 deň vopred.",
+                    systemImage: "clock.badge.exclamationmark",
+                    isOn: $hasDeadline
+                )
+                if hasDeadline {
+                    PlannerDateRow(title: "Uzávierka", systemImage: "calendar.badge.clock", date: $deadline)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(EllegancePageBackground())
-            .navigationTitle(competition == nil ? "Nová súťaž" : "Upraviť súťaž")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Zrušiť") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Uložiť", action: save)
-                        .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+
+            PlannerFormSection(title: "MÔJ PLÁN", systemImage: "flag.fill") {
+                PlannerChoice(
+                    options: CompetitionIntent.allCases.map { ($0, $0.title) },
+                    selection: $intent
+                )
+                PlannerToggleRow(title: "Hlavná súťaž sezóny", systemImage: "star.fill", isOn: $isTarget)
+                PlannerToggleRow(
+                    title: "V Apple Kalendári",
+                    subtitle: "Celodenná udalosť s pripomienkou deň vopred.",
+                    systemImage: "calendar.badge.plus",
+                    isOn: $inCalendar
+                )
             }
-            .confirmationDialog("Zmazať súťaž?", isPresented: $confirmDelete, titleVisibility: .visible) {
-                Button("Zmazať", role: .destructive) {
-                    if let competition {
-                        if let eventId = competition.calendarEventId {
-                            Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }
-                        }
-                        modelContext.delete(competition)
-                    }
-                    try? modelContext.save()
-                    dismiss()
-                }
-            }
-            .onAppear(perform: load)
         }
-        .preferredColorScheme(.dark)
+        .sensoryFeedback(.success, trigger: saveTick)
+        .onAppear(perform: load)
     }
 
     private func load() {
-        guard let competition else { return }
+        guard let competition else {
+            if let initialDate { date = initialDate }
+            return
+        }
         name = competition.name
         city = competition.city
         date = competition.date
+        discipline = PlannerDisciplineChoice.competitionValue(from: competition.targetCategories)
         hasDeadline = competition.entryDeadline != nil
         deadline = competition.entryDeadline ?? competition.date
-        categories = competition.targetCategories.joined(separator: ", ")
         intent = competition.intent
         isTarget = competition.isTargetCompetition
         inCalendar = competition.calendarEventId != nil
@@ -230,20 +226,18 @@ struct CompetitionEditorSheet: View {
         if let competition {
             target = competition
         } else {
-            target = PlannedCompetition(name: name, city: city, date: date)
+            target = PlannedCompetition(name: trimmedName, city: city, date: date)
             modelContext.insert(target)
         }
-        target.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        target.name = trimmedName
         target.city = city.trimmingCharacters(in: .whitespacesAndNewlines)
         target.date = date
         target.entryDeadline = hasDeadline ? deadline : nil
-        target.targetCategories = categories
-            .split(separator: ",")
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
+        target.targetCategories = PlannerDisciplineChoice.competitionCategories(for: discipline)
         target.intent = intent
         target.isTargetCompetition = isTarget
         try? modelContext.save()
+        saveTick += 1
 
         let wantsCalendar = inCalendar
         let oldEventId = target.calendarEventId
@@ -265,5 +259,16 @@ struct CompetitionEditorSheet: View {
             try? modelContext.save()
         }
         dismiss()
+    }
+}
+
+extension PlannedCompetition {
+    /// Deletes the competition here and its event in Apple Calendar.
+    func delete(in context: ModelContext) {
+        if let eventId = calendarEventId {
+            Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }
+        }
+        context.delete(self)
+        try? context.save()
     }
 }

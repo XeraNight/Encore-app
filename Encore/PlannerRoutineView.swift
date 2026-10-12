@@ -143,12 +143,7 @@ struct PlannerRoutineView: View {
                 } label: { Label("Odstrániť z kalendára", systemImage: "calendar.badge.minus") }
             }
             Button(role: .destructive) {
-                let eventId = cadence.calendarEventId
-                modelContext.delete(cadence)
-                try? modelContext.save()
-                if let eventId {
-                    Task { _ = await CalendarExporter.shared.removeTrainings(eventIds: [eventId]) }
-                }
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { cadence.delete(in: modelContext) }
             } label: { Label("Zmazať", systemImage: "trash") }
         }
     }
@@ -166,51 +161,55 @@ struct CadenceEditorSheet: View {
     @State private var startDate = PlannerCalendar.date(on: Date(), minutes: 18 * 60)
     @State private var duration = 90
     @State private var location = ""
-    @State private var category = "Mixed"
-    @State private var addToCalendar = false
+    @State private var category = "Standard"
+    @State private var inCalendar = false
+    @State private var saveTick = 0
 
-    private let durations = [30, 45, 60, 75, 90, 105, 120, 150, 180]
-    private let categories = [("Standard", "Štandard"), ("Latin", "Latina"), ("Mixed", "Mix"), ("Free", "Voľný")]
+    private var weekdays: [(value: Int, title: String)] {
+        let symbols = PlannerCalendar.calendar.shortStandaloneWeekdaySymbols
+        return (1...7).map { iso in
+            let name = symbols[iso % 7]
+            return (iso, name.prefix(1).uppercased() + name.dropFirst())
+        }
+    }
 
     var body: some View {
-        NavigationStack {
-            Form {
-                Section("Tréning") {
-                    TextField("Názov (napr. Vedený tréning Štandard)", text: $title)
-                    TextField("Miesto (napr. Sála 1)", text: $location)
-                    Picker("Typ", selection: $category) {
-                        ForEach(categories, id: \.0) { Text($0.1).tag($0.0) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-
-                Section("Kedy") {
-                    Picker("Deň", selection: $weekday) {
-                        ForEach(1...7, id: \.self) { Text(PlannerCalendar.weekdayName(iso: $0)).tag($0) }
-                    }
-                    DatePicker("Začiatok", selection: $startDate, displayedComponents: .hourAndMinute)
-                    Picker("Dĺžka", selection: $duration) {
-                        ForEach(durations, id: \.self) { Text("\($0) min").tag($0) }
-                    }
-                }
-
-                if cadence?.calendarEventId == nil {
-                    Section {
-                        Toggle("Pridať aj do Apple Kalendára (každý týždeň)", isOn: $addToCalendar)
-                    }
-                }
+        PlannerEditorScaffold(
+            title: cadence == nil ? "Nový tréning" : "Upraviť tréning",
+            canSave: true,
+            onSave: save,
+            delete: cadence.map { cadence in
+                PlannerEditorDelete(
+                    buttonTitle: "Zmazať tréning",
+                    question: "Zmazať týždenný tréning?",
+                    message: "Zmizne z Plánu a všetky budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.",
+                    actions: [.init(title: "Zmazať všetky budúce") { cadence.delete(in: modelContext) }]
+                )
             }
-            .scrollContentBackground(.hidden)
-            .background(EllegancePageBackground())
-            .navigationTitle(cadence == nil ? "Nový tréning" : "Upraviť tréning")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Zrušiť") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Uložiť", action: save) }
+        ) {
+            PlannerFormSection(title: "TRÉNING", systemImage: "figure.dance") {
+                PlannerTextField(placeholder: "Názov (napr. Vedený tréning)", text: $title, systemImage: "textformat")
+                PlannerTextField(placeholder: "Miesto (napr. Sála 1)", text: $location, systemImage: "mappin.and.ellipse")
+                PlannerChoice(options: PlannerDisciplineChoice.training, selection: $category)
             }
-            .onAppear(perform: load)
+
+            PlannerFormSection(title: "KAŽDÝ TÝŽDEŇ", systemImage: "repeat") {
+                PlannerChoice(options: weekdays, selection: $weekday)
+                PlannerDateRow(title: "Začiatok", systemImage: "clock", date: $startDate, components: .hourAndMinute)
+                PlannerDurationStepper(minutes: $duration)
+            }
+
+            PlannerFormSection(title: "PRIPOMIENKY", systemImage: "bell.fill") {
+                PlannerToggleRow(
+                    title: "V Apple Kalendári",
+                    subtitle: "Opakovaná udalosť každý týždeň s pripomienkou 30 minút vopred.",
+                    systemImage: "calendar.badge.plus",
+                    isOn: $inCalendar
+                )
+            }
         }
-        .preferredColorScheme(.dark)
+        .sensoryFeedback(.success, trigger: saveTick)
+        .onAppear(perform: load)
     }
 
     private func load() {
@@ -221,11 +220,13 @@ struct CadenceEditorSheet: View {
         duration = cadence.durationMinutes
         location = cadence.location
         category = cadence.danceCategory
+        inCalendar = cadence.calendarEventId != nil
     }
 
     private func save() {
         let comps = PlannerCalendar.calendar.dateComponents([.hour, .minute], from: startDate)
         let minutes = (comps.hour ?? 18) * 60 + (comps.minute ?? 0)
+        let eventBefore = cadence.map { [$0.title, $0.location, "\($0.weekday)", "\($0.startMinutes)", "\($0.durationMinutes)"] }
 
         let target: TrainingCadence
         if let cadence {
@@ -241,18 +242,37 @@ struct CadenceEditorSheet: View {
         target.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
         target.danceCategory = category
         try? modelContext.save()
+        saveTick += 1
 
-        let wantsCalendar = addToCalendar
+        let wantsCalendar = inCalendar
+        let oldEventId = target.calendarEventId
+        let eventChanged = eventBefore != [target.title, target.location, "\(target.weekday)", "\(target.startMinutes)", "\(target.durationMinutes)"]
         Task {
             // Ask for notification permission in context, the first time a session exists.
             if !NotificationManager.shared.isAuthorized {
                 _ = await NotificationManager.shared.requestAuthorization()
             }
+            if let oldEventId {
+                guard !wantsCalendar || eventChanged else { return }
+                guard case .removed = await CalendarExporter.shared.removeTrainings(eventIds: [oldEventId]) else { return }
+                target.calendarEventId = nil
+            }
             if wantsCalendar, let id = await CalendarExporter.shared.export(cadence: target) {
                 target.calendarEventId = id
-                try? modelContext.save()
             }
+            try? modelContext.save()
         }
         dismiss()
+    }
+}
+
+extension TrainingCadence {
+    /// Deletes the weekly training here and its future occurrences in Apple Calendar.
+    func delete(in context: ModelContext) {
+        if let eventId = calendarEventId {
+            Task { _ = await CalendarExporter.shared.removeTrainings(eventIds: [eventId]) }
+        }
+        context.delete(self)
+        try? context.save()
     }
 }
