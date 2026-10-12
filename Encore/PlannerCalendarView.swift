@@ -305,6 +305,9 @@ struct PlannerCalendarView: View {
         }
         .sensoryFeedback(.selection, trigger: changeTick)
         .task { if results.results.isEmpty { await results.loadAllData() } }
+        .onChange(of: results.results.map(\.id), initial: true) { _, _ in
+            PlannedCompetition.linkDanced(competitions, to: results.results, context: modelContext)
+        }
         .sheet(item: $adding) { item in
             switch item.kind {
             case .solo: SessionEditorSheet(session: nil, initialDate: item.day, initialKind: .solo)
@@ -421,12 +424,16 @@ struct PlannerCalendarView: View {
                         .foregroundColor(.white.opacity(0.6))
                 }
                 Spacer(minLength: 8)
-                Text(competition.intent.title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(competition.intent == .going ? Color.obsidian900 : Color.gold300)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(competition.intent == .going ? Color.gold400 : Color.gold500.opacity(0.14), in: Capsule())
+                if let place = competition.dancedPlaceLine(in: results.results) {
+                    DancedPlaceChip(place: place)
+                } else {
+                    Text(competition.intent.title)
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(competition.intent == .going ? Color.obsidian900 : Color.gold300)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(competition.intent == .going ? Color.gold400 : Color.gold500.opacity(0.14), in: Capsule())
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)

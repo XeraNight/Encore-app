@@ -6,6 +6,7 @@ struct PlannerCompetitionsView: View {
     let competitions: [PlannedCompetition]
 
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var ksis = CompetitionManager.shared
     @State private var editing: PlannedCompetition?
     @State private var showNew = false
 
@@ -70,12 +71,16 @@ struct PlannerCompetitionsView: View {
                             .foregroundColor(Color.gold300)
                     }
                     Spacer()
-                    Text(comp.intent.title)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(chipText(comp.intent))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(chipFill(comp.intent), in: Capsule())
+                    if let place = comp.dancedPlaceLine(in: ksis.results) {
+                        DancedPlaceChip(place: place)
+                    } else {
+                        Text(comp.intent.title)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(chipText(comp.intent))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(chipFill(comp.intent), in: Capsule())
+                    }
                 }
                 Text(comp.name)
                     .font(.system(size: 16, weight: .bold))
@@ -262,7 +267,48 @@ struct CompetitionEditorSheet: View {
     }
 }
 
+/// "🏆 3. z 12" on a planned competition that was danced and saved from KSIS.
+struct DancedPlaceChip: View {
+    let place: String
+
+    var body: some View {
+        Label(place, systemImage: "trophy.fill")
+            .font(.caption2.weight(.bold))
+            .foregroundColor(Color.obsidian900)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.gold400, in: Capsule())
+            .transition(.scale.combined(with: .opacity))
+    }
+}
+
 extension PlannedCompetition {
+    /// KSIS results danced on the day of this competition. The name is not compared: what the dancer typed
+    /// rarely matches the KSIS title.
+    func dancedResults(in results: [CompetitionResult]) -> [CompetitionResult] {
+        results.filter { result in
+            guard let date = result.dateValue else { return false }
+            return PlannerCalendar.calendar.isDate(date, inSameDayAs: self.date)
+        }
+    }
+
+    /// The best place of the day ("3. z 12"), shown instead of Idem once the competition is danced.
+    func dancedPlaceLine(in results: [CompetitionResult]) -> String? {
+        dancedResults(in: results).min { ($0.placement ?? Int.max) < ($1.placement ?? Int.max) }?.placeLine
+    }
+
+    /// Links past competitions to the KSIS competition saved for the same day (`ksisCompetitionId`).
+    static func linkDanced(_ competitions: [PlannedCompetition], to results: [CompetitionResult], context: ModelContext) {
+        let today = PlannerCalendar.startOfDay(Date())
+        var changed = false
+        for competition in competitions where competition.ksisCompetitionId == nil && competition.date < today {
+            guard let result = competition.dancedResults(in: results).first else { continue }
+            competition.ksisCompetitionId = String(result.sutazId)
+            changed = true
+        }
+        if changed { try? context.save() }
+    }
+
     /// Deletes the competition here and its event in Apple Calendar.
     func delete(in context: ModelContext) {
         if let eventId = calendarEventId {
