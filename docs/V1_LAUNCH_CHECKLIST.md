@@ -72,7 +72,7 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 | C14 | ✅ 9. 10.: všetkých 25 volaní nahradených `Logger`. Pôvodne `print()` v 15 súboroch | Pravidlo projektu (Logger), nie riziko zamietnutia | Nahradiť `Logger`. |
 | C15 | Minimálna verzia iOS je **26.4** | Ľudia s iOS 26.0 až 26.3 appku nestiahnu | Rozhodni: 26.0 (viac ľudí, treba otestovať) alebo nechať 26.4. |
 | C16 | ✅ 8. 10. opravené. Majiteľská konzola mala ako ukážku tvoj **osobný e-mail** | Únik osobného údaja v binárke | Nahradiť „meno@domena.sk“. |
-| C17 | ✅ 13. 10.: jeden e-mail podpory `encore.support.sk@gmail.com` v `AppContact.swift`, v zásadách (PRIVACY_POLICY.html) a na webe (privacy, terms, support, delete-account). Pôvodne **štyri rôzne kontaktné e-maily** | Nefunkčný kontakt = problém pri GDPR aj review | Zmena len v `AppContact.swift` a na webe. |
+| C17 | ✅ 13. 10.: jeden e-mail podpory `support@encore-sk.com` (doména encore-sk.com, preposielanie cez Cloudflare Email Routing) v `AppContact.swift`, v zásadách (PRIVACY_POLICY.html) a na webe (privacy, terms, support, delete-account). Pôvodne **štyri rôzne kontaktné e-maily** | Nefunkčný kontakt = problém pri GDPR aj review | Zmena len v `AppContact.swift` a na webe. |
 | C18 | ✅ 8. 10.: v zásadách je meno Jakub Kalina a kontakt. Pôvodne „Prevádzkovateľom je autor aplikácie“ | GDPR čl. 13 vyžaduje **meno a kontakt** prevádzkovateľa | Doplniť meno, kontakt (a adresu alebo P.O. Box ako v DSA). |
 | C19 | Vekové obmedzenie nie je nikde v appke ani v podmienkach | GDPR (vek digitálneho súhlasu na Slovensku je 16), plánovaný slovenský zákon o sociálnych sieťach | Rozhodni: **16+** (odporúčam), alebo 13+ so súhlasom rodiča. Potom potvrdenie pri registrácii + text v podmienkach. |
 | C20 | ✅ Overené 9. 10.: pri registrácii je veta „Pokračovaním súhlasíš s Podmienkami… a Zásadami…“ s funkčnými odkazmi a potvrdenie veku (16+ alebo súhlas rodiča). Pôvodný záznam: chýba výslovný súhlas s Podmienkami a Zásadami | Dôkaz súhlasu pri predplatnom a UGC | Riadok „Registráciou súhlasíš s…“ (odkazy už sú) alebo zaškrtávacie pole. |
@@ -163,7 +163,7 @@ jeden reálny iPhone s iOS z C15. Interní testeri hneď; externí testeri potre
 - Peňaženka: dorobí sa po kúpe Developer účtu.
 - Obrázky: nájdeš voľne použiteľné (Unsplash, Pexels; licencia dovoľuje komerčné použitie). Pre každý
   si zapíš odkaz, licenciu a dátum, bez rozpoznateľných ľudí a značiek.
-- E-mail podpory: encore.support.sk@gmail.com (od 13. 10. 2026, appka, zásady a web). Prihlasovací účet majiteľa ostáva jakubkalina05@gmail.com.
+- E-mail podpory: support@encore-sk.com (od 13. 10. 2026, appka, zásady a web). Cloudflare Email Routing ho preposiela do encore.support.sk@gmail.com. Prihlasovací účet majiteľa ostáva jakubkalina05@gmail.com.
 - iOS 26.0: zmeníš v Xcode (target Encore → General → Minimum Deployments → 26.0), potom opravím, čo
   by vyžadovalo novší iOS. Liquid Glass je dostupný od 26.0.
 - Vek: konzultujeme (pozri C19 a návrh nižšie).

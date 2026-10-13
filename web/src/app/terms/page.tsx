@@ -150,8 +150,8 @@ export default function TermsPage() {
             <h2 className="text-lg font-semibold text-white">6. Kontaktné údaje a právna podpora</h2>
             <p>
               V prípade akýchkoľvek právnych otázok alebo nahlásenia porušenia podmienok nás kontaktujte na:{' '}
-              <a href="mailto:encore.support.sk@gmail.com" className="text-[#D4AF37] underline hover:opacity-80">
-                encore.support.sk@gmail.com
+              <a href="mailto:support@encore-sk.com" className="text-[#D4AF37] underline hover:opacity-80">
+                support@encore-sk.com
               </a>{' '}
               alebo navštívte našu stránku{' '}
               <Link href="/support" className="text-[#D4AF37] underline hover:opacity-80">

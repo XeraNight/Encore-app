@@ -73,10 +73,10 @@ export default function SupportPage() {
                 <p className="text-xs text-zinc-400 mt-1">Odpovedáme spravidla do 24 až 48 hodín.</p>
               </div>
               <a
-                href="mailto:encore.support.sk@gmail.com"
+                href="mailto:support@encore-sk.com"
                 className="text-xs font-bold text-[#FFE088] hover:underline mt-4 inline-block"
               >
-                encore.support.sk@gmail.com →
+                support@encore-sk.com →
               </a>
             </div>
 
