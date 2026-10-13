@@ -90,7 +90,7 @@ struct FriendInviteModalSheet: View {
                             .padding(.top, 2)
                         }
                         
-                        Text("Tento tanečník ťa pozýva na prepojenie profilov v Encore. Po prijatí môžete zdieľať choreografie, figúry a synchronizovať tréningy.")
+                        Text("Tento tanečník ťa pozýva na prepojenie profilov v Encore. Keď tvoju žiadosť potvrdí, môžete zdieľať choreografie, figúry a synchronizovať tréningy.")
                             .font(.system(size: 13))
                             .multilineTextAlignment(.center)
                             .foregroundColor(Color.textSecondary)
@@ -105,7 +105,10 @@ struct FriendInviteModalSheet: View {
                     VStack(spacing: 12) {
                         Button {
                             Task {
-                                _ = await friendManager.respondToIncomingInvite(accept: true)
+                                if await friendManager.respondToIncomingInvite(accept: true) {
+                                    friendManager.showInviteSheet = false
+                                    friendManager.incomingInvite = nil
+                                }
                             }
                         } label: {
                             HStack(spacing: 8) {
@@ -114,7 +117,7 @@ struct FriendInviteModalSheet: View {
                                 } else {
                                     Image(systemName: "person.crop.circle.badge.checkmark")
                                         .font(.system(size: 16, weight: .bold))
-                                    Text("Prijať pozvánku")
+                                    Text("Poslať žiadosť")
                                         .font(.system(size: 15, weight: .bold, design: .rounded))
                                 }
                             }

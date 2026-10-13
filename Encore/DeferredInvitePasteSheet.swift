@@ -80,7 +80,7 @@ struct DeferredInvitePasteSheet: View {
                 
                 // Manual Invite Code Entry
                 HStack(spacing: 10) {
-                    TextField("8-miestny kód (napr. 4K9Z2X7M)", text: $manualCode)
+                    TextField("Kód tanečníka (napr. DNC-4821)", text: $manualCode)
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .font(.system(size: 14, weight: .bold, design: .monospaced))

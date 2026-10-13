@@ -251,7 +251,8 @@ public final class ConnectionManager: ObservableObject {
         }
         
         let results = await searchDancers(query: clean)
-        guard let target = results.first(where: { $0.dancerCode.uppercased() == clean }) ?? results.first else {
+        // Only an exact code: a partial match must never send a request to someone else.
+        guard let target = results.first(where: { $0.dancerCode.uppercased() == clean }) else {
             throw NSError(domain: "Encore", code: 404, userInfo: [NSLocalizedDescriptionKey: "Tanečník s kódom \(clean) sa nenašiel."])
         }
         

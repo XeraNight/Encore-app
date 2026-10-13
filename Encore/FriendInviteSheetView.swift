@@ -73,26 +73,30 @@ struct FriendInviteSheetView: View {
                     
                     // Action Buttons
                     VStack(spacing: 12) {
+                        if let error = friendManager.inviteErrorMessage {
+                            Text(error)
+                                .font(.footnote.weight(.medium))
+                                .foregroundColor(Color.latinRed)
+                                .multilineTextAlignment(.center)
+                                .transition(.opacity)
+                        }
+
                         Button {
-                            withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) {
-                                _ = friendManager.addFriend(from: invite)
-                                isAccepted = true
-                            }
-                            
-                            // Synchronizácia s novým ConnectionManager pre zdieľanie zostáv
                             Task {
-                                if let targetUUID = UUID(uuidString: invite.userId) {
-                                    try? await ConnectionManager.shared.sendRequest(targetUserId: targetUUID, type: .partner)
-                                } else if invite.userId.starts(with: "DNC-") {
-                                    try? await ConnectionManager.shared.sendRequestByDancerCode(code: invite.userId, type: .partner)
+                                if await friendManager.respondToIncomingInvite(accept: true) {
+                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { isAccepted = true }
                                 }
                             }
                         } label: {
                             HStack(spacing: 8) {
-                                Image(systemName: "person.badge.plus.fill")
-                                    .font(.system(size: 16, weight: .bold))
-                                Text("Prijať priateľstvo")
-                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                if friendManager.isProcessingInvite {
+                                    ProgressView().tint(.black)
+                                } else {
+                                    Image(systemName: "person.badge.plus.fill")
+                                        .font(.system(size: 16, weight: .bold))
+                                    Text("Poslať žiadosť o prepojenie")
+                                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                                }
                             }
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
@@ -137,11 +141,11 @@ struct FriendInviteSheetView: View {
                         }
                         
                         VStack(spacing: 8) {
-                            Text("Priateľstvo pridané!")
+                            Text("Žiadosť odoslaná")
                                 .font(.system(size: 24, weight: .black, design: .rounded))
                                 .foregroundColor(.white)
                             
-                            Text("Teraz môžete s tanečníkom \(invite.name) navzájom zdieľať zostavy a tréningové postrehy.")
+                            Text("Keď ju \(invite.name) potvrdí v Priateľoch, budete môcť navzájom zdieľať zostavy a tréningové postrehy.")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color.gold300.opacity(0.75))
                                 .multilineTextAlignment(.center)
