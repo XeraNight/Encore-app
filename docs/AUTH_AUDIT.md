@@ -99,7 +99,7 @@ už nič nerozbije. Kód vložený z Mailu sa odošle sám, ručne písaný sa p
 | Rate limit e-mailov (po SMTP je 30/h) → pred spustením zvýšiť na ~100/h | 🧭 |
 | Leaked password protection | ⚠️ len plán Pro (zapneme s Pro pred review) |
 | CAPTCHA (Turnstile) | ⚠️ pred verejným spustením |
-| DMARC záznam `_dmarc` (bol omylom `-dmarc`) | 🧭 over |
+| DMARC záznam `_dmarc` | ✅ (14. 10. overené) |
 | Google OAuth „In production“ | 🧭 A10 |
 
 ## Vzhľad podľa §1A (nesedí)
