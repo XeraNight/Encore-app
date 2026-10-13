@@ -67,7 +67,7 @@ export default function PrivacyPolicyPage() {
               Prevádzkovateľom mobilnej aplikácie <strong>Encore</strong> a pridruženej webovej platformy je Jakub Kalina (ďalej len „<strong>prevádzkovateľ</strong>“). Vaše súkromie rešpektujeme a chránime v súlade s Nariadením Európskeho parlamentu a Rady (EÚ) 2016/679 (GDPR) a zákonom č. 18/2018 Z. z. o ochrane osobných údajov.
             </p>
             <p>
-              Kontaktný e-mail pre uplatnenie práv dotknutých osôb: <a href="mailto:jakub.encoreapp@gmail.com" className="text-[#D4AF37] underline hover:opacity-80">jakub.encoreapp@gmail.com</a>.
+              Kontaktný e-mail pre uplatnenie práv dotknutých osôb: <a href="mailto:encore.support.sk@gmail.com" className="text-[#D4AF37] underline hover:opacity-80">encore.support.sk@gmail.com</a>.
             </p>
           </section>
 
@@ -137,8 +137,8 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-white">6. Kontakt pre otázky ochrany osobných údajov</h2>
             <p>
               V prípade akýchkoľvek otázok ohľadom Vašich údajov nás kontaktujte na:{' '}
-              <a href="mailto:jakub.encoreapp@gmail.com" className="text-[#D4AF37] underline hover:opacity-80">
-                jakub.encoreapp@gmail.com
+              <a href="mailto:encore.support.sk@gmail.com" className="text-[#D4AF37] underline hover:opacity-80">
+                encore.support.sk@gmail.com
               </a>{' '}
               alebo navštívte našu stránku{' '}
               <Link href="/support" className="text-[#D4AF37] underline hover:opacity-80">

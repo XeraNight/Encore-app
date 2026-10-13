@@ -121,10 +121,10 @@ export default function DeleteAccountPage() {
               </p>
               <div className="p-4 rounded-xl bg-black/40 border border-[#D4AF37]/30 text-center">
                 <a
-                  href="mailto:jakub.encoreapp@gmail.com?subject=Ziadost%20o%20zmazanie%20uctu%20Encore"
+                  href="mailto:encore.support.sk@gmail.com?subject=Ziadost%20o%20zmazanie%20uctu%20Encore"
                   className="text-base sm:text-lg font-mono font-bold text-[#FFE088] hover:underline"
                 >
-                  jakub.encoreapp@gmail.com
+                  encore.support.sk@gmail.com
                 </a>
                 <p className="text-xs text-zinc-500 mt-1">
                   Predmet: Žiadosť o zmazanie účtu Encore
