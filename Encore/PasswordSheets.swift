@@ -168,25 +168,28 @@ struct PasswordStrengthBar: View {
     }
 }
 
-// MARK: - 6-digit code field
+// MARK: - Code field (6–10 digits, see EmailCodePolicy)
+/// The code length is a server setting, so typing never submits by itself. A code pasted or filled in
+/// from Mail (arriving at once) is submitted right away.
 private struct CodeField: View {
     @Binding var code: String
     var focus: FocusState<AuthField?>.Binding
     var onComplete: () -> Void
 
     var body: some View {
-        TextField("", text: $code, prompt: Text("000000").foregroundColor(Color.gold300.opacity(0.3)))
+        TextField("", text: $code, prompt: Text("Kód z e-mailu").foregroundColor(Color.gold300.opacity(0.5)))
             .keyboardType(.numberPad)
             .textContentType(.oneTimeCode)
             .multilineTextAlignment(.center)
-            .font(.system(size: 30, weight: .bold, design: .monospaced))
-            .tracking(8)
+            .font(.system(size: 26, weight: .bold, design: .monospaced))
+            .tracking(code.isEmpty ? 0 : 4)
             .focused(focus, equals: .code)
             .authFieldChrome()
-            .onChange(of: code) { _, newValue in
-                let digits = String(newValue.filter { $0.isASCII && $0.isNumber }.prefix(6))
+            .onChange(of: code) { oldValue, newValue in
+                let digits = String(newValue.filter { $0.isASCII && $0.isNumber }.prefix(EmailCodePolicy.allowedLengths.upperBound))
                 if digits != newValue { code = digits }
-                if digits.count == 6 { onComplete() }
+                let arrivedAtOnce = digits.count - oldValue.count > 1
+                if arrivedAtOnce && EmailCodePolicy.isComplete(digits) { onComplete() }
             }
     }
 }
@@ -206,7 +209,7 @@ private struct ResendButton: View {
     }
 }
 
-// MARK: - Confirm e-mail after sign-up (6-digit code)
+// MARK: - Confirm e-mail after sign-up (code from the e-mail)
 struct EmailCodeSheet: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var authManager = AuthManager.shared
@@ -237,7 +240,7 @@ struct EmailCodeSheet: View {
                         .font(.system(size: 26, weight: .black, design: .rounded))
                         .foregroundColor(.gold400)
 
-                    Text("Poslali sme 6-miestny kód na \(email). Zadaj ho sem. Skontroluj aj spam.")
+                    Text("Poslali sme kód na \(email). Zadaj ho sem. Skontroluj aj spam.")
                         .font(.system(size: 13))
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -247,7 +250,7 @@ struct EmailCodeSheet: View {
                     if let errorText { SheetBanner(text: errorText, isError: true) }
                     if let infoText { SheetBanner(text: infoText, isError: false) }
 
-                    PrimarySheetButton(title: "Potvrdiť", isLoading: isVerifying, isEnabled: code.count == 6, action: verify)
+                    PrimarySheetButton(title: "Potvrdiť", isLoading: isVerifying, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
 
                     HStack {
                         ResendButton(cooldown: cooldown, action: resend)
@@ -287,7 +290,7 @@ struct EmailCodeSheet: View {
     }
 
     private func verify() {
-        guard code.count == 6, !isVerifying else { return }
+        guard EmailCodePolicy.isComplete(code), !isVerifying else { return }
         errorText = nil
         infoText = nil
         isVerifying = true
@@ -318,7 +321,7 @@ struct EmailCodeSheet: View {
     }
 }
 
-// MARK: - Forgot Password (from the login screen): e-mail, then 6-digit code
+// MARK: - Forgot Password (from the login screen): e-mail, then the code from the e-mail
 struct ForgotPasswordSheet: View {
     var prefillEmail: String = ""
 
@@ -357,7 +360,7 @@ struct ForgotPasswordSheet: View {
 
                     switch step {
                     case .email:
-                        Text("Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti 6-miestny kód. Funguje na ktoromkoľvek zariadení.")
+                        Text("Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti kód. Funguje na ktoromkoľvek zariadení.")
                             .font(.system(size: 13))
                             .foregroundColor(.white.opacity(0.65))
                             .fixedSize(horizontal: false, vertical: true)
@@ -387,7 +390,7 @@ struct ForgotPasswordSheet: View {
                         if let errorText { SheetBanner(text: errorText, isError: true) }
                         if let infoText { SheetBanner(text: infoText, isError: false) }
 
-                        PrimarySheetButton(title: "Overiť kód", isLoading: isBusy, isEnabled: code.count == 6, action: verify)
+                        PrimarySheetButton(title: "Overiť kód", isLoading: isBusy, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
 
                         HStack {
                             ResendButton(cooldown: cooldown, action: sendCode)
@@ -451,7 +454,7 @@ struct ForgotPasswordSheet: View {
     }
 
     private func verify() {
-        guard code.count == 6, !isBusy else { return }
+        guard EmailCodePolicy.isComplete(code), !isBusy else { return }
         errorText = nil
         infoText = nil
         isBusy = true

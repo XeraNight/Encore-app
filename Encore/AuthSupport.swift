@@ -53,6 +53,15 @@ enum PasswordPolicy {
     }
 }
 
+// MARK: - E-mail codes
+/// Supabase sends 6–10 digit codes; the length is a project setting (Authentication → Email → OTP length,
+/// 8 on this project). The app accepts any length the server may use, so changing it never breaks sign-in.
+enum EmailCodePolicy {
+    static let allowedLengths = 6...10
+
+    static func isComplete(_ code: String) -> Bool { allowedLengths.contains(code.count) }
+}
+
 // MARK: - E-mail and name checks
 enum EmailValidator {
     private static let pattern = #"^[^\s@]+@[^\s@]+\.[^\s@]{2,}$"#

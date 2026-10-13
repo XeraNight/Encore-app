@@ -356,7 +356,7 @@ final class AuthManager: ObservableObject {
                 persistLogin(email: cleanEmail, provider: "email")
                 return true
             } else {
-                // The server wants the e-mail confirmed: the login screen asks for the 6-digit code.
+                // The server wants the e-mail confirmed: the login screen asks for the code from the e-mail.
                 persistLogin(email: cleanEmail, provider: "email")
                 pendingConfirmationEmail = cleanEmail
                 return false
@@ -367,14 +367,14 @@ final class AuthManager: ObservableObject {
         }
     }
 
-    // MARK: - E-mail confirmation (6-digit code)
+    // MARK: - E-mail confirmation (code from the e-mail)
     /// Confirms the e-mail with the code from the message and signs the user in.
     /// Returns an error message, or nil on success.
     func verifySignupCode(_ rawCode: String) async -> String? {
         guard let client else { return Self.missingConfigMessage }
         guard let email = pendingConfirmationEmail else { return "Najprv sa zaregistruj alebo prihlás." }
         let code = Self.digits(rawCode)
-        guard code.count == 6 else { return "Zadaj 6-miestny kód z e-mailu." }
+        guard EmailCodePolicy.isComplete(code) else { return "Zadaj celý kód z e-mailu." }
         do {
             let response = try await client.auth.verifyOTP(email: email, token: code, type: .signup)
             guard let session = response.session else { return "Kód sa nepodarilo overiť. Skús to znova." }
@@ -407,7 +407,7 @@ final class AuthManager: ObservableObject {
     }
 
     // MARK: - Password Reset (forgot password)
-    /// Sends a recovery e-mail (with a 6-digit code). Returns an error message, or nil on success.
+    /// Sends a recovery e-mail (with a code). Returns an error message, or nil on success.
     /// Supabase answers identically for unknown addresses (no account enumeration).
     func sendPasswordReset(email: String) async -> String? {
         guard let client else { return Self.missingConfigMessage }
@@ -430,7 +430,7 @@ final class AuthManager: ObservableObject {
         guard let client else { return Self.missingConfigMessage }
         let clean = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = Self.digits(rawCode)
-        guard code.count == 6 else { return "Zadaj 6-miestny kód z e-mailu." }
+        guard EmailCodePolicy.isComplete(code) else { return "Zadaj celý kód z e-mailu." }
         do {
             let response = try await client.auth.verifyOTP(email: clean, token: code, type: .recovery)
             guard let session = response.session else { return "Kód sa nepodarilo overiť. Skús to znova." }

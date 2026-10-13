@@ -92,3 +92,19 @@ struct AuthErrorMapperTests {
         #expect(text.hasPrefix("Prihlásenie zlyhalo"))
     }
 }
+
+struct EmailCodePolicyTests {
+
+    /// The project sends 8-digit codes; a 6-digit-only check rejected every real code (13. 10. 2026).
+    @Test func acceptsEveryLengthSupabaseCanSend() {
+        #expect(EmailCodePolicy.isComplete("317779"))
+        #expect(EmailCodePolicy.isComplete("31777923"))
+        #expect(EmailCodePolicy.isComplete("3177792312"))
+    }
+
+    @Test func rejectsTooShortOrTooLong() {
+        #expect(!EmailCodePolicy.isComplete("31777"))
+        #expect(!EmailCodePolicy.isComplete("31777923123"))
+        #expect(!EmailCodePolicy.isComplete(""))
+    }
+}
