@@ -824,6 +824,13 @@ final class AuthManager: ObservableObject {
     /// (which can carry a `code` query item too) are routed elsewhere by the app.
     func handleDeepLink(_ url: URL) async {
         guard url.scheme == "encore", url.host == "auth-callback" else { return }
+        // The app uses PKCE: a real callback carries a one-time `code` that only works with the verifier
+        // stored on this device. A link carrying ready tokens could sign this device into someone else's account.
+        let carriesTokens = [url.fragment ?? "", url.query ?? ""].contains { $0.contains("access_token") || $0.contains("refresh_token") }
+        guard !carriesTokens else {
+            Logger.auth.warning("[AuthManager] Ignored an auth callback that carried tokens")
+            return
+        }
         guard let client else { return }
         do {
             let session = try await client.auth.session(from: url)
