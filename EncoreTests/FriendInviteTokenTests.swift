@@ -49,13 +49,16 @@ struct FriendInviteTokenTests {
         #expect(isSelfInvite == true)
     }
 
-    @Test func testDuplicateConnectionPrevention() {
-        let existingFriends = [
-            DancerFriend(userId: "user-999", name: "Partner", club: "Club A")
-        ]
-        
-        let incomingPayload = FriendInvitePayload(userId: "user-999", name: "Partner Updated", club: "Club A")
-        let alreadyFriends = existingFriends.contains(where: { $0.userId == incomingPayload.userId })
-        #expect(alreadyFriends == true)
+    /// Audit E2: a link must never set the name shown in the invite.
+    @MainActor @Test func testLinksWithNameInURLAreRejected() {
+        let manager = FriendManager.shared
+        #expect(manager.handleIncomingURL(URL(string: "encore://add?id=1b2c&name=Tr%C3%A9ner&club=TK")!) == false)
+        #expect(manager.handleIncomingURL(URL(string: "https://encore-app.vercel.app/u/1b2c?name=Tr%C3%A9ner")!) == false)
+        #expect(manager.incomingInvite == nil)
+    }
+
+    @MainActor @Test func testOnlyDancerCodesAreAcceptedAsCodes() {
+        #expect(FriendManager.shared.processInviteCode("4K9Z2X7M") == false)
+        #expect(FriendManager.shared.handleIncomingURL(URL(string: "https://example.com/add?t=tok_abc")!) == false)
     }
 }
