@@ -40,7 +40,7 @@
           ],
           "displayPrice" : "5.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "6478901234",
           "introductoryOffer" : null,
           "localizations" : [
@@ -68,7 +68,7 @@
           ],
           "displayPrice" : "49.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "6478901235",
           "introductoryOffer" : null,
           "localizations" : [
@@ -96,7 +96,7 @@
           ],
           "displayPrice" : "14.99",
           "familyShareable" : false,
-          "groupNumber" : 2,
+          "groupNumber" : 1,
           "internalID" : "6478901236",
           "introductoryOffer" : null,
           "localizations" : [
@@ -124,7 +124,7 @@
           ],
           "displayPrice" : "129.99",
           "familyShareable" : false,
-          "groupNumber" : 2,
+          "groupNumber" : 1,
           "internalID" : "6478901237",
           "introductoryOffer" : null,
           "localizations" : [
