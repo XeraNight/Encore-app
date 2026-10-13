@@ -1,89 +1,112 @@
-# Encore: audit registrácie, prihlásenia a účtu (iOS + Supabase)
+# Encore: audit prihlásenia, registrácie a účtu
 
-> Dátum auditu: 5. 10. 2026. Rozsah: `AuthManager`, `AuthSheetView`, `PasswordSheets`, `EncoreApp` (deep linky), `SubscriptionManager` (ban), `UserProfileStore`, `KeychainHelper`, edge funkcia `send-email`, produkčná databáza Supabase (projekt `iukblwlttvrcdclmlyxu`: tabuľky, RLS, triggery, funkcie, FK, advisory).
-> Čo nebolo možné overiť: nastavenia v Supabase Dashboarde (Authentication → Providers, SMTP, rate limity, potvrdzovanie e-mailov, CAPTCHA, Site URL). Tie cez nástroje nevidím, treba ich skontrolovať ručne (sekcia „Dashboard kontrola“).
-> Zoznam všetkých situácií je v `MOZNE_CHYBY.md` (kategória VII).
+> Dátum: 14. 10. 2026 (nahrádza audit z 5. 10.). Rozsah: `AuthManager`, `AuthSheetView`, `PasswordSheets`,
+> `AuthSupport`, deep linky, e-mailové šablóny, živý Supabase projekt (triggery, funkcie, advisory, logy),
+> doména `encore-sk.com` (Resend, Cloudflare Email Routing).
+> Spôsob: čítanie kódu a servera + skutočný e-mail na obnovu hesla od Jakuba. Prihlásenie heslom a registráciu
+> nového účtu som sám nespúšťal (produkčný server).
 
-## Stav po opravách (6. 10. 2026)
+**Legenda:** ✅ funguje · 🛠 opravené v tomto audite · ⚠️ funguje, ale treba doladiť · ❌ nefunguje · 🔍 overiť na iPhone · 🧭 nastavenie v Dashboarde
 
-| Vrstva | Stav |
-|---|---|
-| Kód v appke | Hotový, build prechádza, 11 jednotkových testov prešlo (`EncoreTests`: pravidlá hesla, kontrola e-mailu, preklad chýb). |
-| SQL migrácia `20261006_auth_account_lifecycle.sql` | Napísaná, **nespustená** (živú databázu som nemohol overiť, pripojenie cez nástroj vypadlo). |
-| `20261006_enable_email_confirmation.sql` | Napísaná, **nespúšťať**, kým nie je hotový Dashboard a SMTP. |
-| Edge funkcie `delete-account`, `send-email` | Napísané a typovo skontrolované (`deno check`), **nenasadené**. |
-| Dashboard (potvrdenie e-mailu, SMTP, šablóny, heslo 8+, OTP 10 min, Site URL) | **Nie je urobené**, robí ho majiteľ projektu. |
-| Overené v simulátore | Nové prihlasovacie obrazovky, kód z e-mailu, zmazanie účtu a ban **neboli otestované naživo**. |
+## Skóre: 7 / 10 (5. 10. bolo 3 / 10)
 
-Skóre: **živý systém teraz ~4/10** (appka lepšia, server rovnaký), **po nasadení všetkého ~8/10**. Do 10/10 chýba: Apple Developer účet (Sign in with Apple, odvolanie Apple tokenu pri zmazaní), CAPTCHA, plán Pro (kontrola uniknutých hesiel), vlastný SMTP s overenou doménou, 2FA alebo passkeys, test na reálnom iPhone podľa celej matice v `MOZNE_CHYBY.md`.
-
-Poradie nasadenia: 1) `20261005_hardening_function_grants.sql`, 2) `20261006_auth_account_lifecycle.sql`, 3) nasadiť `delete-account`, 4) Dashboard (SMTP, šablóny s `{{ .Token }}`, Confirm email ON, heslo 8+), 5) až potom `20261006_enable_email_confirmation.sql`, 6) otestovať maticu.
-
-## Celkové skóre: 3 / 10
-
-Na verejný launch to **nie je pripravené**. Základný scenár (e-mail + heslo, obnova relácie, Face ID nad existujúcou reláciou) funguje a je pomerne dobre ošetrený. Zlyháva všetko okolo: životný cyklus účtu (zmazanie nefunguje), bezpečnosť registrácie (žiadne overenie e-mailu), oddelenie dát medzi účtami na jednom zariadení a vynucovanie banov.
-
-| Oblasť | Skóre | Prečo |
+| Oblasť | Skóre | Poznámka |
 |---|---|---|
-| Základný tok (prihlásenie, registrácia, obnova relácie) | 6/10 | Relácia žije v Keychain cez SDK (PKCE, rotácia refresh tokenov), pri chybe siete sa nikdy neodhlási, Apple nonce je správne. Chýba Return-kľúč, zobrazenie hesla a odolné spracovanie chýb. |
-| Bezpečnosť účtu | 3/10 | Auto-potvrdenie všetkých e-mailov, heslo min. 6 znakov, vypnutá kontrola uniknutých hesiel, žiadna CAPTCHA, ban iba v UI. |
-| Životný cyklus účtu (odhlásenie, zmena účtu, zmazanie) | 1/10 | **`delete_user_account` v databáze neexistuje**, lokálne dáta sa pri odhlásení nemažú, ostatné zariadenia sa nikdy neodhlásia. |
-| Spracovanie chýb a lokalizácia | 4/10 | Chyby sa rozpoznávajú podľa anglických textov, na slovenskom iPhone zlyháva rozpoznanie sieťových chýb. |
-| UX voči veľkým aplikáciám | 4/10 | Chýba zobrazenie hesla, Return-kľúč, „poslať potvrdenie znova“, pokročilá obnova, jasné stavy. |
-| Databázová strana (RLS, funkcie) | 6/10 | RLS zapnuté všade, dobrý `is_app_owner`, chránené citlivé stĺpce. Ale zmazanie, ban, voľne upraviteľné `dancer_code`/`invite_code` a nenasadená, no nebezpečná `send-email`. |
-| Odolnosť voči zneužitiu (rate limit, boti, spam) | 2/10 | Žiadna CAPTCHA, nič nebráni masovým registráciám. |
+| Logika (registrácia, prihlásenie, kódy, relácia) | 8/10 | Po oprave kódu z e-mailu je tok správny. Chýbajú drobnosti nižšie. |
+| Bezpečnosť | 7/10 | Potvrdenie e-mailu, vlastné SMTP, PKCE, odhlásenie ostatných zariadení po zmene hesla, mazanie účtu na serveri. Chýba kontrola uniknutých hesiel (Pro) a CAPTCHA. |
+| Server a Dashboard | 7/10 | SMTP cez Resend funguje, URL sedia, `delete-account` beží. Treba overiť platnosť kódu a limity. |
+| Vzhľad podľa §1A | 3/10 | Prihlasovacia obrazovka je stále starý „zlato na čiernom“ dizajn, okná používajú staré tlačidlá a pevné veľkosti písma. |
 
-## Porovnanie s tým, čo je štandard
+## Najdôležitejšie zistenie
 
-Porovnané s požiadavkami App Review (4.8, 5.1.1(v), 5.1.1(i)), odporúčaniami Supabase pre produkciu a OWASP MASVS (autentifikácia, session). Konkrétne aplikácie neopisujem, len bežnú prax veľkých aplikácií.
+🛠 **Kód z e-mailu mal 8 číslic, appka brala len 6.** Registrácia s potvrdením e-mailu aj obnova hesla kódom boli
+preto úplne nefunkčné. Opravené 14. 10.: appka prijme 6–10 číslic (ako dovoľuje Supabase), takže zmena dĺžky v Dashboarde
+už nič nerozbije. Kód vložený z Mailu sa odošle sám, ručne písaný sa potvrdí tlačidlom. Pribudli testy.
 
-| Čo je bežné u veľkých aplikácií | Encore |
+## Situácie
+
+### Registrácia
+| # | Situácia | Stav |
+|---|---|---|
+| R1 | Nový e-mail → kód z e-mailu → prihlásený | ✅ po oprave kódu |
+| R2 | E-mail už má potvrdený účet | ✅ „Účet s týmto e-mailom už existuje…“ |
+| R3 | E-mail má nepotvrdený účet | ✅ príde nový kód |
+| R4 | E-mail patrí účtu z Google (bez hesla) | ⚠️ hláška „už existuje“ by mala poradiť „Pokračovať cez Google“ |
+| R5 | Slabé, krátke alebo časté heslo | ✅ v appke; ⚠️ server nekontroluje uniknuté heslá (len plán Pro) |
+| R6 | Prázdne alebo dlhé meno, nepotvrdený vek | ✅ |
+| R7 | Bez internetu | ✅ slovenská hláška podľa kódu chyby |
+| R8 | „Poslať kód znova“ hneď po registrácii | ⚠️ odpočet 30 s, server pustí až po 60 s → zbytočná chyba |
+| R9 | Zavrie okno s kódom a chce sa k nemu vrátiť | ⚠️ dá sa len opätovným prihlásením; chýba „Zadať kód“ na prihlasovacej obrazovke |
+| R10 | Preklep v e-maile | ✅ „Zmeniť e-mail“; nepotvrdený účet na serveri ostane (neškodí) |
+| R11 | Ťukne na tlačidlo v e-maile na tom istom iPhone | ✅ appka sa otvorí a prihlási |
+| R12 | Otvorí odkaz na inom zariadení | ✅ zrozumiteľná hláška „použi kód z e-mailu“ |
+| R13 | Kód vypršal alebo je zlý | ✅ hláška; 🧭 e-mail aj appka píšu „10 minút“, Dashboard to musí mať nastavené |
+| R14 | Kód s medzerami alebo z automatického dopĺňania | ✅ |
+| R15 | Rola Tanečník / Tréner | ✅ uloží sa |
+
+### Prihlásenie
+| # | Situácia | Stav |
+|---|---|---|
+| L1 | Správne údaje | ✅ |
+| L2 | Zlé heslo | ✅ „E-mail alebo heslo nie je správne.“ |
+| L3 | Účet ešte nepotvrdený | ✅ pošle nový kód a otvorí okno na kód |
+| L4 | Účet vznikol cez Google, skúša heslo | ⚠️ len „nesprávne“, chýba rada „použi Google“ |
+| L5 | Medzery a veľké písmená v e-maile | ✅ |
+| L6 | Medzery v hesle | ✅ nemažú sa |
+| L7 | Bez internetu, timeout, hotelová Wi-Fi | ✅ |
+| L8 | Veľa pokusov | ✅ hláška pri limite |
+| L9 | Zablokovaný účet | ✅ |
+| L10 | Return na klávesnici, automatické dopĺňanie hesiel | ✅; ⚠️ bez `webcredentials` iCloud Kľúčenka neprepojí heslá s webom (až po webe na encore-sk.com) |
+| L11 | Face ID prihlásenie | ✅; ⚠️ niektoré hlášky píšu „Face ID“ aj na Touch ID |
+| L12 | Spustenie appky offline | ✅ relácia ostane, nikdy sa neodhlási kvôli sieti |
+| L13 | Preinštalovanie appky | ✅ začína odhlásená |
+| L14 | Iný účet na tom istom iPhone | ✅ dáta predchádzajúceho sa odstránia |
+| L15 | Zámok po 5 min v pozadí | ✅ |
+
+### Google a Apple
+| # | Situácia | Stav |
+|---|---|---|
+| G1 | Prihlásenie z okna aj z celej obrazovky | ✅ |
+| G2 | Zrušenie | ✅ bez chyby |
+| G3 | Chyba Google | ⚠️ ukáže surový text (môže byť anglicky); hláška spomína „Continue with Google“ |
+| G4 | Google s e-mailom existujúceho účtu | ✅ prepojí sa (bezpečné, lebo e-maily sa potvrdzujú) |
+| G5 | Cudzí človek, Google v stave „Testing“ | ❌ 🧭 prihlási sa len pridaný tester (A10 v launch checkliste) |
+| A1 | Sign in with Apple | ⚠️ kód hotový, skrytý; App Store ho vyžaduje → capability + Supabase provider |
+
+### Obnova a zmena hesla
+| # | Situácia | Stav |
+|---|---|---|
+| P1 | E-mail → kód → nové heslo | ✅ po oprave kódu |
+| P2 | Neznámy e-mail | ✅ rovnaká odpoveď, nedá sa zistiť, kto má účet |
+| P3 | Tlačidlo v e-maile na tom istom iPhone | ✅ |
+| P4 | „Preskočiť“ nové heslo | ⚠️ ostane prihlásený bez známeho hesla (zmení si ho v Profile) |
+| P5 | Po zmene hesla | ✅ ostatné zariadenia sa odhlásia |
+| P6 | Zmena hesla v Profile | ✅ chce súčasné heslo; Google účtom sa neponúka |
+
+### Účet
+| # | Situácia | Stav |
+|---|---|---|
+| D1 | Zmazanie účtu | ✅ funkcia `delete-account` beží; appka čaká na potvrdenie servera |
+| D2 | Odhlásenie | ✅ len tento iPhone |
+| D3 | Zmazanie pri Apple účte | ⚠️ odvolanie Apple tokenu doplniť spolu s Apple prihlásením |
+
+## Dashboard (🧭 skontroluj alebo nastav)
+| Nastavenie | Stav |
 |---|---|
-| Overenie e-mailu pred plným účtom | ❌ Trigger `on_auth_user_created_auto_confirm` potvrdí všetko automaticky. |
-| Zmazanie účtu v aplikácii, ktoré naozaj zmaže dáta (povinné pre App Store) | ❌ Funkcia v DB neexistuje. Appka potichu zlyhá a tvári sa, že účet je zmazaný. |
-| Odvolanie tokenu Sign in with Apple pri zmazaní | ➖ Chýba. |
-| Čistý stav po odhlásení (žiadne cudzie dáta na zariadení) | ❌ SwiftData a médiá ostávajú. |
-| Zobraziť / skryť heslo, Return posúva pole a odosiela | ➖ Chýba. |
-| Heslo min. 8 znakov, kontrola uniknutých hesiel | ❌ 6 znakov, kontrola vypnutá. |
-| Ochrana proti botom (CAPTCHA / App Attest) | ➖ Chýba. |
-| Odhlásenie ostatných zariadení po zmene hesla | ❌ Nerobí sa. |
-| Banovanie účtu na serveri | ❌ Len stav v UI, JWT ostáva platný. |
-| Vlastný SMTP (doručiteľnosť, SPF/DKIM) | ❓ Neoverené, pripravená je Resend funkcia. |
-| Kontrola veku / súhlas rodiča (pri mladých používateľoch) | ➖ Chýba (tanečníci sú často mladší ako 16). |
-| Passkeys / 2FA | ➖ Voliteľné, až po launchu. |
+| Confirm email, vlastné SMTP (Resend, `no-reply@encore-sk.com`), Site URL a Redirect URLs | ✅ |
+| **Email OTP Expiration = 600 s** (aby sedelo „10 minút“) | 🧭 over |
+| Email OTP Length | 8 (appka zvládne 6–10) |
+| Rate limit e-mailov (po SMTP je 30/h) → pred spustením zvýšiť na ~100/h | 🧭 |
+| Leaked password protection | ⚠️ len plán Pro (zapneme s Pro pred review) |
+| CAPTCHA (Turnstile) | ⚠️ pred verejným spustením |
+| DMARC záznam `_dmarc` (bol omylom `-dmarc`) | 🧭 over |
+| Google OAuth „In production“ | 🧭 A10 |
 
-## Blokery pred akýmkoľvek launchom (P0)
-
-1. **Zmazanie účtu nefunguje.** `AuthManager.deleteAccount` volá RPC `delete_user_account`, ktorá v databáze nie je. Chyba sa len zaloguje, appka sa odhlási a účet zostane. Pri tom mazaní by navyše zlyhala FK `routines.user_id` (NO ACTION), a tiež `user_entitlements.granted_by` a `connections.initiated_by`. Videá v úložisku (`encore-media/{user_id}/…`) by ostali. Porušuje App Store 5.1.1(v) a GDPR čl. 17. **Oprava:** edge funkcia so service rolou (zmaže storage, dáta, auth používateľa, odvolá Apple token), FK na CASCADE alebo explicitné mazanie, appka nesmie tvrdiť „zmazané“, kým server nepotvrdí.
-2. **Žiadne overenie e-mailu + prepojenie účtov = pre-hijacking.** Útočník zaregistruje cudzí e-mail (automaticky potvrdený), obeť sa neskôr prihlási cez Google/Apple s tým istým e-mailom, identity sa spoja a útočník pozná heslo. **Oprava:** vypnúť auto-confirm trigger a zapnúť potvrdzovanie e-mailov (po zapnutí SMTP), aspoň pred verejným launchom.
-3. **Cudzie dáta po zmene účtu na jednom zariadení.** Pri odhlásení sa nemaže SwiftData ani lokálne médiá. Ďalší používateľ vidí zostavy a poznámky predchádzajúceho a pri úprave ich nahrá pod svojím účtom. **Oprava:** viazať lokálne dáta na `user_id` a pri zmene účtu ich vymazať alebo odpojiť.
-4. **Ban je len kozmetika.** Kontrola stavu beží v appke, pri chybe siete zlyhá „otvorene“ a RLS stav neberie do úvahy. **Oprava:** `banned_until` na `auth.users` cez admin API (edge funkcia) + kontrola v RLS.
-5. **Edge funkcia `send-email` (zatiaľ nenasadená) je spamový reléový server.** Prihlásený používateľ môže poslať ľubovoľný HTML e-mail komukoľvek z tvojej domény; `partnerName` a `customMessage` sú vložené do HTML bez escapovania; bez limitu. **Nenasadzovať**, kým nebude: povolený len typ pozvánky, adresát zo zoznamu partnerov, escapovanie, limit na používateľa.
-
-## Vysoká priorita (P1)
-
-- Heslo min. 8 znakov (klient aj server), zapnúť kontrolu uniknutých hesiel (Dashboard, môže vyžadovať plán Pro).
-- CAPTCHA (Turnstile) alebo App Attest na registráciu, rate limity v Dashboarde.
-- Spracovanie chýb podľa `AuthError.errorCode` a `URLError.code`, nie podľa anglických textov (na slovenskom iPhone je `localizedDescription` po slovensky a rozpoznanie zlyhá).
-- Po zmene alebo obnove hesla odhlásiť ostatné zariadenia (`signOut(scope: .others)`).
-- Po preinštalovaní appky Keychain prežije, takže používateľ ostane prihlásený bez dát. Pri prvom štarte po inštalácii (príznak v UserDefaults) odhlásiť.
-- Obnova hesla: odkaz otvorený na inom zariadení (PKCE) vyhlási nezrozumiteľnú chybu; heuristika `isRecoveryLink` (hodina od žiadosti) zamení potvrdzovací odkaz za obnovu.
-- Google: prezentácia z root kontroléra nefunguje, keď je prihlásenie otvorené ako sheet; záložný tok cez Safari vráti úspech bez prihlásenia.
-- Veková brána / súhlas rodiča a zápis do privacy manifestu (overiť obsah `PrivacyInfo.xcprivacy`).
-- Zrušiť zbytočné opakované volania pri každom návrate do appky (`applySession` spúšťa 4+ požiadavky).
-
-## Stredná a nízka (P2)
-
-Zobrazenie hesla, Return-kľúč a `submitLabel`, „poslať potvrdenie znova“, zmena e-mailu v appke, odpojenie od profilu pri chybe sieťového zápisu pri registrácii, validácia dĺžky mena, uzamknutie stĺpcov `profiles` (`dancer_code`, `invite_code`, `email`), duplicitný unikátny index `invite_code`, Google nonce, `canUseBiometricLogin` počíta Keychain v tele pohľadu, Dynamic Type a VoiceOver na prihlasovacej obrazovke, skryť tlačidlo Apple, kým nie je Developer účet.
-
-## Dashboard kontrola (musíš skontrolovať ručne)
-
-Authentication → URL Configuration: Site URL nesmie byť `127.0.0.1`, v Redirect URLs musí byť `encore://auth-callback`. Providers → Email: Confirm email, minimálna dĺžka hesla, Leaked password protection. SMTP: vlastný (Resend), inak je limit vstavaného odosielania veľmi nízky. Rate Limits: e-maily, prihlásenia. Attack Protection: CAPTCHA. Google provider: Client ID zhodný s `GIDClientID` v `Info.plist`. Apple provider: až po Developer účte.
-
-## Poradie opráv (na zajtra)
-
-1. **Databáza (SQL najprv ukázať):** `delete_user_account` + FK + storage, `banned_until`, uzamknutie `profiles`, duplicitný index, vyčistenie `invite_tokens`. Spustiť `20261005_hardening_function_grants.sql`.
-2. **Appka:** oprava zmazania účtu (volanie edge funkcie, čakanie na server, čistenie lokálnych dát), čistenie pri zmene účtu a preinštalovaní, spracovanie chýb podľa kódov, odhlásenie ostatných zariadení.
-3. **Registrácia:** heslo 8+, CAPTCHA, zapnutie potvrdzovania e-mailu a odstránenie auto-confirm triggera (po SMTP).
-4. **UX:** zobrazenie hesla, Return-kľúč, resend, jasné hlášky.
-5. **Testovacia matica:** prejsť všetky riadky v `MOZNE_CHYBY.md` kategória VII a zapísať výsledok (✅/❌) pri každom.
+## Vzhľad podľa §1A (nesedí)
+1. Prihlasovacia obrazovka: čierne pozadie so zlatou žiarou a ťažká karta so zlatým rámom = starý dizajn. Má byť zamat + sklenená karta.
+2. Výber Tanečník / Tréner je systémový segmentový ovládač. Má byť rad kapsúl s presúvajúcou sa výplňou.
+3. Prepínanie Prihlásenie / Registrácia je odkaz dole. Lepšie: kapsuly hore.
+4. Polia: tmavé so zlatým rámom. Majú byť sklenené so zlatou čiarou pri písaní (ako editory v Pláne).
+5. Okná (kód, obnova, nové heslo): staré textové tlačidlá „Zavrieť / Preskočiť“, pevné veľkosti písma, nejednotné „Zatvoriť“ vs. „Zavrieť“.
+6. Zaškrtávacie políčko veku: obyčajný štvorček. Lepšie animovaný prepínač.
+7. Mikrointerakcie: chýba zatrasenie pri chybe a jasné potvrdenie úspechu.
