@@ -155,6 +155,9 @@ async function confirm(admin: Admin, userId: string, body: Body) {
     .eq("key", key)
     .maybeSingle();
   if (!row || row.owner_id !== userId) return errorResponse("not_found", "Video sa nenašlo.", 404);
+  if (row.canvas_node_id && !(await ownsNode(admin, userId, row.canvas_node_id))) {
+    return errorResponse("forbidden", "Zdieľať môžeš len videá vo svojich zostavách.", 403);
+  }
 
   const r2 = getR2();
   const actual = await r2.size(key);
@@ -168,13 +171,14 @@ async function confirm(admin: Admin, userId: string, body: Body) {
   const { error } = await admin.from("shared_videos").update({ status: "ready", size_bytes: actual }).eq("key", key);
   if (error) throw error;
 
-  // The figure now points at this copy; an older copy of the same figure is deleted.
+  // The figure now points at this copy; this user's older copy of the same figure is deleted (never anyone else's).
   const videoPath = `r2:${key}`;
   if (row.canvas_node_id) {
     const { data: older } = await admin
       .from("shared_videos")
       .select("key")
       .eq("canvas_node_id", row.canvas_node_id)
+      .eq("owner_id", userId)
       .neq("key", key);
     for (const old of older ?? []) {
       await r2.remove(old.key);
