@@ -208,13 +208,15 @@ struct GuestCoachKeysSheet: View {
 }
 
 // MARK: - Guest: use a key, then see the routine
-/// Opened by a scanned QR code or a link. Uses the key once and shows the lent routine.
+/// Opened by a scanned QR code or a link. Nothing happens until the guest taps "Použiť kľúč": using the key
+/// tells its owner who used it, so it must never run just because a link was opened.
 struct GuestKeyRedeemView: View {
     let token: String
 
     @Environment(\.dismiss) private var dismiss
     @State private var access: GuestAccess?
     @State private var errorText: String?
+    @State private var isRedeeming = false
 
     var body: some View {
         NavigationStack {
@@ -233,10 +235,12 @@ struct GuestKeyRedeemView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 32)
                     }
-                } else {
+                } else if isRedeeming {
                     ProgressView("Overujem kľúč…")
                         .tint(Color.gold400)
                         .foregroundColor(.white)
+                } else {
+                    confirmation
                 }
             }
             .toolbar {
@@ -245,15 +249,41 @@ struct GuestKeyRedeemView: View {
                         .foregroundColor(Color.gold400)
                 }
             }
-            .task {
-                do {
-                    access = try await GuestCoachService.shared.redeem(token)
-                } catch {
-                    errorText = error.localizedDescription
-                }
-            }
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var confirmation: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "key.fill")
+                .font(.largeTitle)
+                .foregroundColor(Color.gold400)
+                .symbolEffect(.bounce, value: isRedeeming)
+            Text("Použiť kľúč od tanečníka?")
+                .font(.system(.title3, design: .rounded).weight(.heavy))
+                .foregroundColor(.white)
+            Text("Uvidíš jeho zostavu a môžeš k nej písať poznámky. Majiteľ kľúča uvidí tvoje meno.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            PrimarySheetButton(title: "Použiť kľúč", isLoading: false, isEnabled: true, action: redeem)
+                .accessibilityIdentifier("guestKey.redeem")
+                .padding(.top, 8)
+        }
+        .padding(.horizontal, 32)
+    }
+
+    private func redeem() {
+        isRedeeming = true
+        Task {
+            defer { isRedeeming = false }
+            do {
+                access = try await GuestCoachService.shared.redeem(token)
+            } catch {
+                errorText = error.localizedDescription
+            }
+        }
     }
 }
 
