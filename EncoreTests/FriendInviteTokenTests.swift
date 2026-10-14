@@ -57,6 +57,14 @@ struct FriendInviteTokenTests {
         #expect(manager.incomingInvite == nil)
     }
 
+    @MainActor @Test func testOnlyOurOwnHostsAreInviteLinks() {
+        #expect(AppWebsite.isOwn(URL(string: "https://www.encore-sk.com/add?t=tok_x")!))
+        #expect(AppWebsite.isOwn(URL(string: "https://encore-sk.com/add/DNC-1024")!))
+        #expect(AppWebsite.isOwn(URL(string: "https://encore-app.vercel.app/add")!))
+        #expect(!AppWebsite.isOwn(URL(string: "https://evil-encore-sk.com/add?t=tok_x")!))
+        #expect(!AppWebsite.isOwn(URL(string: "https://encore.example.com/add")!))
+    }
+
     @MainActor @Test func testOnlyDancerCodesAreAcceptedAsCodes() {
         #expect(FriendManager.shared.processInviteCode("4K9Z2X7M") == false)
         #expect(FriendManager.shared.handleIncomingURL(URL(string: "https://example.com/add?t=tok_abc")!) == false)

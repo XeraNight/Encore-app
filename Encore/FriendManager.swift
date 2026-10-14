@@ -81,13 +81,13 @@ final class FriendManager: ObservableObject {
     // MARK: - Member Card Smart URL Generator
     func buildMemberCardURL() -> String {
         if !activeInviteToken.isEmpty {
-            return "https://encore-app.vercel.app/add?t=\(activeInviteToken)"
+            return "https://\(AppWebsite.host)/add?t=\(activeInviteToken)"
         }
         let code = UserProfileStore.shared.dancerCode
         if !code.isEmpty {
-            return "https://encore-app.vercel.app/add/\(code)"
+            return "https://\(AppWebsite.host)/add/\(code)"
         }
-        return "https://encore-app.vercel.app/add"
+        return "https://\(AppWebsite.host)/add"
     }
     
     // MARK: - Universal Link / Deep Link Handler
@@ -98,7 +98,7 @@ final class FriendManager: ObservableObject {
     func handleIncomingURL(_ url: URL) -> Bool {
         let components = URLComponents(url: url, resolvingAgainstBaseURL: true)
         let query = components?.queryItems ?? []
-        let isEncoreLink = url.scheme == "encore" || url.host == "encore-app.vercel.app"
+        let isEncoreLink = url.scheme == "encore" || AppWebsite.isOwn(url)
         guard isEncoreLink else { return false }
 
         if let token = query.first(where: { $0.name == "t" || $0.name == "token" })?.value, !token.isEmpty {
@@ -181,7 +181,7 @@ final class FriendManager: ObservableObject {
     
     func applyPastedURL(_ url: URL) {
         self.showDeferredInvitePrompt = false
-        if (url.host == "encore-app.vercel.app" || url.host?.contains("encore") == true) {
+        if AppWebsite.isOwn(url) {
             _ = handleIncomingURL(url)
         }
     }

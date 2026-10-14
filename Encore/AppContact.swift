@@ -17,3 +17,20 @@ enum AppContact {
         return components.url
     }
 }
+
+// MARK: - The website
+/// encore-sk.com redirects to www, so the app links straight to www. Older QR codes and links
+/// (the Vercel addresses, encore-sk.com) are still recognised as our own.
+enum AppWebsite {
+    static let host = "www.encore-sk.com"
+    private static let ownHosts: Set<String> = [host, "encore-sk.com", "encore-dance-app.vercel.app", "encore-app.vercel.app"]
+
+    static func url(_ path: String) -> URL? {
+        URL(string: "https://\(host)\(path)")
+    }
+
+    static func isOwn(_ url: URL) -> Bool {
+        guard let urlHost = url.host?.lowercased() else { return false }
+        return ownHosts.contains(urlHost)
+    }
+}

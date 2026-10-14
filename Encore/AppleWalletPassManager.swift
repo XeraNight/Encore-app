@@ -64,7 +64,7 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
         fallbackURL = URL(string: FriendManager.shared.buildMemberCardURL())
         
         do {
-            guard let url = URL(string: "https://encore-app.vercel.app/api/wallet/pass") else {
+            guard let url = AppWebsite.url("/api/wallet/pass") else {
                 throw URLError(.badURL)
             }
             
