@@ -205,6 +205,16 @@ final class AuthManager: ObservableObject {
         return false
     }
 
+    /// The account is linked to Sign in with Apple (its tokens must be revoked on deletion).
+    var isAppleAccount: Bool {
+        guard let user = currentUser else { return false }
+        if let identities = user.identities, identities.contains(where: { $0.provider == "apple" }) { return true }
+        if case let .array(providers)? = user.appMetadata["providers"] {
+            return providers.contains(.string("apple"))
+        }
+        return false
+    }
+
     /// Only users who registered with e-mail + password have a password to change.
     var canChangePassword: Bool {
         guard isAuthenticated, let user = currentUser else { return false }
@@ -885,10 +895,19 @@ final class AuthManager: ObservableObject {
     func deleteAccount() async -> String? {
         guard let client else { return Self.missingConfigMessage }
 
+        var body = ["confirm": "DELETE"]
+        if isAppleAccount {
+            // Apple requires revoking its tokens; that needs a fresh code from Apple.
+            guard let code = await AppleReauthorization().authorizationCode() else {
+                return "Na zmazanie účtu sa potvrď cez Apple. Nič nebolo zmazané."
+            }
+            body["appleAuthorizationCode"] = code
+        }
+
         do {
             try await client.functions.invoke(
                 "delete-account",
-                options: FunctionInvokeOptions(body: ["confirm": "DELETE"])
+                options: FunctionInvokeOptions(body: body)
             )
         } catch {
             Logger.auth.error("[AuthManager] delete-account failed: \(error.localizedDescription, privacy: .public)")

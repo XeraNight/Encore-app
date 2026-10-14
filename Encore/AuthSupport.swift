@@ -1,12 +1,13 @@
+import AuthenticationServices
 import Foundation
 import Supabase
 import UIKit
 
 // MARK: - Feature flags
 enum AuthFeatureFlags {
-    /// Sign in with Apple needs the paid Developer account (capability + provisioning profile).
-    /// The button stays hidden until this is true. Also see supabase/functions/delete-account.
-    static let appleSignInEnabled = false
+    /// Sign in with Apple: capability in Encore.entitlements, Apple provider in Supabase (Client ID
+    /// com.jakub.encore), token revocation in supabase/functions/delete-account.
+    static let appleSignInEnabled = true
 }
 
 // MARK: - Password rules
@@ -75,6 +76,45 @@ enum EmailValidator {
 
 enum NameRules {
     static let maxLength = 60
+}
+
+// MARK: - Apple re-authorization (account deletion)
+/// Asks Apple for a fresh authorization code. Deleting an Apple-linked account needs it, so the server
+/// can revoke the user's Apple tokens (App Review 5.1.1(v)). Returns nil when the user cancels.
+final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private var continuation: CheckedContinuation<String?, Never>?
+
+    func authorizationCode() async -> String? {
+        await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            let request = ASAuthorizationAppleIDProvider().createRequest()
+            request.requestedScopes = []
+            let controller = ASAuthorizationController(authorizationRequests: [request])
+            controller.delegate = self
+            controller.presentationContextProvider = self
+            controller.performRequests()
+        }
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        let code = (authorization.credential as? ASAuthorizationAppleIDCredential)?
+            .authorizationCode
+            .flatMap { String(data: $0, encoding: .utf8) }
+        finish(code)
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        finish(nil)
+    }
+
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        UIViewController.topMost()?.view.window ?? ASPresentationAnchor()
+    }
+
+    private func finish(_ code: String?) {
+        continuation?.resume(returning: code)
+        continuation = nil
+    }
 }
 
 // MARK: - Presenting from the right view controller
