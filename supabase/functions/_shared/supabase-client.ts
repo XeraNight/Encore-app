@@ -10,6 +10,8 @@ export interface AuthUser {
   id: string;
   email?: string;
   user_metadata?: Record<string, unknown>;
+  /** Sign-in methods linked to the account ("email", "google", "apple"). */
+  providers: string[];
 }
 
 /**
@@ -52,10 +54,14 @@ export async function getAuthenticatedUser(req: Request): Promise<AuthUser | nul
       return null;
     }
 
+    const providers = Array.isArray(user.app_metadata?.providers)
+      ? (user.app_metadata.providers as string[])
+      : (user.identities ?? []).map((identity) => identity.provider);
     return {
       id: user.id,
       email: user.email,
       user_metadata: user.user_metadata,
+      providers,
     };
   } catch {
     return null;
@@ -83,6 +89,7 @@ export function jsonResponse(data: unknown, status = 200, headers: Record<string
 export function errorResponse(
   errorCode:
     | "unauthorized"
+    | "apple_reauth_required"
     | "forbidden"
     | "invalid_input"
     | "rate_limited"

@@ -7,10 +7,10 @@
 // Order matters: if cleaning storage fails we stop and the account stays intact, so the app can
 // tell the user honestly that nothing was deleted and let them retry.
 //
-// Not done yet (needs the paid Apple Developer account): revoking the Sign in with Apple token.
-// Apple requires it on account deletion. The app must send the `authorizationCode` it receives at
-// sign-in and this function must exchange it at https://appleid.apple.com/auth/revoke using a
-// client secret signed with your .p8 key. Until then the Apple button stays hidden in the app.
+// Sign in with Apple: Apple requires revoking the user's tokens on deletion. An account linked to
+// Apple must send `appleAuthorizationCode` (the app re-authorizes with Apple right before); without
+// it the function answers `apple_reauth_required` and deletes nothing. A failed revoke is logged
+// but does not block the deletion: the user's right to be deleted comes first.
 
 import {
   corsHeaders,
@@ -20,6 +20,7 @@ import {
   jsonResponse,
 } from "../_shared/supabase-client.ts";
 import { getR2 } from "../_shared/r2.ts";
+import { appleRevokeConfig, revokeAppleTokens } from "../_shared/apple-revoke.ts";
 
 const BUCKET = "encore-media";
 const PAGE = 100;
@@ -56,7 +57,7 @@ Deno.serve(async (req: Request) => {
   if (!user) return errorResponse("unauthorized", "Vyžaduje sa prihlásenie.", 401);
 
   // Explicit confirmation so a stray request can never delete an account
-  let body: { confirm?: string } = {};
+  let body: { confirm?: string; appleAuthorizationCode?: string } = {};
   try {
     body = await req.json();
   } catch {
@@ -66,8 +67,26 @@ Deno.serve(async (req: Request) => {
     return errorResponse("invalid_input", "Chýba potvrdenie zmazania.", 400);
   }
 
+  const appleCode = typeof body.appleAuthorizationCode === "string" ? body.appleAuthorizationCode.trim() : "";
+  if (user.providers.includes("apple") && !appleCode) {
+    return errorResponse("apple_reauth_required", "Na zmazanie účtu sa ešte raz potvrď cez Apple.", 400);
+  }
+
   try {
     const admin = getSupabaseAdmin();
+
+    if (appleCode) {
+      const config = appleRevokeConfig();
+      if (!config) {
+        console.warn("delete-account: Apple secrets are not set, tokens were not revoked");
+      } else {
+        try {
+          await revokeAppleTokens(config, appleCode);
+        } catch (err) {
+          console.error("delete-account: Apple revoke failed:", err instanceof Error ? err.message : err);
+        }
+      }
+    }
 
     const files = await listAllFiles(admin, user.id);
     for (let i = 0; i < files.length; i += PAGE) {
