@@ -99,6 +99,9 @@ extension UIViewController {
 /// Turns SDK and network errors into Slovak messages. It looks at error codes and `URLError`
 /// codes, never at the English text, so it works the same on a Slovak or English iPhone.
 enum AuthErrorMapper {
+    /// Also used when sign-up returns a user without identities (Supabase's way of saying "already registered").
+    static let accountExists = "Účet s týmto e-mailom už existuje. Prihlás sa, obnov si heslo, alebo použi Pokračovať cez Google, ak si sa tak registroval."
+
     static func message(for error: Error, fallback: String) -> String {
         if let network = networkMessage(for: error) { return network }
 
@@ -134,11 +137,11 @@ enum AuthErrorMapper {
     static func message(forCode code: ErrorCode) -> String? {
         switch code {
         case .invalidCredentials:
-            return "E-mail alebo heslo nie je správne."
+            return "E-mail alebo heslo nie je správne. Ak si sa registroval cez Google, použi Pokračovať cez Google."
         case .emailNotConfirmed:
             return "E-mail ešte nie je potvrdený. Zadaj kód z e-mailu alebo si vyžiadaj nový."
         case .userAlreadyExists, .emailExists:
-            return "Účet s týmto e-mailom už existuje. Prihlás sa alebo si obnov heslo."
+            return AuthErrorMapper.accountExists
         case .weakPassword:
             return "Heslo je príliš slabé alebo sa objavilo v uniknutých databázach. Zvoľ iné."
         case .samePassword:

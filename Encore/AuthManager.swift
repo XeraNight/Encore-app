@@ -344,7 +344,7 @@ final class AuthManager: ObservableObject {
 
             // Supabase hides "already registered" by returning a user without identities.
             if response.user.identities?.isEmpty == true {
-                authErrorMessage = "Účet s týmto e-mailom už existuje. Prihlás sa alebo si obnov heslo."
+                authErrorMessage = AuthErrorMapper.accountExists
                 return false
             }
 
@@ -547,9 +547,9 @@ final class AuthManager: ObservableObject {
         guard canEvaluateBiometrics || canEvaluatePasscode else {
             showSettingsLink = true
             if let laError = error as? LAError, laError.code == .biometryLockout {
-                authErrorMessage = "Face ID je zablokované. Odomkni iPhone kódom alebo prejdi do Nastavení."
+                authErrorMessage = "\(biometryName) je zablokované. Odomkni iPhone kódom alebo prejdi do Nastavení."
             } else {
-                authErrorMessage = "Face ID nie je na tomto zariadení povolené. Povoľ ho v Nastaveniach iPhonu."
+                authErrorMessage = "\(biometryName) nie je na tomto zariadení povolené. Povoľ ho v Nastaveniach iPhonu."
             }
             return false
         }
@@ -588,7 +588,7 @@ final class AuthManager: ObservableObject {
             if provider == "google" {
                 if await restoreGoogleSignInAsync(silent: false) { return true }
                 if authErrorMessage == nil {
-                    authErrorMessage = "Platnosť Google prihlásenia vypršala. Klikni na „Continue with Google“."
+                    authErrorMessage = "Platnosť Google prihlásenia vypršala. Ťukni na Pokračovať cez Google."
                 }
                 return false
             }
@@ -603,7 +603,7 @@ final class AuthManager: ObservableObject {
         } catch let laError as LAError {
             if laError.code == .biometryNotAvailable || laError.code == .biometryLockout {
                 showSettingsLink = true
-                authErrorMessage = "Face ID je pre Encore zablokované. Povoľ ho v Nastaveniach iPhonu."
+                authErrorMessage = "\(biometryName) je pre Encore zablokované. Povoľ ho v Nastaveniach iPhonu."
             } else if laError.code == .userCancel || laError.code == .appCancel || laError.code == .systemCancel {
                 authErrorMessage = nil
             } else {
@@ -650,7 +650,10 @@ final class AuthManager: ObservableObject {
                     if nsError.code == GIDSignInError.canceled.rawValue {
                         continuation.resume(returning: .cancelled)
                     } else {
-                        continuation.resume(returning: .failure(error.localizedDescription))
+                        Logger.auth.error("[GoogleSignIn] Error: \(error.localizedDescription, privacy: .public)")
+                        continuation.resume(returning: .failure(
+                            AuthErrorMapper.message(for: error, fallback: "Prihlásenie cez Google zlyhalo")
+                        ))
                     }
                     return
                 }
@@ -673,8 +676,7 @@ final class AuthManager: ObservableObject {
         case .cancelled:
             return false
         case .failure(let message):
-            Logger.auth.error("[GoogleSignIn] Error: \(message, privacy: .public)")
-            authErrorMessage = "Google prihlásenie zlyhalo: \(message)"
+            authErrorMessage = message
             return false
         case .success(let payload):
             return await completeGoogleLogin(payload, silent: false)
