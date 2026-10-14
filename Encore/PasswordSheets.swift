@@ -5,24 +5,34 @@ enum AuthField: Hashable {
     case name, email, password, code, currentPassword, newPassword, confirmPassword
 }
 
-// MARK: - Shared field style (matches AuthSheetView inputs)
+// MARK: - Shared field style (BRAND_GUIDELINES §1A)
+/// Glass field; with `isFocused` the edge turns gold and a gold line sweeps around it.
 struct AuthFieldChrome: ViewModifier {
+    var isFocused = false
+
+    @State private var sweepTrigger = 0
+
     func body(content: Content) -> some View {
         content
             .foregroundColor(.white)
-            .font(.subheadline.weight(.medium))
+            .font(.body)
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color.obsidian800, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Color.gold500.opacity(0.35), lineWidth: 1.5)
+                    .stroke(isFocused ? Color.gold400.opacity(0.5) : Color.white.opacity(0.10), lineWidth: 1)
             )
+            .overlay { FieldEdgeSweep(trigger: sweepTrigger) }
+            .onChange(of: isFocused) { _, focused in
+                if focused { sweepTrigger += 1 }
+            }
+            .animation(.easeOut(duration: 0.2), value: isFocused)
     }
 }
 
 extension View {
-    func authFieldChrome() -> some View { modifier(AuthFieldChrome()) }
+    func authFieldChrome(isFocused: Bool = false) -> some View { modifier(AuthFieldChrome(isFocused: isFocused)) }
 }
 
 struct SheetBanner: View {
@@ -32,6 +42,7 @@ struct SheetBanner: View {
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: isError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                .symbolEffect(.bounce, value: text)
             Text(text)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
@@ -46,6 +57,7 @@ struct SheetBanner: View {
                 .stroke((isError ? Color.latinRed : Color.gold500).opacity(0.45), lineWidth: 1)
         )
         .accessibilityElement(children: .combine)
+        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 }
 
@@ -82,6 +94,29 @@ struct PrimarySheetButton: View {
     }
 }
 
+// MARK: - Shake on a wrong answer
+/// Moves the view sideways three times as `shakes` grows by one. Callers skip it with Reduce Motion.
+struct ShakeEffect: GeometryEffect {
+    var shakes: CGFloat
+
+    var animatableData: CGFloat {
+        get { shakes }
+        set { shakes = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        ProjectionTransform(CGAffineTransform(translationX: 8 * sin(shakes * .pi * 6), y: 0))
+    }
+}
+
+extension View {
+    /// Shakes the view once each time `count` grows (nothing with Reduce Motion).
+    func shake(_ count: Int, reduceMotion: Bool) -> some View {
+        modifier(ShakeEffect(shakes: reduceMotion ? 0 : CGFloat(count)))
+            .animation(reduceMotion ? nil : .linear(duration: 0.45), value: count)
+    }
+}
+
 // MARK: - Password field with show / hide
 struct PasswordField: View {
     let prompt: String
@@ -98,11 +133,11 @@ struct PasswordField: View {
         HStack(spacing: 8) {
             Group {
                 if isRevealed {
-                    TextField("", text: $text, prompt: Text(prompt).foregroundColor(Color.gold300.opacity(0.45)))
+                    TextField("", text: $text, prompt: Text(prompt).foregroundColor(.white.opacity(0.5)))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } else {
-                    SecureField("", text: $text, prompt: Text(prompt).foregroundColor(Color.gold300.opacity(0.45)))
+                    SecureField("", text: $text, prompt: Text(prompt).foregroundColor(.white.opacity(0.5)))
                 }
             }
             .textContentType(contentType)
@@ -115,14 +150,16 @@ struct PasswordField: View {
                 focus.wrappedValue = field
             } label: {
                 Image(systemName: isRevealed ? "eye.slash" : "eye")
-                    .font(.system(size: 15))
-                    .foregroundColor(Color.white.opacity(0.55))
-                    .frame(width: 28, height: 28)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.6))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 44, height: 28)
+                    .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.pressable(scale: 0.85))
             .accessibilityLabel(isRevealed ? "Skryť heslo" : "Zobraziť heslo")
         }
-        .authFieldChrome()
+        .authFieldChrome(isFocused: focus.wrappedValue == field)
     }
 }
 
@@ -157,13 +194,15 @@ struct PasswordStrengthBar: View {
                         .frame(height: 4)
                 }
                 Text(label)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(color)
-                    .frame(width: 70, alignment: .trailing)
+                    .frame(width: 76, alignment: .trailing)
+                    .contentTransition(.opacity)
             }
-            .animation(.easeOut(duration: 0.2), value: level)
+            .animation(.spring(response: 0.35, dampingFraction: 0.8), value: level)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sila hesla: \(label)")
+            .transition(.opacity)
         }
     }
 }
@@ -177,14 +216,15 @@ private struct CodeField: View {
     var onComplete: () -> Void
 
     var body: some View {
-        TextField("", text: $code, prompt: Text("Kód z e-mailu").foregroundColor(Color.gold300.opacity(0.5)))
+        TextField("", text: $code, prompt: Text("Kód z e-mailu").foregroundColor(.white.opacity(0.5)))
             .keyboardType(.numberPad)
             .textContentType(.oneTimeCode)
             .multilineTextAlignment(.center)
             .font(.system(size: 26, weight: .bold, design: .monospaced))
             .tracking(code.isEmpty ? 0 : 4)
             .focused(focus, equals: .code)
-            .authFieldChrome()
+            .authFieldChrome(isFocused: focus.wrappedValue == .code)
+            .accessibilityLabel("Kód z e-mailu")
             .onChange(of: code) { oldValue, newValue in
                 let digits = String(newValue.filter { $0.isASCII && $0.isNumber }.prefix(EmailCodePolicy.allowedLengths.upperBound))
                 if digits != newValue { code = digits }
@@ -195,6 +235,7 @@ private struct CodeField: View {
 }
 
 // MARK: - Resend with cooldown
+/// The server lets a new e-mail go out after 60 s; the countdown matches it.
 private struct ResendButton: View {
     let cooldown: Int
     let action: () -> Void
@@ -202,91 +243,152 @@ private struct ResendButton: View {
     var body: some View {
         Button(action: action) {
             Text(cooldown > 0 ? "Poslať kód znova (\(cooldown) s)" : "Poslať kód znova")
-                .font(.system(size: 13, weight: .semibold))
-                .foregroundColor(cooldown > 0 ? Color.white.opacity(0.35) : .gold400)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(cooldown > 0 ? .white.opacity(0.45) : .gold400)
+                .contentTransition(.numericText(countsDown: true))
+                .frame(minHeight: 44)
         }
+        .buttonStyle(.pressable)
         .disabled(cooldown > 0)
+    }
+}
+
+/// A plain text action under a sheet's main button ("Zmeniť e-mail").
+private struct SheetTextButton: View {
+    let title: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .font(.footnote.weight(.medium))
+            .foregroundColor(.white.opacity(0.7))
+            .frame(minHeight: 44)
+            .buttonStyle(.pressable)
+    }
+}
+
+// MARK: - Sheet frame
+/// The frame of every auth sheet: velvet, a glass close button, an icon, a gold title, a short explanation.
+private struct AuthSheetScaffold<Content: View>: View {
+    let systemImage: String
+    let title: String
+    let message: String
+    var closeLabel = "Zavrieť"
+    var isBusy = false
+    var onTapBackground: () -> Void = {}
+    @ViewBuilder let content: Content
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        ZStack {
+            EllegancePageBackground()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onTapBackground)
+
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Image(systemName: systemImage)
+                        .font(.title2.weight(.semibold))
+                        .foregroundColor(.gold400)
+                        .frame(width: 56, height: 56)
+                        .background(Color.gold500.opacity(0.14), in: Circle())
+                        .overlay(Circle().stroke(Color.gold400.opacity(0.35), lineWidth: 1))
+                        .symbolEffect(.bounce, value: title)
+                        .accessibilityHidden(true)
+
+                    Text(title)
+                        .font(.system(.title2, design: .rounded).weight(.heavy))
+                        .foregroundColor(.gold400)
+                        .accessibilityAddTraits(.isHeader)
+
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    content
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: title)
+            }
+            .scrollDismissesKeyboard(.interactively)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                HStack {
+                    LiquidGlassCircleButton(icon: "xmark", label: closeLabel, size: 40) { dismiss() }
+                        .disabled(isBusy)
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 4)
+            }
+        }
+        .environment(\.locale, Locale(identifier: "sk"))
+        .interactiveDismissDisabled(isBusy)
+        .preferredColorScheme(.dark)
     }
 }
 
 // MARK: - Confirm e-mail after sign-up (code from the e-mail)
 struct EmailCodeSheet: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var authManager = AuthManager.shared
 
     @State private var code = ""
     @State private var isVerifying = false
     @State private var errorText: String?
     @State private var infoText: String?
-    @State private var cooldown = 30
+    @State private var cooldown = 60
+    @State private var shakes = 0
+    @State private var successTick = 0
     @FocusState private var focus: AuthField?
 
     private var email: String { authManager.pendingConfirmationEmail ?? "" }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                EllegancePageBackground()
-                    .contentShape(Rectangle())
-                    .onTapGesture { focus = nil }
+        AuthSheetScaffold(
+            systemImage: "envelope.badge.fill",
+            title: "Potvrď e-mail",
+            message: "Poslali sme kód na \(email). Zadaj ho sem. Skontroluj aj spam.",
+            isBusy: isVerifying,
+            onTapBackground: { focus = nil }
+        ) {
+            CodeField(code: $code, focus: $focus, onComplete: verify)
+                .shake(shakes, reduceMotion: reduceMotion)
 
-                VStack(alignment: .leading, spacing: 16) {
-                    Image(systemName: "envelope.badge.fill")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.gold400)
-                        .padding(.top, 8)
+            if let errorText { SheetBanner(text: errorText, isError: true) }
+            if let infoText { SheetBanner(text: infoText, isError: false) }
 
-                    Text("Potvrď e-mail")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .foregroundColor(.gold400)
+            PrimarySheetButton(title: "Potvrdiť", isLoading: isVerifying, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
 
-                    Text("Poslali sme kód na \(email). Zadaj ho sem. Skontroluj aj spam.")
-                        .font(.system(size: 13))
-                        .foregroundColor(.white.opacity(0.65))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    CodeField(code: $code, focus: $focus, onComplete: verify)
-
-                    if let errorText { SheetBanner(text: errorText, isError: true) }
-                    if let infoText { SheetBanner(text: infoText, isError: false) }
-
-                    PrimarySheetButton(title: "Potvrdiť", isLoading: isVerifying, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
-
-                    HStack {
-                        ResendButton(cooldown: cooldown, action: resend)
-                        Spacer()
-                        Button("Zmeniť e-mail") {
-                            authManager.cancelPendingConfirmation()
-                            dismiss()
-                        }
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white.opacity(0.6))
-                    }
-
-                    Spacer()
+            HStack {
+                ResendButton(cooldown: cooldown, action: resend)
+                Spacer()
+                SheetTextButton(title: "Zmeniť e-mail") {
+                    authManager.cancelPendingConfirmation()
+                    dismiss()
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Zavrieť") { dismiss() }.foregroundColor(.gold400)
-                }
-            }
-            .onAppear { focus = .code }
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(1))
-                    if cooldown > 0 { cooldown -= 1 }
-                }
-            }
-            .onChange(of: authManager.pendingConfirmationEmail) { _, newValue in
-                if newValue == nil { dismiss() }
             }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: errorText)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: infoText)
+        .sensoryFeedback(.error, trigger: shakes)
+        .sensoryFeedback(.success, trigger: successTick)
+        .onAppear { focus = .code }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if cooldown > 0 { cooldown -= 1 }
+            }
+        }
+        .onChange(of: authManager.pendingConfirmationEmail) { _, newValue in
+            if newValue == nil { dismiss() }
+        }
         .presentationDetents([.large])
-        .interactiveDismissDisabled(isVerifying)
-        .preferredColorScheme(.dark)
     }
 
     private func verify() {
@@ -300,9 +402,9 @@ struct EmailCodeSheet: View {
             if let error {
                 errorText = error
                 code = ""
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                shakes += 1
             } else {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                successTick += 1
             }
         }
     }
@@ -326,6 +428,7 @@ struct ForgotPasswordSheet: View {
     var prefillEmail: String = ""
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var authManager = AuthManager.shared
 
     private enum Step { case email, code }
@@ -337,104 +440,84 @@ struct ForgotPasswordSheet: View {
     @State private var errorText: String?
     @State private var infoText: String?
     @State private var cooldown = 0
+    @State private var shakes = 0
+    @State private var sentTick = 0
     @FocusState private var focus: AuthField?
 
     private var canSend: Bool { EmailValidator.isValid(email) }
+    private var cleanEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                EllegancePageBackground()
-                    .contentShape(Rectangle())
-                    .onTapGesture { focus = nil }
+        AuthSheetScaffold(
+            systemImage: step == .email ? "key.horizontal.fill" : "envelope.open.fill",
+            title: "Obnova hesla",
+            message: step == .email
+                ? "Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti kód. Funguje na ktoromkoľvek zariadení."
+                : "Ak k adrese \(cleanEmail) existuje účet, kód je na ceste. Skontroluj aj spam. Kód platí 10 minút.",
+            isBusy: isBusy,
+            onTapBackground: { focus = nil }
+        ) {
+            switch step {
+            case .email:
+                TextField("", text: $email, prompt: Text("E-mailová adresa").foregroundColor(.white.opacity(0.5)))
+                    .textContentType(.username)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .focused($focus, equals: .email)
+                    .submitLabel(.send)
+                    .onSubmit { if canSend { sendCode() } }
+                    .authFieldChrome(isFocused: focus == .email)
+                    .transition(.asymmetric(insertion: .move(edge: .leading).combined(with: .opacity), removal: .opacity))
 
-                VStack(alignment: .leading, spacing: 16) {
-                    Image(systemName: "key.horizontal.fill")
-                        .font(.system(size: 28, weight: .semibold))
-                        .foregroundColor(.gold400)
-                        .padding(.top, 8)
+                if let errorText { SheetBanner(text: errorText, isError: true) }
 
-                    Text("Obnova hesla")
-                        .font(.system(size: 26, weight: .black, design: .rounded))
-                        .foregroundColor(.gold400)
+                PrimarySheetButton(title: "Poslať kód", isLoading: isBusy, isEnabled: canSend, action: sendCode)
 
-                    switch step {
-                    case .email:
-                        Text("Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti kód. Funguje na ktoromkoľvek zariadení.")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.65))
-                            .fixedSize(horizontal: false, vertical: true)
+            case .code:
+                CodeField(code: $code, focus: $focus, onComplete: verify)
+                    .shake(shakes, reduceMotion: reduceMotion)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .opacity))
 
-                        TextField("", text: $email, prompt: Text("E-mailová adresa").foregroundColor(Color.gold300.opacity(0.45)))
-                            .textContentType(.username)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .focused($focus, equals: .email)
-                            .submitLabel(.send)
-                            .onSubmit { if canSend { sendCode() } }
-                            .authFieldChrome()
+                if let errorText { SheetBanner(text: errorText, isError: true) }
+                if let infoText { SheetBanner(text: infoText, isError: false) }
 
-                        if let errorText { SheetBanner(text: errorText, isError: true) }
+                PrimarySheetButton(title: "Overiť kód", isLoading: isBusy, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
 
-                        PrimarySheetButton(title: "Poslať kód", isLoading: isBusy, isEnabled: canSend, action: sendCode)
-
-                    case .code:
-                        Text("Ak k adrese \(email.trimmingCharacters(in: .whitespacesAndNewlines)) existuje účet, kód je na ceste. Skontroluj aj spam. Kód platí 10 minút.")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.65))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        CodeField(code: $code, focus: $focus, onComplete: verify)
-
-                        if let errorText { SheetBanner(text: errorText, isError: true) }
-                        if let infoText { SheetBanner(text: infoText, isError: false) }
-
-                        PrimarySheetButton(title: "Overiť kód", isLoading: isBusy, isEnabled: EmailCodePolicy.isComplete(code), action: verify)
-
-                        HStack {
-                            ResendButton(cooldown: cooldown, action: sendCode)
-                            Spacer()
-                            Button("Zmeniť e-mail") {
-                                step = .email
-                                code = ""
-                                errorText = nil
-                                infoText = nil
-                            }
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.white.opacity(0.6))
-                        }
-                    }
-
+                HStack {
+                    ResendButton(cooldown: cooldown, action: sendCode)
                     Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 12)
-            }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Zavrieť") { dismiss() }.foregroundColor(.gold400)
-                }
-            }
-            .onAppear {
-                if email.isEmpty { email = prefillEmail }
-                focus = .email
-            }
-            .task {
-                while !Task.isCancelled {
-                    try? await Task.sleep(for: .seconds(1))
-                    if cooldown > 0 { cooldown -= 1 }
+                    SheetTextButton(title: "Zmeniť e-mail") {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                            step = .email
+                            code = ""
+                            errorText = nil
+                            infoText = nil
+                        }
+                        focus = .email
+                    }
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .interactiveDismissDisabled(isBusy)
-        .preferredColorScheme(.dark)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: errorText)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: infoText)
+        .sensoryFeedback(.error, trigger: shakes)
+        .sensoryFeedback(.success, trigger: sentTick)
+        .onAppear {
+            if email.isEmpty { email = prefillEmail }
+            focus = .email
+        }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                if cooldown > 0 { cooldown -= 1 }
+            }
+        }
+        .presentationDetents([.large])
     }
 
     private func sendCode() {
         guard !isBusy else { return }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         errorText = nil
         infoText = nil
         isBusy = true
@@ -443,12 +526,13 @@ struct ForgotPasswordSheet: View {
             isBusy = false
             if let error {
                 errorText = error
+                shakes += 1
             } else {
                 if step == .code { infoText = "Nový kód je na ceste." }
-                step = .code
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { step = .code }
                 cooldown = 60
                 focus = .code
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                sentTick += 1
             }
         }
     }
@@ -464,7 +548,7 @@ struct ForgotPasswordSheet: View {
             if let error {
                 errorText = error
                 code = ""
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                shakes += 1
             } else {
                 // The app now opens the "new password" sheet over the signed-in app.
                 dismiss()
@@ -482,6 +566,7 @@ struct PasswordUpdateSheet: View {
     let mode: Mode
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var authManager = AuthManager.shared
 
     @State private var current = ""
@@ -490,6 +575,7 @@ struct PasswordUpdateSheet: View {
     @State private var isSaving = false
     @State private var errorText: String?
     @State private var didSucceed = false
+    @State private var shakes = 0
     @FocusState private var focus: AuthField?
 
     private var mismatch: Bool { !confirm.isEmpty && confirm != newPassword }
@@ -503,98 +589,72 @@ struct PasswordUpdateSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                EllegancePageBackground()
-                    .contentShape(Rectangle())
-                    .onTapGesture { focus = nil }
-
-                ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: 16) {
-                        Image(systemName: "lock.rotation")
-                            .font(.system(size: 28, weight: .semibold))
-                            .foregroundColor(.gold400)
-                            .padding(.top, 8)
-
-                        Text(mode == .recovery ? "Nové heslo" : "Zmena hesla")
-                            .font(.system(size: 26, weight: .black, design: .rounded))
-                            .foregroundColor(.gold400)
-
-                        Text(mode == .recovery
-                             ? "Kód je overený. Zvoľ si nové heslo pre svoj účet."
-                             : "Pre bezpečnosť najprv zadaj súčasné heslo.")
-                            .font(.system(size: 13))
-                            .foregroundColor(.white.opacity(0.65))
-                            .fixedSize(horizontal: false, vertical: true)
-
-                        VStack(spacing: 14) {
-                            if mode == .change {
-                                PasswordField(
-                                    prompt: "Súčasné heslo", text: $current, contentType: .password,
-                                    submitLabel: .next, focus: $focus, field: .currentPassword,
-                                    onSubmit: { focus = .newPassword }
-                                )
-                            }
-
-                            PasswordField(
-                                prompt: "Nové heslo (min. \(PasswordPolicy.minLength) znakov)", text: $newPassword,
-                                contentType: .newPassword, submitLabel: .next, focus: $focus, field: .newPassword,
-                                onSubmit: { focus = .confirmPassword }
-                            )
-                            PasswordStrengthBar(password: newPassword)
-
-                            PasswordField(
-                                prompt: "Zopakuj nové heslo", text: $confirm, contentType: .newPassword,
-                                submitLabel: .done, focus: $focus, field: .confirmPassword,
-                                onSubmit: { if canSubmit { save() } }
-                            )
-                        }
-                        .disabled(didSucceed)
-
-                        if let policyIssue {
-                            Text(policyIssue)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.latinRed)
-                        } else if mismatch {
-                            Text("Heslá sa nezhodujú.")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundColor(.latinRed)
-                        }
-
-                        if let errorText { SheetBanner(text: errorText, isError: true) }
-
-                        if didSucceed {
-                            SheetBanner(text: "Heslo bolo úspešne zmenené. Na ostatných zariadeniach si odhlásený.", isError: false)
-                        } else {
-                            PrimarySheetButton(
-                                title: "Uložiť nové heslo",
-                                isLoading: isSaving,
-                                isEnabled: canSubmit
-                            ) { save() }
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.top, 12)
-                    .padding(.bottom, 32)
+        AuthSheetScaffold(
+            systemImage: didSucceed ? "checkmark.seal.fill" : "lock.rotation",
+            title: mode == .recovery ? "Nové heslo" : "Zmena hesla",
+            message: mode == .recovery
+                ? "Kód je overený. Zvoľ si nové heslo pre svoj účet. Ak to teraz zavrieš, ostaneš prihlásený a heslo si zmeníš neskôr v Profile."
+                : "Pre bezpečnosť najprv zadaj súčasné heslo.",
+            closeLabel: mode == .recovery ? "Teraz nie" : "Zavrieť",
+            isBusy: isSaving,
+            onTapBackground: { focus = nil }
+        ) {
+            VStack(spacing: 14) {
+                if mode == .change {
+                    PasswordField(
+                        prompt: "Súčasné heslo", text: $current, contentType: .password,
+                        submitLabel: .next, focus: $focus, field: .currentPassword,
+                        onSubmit: { focus = .newPassword }
+                    )
                 }
-                .scrollDismissesKeyboard(.interactively)
+
+                PasswordField(
+                    prompt: "Nové heslo (min. \(PasswordPolicy.minLength) znakov)", text: $newPassword,
+                    contentType: .newPassword, submitLabel: .next, focus: $focus, field: .newPassword,
+                    onSubmit: { focus = .confirmPassword }
+                )
+                PasswordStrengthBar(password: newPassword)
+
+                PasswordField(
+                    prompt: "Zopakuj nové heslo", text: $confirm, contentType: .newPassword,
+                    submitLabel: .done, focus: $focus, field: .confirmPassword,
+                    onSubmit: { if canSubmit { save() } }
+                )
             }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(mode == .recovery ? "Preskočiť" : "Zavrieť") { dismiss() }
-                        .foregroundColor(.gold400)
-                        .disabled(isSaving)
-                }
+            .disabled(didSucceed)
+            .shake(shakes, reduceMotion: reduceMotion)
+
+            if let policyIssue {
+                Text(policyIssue)
+                    .font(.footnote.weight(.medium))
+                    .foregroundColor(.latinRed)
+                    .transition(.opacity)
+            } else if mismatch {
+                Text("Heslá sa nezhodujú.")
+                    .font(.footnote.weight(.medium))
+                    .foregroundColor(.latinRed)
+                    .transition(.opacity)
+            }
+
+            if let errorText { SheetBanner(text: errorText, isError: true) }
+
+            if didSucceed {
+                SheetBanner(text: "Heslo je zmenené. Na ostatných zariadeniach si odhlásený.", isError: false)
+            } else {
+                PrimarySheetButton(title: "Uložiť nové heslo", isLoading: isSaving, isEnabled: canSubmit) { save() }
             }
         }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: errorText)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: didSucceed)
+        .animation(.easeOut(duration: 0.2), value: policyIssue)
+        .animation(.easeOut(duration: 0.2), value: mismatch)
+        .sensoryFeedback(.error, trigger: shakes)
+        .sensoryFeedback(.success, trigger: didSucceed)
         .presentationDetents([.large])
-        .interactiveDismissDisabled(isSaving)
-        .preferredColorScheme(.dark)
     }
 
     private func save() {
         guard canSubmit, !isSaving else { return }
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         errorText = nil
         isSaving = true
         Task {
@@ -608,10 +668,9 @@ struct PasswordUpdateSheet: View {
             isSaving = false
             if let error {
                 errorText = error
-                UINotificationFeedbackGenerator().notificationOccurred(.error)
+                shakes += 1
             } else {
                 didSucceed = true
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
                 try? await Task.sleep(for: .milliseconds(1300))
                 dismiss()
             }
