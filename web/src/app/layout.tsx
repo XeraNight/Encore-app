@@ -14,8 +14,13 @@ export const metadata: Metadata = {
   },
   description: 'Prémiový digitálny asistent pre tanečné páry, trénerov a tanečníkov, ktorí chcú napredovať čo najrýchlejšie a najefektívnejšie.',
   icons: {
-    icon: '/logo_mark.svg',
-    apple: '/logo_full.svg',
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png' },
+    ],
   },
   robots: { index: true, follow: true },
 }
