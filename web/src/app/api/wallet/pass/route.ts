@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 // MARK: - Apple Wallet Native .pkpass Generator Endpoint
 // Generates a cryptographically signed Apple Wallet pass bundle (.pkpass)
-// barcode = https://encore-app.vercel.app/add/[invite_code]
+// barcode = https://www.encore-sk.com/add/[invite_code]
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
     const userName = profile?.name || user.user_metadata?.full_name || 'Tanečník'
     const userClub = profile?.club || user.user_metadata?.club || 'Encore Dance Club'
     const inviteCode = profile?.invite_code || user.id.substring(0, 8).toUpperCase()
-    const domain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'encore-app.vercel.app'
+    const domain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'www.encore-sk.com'
     const qrInviteUrl = `https://${domain}/add/${inviteCode}`
 
     const passCertB64 = process.env.APPLE_PASS_CERT_BASE64

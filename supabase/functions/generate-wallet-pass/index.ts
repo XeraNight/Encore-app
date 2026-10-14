@@ -62,7 +62,7 @@ serve(async (req: Request) => {
     });
 
     const activeToken = inviteToken || "tok_" + crypto.randomUUID().replace(/-/g, "");
-    const domain = Deno.env.get("APP_DOMAIN") || "encore-app.vercel.app";
+    const domain = Deno.env.get("APP_DOMAIN") || "www.encore-sk.com";
     const universalInviteUrl = `https://${domain}/add?t=${activeToken}`;
 
     const passTypeId = Deno.env.get("APPLE_PASS_TYPE_ID") || "pass.com.jakub.encore";

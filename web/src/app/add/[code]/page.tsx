@@ -34,10 +34,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       title,
       description,
       type: 'website',
-      url: `https://encore-app.vercel.app/add/${cleanCode}`,
+      url: `https://www.encore-sk.com/add/${cleanCode}`,
       images: [
         {
-          url: 'https://encore-app.vercel.app/encore_stage_bg.jpg',
+          url: 'https://www.encore-sk.com/encore_stage_bg.jpg',
           width: 1200,
           height: 630,
           alt: 'Encore Dance Platform'
@@ -74,7 +74,7 @@ export default async function AddFriendPage({ params }: PageProps) {
   }
 
   const appStoreUrl = process.env.NEXT_PUBLIC_APP_STORE_URL || 'https://apps.apple.com/search?term=Encore+Dance'
-  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'encore-app.vercel.app'
+  const domain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'www.encore-sk.com'
   const fullInviteUrl = `https://${domain}/add/${cleanCode}`
 
   return (

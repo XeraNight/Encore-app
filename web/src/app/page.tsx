@@ -29,10 +29,10 @@ export const metadata: Metadata = {
     title: 'Encore — Dance Routine Studio',
     description: 'Choreografický 2D parket, video analýza, metronóm a súťažné body SZTŠ pre tanečné páry a trénerov.',
     type: 'website',
-    url: 'https://encore-app.vercel.app',
+    url: 'https://www.encore-sk.com',
     images: [
       {
-        url: 'https://encore-app.vercel.app/encore_stage_bg.jpg',
+        url: 'https://www.encore-sk.com/encore_stage_bg.jpg',
         width: 1200,
         height: 630,
         alt: 'Encore Dance Routine Studio',

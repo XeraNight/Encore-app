@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 
 export default function DownloadCTA() {
-  const qrUrl = 'https://encore-app.vercel.app/download/ios'
+  const qrUrl = 'https://www.encore-sk.com/download/ios'
 
   return (
     <section id="download" className="py-20 relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
