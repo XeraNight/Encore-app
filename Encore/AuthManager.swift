@@ -384,7 +384,7 @@ final class AuthManager: ObservableObject {
         guard let client else { return Self.missingConfigMessage }
         guard let email = pendingConfirmationEmail else { return "Najprv sa zaregistruj alebo prihlás." }
         let code = Self.digits(rawCode)
-        guard EmailCodePolicy.isComplete(code) else { return "Zadaj celý kód z e-mailu." }
+        guard EmailCodePolicy.isComplete(code) else { return "Zadaj \(EmailCodePolicy.length)-miestny kód z e-mailu." }
         do {
             let response = try await client.auth.verifyOTP(email: email, token: code, type: .signup)
             guard let session = response.session else { return "Kód sa nepodarilo overiť. Skús to znova." }
@@ -440,7 +440,7 @@ final class AuthManager: ObservableObject {
         guard let client else { return Self.missingConfigMessage }
         let clean = email.trimmingCharacters(in: .whitespacesAndNewlines)
         let code = Self.digits(rawCode)
-        guard EmailCodePolicy.isComplete(code) else { return "Zadaj celý kód z e-mailu." }
+        guard EmailCodePolicy.isComplete(code) else { return "Zadaj \(EmailCodePolicy.length)-miestny kód z e-mailu." }
         do {
             let response = try await client.auth.verifyOTP(email: clean, token: code, type: .recovery)
             guard let session = response.session else { return "Kód sa nepodarilo overiť. Skús to znova." }

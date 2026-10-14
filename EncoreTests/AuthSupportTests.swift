@@ -95,16 +95,16 @@ struct AuthErrorMapperTests {
 
 struct EmailCodePolicyTests {
 
-    /// The project sends 8-digit codes; a 6-digit-only check rejected every real code (13. 10. 2026).
-    @Test func acceptsEveryLengthSupabaseCanSend() {
-        #expect(EmailCodePolicy.isComplete("317779"))
+    /// The project sends 8-digit codes; a 6-digit check rejected every real code (13. 10. 2026).
+    @Test func acceptsExactlyEightDigits() {
+        #expect(EmailCodePolicy.length == 8)
         #expect(EmailCodePolicy.isComplete("31777923"))
-        #expect(EmailCodePolicy.isComplete("3177792312"))
     }
 
-    @Test func rejectsTooShortOrTooLong() {
-        #expect(!EmailCodePolicy.isComplete("31777"))
-        #expect(!EmailCodePolicy.isComplete("31777923123"))
+    @Test func rejectsOtherLengths() {
+        #expect(!EmailCodePolicy.isComplete("317779"))
+        #expect(!EmailCodePolicy.isComplete("3177792"))
+        #expect(!EmailCodePolicy.isComplete("317779231"))
         #expect(!EmailCodePolicy.isComplete(""))
     }
 }

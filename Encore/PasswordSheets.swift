@@ -207,29 +207,27 @@ struct PasswordStrengthBar: View {
     }
 }
 
-// MARK: - Code field (6–10 digits, see EmailCodePolicy)
-/// The code length is a server setting, so typing never submits by itself. A code pasted or filled in
-/// from Mail (arriving at once) is submitted right away.
+// MARK: - Code field (exactly EmailCodePolicy.length digits)
+/// Submits by itself once the last digit is in (typed, pasted or filled in from Mail).
 private struct CodeField: View {
     @Binding var code: String
     var focus: FocusState<AuthField?>.Binding
     var onComplete: () -> Void
 
     var body: some View {
-        TextField("", text: $code, prompt: Text("Kód z e-mailu").foregroundColor(.white.opacity(0.5)))
+        TextField("", text: $code, prompt: Text(String(repeating: "0", count: EmailCodePolicy.length)).foregroundColor(.white.opacity(0.35)))
             .keyboardType(.numberPad)
             .textContentType(.oneTimeCode)
             .multilineTextAlignment(.center)
             .font(.system(size: 26, weight: .bold, design: .monospaced))
-            .tracking(code.isEmpty ? 0 : 4)
+            .tracking(4)
             .focused(focus, equals: .code)
             .authFieldChrome(isFocused: focus.wrappedValue == .code)
-            .accessibilityLabel("Kód z e-mailu")
-            .onChange(of: code) { oldValue, newValue in
-                let digits = String(newValue.filter { $0.isASCII && $0.isNumber }.prefix(EmailCodePolicy.allowedLengths.upperBound))
+            .accessibilityLabel("\(EmailCodePolicy.length)-miestny kód z e-mailu")
+            .onChange(of: code) { _, newValue in
+                let digits = String(newValue.filter { $0.isASCII && $0.isNumber }.prefix(EmailCodePolicy.length))
                 if digits != newValue { code = digits }
-                let arrivedAtOnce = digits.count - oldValue.count > 1
-                if arrivedAtOnce && EmailCodePolicy.isComplete(digits) { onComplete() }
+                if EmailCodePolicy.isComplete(digits) { onComplete() }
             }
     }
 }
@@ -353,7 +351,7 @@ struct EmailCodeSheet: View {
         AuthSheetScaffold(
             systemImage: "envelope.badge.fill",
             title: "Potvrď e-mail",
-            message: "Poslali sme kód na \(email). Zadaj ho sem. Skontroluj aj spam.",
+            message: "Poslali sme \(EmailCodePolicy.length)-miestny kód na \(email). Zadaj ho sem. Skontroluj aj spam.",
             isBusy: isVerifying,
             onTapBackground: { focus = nil }
         ) {
@@ -454,7 +452,7 @@ struct ForgotPasswordSheet: View {
             systemImage: step == .email ? "key.horizontal.fill" : "envelope.open.fill",
             title: "Obnova hesla",
             message: step == .email
-                ? "Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti kód. Funguje na ktoromkoľvek zariadení."
+                ? "Zadaj e-mail, s ktorým si sa zaregistroval. Pošleme ti \(EmailCodePolicy.length)-miestny kód. Funguje na ktoromkoľvek zariadení."
                 : "Ak k adrese \(cleanEmail) existuje účet, kód je na ceste. Skontroluj aj spam. Kód platí 10 minút.",
             isBusy: isBusy,
             onTapBackground: { focus = nil }
