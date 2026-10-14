@@ -63,13 +63,15 @@ struct GoogleLogoView: View {
 }
 
 // MARK: - Login & registration
-/// Brand screen: gold-on-obsidian card. All logic lives in `AuthManager`; this view only collects input.
+/// Brand screen in the §1A look: velvet, a glass card, gold capsules for Prihlásenie / Registrácia and
+/// Tanečník / Tréner. All logic lives in `AuthManager`; this view only collects input.
 struct AuthSheetView: View {
     var isSheet: Bool = false
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var authManager = AuthManager.shared
 
-    enum AuthTab {
+    enum AuthTab: Hashable {
         case signIn, signUp
     }
 
@@ -84,127 +86,107 @@ struct AuthSheetView: View {
     @State private var danceRole = "dancer"
     @State private var showBiometricButton = false
     @State private var tapFeedback = 0
+    @State private var shakes = 0
     @FocusState private var focus: AuthField?
 
     private var isSignUp: Bool { selectedTab == .signUp }
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                background
-
-                GeometryReader { geometry in
-                    ScrollView(showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            Spacer(minLength: 24)
-                            card
-                                .padding(.horizontal, 20)
-                            Spacer(minLength: 24)
-                        }
-                        .frame(minHeight: geometry.size.height)
-                    }
-                    .scrollBounceBehavior(.basedOnSize)
-                    .scrollDismissesKeyboard(.interactively)
-                }
-            }
-            .sheet(item: $legalTab) { LegalComplianceView(initialTab: $0) }
-            .sheet(isPresented: $showForgotPassword) { ForgotPasswordSheet(prefillEmail: email) }
-            .sheet(isPresented: $showCodeSheet) { EmailCodeSheet() }
-            .onAppear {
-                if email.isEmpty, let saved = authManager.savedEmail {
-                    email = saved
-                }
-                // Read once, not on every redraw (it touches the Keychain).
-                showBiometricButton = authManager.canUseBiometricLogin
-            }
-            .onChange(of: authManager.authErrorMessage) { _, message in
-                // VoiceOver users hear the error without hunting for it.
-                if let message { AccessibilityNotification.Announcement(message).post() }
-            }
-            .toolbar {
-                if isSheet {
-                    ToolbarItem(placement: .cancellationAction) {
-                        Button("Zatvoriť") { dismiss() }
-                            .foregroundColor(.gold400)
-                    }
-                }
-            }
-            .sensoryFeedback(.impact(weight: .medium), trigger: tapFeedback)
-        }
-    }
-
-    // MARK: Background
-    private var background: some View {
         ZStack {
-            Color.obsidian900
-            RadialGradient(
-                colors: [Color.gold500.opacity(0.18), .clear],
-                center: .topTrailing,
-                startRadius: 20,
-                endRadius: 350
-            )
+            EllegancePageBackground()
+                .contentShape(Rectangle())
+                .onTapGesture { focus = nil }
+
+            GeometryReader { geometry in
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 20) {
+                        Spacer(minLength: 12)
+                        header
+                        PlannerChoice(
+                            options: [(AuthTab.signIn, "Prihlásenie"), (AuthTab.signUp, "Registrácia")],
+                            selection: $selectedTab
+                        )
+                        .accessibilityIdentifier("auth.mode")
+                        formCard
+                        alternativeSignIn
+                        legalLinks
+                        Spacer(minLength: 12)
+                    }
+                    .padding(.horizontal, 20)
+                    .frame(minHeight: geometry.size.height)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedTab)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: authManager.authErrorMessage)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: authManager.pendingConfirmationEmail)
+                }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDismissesKeyboard(.interactively)
+            }
+
+            if isSheet {
+                VStack {
+                    HStack {
+                        LiquidGlassCircleButton(icon: "xmark", label: "Zavrieť", size: 40) { dismiss() }
+                        Spacer()
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+            }
         }
-        .ignoresSafeArea()
-        .contentShape(Rectangle())
-        .onTapGesture { focus = nil }
+        .environment(\.locale, Locale(identifier: "sk"))
+        .preferredColorScheme(.dark)
+        .sheet(item: $legalTab) { LegalComplianceView(initialTab: $0) }
+        .sheet(isPresented: $showForgotPassword) { ForgotPasswordSheet(prefillEmail: email) }
+        .sheet(isPresented: $showCodeSheet) { EmailCodeSheet() }
+        .onAppear {
+            if email.isEmpty, let saved = authManager.savedEmail {
+                email = saved
+            }
+            // Read once, not on every redraw (it touches the Keychain).
+            showBiometricButton = authManager.canUseBiometricLogin
+        }
+        .onChange(of: selectedTab) { _, _ in clearMessages() }
+        .onChange(of: authManager.authErrorMessage) { _, message in
+            guard let message else { return }
+            shakes += 1
+            // VoiceOver users hear the error without hunting for it.
+            AccessibilityNotification.Announcement(message).post()
+        }
+        .sensoryFeedback(.impact(weight: .medium), trigger: tapFeedback)
+        .sensoryFeedback(.error, trigger: shakes)
     }
 
-    // MARK: Card
-    private var card: some View {
-        VStack(spacing: 0) {
-            header
-            form
-            messages
-            PrimarySheetButton(
-                title: isSignUp ? "Vytvoriť účet" : "Prihlásiť sa",
-                isLoading: authManager.isLoading,
-                isEnabled: canSubmit,
-                action: handleAuthSubmit
-            )
-            .padding(.top, 18)
-            accountLinks
-            alternativeSignIn
-            legalLinks
-        }
-        .padding(.horizontal, 24)
-        .padding(.top, 32)
-        .padding(.bottom, 24)
-        .background(Color.themeCard, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.gold500.opacity(0.55), lineWidth: 1.5)
-        )
-        .shadow(color: Color.gold500.opacity(0.25), radius: 25, y: 10)
-        .shadow(color: Color.black.opacity(0.8), radius: 30, y: 15)
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selectedTab)
-    }
-
+    // MARK: Header
     private var header: some View {
         VStack(spacing: 10) {
             Image("EncoreLogo")
                 .resizable()
                 .scaledToFit()
-                .frame(width: 64, height: 64)
+                .frame(width: 72, height: 72)
+                .shadow(color: Color.gold500.opacity(0.35), radius: 18)
                 .accessibilityHidden(true)
             EncoreWordmark(size: 15, color: .gold400)
             Text(isSignUp ? "Vytvor si účet" : "Vitaj späť")
-                .font(.title2.weight(.bold))
+                .font(.system(.title, design: .rounded).weight(.heavy))
                 .foregroundColor(.white)
                 .contentTransition(.opacity)
+                .accessibilityAddTraits(.isHeader)
+            Text(isSignUp ? "Zostavy, tréningy a súťaže na jednom mieste." : "Prihlás sa a pokračuj tam, kde si skončil.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+                .contentTransition(.opacity)
         }
-        .padding(.bottom, 22)
     }
 
-    // MARK: Form
-    private var form: some View {
+    // MARK: Form card
+    private var formCard: some View {
         VStack(spacing: 14) {
             if isSignUp {
-                Picker("Som", selection: $danceRole) {
-                    Text("Tanečník").tag("dancer")
-                    Text("Tréner").tag("coach")
-                }
-                .pickerStyle(.segmented)
-                .accessibilityLabel("Kto som")
+                PlannerChoice(options: [("dancer", "Tanečník"), ("coach", "Tréner")], selection: $danceRole)
+                    .accessibilityLabel("Kto som")
+                    .transition(.move(edge: .top).combined(with: .opacity))
 
                 TextField("", text: $nickname, prompt: fieldPrompt("Meno alebo prezývka"))
                     .textContentType(.name)
@@ -217,7 +199,8 @@ struct AuthSheetView: View {
                             nickname = String(value.prefix(NameRules.maxLength))
                         }
                     }
-                    .authFieldChrome()
+                    .authFieldChrome(isFocused: focus == .name)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
 
             TextField("", text: $email, prompt: fieldPrompt("E-mail"))
@@ -228,7 +211,7 @@ struct AuthSheetView: View {
                 .focused($focus, equals: .email)
                 .submitLabel(.next)
                 .onSubmit { focus = .password }
-                .authFieldChrome()
+                .authFieldChrome(isFocused: focus == .email)
 
             PasswordField(
                 prompt: isSignUp ? "Heslo (aspoň \(PasswordPolicy.minLength) znakov)" : "Heslo",
@@ -243,7 +226,31 @@ struct AuthSheetView: View {
             if isSignUp {
                 signUpExtras
             }
+
+            messages
+
+            PrimarySheetButton(
+                title: isSignUp ? "Vytvoriť účet" : "Prihlásiť sa",
+                isLoading: authManager.isLoading,
+                isEnabled: canSubmit,
+                action: handleAuthSubmit
+            )
+            .accessibilityIdentifier("auth.submit")
+            .padding(.top, 4)
+
+            if let submitHint {
+                Text(submitHint)
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.6))
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .transition(.opacity)
+            }
+
+            accountLinks
         }
+        .padding(18)
+        .homeCard(cornerRadius: 24)
+        .shake(shakes, reduceMotion: reduceMotion)
     }
 
     @ViewBuilder
@@ -252,34 +259,24 @@ struct AuthSheetView: View {
 
         if !password.isEmpty, let issue = PasswordPolicy.issue(for: password, email: email) {
             Text(issue)
-                .font(.caption.weight(.medium))
+                .font(.footnote.weight(.medium))
                 .foregroundColor(.latinRed)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .transition(.opacity)
         }
 
-        Button {
-            ageConfirmed.toggle()
-        } label: {
-            HStack(alignment: .top, spacing: 10) {
-                Image(systemName: ageConfirmed ? "checkmark.square.fill" : "square")
-                    .font(.title3)
-                    .foregroundColor(.gold400)
-                Text("Mám aspoň 16 rokov, alebo mám súhlas rodiča či zákonného zástupcu.")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.75))
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityAddTraits(.isToggle)
-        .accessibilityValue(ageConfirmed ? "zapnuté" : "vypnuté")
+        PlannerToggleRow(
+            title: "Mám aspoň 16 rokov",
+            subtitle: "alebo súhlas rodiča či zákonného zástupcu",
+            systemImage: "person.crop.circle.badge.checkmark",
+            isOn: $ageConfirmed
+        )
+        .accessibilityIdentifier("auth.age")
+        .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private func fieldPrompt(_ text: String) -> Text {
-        Text(text).foregroundColor(Color.gold300.opacity(0.5))
+        Text(text).foregroundColor(.white.opacity(0.5))
     }
 
     // MARK: Messages
@@ -295,68 +292,98 @@ struct AuthSheetView: View {
                         }
                     } label: {
                         Label("Otvoriť Nastavenia iPhonu", systemImage: "gearshape.fill")
-                            .font(.caption.weight(.bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundColor(.gold400)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 7)
                             .background(Color.gold500.opacity(0.12), in: Capsule())
+                            .frame(minHeight: 44)
                     }
                     .buttonStyle(.pressable)
                 }
             }
-            .padding(.top, 12)
-            .transition(.opacity.combined(with: .move(edge: .top)))
         }
 
         if let successMessage = authManager.authSuccessMessage {
             SheetBanner(text: successMessage, isError: false)
-                .padding(.top, 12)
-                .transition(.opacity)
+        }
+
+        // The sign-up waits for the e-mail code (the code sheet was closed): one tap back to it.
+        if let pending = authManager.pendingConfirmationEmail, !showCodeSheet {
+            Button {
+                showCodeSheet = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "envelope.badge.fill")
+                        .foregroundColor(.gold400)
+                        .symbolEffect(.pulse)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Mám kód z e-mailu")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Potvrdenie pre \(pending)")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.65))
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.bold))
+                        .foregroundColor(.white.opacity(0.5))
+                }
+                .padding(12)
+                .background(Color.gold500.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.gold400.opacity(0.4), lineWidth: 1)
+                )
+            }
+            .buttonStyle(.pressable(scale: 0.98))
+            .accessibilityIdentifier("auth.enterCode")
+            .transition(.scale(scale: 0.95).combined(with: .opacity))
         }
     }
 
     // MARK: Links under the main button
+    @ViewBuilder
     private var accountLinks: some View {
-        VStack(spacing: 4) {
-            if !isSignUp {
-                Button("Zabudnuté heslo?") {
-                    clearMessages()
-                    showForgotPassword = true
-                }
-                .font(.footnote.weight(.medium))
-                .foregroundColor(.white.opacity(0.65))
-                .frame(minHeight: 44)
-            }
-
-            Button(isSignUp ? "Už máš účet? Prihlás sa" : "Nemáš účet? Zaregistruj sa") {
-                selectedTab = isSignUp ? .signIn : .signUp
+        if !isSignUp {
+            Button("Zabudnuté heslo?") {
                 clearMessages()
+                showForgotPassword = true
             }
             .font(.footnote.weight(.semibold))
             .foregroundColor(.gold400)
             .frame(minHeight: 44)
+            .buttonStyle(.pressable)
+            .accessibilityIdentifier("auth.forgotPassword")
         }
-        .padding(.top, 6)
     }
 
     // MARK: Google, Apple, Face ID
     private var alternativeSignIn: some View {
         VStack(spacing: 10) {
+            HStack(spacing: 10) {
+                Rectangle().fill(Color.white.opacity(0.15)).frame(height: 1)
+                Text("alebo")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.6))
+                Rectangle().fill(Color.white.opacity(0.15)).frame(height: 1)
+            }
+            .accessibilityHidden(true)
+
             Button(action: handleGoogleAuth) {
                 HStack(spacing: 10) {
                     GoogleLogoView(size: 18)
                     Text("Pokračovať cez Google")
                         .font(.subheadline.weight(.semibold))
                 }
-                .foregroundColor(.white.opacity(0.92))
-                .frame(maxWidth: .infinity, minHeight: 46)
-                .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(Color.gold500.opacity(0.35), lineWidth: 1.5)
-                )
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .homeCard(cornerRadius: 16)
             }
             .buttonStyle(.pressable)
+            .accessibilityIdentifier("auth.google")
 
             if AuthFeatureFlags.appleSignInEnabled {
                 SignInWithAppleButton(.continue, onRequest: { request in
@@ -365,36 +392,31 @@ struct AuthSheetView: View {
                     request.nonce = hashedNonce
                 }, onCompletion: handleAppleAuthCompletion)
                 .signInWithAppleButtonStyle(.white)
-                .frame(height: 46)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .frame(height: 50)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
 
             if !isSignUp && showBiometricButton {
                 Button(action: handleFaceIDAuth) {
                     Label("Prihlásiť sa cez \(authManager.biometryName)", systemImage: authManager.biometrySystemImage)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundColor(.white.opacity(0.85))
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-                        )
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .homeCard(cornerRadius: 16)
                 }
                 .buttonStyle(.pressable)
+                .transition(.opacity)
             }
         }
-        .padding(.top, 10)
     }
 
     /// Two real links in one sentence; each opens its own section of the legal screen.
     private var legalLinks: some View {
         Text("Pokračovaním súhlasíš s [Podmienkami používania](encore-legal://terms) a [Zásadami ochrany súkromia](encore-legal://privacy).")
-            .font(.caption2)
-            .foregroundColor(.white.opacity(0.55))
+            .font(.caption)
+            .foregroundColor(.white.opacity(0.6))
             .tint(.gold400)
             .multilineTextAlignment(.center)
-            .padding(.top, 14)
             .environment(\.openURL, OpenURLAction { url in
                 legalTab = url.host == "terms" ? .terms : .privacy
                 return .handled
@@ -402,8 +424,9 @@ struct AuthSheetView: View {
     }
 
     // MARK: Actions
+    private var cleanEmail: String { email.trimmingCharacters(in: .whitespacesAndNewlines) }
+
     private var canSubmit: Bool {
-        let cleanEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         if isSignUp {
             return EmailValidator.isValid(cleanEmail)
                 && PasswordPolicy.issue(for: password, email: cleanEmail) == nil
@@ -411,6 +434,19 @@ struct AuthSheetView: View {
                 && ageConfirmed
         }
         return !cleanEmail.isEmpty && !password.isEmpty
+    }
+
+    /// Why the dimmed main button cannot be tapped yet (§1A). Hidden until the user starts typing.
+    private var submitHint: String? {
+        guard !canSubmit, !authManager.isLoading else { return nil }
+        let started = !cleanEmail.isEmpty || !password.isEmpty || (isSignUp && !nickname.isEmpty)
+        guard started else { return nil }
+        if !isSignUp { return "Zadaj e-mail aj heslo." }
+        if nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Doplň meno alebo prezývku." }
+        if !EmailValidator.isValid(cleanEmail) { return "Zadaj platný e-mail, napr. meno@domena.sk." }
+        if PasswordPolicy.issue(for: password, email: cleanEmail) != nil { return "Heslo ešte nespĺňa pravidlá vyššie." }
+        if !ageConfirmed { return "Potvrď vek alebo súhlas rodiča." }
+        return nil
     }
 
     private func clearMessages() {
@@ -502,5 +538,4 @@ struct AuthSheetView: View {
 
 #Preview("Prihlásenie") {
     AuthSheetView(isSheet: true)
-        .preferredColorScheme(.dark)
 }

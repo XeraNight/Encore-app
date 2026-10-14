@@ -378,8 +378,10 @@ struct EmailCodeSheet: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: infoText)
         .sensoryFeedback(.error, trigger: shakes)
         .sensoryFeedback(.success, trigger: successTick)
-        .onAppear { focus = .code }
         .task {
+            // A sheet takes the keyboard only after it has appeared.
+            try? await Task.sleep(for: .milliseconds(450))
+            focus = .code
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 if cooldown > 0 { cooldown -= 1 }
@@ -505,9 +507,11 @@ struct ForgotPasswordSheet: View {
         .sensoryFeedback(.success, trigger: sentTick)
         .onAppear {
             if email.isEmpty { email = prefillEmail }
-            focus = .email
         }
         .task {
+            // A sheet takes the keyboard only after it has appeared.
+            try? await Task.sleep(for: .milliseconds(450))
+            focus = .email
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 if cooldown > 0 { cooldown -= 1 }
