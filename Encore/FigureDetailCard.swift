@@ -32,8 +32,7 @@ struct FigureDetailCard: View {
     @FocusState private var isWriting: Bool
 
     // Video
-    @State private var player: AVPlayer? = nil
-    @State private var playerObserverToken: (any NSObjectProtocol)? = nil
+    @ObservedObject private var playback = FigureVideoPlayback.shared
     @State private var playerGeneration = 0
     @State private var videoUnavailable = false
     @State private var detectedPortrait: Bool? = nil
@@ -112,7 +111,9 @@ struct FigureDetailCard: View {
         }
         .onDisappear {
             persistNotes()
-            tearDownPlayer()
+            playerGeneration += 1
+            // With the sound on, the video plays on in the mini player above the tab bar.
+            playback.cardDidClose(nodeId: node.id)
         }
         .onChange(of: text) { scheduleSave() }
         .onChange(of: node.notes) {
@@ -130,7 +131,7 @@ struct FigureDetailCard: View {
             setupPlayer(for: newValue)
         }
         .onChange(of: showCamera) { _, isShowing in
-            if isShowing { tearDownPlayer() } else { setupPlayer(for: node.displayVideoPath) }
+            if isShowing { stopPlayer() } else { setupPlayer(for: node.displayVideoPath) }
         }
         .fullScreenCover(isPresented: $showCamera) {
             DanceCameraView(ghostVideoPath: node.activeTargetVideoPath, savesToPhotos: true) { localPath in
@@ -303,8 +304,9 @@ struct FigureDetailCard: View {
                             .scaledToFit()
                             .frame(width: rotation % 180 == 0 ? width : height, height: rotation % 180 == 0 ? height : width)
                             .rotationEffect(.degrees(Double(rotation)))
-                    } else if let player {
+                    } else if playback.nodeId == node.id, let player = playback.player {
                         RotatableVideoView(player: player, rotation: rotation, size: CGSize(width: width, height: height))
+                            .overlay(alignment: .bottomTrailing) { soundButton }
                     } else if videoUnavailable {
                         unavailableVideo(path: path)
                     } else {
@@ -328,6 +330,26 @@ struct FigureDetailCard: View {
         }
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: isPortraitLayout)
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: rotation)
+    }
+
+    /// The video starts muted so music in the hall keeps playing. With the sound on it keeps playing
+    /// after the card closes (mini player, Lock Screen, Dynamic Island).
+    private var soundButton: some View {
+        Button(action: playback.toggleSound) {
+            Image(systemName: playback.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(playback.isMuted ? Color.white : Color.gold400)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular.interactive(), in: .circle)
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable(scale: 0.85))
+        .padding(.trailing, 6)
+        .padding(.bottom, 8)
+        .sensoryFeedback(.selection, trigger: playback.isMuted)
+        .accessibilityLabel(playback.isMuted ? "Zapnúť zvuk" : "Vypnúť zvuk")
     }
 
     /// The figure has a video, but it cannot be played here (deleted from Fotky, no access, offline).
@@ -595,7 +617,7 @@ struct FigureDetailCard: View {
             }
             node.replaceSharedVideoPath(nil)
         }
-        tearDownPlayer()
+        stopPlayer()
         MediaStorageManager.removeFile(named: videoPath)   // a Fotky video stays in Fotky
         node.videoPath = nil
         routineDidChange()
@@ -680,10 +702,15 @@ struct FigureDetailCard: View {
     }
 
     // MARK: - Player
+    /// Reopening the figure whose video plays in the mini player takes it back into the card, sound and position kept.
     private func setupPlayer(for path: String?) {
-        tearDownPlayer()
+        playerGeneration += 1
         videoUnavailable = false
-        guard let path, !MediaResolver.isImagePath(path: path) else { return }
+        playback.cardDidOpen(nodeId: node.id)
+        guard let path, !MediaResolver.isImagePath(path: path) else {
+            stopPlayer()
+            return
+        }
 
         // A video in Fotky is looked up asynchronously. Only the newest request may start a player:
         // closing the card or opening the camera meanwhile bumps the generation.
@@ -696,38 +723,15 @@ struct FigureDetailCard: View {
     }
 
     private func startPlayer(_ url: URL) {
-        let ap = AVPlayer(url: url)
-        // Loop: jump back to the start when it ends. [weak ap] avoids a retain cycle.
-        playerObserverToken = NotificationCenter.default.addObserver(
-            forName: .AVPlayerItemDidPlayToEndTime,
-            object: ap.currentItem,
-            queue: .main
-        ) { [weak ap] _ in
-            ap?.seek(to: .zero)
-            ap?.play()
-        }
-        player = ap
-
-        Task { @MainActor in
-            try? await AudioSessionCoordinator.shared.activate(.player)
-            guard player === ap else { return }   // replaced or closed meanwhile
-            ap.play()
-        }
+        playback.show(url: url, nodeId: node.id, title: node.figureName, subtitle: node.routine?.name ?? "Encore")
         Task { @MainActor in
             detectedPortrait = await Self.isPortrait(url)
         }
     }
 
-    private func tearDownPlayer() {
+    private func stopPlayer() {
         playerGeneration += 1
-        if let token = playerObserverToken {
-            NotificationCenter.default.removeObserver(token)
-            playerObserverToken = nil
-        }
-        guard player != nil else { return }
-        player?.pause()
-        player = nil
-        Task { await AudioSessionCoordinator.shared.deactivate(.player) }
+        playback.stop(nodeId: node.id)
     }
 
     /// True when the video was recorded upright (taller than wide, after rotation).

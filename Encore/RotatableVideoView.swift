@@ -11,6 +11,7 @@ struct RotatableVideoView: View {
     @State private var isPlaying = true
     @State private var progress: Double = 0
     @State private var timeObserver: Any?
+    @State private var taps = 0
 
     private var isSideways: Bool { rotation % 180 != 0 }
 
@@ -31,18 +32,24 @@ struct RotatableVideoView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
+            taps += 1
             if player.timeControlStatus == .paused { player.play() } else { player.pause() }
         }
         .overlay {
             if !isPlaying {
                 Image(systemName: "play.fill")
-                    .font(.system(size: 26, weight: .bold))
+                    .font(.title.weight(.bold))
                     .foregroundStyle(.white)
                     .frame(width: 64, height: 64)
                     .glassEffect(.regular, in: .circle)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
                     .allowsHitTesting(false)
             }
         }
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isPlaying)
+        .sensoryFeedback(.impact(weight: .light), trigger: taps)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel(isPlaying ? "Pozastaviť video" : "Prehrať video")
         .onAppear {
             timeObserver = player.addPeriodicTimeObserver(forInterval: CMTime(seconds: 0.1, preferredTimescale: 600), queue: .main) { time in
                 let total = player.currentItem?.duration.seconds ?? 0

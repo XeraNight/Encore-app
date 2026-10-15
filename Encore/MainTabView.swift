@@ -32,7 +32,10 @@ struct MainTabView: View {
                 }
             }
             .tint(Color.gold400)
+            .figureMiniPlayer()
         }
+        // Signed out: a figure video with sound must not play on.
+        .onDisappear { FigureVideoPlayback.shared.stop() }
         .task {
             // Once per account, a moment after the first sign-in on this iPhone.
             try? await Task.sleep(for: .seconds(1.5))

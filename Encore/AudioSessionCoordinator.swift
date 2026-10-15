@@ -7,7 +7,7 @@ actor AudioSessionCoordinator {
     private init() {}
 
     enum Client: String {
-        case player, speech, voiceNote
+        case player, mutedVideo, speech, voiceNote
     }
 
     private var activeClient: Client?
@@ -24,6 +24,11 @@ actor AudioSessionCoordinator {
             // Playback already routes to AirPlay and Bluetooth headphones on its own. The HFP and AirPlay
             // options are only valid with .playAndRecord; passing them here made setCategory fail (-50).
             try avSession.setCategory(.playback, mode: .moviePlayback)
+            try avSession.setActive(true)
+
+        case .mutedVideo:
+            // A silent figure video must never stop music already playing in the hall (Spotify, a speaker).
+            try avSession.setCategory(.ambient, mode: .default)
             try avSession.setActive(true)
 
         case .voiceNote:

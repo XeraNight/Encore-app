@@ -618,6 +618,7 @@ struct RoutineCanvasView: View {
             // 3. Delete Node Realtime Handler
             realtimeManager.onNodeDeleted = { nodeId, figureName, senderName in
                 if let node = routine.canvasNodes.first(where: { $0.id == nodeId }) {
+                    FigureVideoPlayback.shared.stop(nodeId: nodeId)
                     modelContext.delete(node)
                     try? modelContext.save()
                     showToastNotification(message: "\(senderName) vymazal figúru \(figureName)")
@@ -902,6 +903,7 @@ struct RoutineCanvasView: View {
     /// Hides the figure and offers "Vrátiť" for a few seconds; only then is it really deleted.
     private func deleteNode(_ node: CanvasNode) {
         commitPendingDelete()
+        FigureVideoPlayback.shared.stop(nodeId: node.id)
         pendingDelete = PendingFigureDelete(id: node.id, name: node.figureName)
         pendingDeleteTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(5))
