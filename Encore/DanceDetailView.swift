@@ -258,16 +258,10 @@ struct DanceDetailView: View {
 
     /// Same as deleting from the Canvas tab: gone here and in the cloud.
     private func deleteRoutine(_ routine: Routine) {
-        let routineId = routine.id
-        for node in routine.canvasNodes {
-            MediaStorageManager.removeFile(named: node.videoPath)   // a Fotky video stays in Fotky
-        }
         withAnimation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.85)) {
-            modelContext.delete(routine)
+            routine.deleteEverywhere(in: modelContext)
         }
-        try? modelContext.save()
         deleteCount += 1
-        Task { await SupabaseSyncManager.shared.deleteRoutine(routineId) }
     }
 }
 

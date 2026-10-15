@@ -328,13 +328,10 @@ public struct CanvasRoutinesHubView: View {
     }
 
     private func delete(_ routine: Routine) {
-        let routineId = routine.id
         withAnimation(.spring(response: 0.38, dampingFraction: 0.85)) {
-            modelContext.delete(routine)
+            routine.deleteEverywhere(in: modelContext)
         }
-        try? modelContext.save()
         deleteCount += 1
-        Task { await SupabaseSyncManager.shared.deleteRoutine(routineId) }
     }
 }
 
@@ -350,5 +347,19 @@ extension Routine {
         lastModifiedBy = userName
         try? modelContext?.save()
         SupabaseSyncManager.shared.syncRoutineOnBackground(self)
+    }
+
+    /// Deletes the routine here and in the cloud, with the figure videos it kept in Encore
+    /// (a video from Fotky stays in Fotky).
+    @MainActor
+    func deleteEverywhere(in context: ModelContext) {
+        let routineId = id
+        for node in canvasNodes {
+            FigureVideoPlayback.shared.stop(nodeId: node.id)
+            MediaStorageManager.removeFile(named: node.videoPath)
+        }
+        context.delete(self)
+        try? context.save()
+        Task { await SupabaseSyncManager.shared.deleteRoutine(routineId) }
     }
 }
