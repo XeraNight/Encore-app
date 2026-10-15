@@ -7,12 +7,13 @@
 
 ## 1. Čo v canvase vieš robiť
 
-**Moje zostavy:** nová zostava (tanec), hľadanie, filter Štandard / Latina, otvoriť parket, zdieľať QR, zmazať (s potvrdením).
+**Moje zostavy:** nová zostava (tanec), hľadanie, filter Štandard / Latina, otvoriť parket, premenovať, zdieľať QR, zmazať (s potvrdením, zmažú sa aj videá figúr uložené v Encore).
 
 **Parket:**
 - posúvanie a priblíženie, „Vycentrovať figúry“, parket na šírku aj na výšku, displej nezhasne;
 - **+ Figúra** z knižnice daného tanca, alebo rovno nová figúra;
-- presúvanie figúr (prichytia sa k mriežke a neprejdú cez stenu), ťuk = detail, podržanie = Otvoriť / Vymazať;
+- presúvanie figúr (prichytia sa k mriežke a neprejdú cez stenu), ťuk = detail, podržanie = Otvoriť / Vymazať, 5 s na „Vrátiť“;
+- ťuk na názov zostavy = premenovať; ⋯ → Poradie figúr (presunieš ťahaním);
 - čísla poradia a čiary medzi figúrami, ťuk na šípku = poznámka k prechodu (ukladá sa sama);
 - Zobrazenie: veľkosť kariet (70 / 100 / 120 %) a priesvitné karty;
 - kreslenie po parkete (ceruzka, zmazať kresbu);
@@ -21,7 +22,7 @@
 - ⋯ menu: Duel videí, Videá a fotky zostavy, Hosťujúci tréner; QR zdieľanie hore;
 - Live Activity s aktuálnou a ďalšou figúrou.
 
-**Detail figúry:** video (natočiť s „duchom“ vzoru, z Fotiek, otočiť, zväčšiť ťahaním, slučka, ťuk = pauza), zdieľanie videa s partnerom a trénerom, porovnanie so vzorom a korekcie rovno do poznámok, formátované poznámky s automatickým ukladaním, poznámka od trénera, poznámky hosťujúceho trénera.
+**Detail figúry:** ťuk na názov = názov a rytmus figúry len v tejto zostave; video (spustí sa stlmené, hudba v sále hrá ďalej; reproduktor zapne zvuk a so zvukom hrá ďalej v mini prehrávači nad tab barom, na zamknutej obrazovke a v Dynamic Island; natočiť s „duchom“ vzoru, z Fotiek, otočiť, zväčšiť ťahaním, slučka, ťuk = pauza), zdieľanie videa s partnerom a trénerom, porovnanie so vzorom a korekcie rovno do poznámok, formátované poznámky s automatickým ukladaním, poznámka od trénera, poznámky hosťujúceho trénera.
 
 ## 2. Nálezy
 
@@ -71,3 +72,13 @@
 5. **Vrátiť zmazanie** (F4) a **upraviť figúru v zostave** (F3).
 6. **Kresba** (C3, F5): uloženie k zostave v telefóne, vrátiť ťah, farby. Zdieľanie kresby s partnerom potrebuje nový stĺpec v databáze (SQL ukážem zvlášť).
 7. **UI** U1–U6 a uvoľnenie miesta po zmazaní zostavy (K2).
+
+## 4. Stav (15. 10. 2026)
+**Hotové:** C1 (proti smeru hodinových ručičiek), C4–C8, F1–F4, U1–U6, K1–K3.
+Mini prehrávač nad tab barom je od iOS 26.1; na iOS 26.0 sa video so zvukom po zatvorení figúry zastaví.
+
+**Čaká na rozhodnutie:**
+- C2: PDF export ostal bez tlačidla. Zmazať ho, alebo pridať do ⋯ menu?
+- C3, F5: kresba po parkete sa neukladá. Zmazať kreslenie, alebo ho dorobiť (uloženie, vrátiť ťah, farby; zdieľanie s partnerom potrebuje nový stĺpec v databáze)?
+
+Overené buildom a testami; naživo v simulátore to bez prihlásenia skúsiť nejde.
