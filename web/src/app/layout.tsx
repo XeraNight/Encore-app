@@ -4,15 +4,16 @@ import './globals.css'
 import { PostHogProvider } from '@/components/PostHogProvider'
 import { Analytics } from '@vercel/analytics/next'
 
-const inter = Inter({ subsets: ['latin'], display: 'swap', variable: '--font-sans' })
-const playfair = Playfair_Display({ subsets: ['latin'], display: 'swap', variable: '--font-serif' })
+const inter = Inter({ subsets: ['latin', 'latin-ext'], display: 'swap', variable: '--font-inter' })
+const playfair = Playfair_Display({ subsets: ['latin', 'latin-ext'], display: 'swap', variable: '--font-playfair' })
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://www.encore-sk.com'),
   title: {
-    default: 'Encore — Umenie tanca. Dokonalosť tréningu.',
-    template: '%s | Encore',
+    default: 'Encore – tréningový denník pre spoločenské tance',
+    template: '%s · Encore',
   },
-  description: 'Prémiový digitálny asistent pre tanečné páry, trénerov a tanečníkov, ktorí chcú napredovať čo najrýchlejšie a najefektívnejšie.',
+  description: 'Zostavy, poznámky od trénera, tréningový plán a výsledky zo súťaží v jednej aplikácii pre iPhone. Pre tanečníkov, páry a trénerov štandardných a latinskoamerických tancov.',
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -28,7 +29,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="sk" className={`dark ${inter.variable} ${playfair.variable}`}>
-      <body className={`${inter.className} font-sans antialiased bg-[#050505] text-[#F5F5F5] selection:bg-[#D4AF37]/30 selection:text-white`}>
+      <body className={`font-sans antialiased bg-[#050505] text-[#F5F5F5] selection:bg-[#D4AF37]/30 selection:text-white`}>
         <PostHogProvider>
           {children}
         </PostHogProvider>

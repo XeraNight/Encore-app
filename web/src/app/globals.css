@@ -1,5 +1,4 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700;0,900;1,600&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -19,8 +18,11 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: "Plus Jakarta Sans", var(--font-sans), -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, sans-serif;
-  --font-serif: "Playfair Display", var(--font-serif), Georgia, Cambria, serif;
+  /* The app's own typeface on Apple devices (SF Pro), Inter (self-hosted by next/font) elsewhere.
+     No fonts are loaded from Google at runtime. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", var(--font-inter), "Segoe UI", Roboto, sans-serif;
+  --font-rounded: ui-rounded, "SF Pro Rounded", var(--font-inter), sans-serif;
+  --font-serif: var(--font-playfair), Georgia, Cambria, serif;
   --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
 }
 
@@ -540,5 +542,24 @@ body::before {
   transform: scale(0.96) translateY(1px);
 }
 
+/* ── Landing page ─────────────────────────────────────────────── */
+.font-rounded {
+  font-family: var(--font-rounded);
+}
 
+.landing-glow {
+  background:
+    radial-gradient(60% 50% at 50% 0%, rgba(160, 20, 45, 0.45), transparent 70%),
+    radial-gradient(40% 30% at 85% 15%, rgba(212, 175, 55, 0.10), transparent 70%);
+}
 
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
+}

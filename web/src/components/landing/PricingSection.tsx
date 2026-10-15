@@ -1,183 +1,82 @@
-import React from 'react'
-import Link from 'next/link'
+'use client'
+
+import { useState } from 'react'
+import { PLANS, type Billing } from '@/lib/site'
+import AppStoreButton from './AppStoreButton'
+import { IconCheck } from './Icons'
 
 export default function PricingSection() {
+  const [billing, setBilling] = useState<Billing>('annual')
+
   return (
-    <section id="pricing" className="py-24 relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      {/* Section Header */}
-      <div className="text-center max-w-3xl mx-auto mb-16 space-y-3">
-        <div className="flex items-center justify-center gap-2">
-          <span className="text-xs font-sans font-black tracking-[0.2em] uppercase text-[#FFE088]">
-            TRANSPARENTNÉ PODMIENKY
-          </span>
-        </div>
-        <h2 className="text-3xl sm:text-5xl font-serif font-black tracking-tight text-white">
-          Investícia do tvojho tanečného rastu
-        </h2>
-        <p className="text-sm sm:text-base text-zinc-300">
-          Zvoľ si úroveň, ktorá najlepšie zodpovedá tvojim tréningovým cieľom. Všetky nákupy sú bezpečne spravované cez Apple In-App Purchase.
+    <section id="cennik" className="mx-auto max-w-6xl px-4 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto max-w-2xl text-center">
+        <p className="font-rounded text-xs font-black uppercase tracking-[0.2em] text-[#FFE088]">Cenník</p>
+        <h2 className="font-serif mt-4 text-4xl font-bold tracking-tight text-white sm:text-5xl">Začni zadarmo. Pridaj, keď budeš chcieť.</h2>
+        <p className="mt-4 text-lg text-white/70">
+          Free ti ostane navždy. Plus a Premium si kúpiš priamo v aplikácii cez App Store a zrušíš kedykoľvek.
         </p>
       </div>
 
-      {/* Pricing Cards Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-        
-        {/* Tier 1: Free */}
-        <div className="rounded-3xl p-8 bg-[#1E0409]/80 border border-white/10 backdrop-blur-2xl flex flex-col justify-between shadow-2xl">
-          <div className="space-y-4">
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-zinc-400">
-              Pre každého tanečníka
-            </span>
-            <h3 className="text-2xl font-serif font-bold text-white">Encore Free</h3>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-mono font-black text-white">0 €</span>
-              <span className="text-xs text-zinc-400 font-sans">/ navždy</span>
-            </div>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              Základný asistent pre evidenciu zostáv a presné počítanie rytmu na každom tréningu.
-            </p>
-
-            <ul className="pt-4 border-t border-zinc-800/80 space-y-3 text-xs text-zinc-300">
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088]">✓</span> 2D Choreografický Parket pre zostavy
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088]">✓</span> Syntetický PCM Metronóm (všetky tance)
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088]">✓</span> 100% offline prístup k uloženým dátam
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088]">✓</span> Základná WDSF knižnica figúr
-              </li>
-            </ul>
-          </div>
-
-          <div className="pt-8">
-            <Link
-              href="/download/ios"
-              className="w-full py-3.5 px-4 rounded-xl text-center font-bold text-xs text-white bg-white/5 hover:bg-white/10 border border-zinc-700 transition block"
-            >
-              Začať zadarmo
-            </Link>
-          </div>
+      <div className="mt-10 flex justify-center">
+        <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-1" role="tablist" aria-label="Spôsob platby">
+          {(['monthly', 'annual'] as Billing[]).map((option) => {
+            const active = billing === option
+            return (
+              <button
+                key={option}
+                role="tab"
+                aria-selected={active}
+                onClick={() => setBilling(option)}
+                className={`min-h-11 rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  active ? 'bg-[#FFE088] text-black' : 'text-white/70 hover:text-white'
+                }`}
+              >
+                {option === 'monthly' ? 'Mesačne' : 'Ročne'}
+              </button>
+            )
+          })}
         </div>
-
-        {/* Tier 2: Plus (Featured) */}
-        <div className="rounded-3xl p-8 bg-[#2A050D]/90 border-2 border-[#D4AF37] shadow-[0_0_35px_rgba(212,175,55,0.22)] relative flex flex-col justify-between backdrop-blur-2xl">
-          <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r from-[#FFE088] to-[#D4AF37] text-black font-extrabold text-[10px] uppercase tracking-widest shadow-md">
-            Najobľúbenejšie pre páry
-          </div>
-
-          <div className="space-y-4 pt-2">
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#D4AF37]">
-              Súťažný pár
-            </span>
-            <h3 className="text-2xl font-serif font-bold text-white">Encore Plus</h3>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-mono font-black text-[#FFE088]">4,99 €</span>
-              <span className="text-xs text-zinc-400 font-sans">/ mesiac</span>
-            </div>
-            <p className="text-xs text-zinc-300 leading-relaxed">
-              Kompletná video analýza a súťažný radar pre tanečné páry pripravujúce sa na finále.
-            </p>
-
-            <ul className="pt-4 border-t border-[#D4AF37]/20 space-y-3 text-xs text-zinc-200">
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Všetko z Encore Free
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Neobmedzený Video Vault k figúram
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Side-by-Side Dual Video Player (Slo-Mo)
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Automatický import bodov SZTŠ z ksis.eu
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Realtime cloud synchronizácia s partnerom
-              </li>
-            </ul>
-          </div>
-
-          <div className="pt-8">
-            <Link
-              href="/download/ios"
-              className="w-full py-4 px-4 rounded-xl text-center font-bold text-xs text-black bg-gradient-to-r from-[#FFF2CC] via-[#FFE088] to-[#D4AF37] hover:brightness-110 shadow-lg shadow-[#D4AF37]/30 transition block"
-            >
-              Odomknúť Encore Plus
-            </Link>
-          </div>
-        </div>
-
-        {/* Tier 3: Studio (User's specific positioning) */}
-        <div className="rounded-3xl p-8 bg-[#1E0409]/80 border border-white/10 backdrop-blur-2xl flex flex-col justify-between relative overflow-hidden shadow-2xl">
-          <div className="space-y-4">
-            <span className="text-[11px] font-mono font-bold uppercase tracking-wider text-[#FFE088]">
-              Tréneri & Ambiciózni Tanečníci
-            </span>
-            <h3 className="text-2xl font-serif font-bold text-white">Encore Studio</h3>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-mono font-black text-white">14,99 €</span>
-              <span className="text-xs text-zinc-400 font-sans">/ mesiac</span>
-            </div>
-            
-            {/* Highlighted value proposition */}
-            <div className="p-3 rounded-xl bg-black/40 border border-[#FFE088]/25">
-              <p className="text-xs font-semibold text-[#FFE088] leading-relaxed">
-                „Pre trénerov a tanečníkov, ktorí chcú napredovať čo najrýchlejšie a najefektívnejšie.“
-              </p>
-            </div>
-
-            <ul className="pt-4 border-t border-zinc-800/80 space-y-3 text-xs text-zinc-300">
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Všetko z Encore Plus
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Roster a správa viacerých párov a zverencov
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Zdieľanie zostáv a seminárov z kempov
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> VIP Posture Angle Lines analýza držania tela
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Digitálny klubový preukaz v Apple Wallet
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="text-[#FFE088] font-bold">✓</span> Prioritná technická podpora trénerského tímu
-              </li>
-            </ul>
-          </div>
-
-          <div className="pt-8">
-            <Link
-              href="/download/ios"
-              className="w-full py-3.5 px-4 rounded-xl text-center font-bold text-xs text-white bg-white/5 hover:bg-white/10 border border-zinc-700 transition block"
-            >
-              Vyskúšať Encore Studio
-            </Link>
-          </div>
-        </div>
-
       </div>
 
-      {/* Subscription terms note for Apple Review compliance */}
-      <div className="mt-8 text-center text-[11px] text-zinc-500 max-w-2xl mx-auto space-y-1">
-        <p>
-          Predplatné sa automaticky obnovuje, pokiaľ nie je zrušené aspoň 24 hodín pred koncom aktuálneho obdobia v systémových nastaveniach Apple ID.
-        </p>
-        <p>
-          Podrobné informácie nájdete v našich{' '}
-          <Link href="/terms" className="text-[#D4AF37] underline hover:opacity-80">
-            Podmienkach používania (EULA)
-          </Link>{' '}
-          a{' '}
-          <Link href="/privacy" className="text-[#D4AF37] underline hover:opacity-80">
-            Zásadách ochrany osobných údajov
-          </Link>.
+      <div className="mt-10 grid gap-5 lg:grid-cols-3">
+        {PLANS.map((plan) => (
+          <article
+            key={plan.name}
+            className={`relative flex flex-col rounded-3xl border p-7 ${
+              plan.highlighted ? 'border-[#FFE088]/50 bg-[#FFE088]/[0.06]' : 'border-white/10 bg-white/[0.04]'
+            }`}
+          >
+            {plan.highlighted && (
+              <span className="absolute -top-3 left-7 rounded-full bg-[#FFE088] px-3 py-1 font-rounded text-[11px] font-black uppercase tracking-wider text-black">
+                Najčastejšia voľba
+              </span>
+            )}
+            <h3 className="text-xl font-semibold text-white">{plan.name}</h3>
+            <p className="mt-1 text-sm text-white/65">{plan.tagline}</p>
+            <p className="mt-6 flex items-baseline gap-2">
+              <span className="text-4xl font-bold tracking-tight text-white">{plan.price[billing]}</span>
+              {plan.name !== 'Free' && <span className="text-sm text-white/60">{billing === 'monthly' ? 'mesačne' : 'ročne'}</span>}
+            </p>
+            <p className="mt-1 h-5 text-sm text-[#FFE088]">{billing === 'annual' ? plan.annualSaving ?? '' : ''}</p>
+            <ul className="mt-6 space-y-3 text-sm text-white/80">
+              {plan.features.map((feature) => (
+                <li key={feature} className="flex gap-3">
+                  <IconCheck className="mt-0.5 h-4 w-4 flex-none text-[#FFE088]" />
+                  <span>{feature}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ))}
+      </div>
+
+      <div className="mt-10 flex flex-col items-center gap-4 text-center">
+        <AppStoreButton />
+        <p className="max-w-xl text-xs leading-relaxed text-white/55">
+          Ceny sú v eurách vrátane DPH pre Slovensko. Predplatné sa obnovuje automaticky, kým ho nezrušíš aspoň 24 hodín
+          pred koncom obdobia v Nastaveniach iPhonu. Platia <a href="/terms" className="underline hover:text-white">Podmienky používania</a>{' '}
+          a <a href="/privacy" className="underline hover:text-white">Zásady ochrany súkromia</a>.
         </p>
       </div>
     </section>

@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Zmazanie účtu & Žiadosť o výmaz dát (GDPR) | Encore',
+  title: 'Zmazanie účtu',
   description: 'Postup zmazania účtu a žiadosť o úplný výmaz osobných údajov z aplikácie Encore v súlade s Apple Guideline 5.1.1(v) a GDPR.',
 }
 

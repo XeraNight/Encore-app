@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Podmienky používania (Terms of Service & EULA) | Encore',
+  title: 'Podmienky používania',
   description: 'Zmluvné podmienky používania, licenčná zmluva EULA a právne vyhlásenia aplikácie Encore.',
 }
 
