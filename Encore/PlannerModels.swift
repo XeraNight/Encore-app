@@ -322,8 +322,13 @@ enum PlannerCalendar {
 
     static func startOfDay(_ date: Date) -> Date { calendar.startOfDay(for: date) }
 
+    /// The wall-clock time `minutes` after midnight of `day` (1470 = 0:30 the next day). Set as hour and minute,
+    /// not added as a duration: on the days the clocks change, 18:00 has to stay 18:00.
     static func date(on day: Date, minutes: Int) -> Date {
-        calendar.date(byAdding: .minute, value: minutes, to: startOfDay(day)) ?? day
+        let minutes = max(0, minutes)
+        guard let target = calendar.date(byAdding: .day, value: minutes / 1440, to: startOfDay(day)) else { return day }
+        let inDay = minutes % 1440
+        return calendar.date(bySettingHour: inDay / 60, minute: inDay % 60, second: 0, of: target) ?? target
     }
 
     static func weekdayName(iso: Int) -> String {
