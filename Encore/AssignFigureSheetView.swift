@@ -54,7 +54,7 @@ struct AssignFigureSheetView: View {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                     .foregroundColor(.latinCrimson)
                                 Text(error)
-                                    .font(.system(size: 13, weight: .semibold))
+                                    .font(.footnote.weight(.semibold))
                                     .foregroundColor(.white)
                             }
                             .padding(14)
@@ -93,17 +93,17 @@ struct AssignFigureSheetView: View {
                 Image(systemName: "graduationcap.fill")
                     .foregroundColor(LuxuryTheme.gold400)
                 Text("KNIŽNICA TRÉNERA")
-                    .font(.system(size: 11, weight: .black))
+                    .font(.caption2.weight(.black))
                     .foregroundColor(LuxuryTheme.gold400)
                     .tracking(1.2)
             }
             
             Text("Pridanie figúry pre: \(studentName)")
-                .font(.system(size: 16, weight: .bold))
+                .font(.callout.weight(.bold))
                 .foregroundColor(.white)
             
             Text("Tanec: \(danceName)")
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundColor(.white.opacity(0.65))
         }
         .frame(maxWidth: .infinity)
@@ -116,8 +116,8 @@ struct AssignFigureSheetView: View {
     // MARK: - Figure Selection Section
     private var figureSelectionSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("VYBERTE FIGÚRU Z KNIŽNICE")
-                .font(.system(size: 11, weight: .black))
+            Text("VYBER FIGÚRU Z KNIŽNICE")
+                .font(.caption2.weight(.black))
                 .foregroundColor(LuxuryTheme.gold400)
                 .tracking(1.2)
             
@@ -126,7 +126,7 @@ struct AssignFigureSheetView: View {
                 Image(systemName: "magnifyingglass")
                     .foregroundColor(.white.opacity(0.4))
                 TextField("Hľadať figúru...", text: $searchQuery)
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundColor(.white)
             }
             .padding(12)
@@ -138,11 +138,11 @@ struct AssignFigureSheetView: View {
             if filteredFigures.isEmpty {
                 VStack(spacing: 8) {
                     Text("V knižnici pre \(danceName) nie sú žiadne uložené figúry.")
-                        .font(.system(size: 13))
+                        .font(.footnote)
                         .foregroundColor(.white.opacity(0.6))
                     
-                    TextField("Zadajte vlastný názov figúry", text: $customFigureName)
-                        .font(.system(size: 14))
+                    TextField("Vlastný názov figúry", text: $customFigureName)
+                        .font(.subheadline)
                         .foregroundColor(.white)
                         .padding(12)
                         .background(LuxuryTheme.obsidian800)
@@ -163,7 +163,7 @@ struct AssignFigureSheetView: View {
                                 HapticFeedback.light()
                             } label: {
                                 Text(fig.name)
-                                    .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                                    .font(.footnote.weight(isSelected ? .bold : .medium))
                                     .foregroundColor(isSelected ? LuxuryTheme.obsidian900 : .white)
                                     .padding(.horizontal, 14)
                                     .padding(.vertical, 8)
@@ -187,17 +187,17 @@ struct AssignFigureSheetView: View {
     private var customizationSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             Text("PARAMETRE PRE ZVERENCA")
-                .font(.system(size: 11, weight: .black))
+                .font(.caption2.weight(.black))
                 .foregroundColor(LuxuryTheme.gold400)
                 .tracking(1.2)
             
             VStack(alignment: .leading, spacing: 6) {
                 Text("Rytmizácia (napr. 1 2 3, SQQ, 1 a 2)")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(.white.opacity(0.7))
                 
                 TextField("Napr. 1 2 3", text: $rhythm)
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundColor(.white)
                     .padding(12)
                     .background(LuxuryTheme.obsidian800)
@@ -207,11 +207,11 @@ struct AssignFigureSheetView: View {
             
             VStack(alignment: .leading, spacing: 6) {
                 Text("Trénerská poznámka / Pokyny k technike")
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(.white.opacity(0.7))
                 
                 TextField("Napr. Udržuj stály kontakt v ráme a klesaj až na konci doby 3.", text: $coachNotes, axis: .vertical)
-                    .font(.system(size: 14))
+                    .font(.subheadline)
                     .foregroundColor(.white)
                     .lineLimit(3...5)
                     .padding(12)
@@ -235,10 +235,10 @@ struct AssignFigureSheetView: View {
                     ProgressView().tint(LuxuryTheme.obsidian900)
                 } else {
                     Image(systemName: "plus.circle.fill")
-                    Text("Vložiť do Zostavy Zverenca")
+                    Text("Vložiť do zostavy zverenca")
                 }
             }
-            .font(.system(size: 15, weight: .bold))
+            .font(.subheadline.weight(.bold))
             .foregroundColor(LuxuryTheme.obsidian900)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)

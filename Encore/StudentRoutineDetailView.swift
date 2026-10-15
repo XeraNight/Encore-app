@@ -31,7 +31,7 @@ struct StudentRoutineDetailView: View {
                 // Action toolbar
                 HStack {
                     Text("FIGÚRY V ZOSTAVE (\(nodes.count))")
-                        .font(.system(size: 11, weight: .black))
+                        .font(.caption2.weight(.black))
                         .foregroundColor(LuxuryTheme.gold400)
                         .tracking(1.2)
                     
@@ -44,7 +44,7 @@ struct StudentRoutineDetailView: View {
                             Image(systemName: "plus.circle.fill")
                             Text("Priradiť figúru")
                         }
-                        .font(.system(size: 12, weight: .bold))
+                        .font(.caption.weight(.bold))
                         .foregroundColor(LuxuryTheme.obsidian900)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
@@ -114,7 +114,7 @@ struct StudentRoutineDetailView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 6) {
                         Text(routine.dance_category.uppercased())
-                            .font(.system(size: 10, weight: .black))
+                            .font(.caption2.weight(.black))
                             .foregroundColor(LuxuryTheme.gold400)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
@@ -122,12 +122,12 @@ struct StudentRoutineDetailView: View {
                             .cornerRadius(6)
                         
                         Text(routine.dance_name)
-                            .font(.system(size: 13, weight: .bold))
+                            .font(.footnote.weight(.bold))
                             .foregroundColor(.white.opacity(0.85))
                     }
                     
                     Text(routine.name)
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.title3.weight(.bold))
                         .foregroundColor(.white)
                 }
                 
@@ -136,10 +136,10 @@ struct StudentRoutineDetailView: View {
                 // Student info
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Zverenec")
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundColor(.white.opacity(0.5))
                     Text(studentName)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.footnote.weight(.bold))
                         .foregroundColor(.white)
                 }
             }
@@ -150,15 +150,15 @@ struct StudentRoutineDetailView: View {
                 HStack(spacing: 4) {
                     Image(systemName: "pencil.line")
                         .foregroundColor(LuxuryTheme.gold400)
-                        .font(.system(size: 11))
+                        .font(.caption2)
                     
                     if let modBy = routine.last_modified_by, !modBy.isEmpty {
                         Text("Upravil: \(modBy)")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .foregroundColor(.white.opacity(0.75))
                     } else {
                         Text("Pôvodná verzia zverenca")
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.caption2.weight(.medium))
                             .foregroundColor(.white.opacity(0.6))
                     }
                 }
@@ -166,7 +166,7 @@ struct StudentRoutineDetailView: View {
                 Spacer()
                 
                 Text(routine.updated_at, style: .date)
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundColor(.white.opacity(0.5))
             }
         }
@@ -182,21 +182,21 @@ struct StudentRoutineDetailView: View {
             HStack(alignment: .center, spacing: 10) {
                 // Order badge
                 Text("\(node.order_index + 1).")
-                    .font(.system(size: 12, weight: .black, design: .monospaced))
+                    .font(.system(.caption, design: .monospaced).weight(.black))
                     .foregroundColor(LuxuryTheme.gold400)
                     .frame(width: 26, height: 26)
                     .background(LuxuryTheme.gold500.opacity(0.15))
                     .clipShape(Circle())
                 
                 Text(node.figure_name)
-                    .font(.system(size: 15, weight: .bold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundColor(.white)
                 
                 Spacer()
                 
                 if !node.rhythm.isEmpty {
                     Text(node.rhythm)
-                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .font(.system(.caption2, design: .monospaced).weight(.bold))
                         .foregroundColor(LuxuryTheme.gold300)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
@@ -210,12 +210,12 @@ struct StudentRoutineDetailView: View {
             if !node.notes.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "quote.bubble.fill")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundColor(LuxuryTheme.gold400)
                         .padding(.top, 2)
                     
                     Text(node.notes)
-                        .font(.system(size: 13))
+                        .font(.footnote)
                         .foregroundColor(.white.opacity(0.85))
                 }
                 .padding(10)
@@ -227,11 +227,11 @@ struct StudentRoutineDetailView: View {
             if let remark = node.coach_notes, !remark.isEmpty {
                 HStack(alignment: .top, spacing: 6) {
                     Image(systemName: "person.badge.shield.checkmark.fill")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundColor(LuxuryTheme.gold400)
                         .padding(.top, 2)
                     Text(remark)
-                        .font(.system(size: 13, weight: .medium))
+                        .font(.footnote.weight(.medium))
                         .foregroundColor(LuxuryTheme.gold300)
                 }
                 .padding(10)
@@ -244,7 +244,7 @@ struct StudentRoutineDetailView: View {
             HStack {
                 if !node.transition_notes.isEmpty {
                     Text(node.transition_notes)
-                        .font(.system(size: 10, weight: .semibold))
+                        .font(.caption2.weight(.semibold))
                         .foregroundColor(.white.opacity(0.45))
                 }
                 
@@ -258,7 +258,7 @@ struct StudentRoutineDetailView: View {
                         Image(systemName: "pencil")
                         Text((node.coach_notes ?? "").isEmpty ? "Pridať poznámku trénera" : "Upraviť poznámku trénera")
                     }
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.caption2.weight(.semibold))
                     .foregroundColor(LuxuryTheme.gold400)
                 }
                 .buttonStyle(.plain)
@@ -275,15 +275,15 @@ struct StudentRoutineDetailView: View {
         VStack(spacing: 14) {
             Spacer()
             Image(systemName: "figure.dance")
-                .font(.system(size: 38))
+                .font(.largeTitle)
                 .foregroundColor(LuxuryTheme.gold400.opacity(0.8))
             
             Text("Žiadne figúry v zostave")
-                .font(.system(size: 16, weight: .bold))
+                .font(.callout.weight(.bold))
                 .foregroundColor(.white)
             
-            Text("Zostava zatiaľ neobsahuje žiadne figúry. Môžete priradiť prvú figúru z vašej trénerskej knižnice.")
-                .font(.system(size: 13))
+            Text("Zostava je zatiaľ prázdna. Priraď prvú figúru zo svojej trénerskej knižnice.")
+                .font(.footnote)
                 .foregroundColor(.white.opacity(0.65))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
@@ -295,7 +295,7 @@ struct StudentRoutineDetailView: View {
                     Image(systemName: "plus.circle.fill")
                     Text("Priradiť prvú figúru")
                 }
-                .font(.system(size: 14, weight: .bold))
+                .font(.subheadline.weight(.bold))
                 .foregroundColor(LuxuryTheme.obsidian900)
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
@@ -312,10 +312,10 @@ struct StudentRoutineDetailView: View {
         HStack(spacing: 10) {
             Image(systemName: "lock.shield.fill")
                 .foregroundColor(LuxuryTheme.gold400)
-                .font(.system(size: 16))
+                .font(.callout)
             
-            Text("Trénerský režim: Úpravy sa okamžite synchronizujú do aplikácie zverenca. Zostavu nemôžete zmazať.")
-                .font(.system(size: 11))
+            Text("Trénerský režim: úpravy sa hneď zobrazia zverencovi. Zostavu zmazať nemôžeš.")
+                .font(.caption2)
                 .foregroundColor(.white.opacity(0.60))
         }
         .padding(12)
@@ -333,11 +333,11 @@ struct StudentRoutineDetailView: View {
                 
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Trénerská poznámka pre: \(node.figure_name)")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
                     
                     TextField("Napíšte poznámku...", text: $editedNotesText, axis: .vertical)
-                        .font(.system(size: 14))
+                        .font(.subheadline)
                         .foregroundColor(.white)
                         .lineLimit(4...8)
                         .padding(12)
@@ -360,7 +360,7 @@ struct StudentRoutineDetailView: View {
                         }
                     } label: {
                         Text("Uložiť poznámku")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.subheadline.weight(.bold))
                             .foregroundColor(LuxuryTheme.obsidian900)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
