@@ -14,6 +14,9 @@ public struct CanvasRoutinesHubView: View {
     @State private var showNewRoutineSheet = false
     @State private var routineForQRExport: Routine?
     @State private var routinePendingDelete: Routine?
+    @State private var routineToRename: Routine?
+    @State private var renameText = ""
+    @AppStorage("profileName") private var userName = "Tanečník"
     @State private var deleteCount = 0
     @State private var sweepTrigger = 0
     @FocusState private var isSearching: Bool
@@ -123,6 +126,14 @@ public struct CanvasRoutinesHubView: View {
                 Button("Zmazať „\(routine.name)“", role: .destructive) { delete(routine) }
             } message: { _ in
                 Text("Zostava aj jej figúry sa zmažú z tohto iPhonu aj z cloudu. Nedá sa to vrátiť.")
+            }
+            .alert("Premenovať zostavu", isPresented: Binding(
+                get: { routineToRename != nil },
+                set: { if !$0 { routineToRename = nil } }
+            )) {
+                TextField("Názov zostavy", text: $renameText)
+                Button("Uložiť") { routineToRename?.rename(to: renameText, by: userName) }
+                Button("Zrušiť", role: .cancel) {}
             }
             .onChange(of: isSearching) { _, focused in
                 if focused { sweepTrigger += 1 }
@@ -298,6 +309,12 @@ public struct CanvasRoutinesHubView: View {
         Button { selectedRoutineForCanvas = routine } label: {
             Label("Otvoriť plátno", systemImage: "square.grid.2x2")
         }
+        Button {
+            renameText = routine.name
+            routineToRename = routine
+        } label: {
+            Label("Premenovať", systemImage: "pencil")
+        }
         Button { shareQR(routine) } label: {
             Label("Zdieľať QR kód", systemImage: "qrcode")
         }
@@ -318,5 +335,20 @@ public struct CanvasRoutinesHubView: View {
         try? modelContext.save()
         deleteCount += 1
         Task { await SupabaseSyncManager.shared.deleteRoutine(routineId) }
+    }
+}
+
+extension Routine {
+    static let maxNameLength = 60
+
+    /// Renames the routine; empty names are ignored. Saves and syncs (the partner gets it with the next refresh).
+    func rename(to newName: String, by userName: String) {
+        let clean = String(newName.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maxNameLength))
+        guard !clean.isEmpty, clean != name else { return }
+        name = clean
+        updatedAt = Date()
+        lastModifiedBy = userName
+        try? modelContext?.save()
+        SupabaseSyncManager.shared.syncRoutineOnBackground(self)
     }
 }

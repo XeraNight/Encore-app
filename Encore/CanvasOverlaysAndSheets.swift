@@ -518,3 +518,88 @@ struct QRExportSheet: View {
         copyCount += 1
     }
 }
+
+// MARK: - Figure Order Sheet
+/// Reorders the figures of a routine by dragging; numbers and the lines on the floor follow at once.
+/// A figure added later goes to the end and can be moved where it belongs here.
+struct FigureOrderSheet: View {
+    let routine: Routine
+    var onChange: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var figures: [CanvasNode] = []
+    @State private var moveCount = 0
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                EllegancePageBackground()
+
+                List {
+                    Section {
+                        ForEach(Array(figures.enumerated()), id: \.element.id) { index, figure in
+                            row(figure, number: index + 1)
+                                .listRowBackground(Color.white.opacity(0.06))
+                                .listRowSeparatorTint(Color.white.opacity(0.08))
+                        }
+                        .onMove(perform: move)
+                    } footer: {
+                        Text("Podrž figúru za úchyt vpravo a presuň ju na miesto. Poradie uvidí aj partner.")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                .scrollContentBackground(.hidden)
+                .environment(\.editMode, .constant(.active))
+            }
+            .navigationTitle("Poradie figúr")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Hotovo") { dismiss() }
+                        .fontWeight(.bold)
+                        .foregroundColor(.gold400)
+                }
+            }
+            .onAppear { figures = routine.canvasNodes.sorted { $0.orderIndex < $1.orderIndex } }
+            .sensoryFeedback(.selection, trigger: moveCount)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func row(_ figure: CanvasNode, number: Int) -> some View {
+        HStack(spacing: 12) {
+            Text("\(number)")
+                .font(.system(.subheadline, design: .rounded).weight(.black))
+                .foregroundColor(Color.obsidian900)
+                .contentTransition(.numericText())
+                .frame(width: 30, height: 30)
+                .background(
+                    LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
+                    in: Circle()
+                )
+            VStack(alignment: .leading, spacing: 2) {
+                Text(figure.figureName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                if !figure.rhythm.isEmpty {
+                    BeatsTimelineView(rhythm: figure.rhythm, tint: Color.gold500)
+                }
+            }
+        }
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(number). \(figure.figureName)")
+    }
+
+    private func move(from source: IndexSet, to destination: Int) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+            figures.move(fromOffsets: source, toOffset: destination)
+        }
+        for (index, figure) in figures.enumerated() where figure.orderIndex != index {
+            figure.orderIndex = index
+        }
+        moveCount += 1
+        onChange()
+    }
+}

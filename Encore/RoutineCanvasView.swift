@@ -130,6 +130,13 @@ struct RoutineCanvasView: View {
     @State private var showRoutineVideoVault = false
     /// Partner moves arrive many times a second; they are written to disk once the partner stops.
     @State private var remoteMoveSaveTask: Task<Void, Never>?
+    /// A deleted figure stays hidden (not gone) for a few seconds so it can be brought back.
+    @State private var pendingDelete: PendingFigureDelete?
+    @State private var pendingDeleteTask: Task<Void, Never>?
+    @State private var undoCount = 0
+    @State private var showRename = false
+    @State private var renameText = ""
+    @State private var showFigureOrder = false
     
     @State private var showDuelSheet = false
     @State private var showGuestCoachKeys = false
@@ -153,6 +160,10 @@ struct RoutineCanvasView: View {
     var body: some View {
         let isStandard = routine.danceCategory.lowercased() == "standard"
         let accentColor = isStandard ? Color.standardBlue : Color.latinPink
+        let visibleNodes = routine.canvasNodes.filter { $0.id != pendingDelete?.id }
+        let numbers = Dictionary(
+            uniqueKeysWithValues: visibleNodes.sorted(by: { $0.orderIndex < $1.orderIndex }).enumerated().map { ($1.id, $0 + 1) }
+        )
         
         GeometryReader { geo in
             let viewport = geo.size.width > 0 ? geo.size : Self.fallbackViewportSize
@@ -224,17 +235,18 @@ struct RoutineCanvasView: View {
                         }
                         
                         ConnectionsLayer(
-                            nodes: routine.canvasNodes,
+                            nodes: visibleNodes,
                             livePositions: liveNodePositions,
                             scale: effectiveScale
                         ) { prevNode, nextNode in
                             selectedConnectionForEdit = CanvasConnection(from: prevNode, to: nextNode)
                         }
                         
-                        ForEach(routine.canvasNodes) { node in
+                        ForEach(visibleNodes) { node in
                             let lockedBy = realtimeManager.partnerPresences.values.first(where: { $0.draggingNodeId == node.id.uuidString })?.userName
                             CanvasNodeCardView(
                                 node: node,
+                                number: numbers[node.id] ?? node.orderIndex + 1,
                                 scale: effectiveScale,
                                 cardScale: cardScaleMode.scale,
                                 isTranslucent: isFiguresTranslucent,
@@ -263,7 +275,7 @@ struct RoutineCanvasView: View {
                             .transition(.scale(scale: 0.6).combined(with: .opacity))
                         }
                         
-                        if routine.canvasNodes.isEmpty {
+                        if visibleNodes.isEmpty {
                             VStack(spacing: 12) {
                                 Image(systemName: "figure.dance")
                                     .font(.system(size: 44, weight: .semibold))
@@ -375,22 +387,37 @@ struct RoutineCanvasView: View {
                             .accessibilityIdentifier("canvas.more")
                     }
                     .overlay {
-                        VStack(spacing: 2) {
-                            Text(routine.name)
-                                .font(.system(.subheadline, design: .rounded).weight(.bold))
-                                .foregroundColor(.white)
-                                .lineLimit(1)
-                            Text(DanceNames.display(routine.danceName).uppercased())
-                                .font(.system(.caption2, design: .rounded).weight(.black))
-                                .foregroundColor(LuxuryTheme.gold400)
-                                .tracking(1.2)
-                                .lineLimit(1)
+                        // Tapping the title renames the routine.
+                        Button {
+                            renameText = routine.name
+                            showRename = true
+                        } label: {
+                            VStack(spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Text(routine.name)
+                                        .font(.system(.subheadline, design: .rounded).weight(.bold))
+                                        .foregroundColor(.white)
+                                        .lineLimit(1)
+                                    Image(systemName: "pencil")
+                                        .font(.caption2.weight(.bold))
+                                        .foregroundColor(.white.opacity(0.55))
+                                }
+                                Text(DanceNames.display(routine.danceName).uppercased())
+                                    .font(.system(.caption2, design: .rounded).weight(.black))
+                                    .foregroundColor(LuxuryTheme.gold400)
+                                    .tracking(1.2)
+                                    .lineLimit(1)
+                            }
+                            .frame(minHeight: 44)
+                            .contentShape(Rectangle())
                         }
+                        .buttonStyle(.pressable(scale: 0.96))
                         // Two 44 pt buttons + spacing on each side stay free.
                         .frame(maxWidth: max(viewport.width - 2 * (20 + 44 + 10 + 44 + 8), 100))
-                        .allowsHitTesting(false)
                         .accessibilityElement(children: .combine)
                         .accessibilityAddTraits(.isHeader)
+                        .accessibilityHint("Premenovať zostavu")
+                        .accessibilityIdentifier("canvas.rename")
                     }
 
                     RealtimeStatusPill(isConnected: realtimeManager.isConnected, isSyncing: isRefreshing) {
@@ -406,6 +433,33 @@ struct RoutineCanvasView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, max(geo.safeAreaInsets.top, 54))
                 .frame(width: viewport.width, height: viewport.height)
+
+                // "Figúra zmazaná · Vrátiť" above the floating controls
+                if let pending = pendingDelete {
+                    VStack {
+                        Spacer()
+                        HStack(spacing: 12) {
+                            Image(systemName: "trash")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.white.opacity(0.7))
+                            Text("„\(pending.name)“ zmazaná")
+                                .font(.footnote.weight(.semibold))
+                                .foregroundStyle(.white)
+                                .lineLimit(1)
+                            Button("Vrátiť", action: undoDelete)
+                                .font(.footnote.weight(.bold))
+                                .foregroundStyle(Color.gold400)
+                                .frame(minHeight: 44)
+                                .buttonStyle(.pressable)
+                                .accessibilityIdentifier("canvas.undoDelete")
+                        }
+                        .padding(.horizontal, 18)
+                        .glassEffect(.regular, in: .capsule)
+                        .padding(.bottom, max(geo.safeAreaInsets.bottom + 120, 155) + 62)
+                    }
+                    .frame(width: viewport.width, height: viewport.height)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
 
                 // Toast under the top bar (same pill as "Uložené" on Home)
                 if showToast, let msg = toastMessage {
@@ -512,6 +566,17 @@ struct RoutineCanvasView: View {
         .sheet(isPresented: $showGuestCoachKeys) {
             GuestCoachKeysSheet(routine: routine)
         }
+        .sheet(isPresented: $showFigureOrder) {
+            FigureOrderSheet(routine: routine) { routineChangedLocally() }
+        }
+        .alert("Premenovať zostavu", isPresented: $showRename) {
+            TextField("Názov zostavy", text: $renameText)
+            Button("Uložiť") { routine.rename(to: renameText, by: userName) }
+            Button("Zrušiť", role: .cancel) {}
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: pendingDelete)
+        .sensoryFeedback(.warning, trigger: pendingDelete) { _, new in new != nil }
+        .sensoryFeedback(.success, trigger: undoCount)
         .disableSwipeBack()
         .task(id: toastCount) {
             // Each new message restarts the 3 s timer instead of being cut short by an older one.
@@ -629,6 +694,7 @@ struct RoutineCanvasView: View {
             UIApplication.shared.isIdleTimerDisabled = false
             remoteMoveSaveTask?.cancel()
             try? modelContext.save()
+            commitPendingDelete()
             NavDepth.shared.pop()    // restore floating dock when leaving canvas
             realtimeManager.disconnect()
             stopLiveActivity()
@@ -757,6 +823,10 @@ struct RoutineCanvasView: View {
             Button { showGuestCoachKeys = true } label: {
                 Label("Hosťujúci tréner", systemImage: "key.fill")
             }
+            Button { showFigureOrder = true } label: {
+                Label("Poradie figúr", systemImage: "list.number")
+            }
+            .disabled(routine.canvasNodes.count < 2)
         } label: {
             GlassCircleLabel(icon: "ellipsis")
         }
@@ -829,26 +899,50 @@ struct RoutineCanvasView: View {
         realtimeManager.broadcastNodeAdded(node: node, senderName: userName)
     }
     
+    /// Hides the figure and offers "Vrátiť" for a few seconds; only then is it really deleted.
     private func deleteNode(_ node: CanvasNode) {
-        let nodeId = node.id
-        let figureName = node.figureName
-        
+        commitPendingDelete()
+        pendingDelete = PendingFigureDelete(id: node.id, name: node.figureName)
+        pendingDeleteTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            commitPendingDelete()
+        }
+    }
+
+    private func undoDelete() {
+        pendingDeleteTask?.cancel()
+        pendingDeleteTask = nil
+        pendingDelete = nil
+        undoCount += 1
+    }
+
+    private func commitPendingDelete() {
+        pendingDeleteTask?.cancel()
+        pendingDeleteTask = nil
+        guard let pending = pendingDelete else { return }
+        pendingDelete = nil
+        guard let node = routine.canvasNodes.first(where: { $0.id == pending.id }) else { return }
+
         if let videoPath = node.videoPath {
             MediaStorageManager.removeFile(named: videoPath)
         }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            modelContext.delete(node)
-        }
+        modelContext.delete(node)
         // The relationship may still list the deleted figure until the next save.
         let remaining = routine.canvasNodes
-            .filter { $0.id != nodeId }
+            .filter { $0.id != pending.id }
             .sorted(by: { $0.orderIndex < $1.orderIndex })
         for (index, figure) in remaining.enumerated() { figure.orderIndex = index }
+        routineChangedLocally()
+        realtimeManager.broadcastNodeDeleted(nodeId: pending.id, figureName: pending.name, senderName: userName)
+    }
+
+    /// Saves, marks the routine as changed by this user and syncs it.
+    private func routineChangedLocally() {
         routine.updatedAt = Date()
         routine.lastModifiedBy = userName
         try? modelContext.save()
         SupabaseSyncManager.shared.syncRoutineOnBackground(routine)
-        realtimeManager.broadcastNodeDeleted(nodeId: nodeId, figureName: figureName, senderName: userName)
     }
     
     /// Fits the entire ballroom floor within the user's viewport with comfortable padding,
@@ -977,4 +1071,10 @@ struct RoutineCanvasView: View {
     private func updateLiveActivity(with node: CanvasNode) {}
     private func stopLiveActivity() {}
     #endif
+}
+
+/// The figure waiting to be deleted while "Vrátiť" is offered.
+private struct PendingFigureDelete: Equatable {
+    let id: UUID
+    let name: String
 }

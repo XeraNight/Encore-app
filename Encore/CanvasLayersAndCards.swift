@@ -416,6 +416,8 @@ struct ConnectionLineShape: Shape {
 // MARK: - Canvas Node Card View
 struct CanvasNodeCardView: View {
     @Bindable var node: CanvasNode
+    /// Position in the routine as shown (1-based); a figure waiting to be deleted is left out.
+    var number: Int? = nil
     let scale: CGFloat
     var cardScale: CGFloat = 1.0
     var isTranslucent: Bool = false
@@ -443,7 +445,7 @@ struct CanvasNodeCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: isFarOut ? 6 : 8) {
             HStack(spacing: 6) {
-                Text("\(node.orderIndex + 1)")
+                Text("\(number ?? node.orderIndex + 1)")
                     .font(.system(size: isFarOut ? 20 : 13, weight: .black, design: .rounded))
                     .foregroundColor(Color.obsidian900)
                     .frame(width: isFarOut ? 34 : 24, height: isFarOut ? 34 : 24)
@@ -618,18 +620,28 @@ extension CanvasNodeCardView {
 struct BeatsTimelineView: View {
     let rhythm: String
     var tint: Color = Color.themeAccent
-    
+
+    /// "Slow, Quick, Quick" → S Q Q, so word rhythms fit the small tiles like counted ones ("1, 2, 3").
     var beats: [String] {
-        rhythm.components(separatedBy: CharacterSet(charactersIn: ", ")).filter { !$0.isEmpty }
+        rhythm.components(separatedBy: CharacterSet(charactersIn: ", ")).filter { !$0.isEmpty }.map { beat in
+            switch beat.lowercased() {
+            case "slow": return "S"
+            case "quick": return "Q"
+            case "and": return "&"
+            default: return beat
+            }
+        }
     }
-    
+
     var body: some View {
         HStack(spacing: 3) {
-            ForEach(0..<beats.count, id: \.self) { i in
-                Text(beats[i])
+            ForEach(Array(beats.prefix(8).enumerated()), id: \.offset) { _, beat in
+                Text(beat)
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 15, height: 15)
+                    .lineLimit(1)
+                    .padding(.horizontal, 3)
+                    .frame(minWidth: 15, minHeight: 15)
                     .background(tint.opacity(0.85), in: RoundedRectangle(cornerRadius: 4, style: .continuous))
             }
         }

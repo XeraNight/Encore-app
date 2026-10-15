@@ -52,6 +52,9 @@ struct FigureDetailCard: View {
     @State private var videoNotice: String? = nil
     @State private var videoError: String? = nil
     @State private var successCount = 0
+    @State private var showEditFigure = false
+    @State private var editName = ""
+    @State private var editRhythm = ""
 
     private var rotation: Int { ((node.videoRotation ?? 0) % 360 + 360) % 360 }
 
@@ -164,6 +167,24 @@ struct FigureDetailCard: View {
             Text(deleteVideoMessage)
         }
         .modifier(sharingDialogs)
+        .alert("Figúra v tejto zostave", isPresented: $showEditFigure) {
+            TextField("Názov figúry", text: $editName)
+            TextField("Rytmus (napr. 1, 2, 3 alebo S, Q, Q)", text: $editRhythm)
+            Button("Uložiť", action: saveFigureEdit)
+            Button("Zrušiť", role: .cancel) {}
+        } message: {
+            Text("Zmena platí len v tejto zostave, knižnica figúr ostane bez zmeny.")
+        }
+    }
+
+    private func saveFigureEdit() {
+        let name = editName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhythm = editRhythm.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name != node.figureName || rhythm != node.rhythm else { return }
+        node.figureName = String(name.prefix(80))
+        node.rhythm = String(rhythm.prefix(80))
+        successCount += 1
+        routineDidChange()
     }
 
     // MARK: - Sharing dialogs
@@ -224,12 +245,27 @@ struct FigureDetailCard: View {
             }
             .buttonStyle(.pressable)
 
-            Text(node.figureName)
-                .font(.system(.headline, design: .rounded).weight(.bold))
-                .foregroundStyle(.white)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            // Name and rhythm can differ in this routine (a shortened variation, other counts).
+            Button {
+                editName = node.figureName
+                editRhythm = node.rhythm
+                showEditFigure = true
+            } label: {
+                HStack(spacing: 5) {
+                    Text(node.figureName)
+                        .font(.system(.headline, design: .rounded).weight(.bold))
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Image(systemName: "pencil")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable(scale: 0.97))
+            .accessibilityHint("Upraviť názov a rytmus figúry v tejto zostave")
 
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
