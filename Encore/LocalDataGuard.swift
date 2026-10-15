@@ -76,11 +76,15 @@ enum LocalDataGuard {
             for item in try context.fetch(FetchDescriptor<TrainingCadence>()) { context.delete(item) }
             for item in try context.fetch(FetchDescriptor<TrainingLogEntry>()) { context.delete(item) }
             for item in try context.fetch(FetchDescriptor<PlannedCompetition>()) { context.delete(item) }
+            for item in try context.fetch(FetchDescriptor<PlannedSession>()) { context.delete(item) }
             for item in try context.fetch(FetchDescriptor<LessonPriority>()) { context.delete(item) }
             try context.save()
         } catch {
             Logger.auth.error("[LocalDataGuard] Wipe failed: \(error.localizedDescription, privacy: .public)")
         }
+
+        // Reminders of the previous account's trainings and competitions must not keep coming.
+        Task { await PlannerNotifications.cancelAll() }
 
         let toRemove = files
         Task.detached(priority: .utility) {

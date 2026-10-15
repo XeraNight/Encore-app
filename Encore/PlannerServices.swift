@@ -12,16 +12,20 @@ enum PlannerNotifications {
     private static let prefix = "plan."
     private static let horizonDays = 14
 
+    static func cancelAll() async {
+        let center = UNUserNotificationCenter.current()
+        let ids = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) }
+        center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
     static func reschedule(
         cadences: [TrainingCadence],
         logs: [TrainingLogEntry],
         competitions: [PlannedCompetition],
         sessions: [PlannedSession]
     ) async {
+        await cancelAll()
         let center = UNUserNotificationCenter.current()
-        let pending = await center.pendingNotificationRequests()
-        let old = pending.map(\.identifier).filter { $0.hasPrefix(prefix) }
-        center.removePendingNotificationRequests(withIdentifiers: old)
 
         guard NotificationManager.shared.isAuthorized, NotificationManager.shared.notificationsEnabled else { return }
 
