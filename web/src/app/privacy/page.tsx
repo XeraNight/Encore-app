@@ -3,7 +3,7 @@ import Image from 'next/image'
 import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
-  title: 'Zásady ochrany osobných údajov (Privacy Policy) | Encore',
+  title: 'Zásady ochrany osobných údajov',
   description: 'Zásady ochrany osobných údajov a pravidlá spracúvania dát pre aplikáciu Encore – Dance Routine Studio.',
 }
 
@@ -57,7 +57,7 @@ export default function PrivacyPolicyPage() {
               Zásady ochrany osobných údajov (Privacy Policy)
             </h1>
             <p className="text-xs text-zinc-500 mt-2">
-              Posledná aktualizácia: 1. októbra 2026 • Verzia 1.0 (iOS / Web)
+              Účinné od 15. októbra 2026 • Verzia 1.1 (iOS / Web)
             </p>
           </div>
 
@@ -95,10 +95,10 @@ export default function PrivacyPolicyPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-white">3. Úložisko dát a bezpečnostné záruky</h2>
             <p>
-              Vaše dáta sú bezpečne ukladané na cloudovej infraštruktúre platformy <strong>Supabase</strong> so servermi umiestnenými v rámci Európskej únie (región Frankfurt, Nemecko). Komunikácia je šifrovaná pomocou protokolu TLS/HTTPS. Prístup k databáze je chránený striktnými politikami Row Level Security (RLS), takže k Vašim privátnym choreografiám má prístup výlučne overený vlastník.
+              Vaše dáta sú bezpečne ukladané na cloudovej infraštruktúre platformy <strong>Supabase</strong> so servermi umiestnenými v Európskej únii (Írsko). Komunikácia je šifrovaná pomocou protokolu TLS/HTTPS. Prístup k databáze je chránený striktnými politikami Row Level Security (RLS), takže k Vašim privátnym choreografiám má prístup výlučne overený vlastník.
             </p>
             <p>
-              Na iOS zariadení sú dáta izolované systémovým bezpečnostným mechanizmom Apple Sandbox a heslá sú chránené hardvérovým Keychainom s podporou Face ID.
+              Na iPhone sú dáta izolované systémovým mechanizmom Apple Sandbox. Heslo neukladáme; prihlásenie drží zabezpečená relácia v systémovej Kľúčenke (Keychain), voliteľne odomykaná cez Face ID.
             </p>
           </section>
 
@@ -109,6 +109,19 @@ export default function PrivacyPolicyPage() {
             </p>
             <p>
               Aplikácia neobsahuje žiadne reklamné SDK (AdMob, Facebook Pixel) a nepoužíva reklamný identifikátor IDFA na sledovanie naprieč inými aplikáciami.
+            </p>
+            <p>Na prevádzku služby využívame týchto spracovateľov. Každý dostane len údaje, ktoré na svoju úlohu potrebuje:</p>
+            <ul className="list-disc pl-5 space-y-2">
+              <li><strong>Supabase</strong> (Írsko, EÚ): účty, databáza, súbory a prihlasovanie.</li>
+              <li><strong>Cloudflare</strong> (dátové centrá v Európe): úložisko videí zdieľaných s partnerom a trénerom, doména a preposielanie e-mailov na adresu podpory.</li>
+              <li><strong>Resend</strong> (Írsko, EÚ): odosielanie e-mailov s overovacím kódom a obnovou hesla.</li>
+              <li><strong>Apple</strong> a <strong>Google</strong>: prihlásenie cez Apple alebo Google, ak ho zvolíte; platby predplatného spracúva výhradne Apple (App Store).</li>
+              <li><strong>Vercel</strong>: prevádzka tejto webovej stránky a anonymná štatistika návštevnosti bez cookies.</li>
+              <li><strong>PostHog</strong> (EÚ): súhrnná analytika používania webovej stránky bez cookies a bez profilovania návštevníkov.</li>
+              <li><strong>Formspree</strong>: doručenie správy z kontaktného formulára na stránke Podpora.</li>
+            </ul>
+            <p>
+              Výsledky zo súťaží: keď v aplikácii otvoríte stránku systému KSIS, aplikácia z nej prečíta a uloží len údaje Vášho prepojeného páru (triedu, body, finále, umiestnenia a krížiky porotcov). Mená ostatných párov sa neukladajú. Jediným oficiálnym zdrojom výsledkov je Slovenský zväz tanečného športu.
             </p>
           </section>
 
