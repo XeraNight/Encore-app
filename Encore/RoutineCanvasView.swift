@@ -128,7 +128,8 @@ struct RoutineCanvasView: View {
     @State private var showQRExport = false
     @State private var showPDFExport = false
     @State private var showRoutineVideoVault = false
-    @State private var isCanvasLocked = false
+    /// Partner moves arrive many times a second; they are written to disk once the partner stops.
+    @State private var remoteMoveSaveTask: Task<Void, Never>?
     
     @State private var showDuelSheet = false
     @State private var showGuestCoachKeys = false
@@ -224,7 +225,8 @@ struct RoutineCanvasView: View {
                         
                         ConnectionsLayer(
                             nodes: routine.canvasNodes,
-                            livePositions: liveNodePositions
+                            livePositions: liveNodePositions,
+                            scale: effectiveScale
                         ) { prevNode, nextNode in
                             selectedConnectionForEdit = CanvasConnection(from: prevNode, to: nextNode)
                         }
@@ -243,15 +245,12 @@ struct RoutineCanvasView: View {
                             } onDelete: {
                                 deleteNode(node)
                             } onDrag: { liveX, liveY in
-                                guard !isCanvasLocked else { return }
                                 liveNodePositions[node.id] = CGPoint(x: liveX, y: liveY)
                                 realtimeManager.broadcastNodeMove(nodeId: node.id, x: liveX, y: liveY)
                                 realtimeManager.updatePresence(x: liveX, y: liveY, userName: userName, draggingNodeId: node.id)
                             } onDragStart: {
-                                guard !isCanvasLocked else { return }
                                 activelyDraggedNodeIDs.insert(node.id)
                             } onDragEnd: { finalX, finalY in
-                                guard !isCanvasLocked else { return }
                                 activelyDraggedNodeIDs.remove(node.id)
                                 liveNodePositions.removeValue(forKey: node.id)
                                 routine.updatedAt = Date()
@@ -267,33 +266,36 @@ struct RoutineCanvasView: View {
                         if routine.canvasNodes.isEmpty {
                             VStack(spacing: 12) {
                                 Image(systemName: "figure.dance")
-                                    .font(.system(size: 48))
-                                    .foregroundColor(accentColor.opacity(0.8))
-                                Text("Prázdny tanečný parket")
-                                    .font(.system(size: 16, weight: .bold))
-                                    .foregroundColor(.themeDark)
-                                Text("Ťukni na 'Pridať figúru' a naplánuj choreografiu.")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.themeTextSecondary)
+                                    .font(.system(size: 44, weight: .semibold))
+                                    .foregroundColor(accentColor)
+                                    .frame(width: 84, height: 84)
+                                    .background(accentColor.opacity(0.16), in: Circle())
+                                Text("Prázdny parket")
+                                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
+                                Text("Ťukni na + Figúra a poskladaj zostavu.")
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.white.opacity(0.7))
                             }
-                            .padding(20)
-                            .background(Color.themeCard.opacity(0.95))
-                            .cornerRadius(16)
-                            .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color.themeDark.opacity(0.15), lineWidth: 1.5))
-                            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 4)
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 24)
+                            .homeCard(cornerRadius: 24)
+                            .shadow(color: Color.black.opacity(0.35), radius: 16, y: 8)
                             .allowsHitTesting(false)
+                            .transition(.scale(scale: 0.9).combined(with: .opacity))
                         }
                     }
                     .frame(width: canvasSize, height: canvasSize)
                     .scaleEffect(effectiveScale, anchor: .center)
                     .offset(canvasOffset(in: viewport, scale: effectiveScale, pan: activePan))
                     
-                    // Part 3 – Partner cursory (PresenceState z CanvasRealtimeManager)
+                    // Partner cursors, placed with the same (clamped) offset as the floor
+                    let floorOffset = canvasOffset(in: viewport, scale: effectiveScale, pan: activePan)
                     ForEach(Array(realtimeManager.partnerPresences.values), id: \.userId) { presence in
                         PartnerCursorView(name: presence.userName, isDragging: presence.draggingNodeId != nil)
                             .position(
-                                x: (presence.x - 1500) * effectiveScale + viewport.width / 2 + translation.width + activePan.width,
-                                y: (presence.y - 1500) * effectiveScale + viewport.height / 2 + translation.height + activePan.height
+                                x: (presence.x - 1500) * effectiveScale + viewport.width / 2 + floorOffset.width,
+                                y: (presence.y - 1500) * effectiveScale + viewport.height / 2 + floorOffset.height
                             )
                             .allowsHitTesting(false)
                     }
@@ -443,11 +445,8 @@ struct RoutineCanvasView: View {
             }
         }
         .ignoresSafeArea()
-        .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .navigationBar)
         .navigationBarBackButtonHidden(true)
-        .navigationBarHidden(true)
 
         // ─────────────────────────────────────────────────────────────────
         // Part 2 – Auto-refresh po WebSocket reconnecte
@@ -537,7 +536,7 @@ struct RoutineCanvasView: View {
                         node.x = x
                         node.y = y
                     }
-                    try? modelContext.save()
+                    scheduleRemoteMoveSave()
                 }
             }
             
@@ -628,6 +627,8 @@ struct RoutineCanvasView: View {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
             }
             UIApplication.shared.isIdleTimerDisabled = false
+            remoteMoveSaveTask?.cancel()
+            try? modelContext.save()
             NavDepth.shared.pop()    // restore floating dock when leaving canvas
             realtimeManager.disconnect()
             stopLiveActivity()
@@ -686,6 +687,15 @@ struct RoutineCanvasView: View {
         }
         routine.canvasNodes = newNodes
         try? modelContext.save()
+    }
+
+    private func scheduleRemoteMoveSave() {
+        remoteMoveSaveTask?.cancel()
+        remoteMoveSaveTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            try? modelContext.save()
+        }
     }
 
     private func showToastNotification(message: String) {
@@ -829,8 +839,11 @@ struct RoutineCanvasView: View {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
             modelContext.delete(node)
         }
-        let sorted = routine.canvasNodes.sorted(by: { $0.orderIndex < $1.orderIndex })
-        for i in 0..<sorted.count { sorted[i].orderIndex = i }
+        // The relationship may still list the deleted figure until the next save.
+        let remaining = routine.canvasNodes
+            .filter { $0.id != nodeId }
+            .sorted(by: { $0.orderIndex < $1.orderIndex })
+        for (index, figure) in remaining.enumerated() { figure.orderIndex = index }
         routine.updatedAt = Date()
         routine.lastModifiedBy = userName
         try? modelContext.save()
@@ -891,10 +904,6 @@ struct RoutineCanvasView: View {
         }
     }
     
-    private func getDocumentsDirectory() -> URL {
-        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-    }
-    
     // MARK: - Live Activity Management
     
     #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
@@ -926,9 +935,9 @@ struct RoutineCanvasView: View {
                 content: .init(state: initialState, staleDate: nil),
                 pushType: nil
             )
-            Logger.camera.info("Live Activity started.")
+            Logger.canvas.info("Live Activity started.")
         } catch {
-            Logger.camera.error("Live Activity start failed: \(error.localizedDescription, privacy: .public)")
+            Logger.canvas.error("Live Activity start failed: \(error.localizedDescription, privacy: .public)")
         }
     }
     

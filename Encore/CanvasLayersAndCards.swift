@@ -160,20 +160,22 @@ struct BallroomMarkingsView: View {
                 .offset(x: width / 2 - 3)
                 .shadow(color: Color.gold400.opacity(0.95), radius: 12)
             
-            // Ľavá dlhá stena: Jasný zlatý badge (LOD ▲ smer nahor)
+            // Line of dance runs counter-clockwise around the floor (seen from above): down the left wall,
+            // along the bottom to the right, up the right wall, along the top to the left.
+            // The long-wall badges are turned -90°, so "arrow.left" in the badge points down on screen.
             wallBadge(
                 title: "DLHÁ STENA",
                 subTitle: "SMER TANCA",
-                icon: "arrow.up",
+                icon: "arrow.left",
                 isVertical: true
             )
             .offset(x: -width / 2 + 42)
             
-            // Pravá dlhá stena: Jasný zlatý badge (LOD ▼ smer nadol)
+            // Right long wall: up on screen ("arrow.right" in the turned badge)
             wallBadge(
                 title: "DLHÁ STENA",
                 subTitle: "SMER TANCA",
-                icon: "arrow.down",
+                icon: "arrow.right",
                 isVertical: true
             )
             .offset(x: width / 2 - 42)
@@ -205,20 +207,20 @@ struct BallroomMarkingsView: View {
                 .offset(y: height / 2 - 2.5)
                 .shadow(color: Color.gold400.opacity(0.80), radius: 8)
             
-            // Horná krátka stena: Zlatý badge (LOD ▶ smer doprava)
-            wallBadge(
-                title: "KRÁTKA STENA",
-                subTitle: "SMER TANCA",
-                icon: "arrow.right",
-                isVertical: false
-            )
-            .offset(y: -height / 2 + 36)
-            
-            // Dolná krátka stena: Zlatý badge (LOD ◀ smer doľava)
+            // Top short wall: to the left
             wallBadge(
                 title: "KRÁTKA STENA",
                 subTitle: "SMER TANCA",
                 icon: "arrow.left",
+                isVertical: false
+            )
+            .offset(y: -height / 2 + 36)
+            
+            // Bottom short wall: to the right
+            wallBadge(
+                title: "KRÁTKA STENA",
+                subTitle: "SMER TANCA",
+                icon: "arrow.right",
                 isVertical: false
             )
             .offset(y: height / 2 - 36)
@@ -318,6 +320,8 @@ struct BallroomMarkingsView: View {
 struct ConnectionsLayer: View {
     let nodes: [CanvasNode]
     var livePositions: [UUID: CGPoint] = [:]
+    /// Current zoom: the transition buttons keep a 44 pt touch area on screen at any zoom.
+    var scale: CGFloat = 1
     var onConnectionTap: (CanvasNode, CanvasNode) -> Void
     
     private func pos(for node: CanvasNode) -> CGPoint {
@@ -364,6 +368,8 @@ struct ConnectionsLayer: View {
                                 .font(.system(size: 20))
                                 .foregroundColor(.themeAccent)
                                 .background(Color.themeCard.clipShape(Circle()))
+                                .frame(width: 44 / max(scale, 0.1), height: 44 / max(scale, 0.1))
+                                .contentShape(Circle())
                             if !curr.transitionNotes.isEmpty {
                                 Text(curr.transitionNotes)
                                     .font(.system(size: 10, weight: .bold))
@@ -376,6 +382,8 @@ struct ConnectionsLayer: View {
                             }
                         }
                     }
+                    .buttonStyle(.pressable(scale: 0.9))
+                    .accessibilityLabel("Prechod z \(prev.figureName) do \(curr.figureName)")
                     .position(centerPoint)
                 }
             }
@@ -407,7 +415,6 @@ struct ConnectionLineShape: Shape {
 
 // MARK: - Canvas Node Card View
 struct CanvasNodeCardView: View {
-    @Environment(\.modelContext) private var modelContext
     @Bindable var node: CanvasNode
     let scale: CGFloat
     var cardScale: CGFloat = 1.0
@@ -420,6 +427,7 @@ struct CanvasNodeCardView: View {
     var onDragEnd: ((Double, Double) -> Void)? = nil
     
     @State private var dragOffset: CGSize = .zero
+    @State private var isDragging = false
     @State private var showDeleteConfirm = false
     
     private var isLockedByPartner: Bool {
@@ -477,6 +485,7 @@ struct CanvasNodeCardView: View {
         .frame(width: 140, height: 132)
         .background(cardBackground)
         .scaleEffect(cardScale, anchor: .center)
+        .frame(width: 140 * cardScale, height: 132 * cardScale)
         .overlay(
             Group {
                 if isLockedByPartner {
@@ -498,7 +507,10 @@ struct CanvasNodeCardView: View {
             DragGesture(minimumDistance: 4, coordinateSpace: .global)
                 .onChanged { value in
                     guard !isLockedByPartner else { return }
-                    if dragOffset == .zero { onDragStart?() }
+                    if !isDragging {
+                        isDragging = true
+                        onDragStart?()
+                    }
                     
                     let bounds = BallroomFloorConfig.safeCardBounds(
                         cardWidth: 140 * cardScale,
@@ -543,12 +555,9 @@ struct CanvasNodeCardView: View {
                     node.x = snappedX
                     node.y = snappedY
                     dragOffset = .zero
+                    isDragging = false
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    
-                    try? modelContext.save()
-                    if let routine = node.routine {
-                        SupabaseSyncManager.shared.syncRoutineOnBackground(routine)
-                    }
+                    // The canvas saves, syncs and tells the partner (once).
                     onDragEnd?(snappedX, snappedY)
                 }
         )

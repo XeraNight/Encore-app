@@ -216,7 +216,7 @@ struct FigureDetailCard: View {
                 if let onClose { onClose() } else { dismiss() }
             } label: {
                 Text("Zavrieť")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 16)
                     .frame(height: 40)

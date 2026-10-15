@@ -140,6 +140,8 @@ public struct RealtimeStatusPill: View {
             .padding(.horizontal, 12)
             .frame(minHeight: 28)
             .glassEffect(.regular, in: .capsule)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.pressable)
         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: statusText)

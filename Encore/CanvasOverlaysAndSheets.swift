@@ -2,35 +2,6 @@ import SwiftUI
 import SwiftData
 import UIKit
 
-// MARK: - Minimap Overlay
-struct MinimapView: View {
-    let nodes: [CanvasNode]
-    let scale: CGFloat
-    var body: some View {
-        let size = 110.0
-        let miniRatio = size / 3000.0
-        ZStack {
-            RoundedRectangle(cornerRadius: 14)
-                .fill(Color.themeCard.opacity(0.85))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14)
-                        .stroke(Color.gold400.opacity(0.25), lineWidth: 1)
-                )
-                .frame(width: size, height: size)
-                .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 3)
-            ForEach(nodes) { node in
-                let clampedX = min(max(CGFloat(node.x), 0), 3000)
-                let clampedY = min(max(CGFloat(node.y), 0), 3000)
-                Circle()
-                    .fill(Color.themeAccent)
-                    .frame(width: 6, height: 6)
-                    .position(x: clampedX * miniRatio, y: clampedY * miniRatio)
-            }
-        }
-        .frame(width: size, height: size)
-    }
-}
-
 // MARK: - Figures Drawer Sheet
 /// Adds a library figure of this dance to the canvas; a missing one can be created right here.
 struct FiguresDrawerSheet: View {
