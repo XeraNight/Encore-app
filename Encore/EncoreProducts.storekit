@@ -45,7 +45,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Neobmedzené zostavy a Top 3 priority po lekcii",
+              "description" : "Neobmedzené zostavy, Top 3 priority, strih lekcie",
               "displayName" : "Encore Plus (Mesačne)",
               "locale" : "sk"
             }
@@ -73,7 +73,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Neobmedzené zostavy a Top 3 priority so zľavou 30 %",
+              "description" : "Zostavy, Top 3, strih lekcie, zľava 30 %",
               "displayName" : "Encore Plus (Ročne)",
               "locale" : "sk"
             }

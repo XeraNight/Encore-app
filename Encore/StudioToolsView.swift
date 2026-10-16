@@ -11,6 +11,10 @@ struct StudioToolsView: View {
     @State private var showSeminarSplitter = false
     @State private var showDanceMirror = false
     @State private var showDanceMetronome = false
+    @State private var showPaywall = false
+
+    /// Strih lekcie is part of Plus (docs/V1_PAYWALL_FEATURES_PLAN.md).
+    private var hasPlus: Bool { subscriptionManager.currentTier >= .plus }
 
     private var showsCoachTools: Bool { AppFeatures.coachTools && (profileStore.isCoach || subscriptionManager.isAppOwner) }
 
@@ -41,7 +45,10 @@ struct StudioToolsView: View {
                                 subtitle: "Tvoja skladba od 70 do 130 % bez zmeny tóniny") { showMusicSpeedTrainer = true }
                         HomeRowDivider()
                         toolRow(icon: "scissors", title: "Strih lekcie na figúry",
-                                subtitle: "Dlhé video z lekcie rozdelíš na jednotlivé figúry") { showSeminarSplitter = true }
+                                subtitle: "Dlhé video z lekcie rozdelíš na jednotlivé figúry",
+                                badge: hasPlus ? nil : "PLUS") {
+                            if hasPlus { showSeminarSplitter = true } else { showPaywall = true }
+                        }
                     }
 
                     if AppFeatures.coachTools {
@@ -81,6 +88,7 @@ struct StudioToolsView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsCoachTools)
         .sheet(isPresented: $showMusicSpeedTrainer) { MusicSpeedTrainerSheet() }
         .sheet(isPresented: $showSeminarSplitter) { SeminarSplitterView() }
+        .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         .sheet(isPresented: $showCoachRoster) {
             NavigationStack { StudioCoachRosterView() }
         }
@@ -106,9 +114,10 @@ struct StudioToolsView: View {
         }
     }
 
-    private func toolRow(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+    private func toolRow(icon: String, title: String, subtitle: String, badge: String? = nil,
+                         action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HomeRow(icon: icon, title: title, subtitle: subtitle)
+            HomeRow(icon: icon, title: title, subtitle: subtitle, badge: badge)
         }
         .buttonStyle(.pressable(scale: 0.98))
     }

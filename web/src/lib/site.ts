@@ -57,6 +57,7 @@ export const PLANS: Plan[] = [
       'Všetko z Free',
       'Neobmedzené zostavy na každý tanec',
       'Top 3 priority od trénera po každej lekcii',
+      'Strih hodinovej lekcie na jednotlivé figúry',
     ],
   },
   {

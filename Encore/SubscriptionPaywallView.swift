@@ -37,6 +37,8 @@ public struct SubscriptionPaywallView: View {
                         detail: "Viac zostáv na každý tanec. Free má jednu."),
                 Feature(icon: "target", title: "Top 3 priority po lekcii",
                         detail: "Tri hlavné korekcie trénera pre každý tanec. Máš ich na Domove, kým ich nezvládneš."),
+                Feature(icon: "scissors", title: "Strih lekcie na figúry",
+                        detail: "Hodinové video z lekcie rozdelíš na figúry a uložíš ich k zostave."),
                 coach ? Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",
                                 detail: "Požičaj zostavu viacerým trénerom naraz a až na 30 dní. Free má jeden kľúč na 7 dní.") : nil,
                 videos ? Feature(icon: "icloud.and.arrow.up.fill", title: "10 GB na zdieľané videá",
@@ -45,7 +47,7 @@ public struct SubscriptionPaywallView: View {
         case .premium:
             return [
                 Feature(icon: "checkmark.seal.fill", title: "Všetko z Plus",
-                        detail: coach ? "Zostavy, Top 3 priority, kľúče pre trénerov a ďalšie." : "Neobmedzené zostavy a Top 3 priority po lekcii."),
+                        detail: coach ? "Zostavy, Top 3 priority, kľúče pre trénerov a ďalšie." : "Neobmedzené zostavy, Top 3 priority a strih lekcie."),
                 Feature(icon: "square.on.square", title: "Porovnanie so vzorom",
                         detail: "Vzor priesvitne cez tvoje video, olovnica, sklon ramien a korekcie uložené k figúre."),
                 coach ? Feature(icon: "clock.arrow.circlepath", title: "Pre trénerov: čo sme robili naposledy",

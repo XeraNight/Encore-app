@@ -151,14 +151,14 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 > • Zrkadlo, metronóm a hudba pomalšie bez zmeny tóniny.
 >
 > PLUS A PREMIUM
-> • Plus: neobmedzené zostavy a Top 3 priority po lekcii.
+> • Plus: neobmedzené zostavy, Top 3 priority po lekcii a strih hodinovej lekcie na figúry.
 > • Premium: porovnanie tvojho videa so vzorom, olovnica, sklon ramien a korekcie uložené k figúre.
 >
 > Encore nie je oficiálna aplikácia SZTŠ. Výsledky pochádzajú z verejného systému KSIS.
 > Predplatné sa obnovuje automaticky, zrušíš ho v Nastaveniach iPhonu.
 > Podmienky: https://www.encore-sk.com/terms · Súkromie: https://www.encore-sk.com/privacy
 
-**Popisy predplatného** (ako v `EncoreProducts.storekit`): Plus „Neobmedzené zostavy a Top 3 priority po lekcii“,
+**Popisy predplatného** (ako v `EncoreProducts.storekit`): Plus „Neobmedzené zostavy, Top 3 priority, strih lekcie“,
 Premium „Porovnanie videa so vzorom a všetko z Plus“.
 | E12 | Copyright riadok | ⚠️ | Napríklad „© 2026 Jakub Kalina“. |
 
