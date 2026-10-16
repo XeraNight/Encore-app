@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 /// "Dnes" part of the planner: today's sessions with one-tap check-in, next competition, recent reflections.
 struct PlannerTodayView: View {
@@ -10,6 +11,7 @@ struct PlannerTodayView: View {
     let onOpenRoutine: () -> Void
 
     @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var notifications = NotificationManager.shared
     @State private var debriefEntry: TrainingLogEntry?
     @State private var editingCadence: TrainingCadence?
     @State private var editingSession: PlannedSession?
@@ -21,18 +23,30 @@ struct PlannerTodayView: View {
         TrainingOccurrence.on(today, cadences: cadences, sessions: sessions, logs: logs)
     }
 
-    private var nextSession: (cadence: TrainingCadence, day: Date)? {
+    /// The next training after today that is not cancelled, weekly or one-off, within two weeks.
+    private var nextTraining: TrainingOccurrence? {
         let cal = PlannerCalendar.calendar
-        for offset in 1...7 {
+        for offset in 1...14 {
             guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            let weekday = PlannerCalendar.isoWeekday(of: day)
-            if let cadence = cadences
-                .filter({ $0.isEnabled && $0.weekday == weekday })
-                .min(by: { $0.startMinutes < $1.startMinutes }) {
-                return (cadence, day)
+            if let next = TrainingOccurrence.on(day, cadences: cadences, sessions: sessions, logs: logs)
+                .first(where: { $0.hasTime && $0.entry(in: logs)?.status != .skipped }) {
+                return next
             }
         }
         return nil
+    }
+
+    private func nextTrainingText(_ next: TrainingOccurrence) -> String {
+        let cal = PlannerCalendar.calendar
+        let day = cal.isDateInTomorrow(next.day)
+            ? "Zajtra"
+            : PlannerCalendar.weekdayName(iso: PlannerCalendar.isoWeekday(of: next.day))
+        return "Najbližší tréning: \(day) \(next.start.formatted(date: .omitted, time: .shortened)), \(next.title)"
+    }
+
+    /// Reminders need the system permission; a dancer who switched them off inside Encore is left alone.
+    private var remindersBlocked: Bool {
+        !notifications.isAuthorized && !(cadences.isEmpty && sessions.isEmpty && competitions.isEmpty)
     }
 
     private var nextCompetition: PlannedCompetition? {
@@ -51,6 +65,8 @@ struct PlannerTodayView: View {
                 .foregroundColor(.white)
 
             LessonPrioritiesSection()
+
+            if remindersBlocked { remindersCard }
 
             trainingsSection
 
@@ -81,7 +97,7 @@ struct PlannerTodayView: View {
     // MARK: Trainings
     @ViewBuilder
     private var trainingsSection: some View {
-        if cadences.isEmpty && todaysTrainings.isEmpty {
+        if cadences.isEmpty && sessions.isEmpty && todaysTrainings.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Nastav si týždenný režim")
                     .font(.system(size: 16, weight: .bold))
@@ -106,9 +122,9 @@ struct PlannerTodayView: View {
                 Text("Dnes máš voľno")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.white)
-                if let next = nextSession {
-                    Text("Najbližší tréning: \(PlannerCalendar.weekdayName(iso: next.cadence.weekday)) \(PlannerCalendar.timeString(minutes: next.cadence.startMinutes)), \(next.cadence.title)")
-                        .font(.system(size: 13))
+                if let next = nextTraining {
+                    Text(nextTrainingText(next))
+                        .font(.footnote)
                         .foregroundColor(Color.white.opacity(0.6))
                 }
             }
@@ -138,6 +154,45 @@ struct PlannerTodayView: View {
             occurrence.setStatus(status, logs: logs, context: modelContext)
         }
         changeTick += 1
+    }
+
+    // MARK: Reminders off
+    private var remindersCard: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "bell.slash.fill")
+                .font(.headline)
+                .foregroundColor(Color.gold400)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Pripomienky sú vypnuté")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                Text("Nepríde ti výzva na reflexiu po tréningu ani pripomienka uzávierky prihlášok.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button("Zapnúť pripomienky", action: enableReminders)
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 44)
+                    .buttonStyle(.pressable)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .plannerCard()
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    /// First time: the system question. Refused before: only Settings can change it.
+    private func enableReminders() {
+        Task {
+            let status = await UNUserNotificationCenter.current().notificationSettings().authorizationStatus
+            if status == .notDetermined {
+                _ = await notifications.requestAuthorization()
+            } else if let url = URL(string: UIApplication.openSettingsURLString) {
+                await UIApplication.shared.open(url)
+            }
+        }
     }
 
     // MARK: Competition

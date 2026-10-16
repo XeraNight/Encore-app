@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 import SwiftData
 
@@ -40,6 +41,8 @@ struct DancePlannerView: View {
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var router = PlannerRouter.shared
     @State private var debriefEntry: TrainingLogEntry?
+    /// Rebuilds the sections when the day changes while the app is open (midnight) or comes back the next day.
+    @State private var today = PlannerCalendar.startOfDay(Date())
 
     /// Changes whenever something that affects notifications changes.
     private var planSignature: String {
@@ -87,6 +90,7 @@ struct DancePlannerView: View {
                         .padding(.horizontal, 20)
                         .padding(.bottom, 120)
                         .transition(.opacity)
+                        .id(today)
                     }
                     .scrollDismissesKeyboard(.interactively)
                 }
@@ -100,7 +104,14 @@ struct DancePlannerView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            Task { await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions) }
+            refreshDay()
+            Task {
+                await NotificationManager.shared.checkAuthorizationStatus()
+                await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
+            refreshDay()
         }
         .sensoryFeedback(.selection, trigger: section)
         .onChange(of: router.pending, initial: true) { _, request in
@@ -109,6 +120,11 @@ struct DancePlannerView: View {
             open(request)
         }
         .sheet(item: $debriefEntry) { DebriefSheet(entry: $0).presentationDetents([.large]) }
+    }
+
+    private func refreshDay() {
+        let now = PlannerCalendar.startOfDay(Date())
+        if now != today { today = now }
     }
 
     /// Opens the reflection of the training a notification was about (if it still exists).
