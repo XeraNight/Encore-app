@@ -51,13 +51,7 @@ struct MainTabView: View {
                 return
             }
             quickActions.pending = nil
-            Task {
-                let manager = CompetitionManager.shared
-                if manager.couples.isEmpty { await manager.loadAllData() }
-                if let url = QuickAction.ksisStartURL(pairNumber: manager.couples.first?.pairNumber) {
-                    ksisBrowser = KSISBrowserTarget(url: url)
-                }
-            }
+            if let url = QuickAction.ksisCalendarURL { ksisBrowser = KSISBrowserTarget(url: url) }
         }
         .fullScreenCover(item: $ksisBrowser) { KSISBrowserView(startURL: $0.url) }
         .task {

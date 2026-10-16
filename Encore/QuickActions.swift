@@ -22,13 +22,8 @@ enum QuickAction: String, CaseIterable {
         self = action
     }
 
-    /// KSIS opens on the linked couple's page, otherwise on the KSIS home page.
-    static func ksisStartURL(pairNumber: Int?) -> URL? {
-        if let pairNumber, let url = URL(string: "https://\(KSISBrowserView.host)/detail_paru.php?cp=\(pairNumber)") {
-            return url
-        }
-        return URL(string: "https://\(KSISBrowserView.host)/")
-    }
+    /// The KSIS button opens the competition calendar (upcoming events and their entry lists).
+    static let ksisCalendarURL = URL(string: "https://\(KSISBrowserView.host)/menu.php?akcia=KS")
 }
 
 /// Holds a tapped control until the screen that handles it is on (cold start, Face ID lock, signed out).

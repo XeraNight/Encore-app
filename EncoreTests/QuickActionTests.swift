@@ -24,8 +24,7 @@ struct QuickActionTests {
         #expect(action("encore://auth-callback?code=x") == nil)
     }
 
-    @Test func ksisOpensTheCouplePageWhenLinked() {
-        #expect(QuickAction.ksisStartURL(pairNumber: 1234)?.absoluteString == "https://szts.ksis.eu/detail_paru.php?cp=1234")
-        #expect(QuickAction.ksisStartURL(pairNumber: nil)?.absoluteString == "https://szts.ksis.eu/")
+    @Test func ksisOpensTheCompetitionCalendar() {
+        #expect(QuickAction.ksisCalendarURL?.absoluteString == "https://szts.ksis.eu/menu.php?akcia=KS")
     }
 }

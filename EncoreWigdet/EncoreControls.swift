@@ -50,10 +50,10 @@ struct EncoreKSISControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.jakub.encore.control.ksis") {
             ControlWidgetButton(action: OpenURLIntent(quickURL("ksis"))) {
-                Label("KSIS", systemImage: "trophy.fill")
+                Label("Kalendár súťaží", systemImage: "trophy.fill")
             }
         }
-        .displayName("KSIS")
-        .description("Otvorí KSIS v Encore, s prepojeným párom rovno na vašej stránke.")
+        .displayName("Kalendár súťaží")
+        .description("Otvorí kalendár súťaží v KSIS, s prihláškami ku každému podujatiu.")
     }
 }
