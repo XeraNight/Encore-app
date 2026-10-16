@@ -1,4 +1,4 @@
-# Tab Plán: audit situácií
+# Tab Kalendár (predtým Plán): audit situácií
 
 > 15. 10. 2026. Prejdené: `DancePlannerView`, `PlannerTodayView`, `PlannerCalendarView`, `PlannerRoutineView`,
 > `PlannerSessionViews`, `PlannerCompetitionsView`, `PlannerEditorComponents`, `PlannerModels`,
@@ -100,3 +100,34 @@ Tab **Kalendár**, nadpis KALENDÁR, sekcie **Dnes · Mesiac · Režim**. Texty 
 5. **Editory (S6, S19, S23–S25, S28):** jedno uloženie, uzávierka najneskôr v deň súťaže, KSIS kategórie ostanú, potvrdenie pri mazaní podržaním, otázka pri zatvorení so zmenami.
 6. **Dnes (S4, S18):** obnova o polnoci, najbližší tréning vrátane samotréningov a bez zrušených. **Notifikácie (S39):** jemná karta, keď sú vypnuté.
 7. **Vzhľad a názov (S29, S30, S47–S49):** textové štýly, jeden štýl kariet, premenovanie na Kalendár, minulé súťaže len z tejto sezóny + Zobraziť všetky.
+
+## Stav po opravách (16. 10. 2026)
+**Opravené:** S1, S2, S4, S6, S7, S9–S15, S18, S19, S21–S25, S27–S30, S33–S37, S39, S40, S42–S44, S47–S49.
+Tab sa volá **Kalendár** (Dnes · Mesiac · Režim). Navyše: texty len v mužskom rode („Nebol som“, „čo si sa naučil“) sú neutrálne.
+
+**Vedome nechané:** S8 (iné časové pásmo), S41 (pripomienky 14 dní dopredu), S45 (Kalendár nie je v cloude).
+
+**Overené:** build bez varovaní, všetky testy (nové: posun času, ktoré tréningy deň ukazuje, notifikácia → tréning),
+obrazovky Dnes, Mesiac, Režim a Súťaže vyrenderované s ukážkovými dátami.
+**Neoverené naživo:** Apple Kalendár (pauza, úprava, Nejdem, Neidem), ťuk na notifikáciu, zatváranie editorov.
+Treba vyskúšať na iPhone, appka bez prihlásenia v simulátore nejde.
+
+## Kritický pohľad
+1. **Kalendár je len tvoj.** Tanec je párový šport, ale partner si musí tie isté tréningy zadať sám a reflexie ani Top 3
+   nevidí ani on, ani tréner. Toto je najväčšia medzera tabu. Riešenie potrebuje tabuľky v Supabase s RLS pre pár.
+2. **Dáta sú len v telefóne.** Zostavy sa synchronizujú, Kalendár nie. Nový iPhone bez zálohy = prázdny Kalendár.
+   Pri platenej appke to ľudia budú brať ako chybu.
+3. **Dnes a Mesiac sa prekrývajú.** Mesiac s vybraným dneškom ukazuje tie isté karty ako Dnes. Jednoduchšie: jeden
+   Kalendár (mesiac hore, deň pod ním, Top 3 a štatistika nad ním) a Režim. Menej prepínania, menej pojmov.
+4. **Idem nič nerobí.** Je to len štítok. Buď ho zmysluplniť (dá vedieť partnerovi), alebo nechať len Vynechať / Nejdem.
+5. **Štatistika je optimistická.** Nepotvrdený tréning sa po skončení ráta ako odtrénovaný. Je to konzistentné, ale
+   čísla môžu klamať. Poctivejšie by bolo rátať len Idem a reflexie.
+6. **Veľa pojmov naraz.** Režim, samotréning, lekcia, súťaž, Idem/Nejdem, reflexia, cieľ, Top 3, pocit. Nový používateľ
+   potrebuje krátke uvedenie alebo menej vecí na Dnes.
+7. **Apple Kalendár je najkrehkejšia časť.** Dve rôzne žiadosti o prístup (zápis, potom plný prístup pri mazaní) a zmeny
+   série sa nedajú otestovať bez zariadenia.
+8. **Testovateľnosť.** Bez prihlásenia sa appka nedá pustiť, takže UI sa overuje len čítaním kódu a renderom.
+   Pomohol by demo režim len pre DEBUG build s ukážkovými dátami.
+9. **Rod v celej appke.** V Kalendári je opravený, inde v appke môžu byť ďalšie texty len v mužskom rode.
+
+Hodnotenie: pred auditom asi 5/10, teraz 7,5/10. Na 9+ treba bod 1 a 2 (pár a cloud) a zjednodušiť Dnes a Mesiac.
