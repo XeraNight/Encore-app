@@ -270,6 +270,11 @@ final class CalendarExporter {
         (try? await store.requestWriteOnlyAccessToEvents()) ?? false
     }
 
+    /// Asks for access when the dancer switches "V Apple Kalendári" on, so a refusal can be shown right there.
+    func canAddEvents() async -> Bool {
+        await requestAccess()
+    }
+
     /// Removing needs full access. The app only touches events it created itself (by stored id or by the
     /// marker line above) and never reads or changes any other event.
     private func requestFullAccess() async -> Bool {
@@ -387,7 +392,31 @@ final class CalendarExporter {
         case accessDenied
     }
 
-    /// Removes the weekly series of the given trainings from Apple Calendar (all future occurrences).
+    /// Ends a weekly series before today: no future dates, past ones stay in the calendar history.
+    /// A series that has not started yet is removed. An event already gone counts as done.
+    func retireSeries(id: String) async -> Bool {
+        guard await requestFullAccess() else { return false }
+        guard let first = store.event(withIdentifier: id) else { return true }
+        let today = PlannerCalendar.startOfDay(Date())
+        guard first.startDate < today, let rule = first.recurrenceRules?.first else { return remove(first) }
+
+        let lastKept = today.addingTimeInterval(-1)
+        if let end = rule.recurrenceEnd?.endDate, end <= lastKept { return true }   // already ended (paused)
+        first.recurrenceRules = [EKRecurrenceRule(
+            recurrenceWith: rule.frequency,
+            interval: rule.interval,
+            daysOfTheWeek: rule.daysOfTheWeek,
+            daysOfTheMonth: nil,
+            monthsOfTheYear: nil,
+            weeksOfTheYear: nil,
+            daysOfTheYear: nil,
+            setPositions: nil,
+            end: EKRecurrenceEnd(end: lastKept)
+        )]
+        return save(first) != nil
+    }
+
+    /// Ends the weekly series of the given trainings in Apple Calendar (all future occurrences).
     /// Already deleted events count as done. Past occurrences stay in the calendar history.
     func removeTrainings(eventIds: [String], includeUnknownSeries: Bool = false) async -> RemovalResult {
         guard await requestFullAccess() else { return .accessDenied }
@@ -395,7 +424,8 @@ final class CalendarExporter {
 
         for id in eventIds {
             guard let event = store.event(withIdentifier: id) else { continue }
-            if remove(event) { removed.insert(event.calendarItemIdentifier) }
+            let item = event.calendarItemIdentifier
+            if await retireSeries(id: id) { removed.insert(item) }
         }
 
         // Safety net for series whose id was lost (reinstall, other device): the marker line finds them.

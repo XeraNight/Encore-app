@@ -145,7 +145,10 @@ struct PlannerRoutineView: View {
             let result = await CalendarExporter.shared.removeTrainings(eventIds: ids, includeUnknownSeries: true)
             switch result {
             case .removed(let count):
-                for cadence in cadences { cadence.calendarEventId = nil }
+                for cadence in cadences {
+                    cadence.calendarEventId = nil
+                    cadence.inAppleCalendar = false
+                }
                 try? modelContext.save()
                 calendarMessage = count == 0
                     ? "V kalendári sa nenašiel žiadny tréning z Encore."
@@ -187,10 +190,17 @@ struct PlannerRoutineView: View {
             .buttonStyle(.pressable)
 
             if !isSelecting {
+                // Paused (e.g. summer): no reminders and no future dates in Apple Calendar until it is back on.
                 Toggle("", isOn: Binding(
                     get: { cadence.isEnabled },
-                    set: { cadence.isEnabled = $0; try? modelContext.save() }
+                    set: { isOn in
+                        cadence.isEnabled = isOn
+                        cadence.inAppleCalendar = cadence.inAppleCalendar || cadence.calendarEventId != nil
+                        try? modelContext.save()
+                        Task { await cadence.syncAppleCalendar(changed: false, context: modelContext) }
+                    }
                 ))
+                .accessibilityLabel(cadence.isEnabled ? "Pozastaviť tréning" : "Zapnúť tréning")
                 .labelsHidden()
                 .tint(Color.gold500)
             }
@@ -199,14 +209,10 @@ struct PlannerRoutineView: View {
         .opacity(cadence.isEnabled ? 1 : 0.55)
         .contextMenu {
             Button { editing = cadence } label: { Label("Upraviť", systemImage: "pencil") }
-            if let eventId = cadence.calendarEventId {
+            if cadence.calendarEventId != nil {
                 Button {
-                    Task {
-                        if case .removed = await CalendarExporter.shared.removeTrainings(eventIds: [eventId]) {
-                            cadence.calendarEventId = nil
-                            try? modelContext.save()
-                        }
-                    }
+                    cadence.inAppleCalendar = false
+                    Task { await cadence.syncAppleCalendar(changed: false, context: modelContext) }
                 } label: { Label("Odstrániť z kalendára", systemImage: "calendar.badge.minus") }
             }
             Button(role: .destructive) {
@@ -269,10 +275,8 @@ struct CadenceEditorSheet: View {
             }
 
             PlannerFormSection(title: "PRIPOMIENKY", systemImage: "bell.fill") {
-                PlannerToggleRow(
-                    title: "V Apple Kalendári",
+                PlannerCalendarToggle(
                     subtitle: "Opakovaná udalosť každý týždeň s pripomienkou 30 minút vopred.",
-                    systemImage: "calendar.badge.plus",
                     isOn: $inCalendar
                 )
             }
@@ -292,7 +296,7 @@ struct CadenceEditorSheet: View {
         duration = cadence.durationMinutes
         location = cadence.location
         category = cadence.danceCategory
-        inCalendar = cadence.calendarEventId != nil
+        inCalendar = cadence.inAppleCalendar || cadence.calendarEventId != nil
     }
 
     private func save() {
@@ -316,35 +320,79 @@ struct CadenceEditorSheet: View {
         try? modelContext.save()
         saveTick += 1
 
-        let wantsCalendar = inCalendar
-        let oldEventId = target.calendarEventId
+        target.inAppleCalendar = inCalendar
+        try? modelContext.save()
         let eventChanged = eventBefore != [target.title, target.location, "\(target.weekday)", "\(target.startMinutes)", "\(target.durationMinutes)"]
+        let context = modelContext
         Task {
             // Ask for notification permission in context, the first time a session exists.
             if !NotificationManager.shared.isAuthorized {
                 _ = await NotificationManager.shared.requestAuthorization()
             }
-            if let oldEventId {
-                guard !wantsCalendar || eventChanged else { return }
-                guard case .removed = await CalendarExporter.shared.removeTrainings(eventIds: [oldEventId]) else { return }
-                target.calendarEventId = nil
-            }
-            if wantsCalendar, let id = await CalendarExporter.shared.export(cadence: target) {
-                target.calendarEventId = id
-            }
-            try? modelContext.save()
+            await target.syncAppleCalendar(changed: eventChanged, context: context)
         }
         dismiss()
     }
 }
 
+@MainActor
 extension TrainingCadence {
-    /// Deletes the weekly training here and its future occurrences in Apple Calendar.
+    /// Deletes the weekly training here and its future dates in Apple Calendar (past ones stay there).
     func delete(in context: ModelContext) {
-        if let eventId = calendarEventId {
-            Task { _ = await CalendarExporter.shared.removeTrainings(eventIds: [eventId]) }
+        let seriesId = calendarEventId
+        let restored = Self.restoredDaysAhead(cadenceId: id, context: context)
+        Task {
+            if let seriesId { _ = await CalendarExporter.shared.retireSeries(id: seriesId) }
+            for entry in restored { await Self.removeRestoredEvent(of: entry) }
+            try? context.save()
         }
         context.delete(self)
         try? context.save()
+    }
+
+    /// Brings Apple Calendar in step with the training. A change gets a new series from the next date (the old
+    /// one ends yesterday, so its history stays); a paused or unwanted training has no future dates; days
+    /// cancelled ahead (Nejdem) stay out of the new series.
+    func syncAppleCalendar(changed: Bool, context: ModelContext) async {
+        let exporter = CalendarExporter.shared
+        if let seriesId = calendarEventId, changed || !inAppleCalendar || !isEnabled {
+            guard await exporter.retireSeries(id: seriesId) else { return }
+            calendarEventId = nil
+            // A restored single date would double the new series or outlive the pause.
+            for entry in Self.restoredDaysAhead(cadenceId: id, context: context) {
+                await Self.removeRestoredEvent(of: entry)
+            }
+        }
+        if inAppleCalendar, isEnabled, calendarEventId == nil, let seriesId = await exporter.export(cadence: self) {
+            calendarEventId = seriesId
+            for day in cancelledDaysAhead(context: context) {
+                _ = await exporter.removeOccurrence(seriesId: seriesId, on: day)
+            }
+        }
+        try? context.save()
+    }
+
+    private func cancelledDaysAhead(context: ModelContext) -> [Date] {
+        let cadenceId = id
+        let skipped = TrainingStatus.skipped.rawValue
+        let today = PlannerCalendar.startOfDay(Date())
+        let entries = (try? context.fetch(FetchDescriptor<TrainingLogEntry>(predicate: #Predicate {
+            $0.cadenceId == cadenceId && $0.statusRaw == skipped && $0.day >= today
+        }))) ?? []
+        return entries.map(\.day)
+    }
+
+    /// Days ahead that were cancelled and restored: each has its own single event.
+    private static func restoredDaysAhead(cadenceId: UUID, context: ModelContext) -> [TrainingLogEntry] {
+        let today = PlannerCalendar.startOfDay(Date())
+        let entries = (try? context.fetch(FetchDescriptor<TrainingLogEntry>(predicate: #Predicate {
+            $0.cadenceId == cadenceId && $0.day >= today
+        }))) ?? []
+        return entries.filter { $0.calendarEventId != nil && $0.status != .skipped }
+    }
+
+    private static func removeRestoredEvent(of entry: TrainingLogEntry) async {
+        guard let eventId = entry.calendarEventId else { return }
+        if await CalendarExporter.shared.removeEvent(id: eventId) { entry.calendarEventId = nil }
     }
 }

@@ -245,6 +245,45 @@ struct PlannerToggleRow: View {
     }
 }
 
+/// "V Apple Kalendári" for every Plán editor. Access is asked for when it is switched on, so a refusal shows
+/// here (with a way to Settings) instead of the event silently not appearing.
+struct PlannerCalendarToggle: View {
+    let subtitle: String
+    @Binding var isOn: Bool
+    @State private var accessDenied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PlannerToggleRow(title: "V Apple Kalendári", subtitle: subtitle, systemImage: "calendar.badge.plus", isOn: $isOn)
+            if accessDenied {
+                HStack(spacing: 8) {
+                    Text("Encore nemá prístup ku kalendáru.")
+                        .font(.footnote)
+                        .foregroundColor(Color.latinRed)
+                    Spacer(minLength: 8)
+                    Button("Nastavenia") {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                    }
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 44)
+                    .buttonStyle(.pressable)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: accessDenied)
+        .onChange(of: isOn) { _, on in
+            guard on else { accessDenied = false; return }
+            Task {
+                guard !(await CalendarExporter.shared.canAddEvents()) else { return }
+                isOn = false
+                accessDenied = true
+            }
+        }
+    }
+}
+
 /// Icon and title on the left, the system date or time picker on the right.
 struct PlannerDateRow: View {
     let title: String

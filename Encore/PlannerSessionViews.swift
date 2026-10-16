@@ -71,12 +71,7 @@ struct SessionEditorSheet: View {
             goalSection
 
             PlannerFormSection(title: "PRIPOMIENKY", systemImage: "bell.fill") {
-                PlannerToggleRow(
-                    title: "V Apple Kalendári",
-                    subtitle: "Udalosť s pripomienkou 30 minút vopred.",
-                    systemImage: "calendar.badge.plus",
-                    isOn: $inCalendar
-                )
+                PlannerCalendarToggle(subtitle: "Udalosť s pripomienkou 30 minút vopred.", isOn: $inCalendar)
             }
         }
         .sensoryFeedback(.success, trigger: saveTick)

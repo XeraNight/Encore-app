@@ -106,10 +106,7 @@ struct PlannerCompetitionsView: View {
         .buttonStyle(.pressable)
         .contextMenu {
             ForEach(CompetitionIntent.allCases) { intent in
-                Button(intent.title) {
-                    comp.intent = intent
-                    try? modelContext.save()
-                }
+                Button(intent.title) { comp.setIntent(intent, context: modelContext) }
             }
             Button(role: .destructive) {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { comp.delete(in: modelContext) }
@@ -197,12 +194,14 @@ struct CompetitionEditorSheet: View {
                     selection: $intent
                 )
                 PlannerToggleRow(title: "Hlavná súťaž sezóny", systemImage: "star.fill", isOn: $isTarget)
-                PlannerToggleRow(
-                    title: "V Apple Kalendári",
-                    subtitle: "Celodenná udalosť s pripomienkou deň vopred.",
-                    systemImage: "calendar.badge.plus",
+                PlannerCalendarToggle(
+                    subtitle: intent == .declined
+                        ? "Pri Neidem súťaž v Apple Kalendári nebude."
+                        : "Celodenná udalosť s pripomienkou deň vopred.",
                     isOn: $inCalendar
                 )
+                .disabled(intent == .declined)
+                .opacity(intent == .declined ? 0.5 : 1)
             }
         }
         .sensoryFeedback(.success, trigger: saveTick)
@@ -244,7 +243,8 @@ struct CompetitionEditorSheet: View {
         try? modelContext.save()
         saveTick += 1
 
-        let wantsCalendar = inCalendar
+        // Neidem takes the competition out of Apple Calendar, like Nejdem does with a training.
+        let wantsCalendar = inCalendar && intent != .declined
         let oldEventId = target.calendarEventId
         let eventChanged = eventBefore != [target.name, target.city, "\(target.date)", target.targetCategories.joined()]
         Task {
@@ -307,6 +307,18 @@ extension PlannedCompetition {
             changed = true
         }
         if changed { try? context.save() }
+    }
+
+    /// Neidem also takes the competition out of Apple Calendar; switching back does not add it again on its own.
+    func setIntent(_ newIntent: CompetitionIntent, context: ModelContext) {
+        intent = newIntent
+        try? context.save()
+        guard newIntent == .declined, let eventId = calendarEventId else { return }
+        Task {
+            guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
+            calendarEventId = nil
+            try? context.save()
+        }
     }
 
     /// Deletes the competition here and its event in Apple Calendar.

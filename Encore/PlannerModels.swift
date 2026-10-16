@@ -19,6 +19,9 @@ final class TrainingCadence {
     var isEnabled: Bool = true
     /// Identifier of the recurring Apple Calendar event, if exported.
     var calendarEventId: String? = nil
+    /// The dancer wants it in Apple Calendar. Kept while the training is paused (then it has no series),
+    /// so switching it back on brings the series back.
+    var inAppleCalendar: Bool = false
     /// Past days show this training only from here on (it did not exist before).
     var createdAt: Date = Date()
 
