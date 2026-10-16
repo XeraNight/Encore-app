@@ -312,7 +312,12 @@ struct KSISBrowserView: View {
                 Text("Ste prihlásení: \(categories.joined(separator: ", "))")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.85))
-                primaryButton("Pridať do kalendára") { addToPlan(event: event, categories: categories) }
+                if event.date.flatMap({ Self.isoDay.date(from: $0) }) != nil {
+                    primaryButton("Pridať do kalendára") { addToPlan(event: event, categories: categories) }
+                } else {
+                    // Without a date it would land on today; better to add it by hand with the right day.
+                    hint("KSIS tu neuvádza dátum súťaže. Pridaj ju v Kalendári s dátumom ručne.")
+                }
             } else {
                 hint(reply.isLinked == true
                      ? "Tvoj prepojený pár tu prihlásený nie je."
@@ -470,7 +475,7 @@ struct KSISBrowserView: View {
     }
 
     private func addToPlan(event: KSISPageReply.Event, categories: [String]) {
-        let date = event.date.flatMap { Self.isoDay.date(from: $0) } ?? Date()
+        guard let date = event.date.flatMap({ Self.isoDay.date(from: $0) }) else { return }
         let name = event.name
         let sameName = (try? modelContext.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.name == name }))) ?? []
         if let existing = sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
