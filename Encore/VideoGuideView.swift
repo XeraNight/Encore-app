@@ -13,13 +13,30 @@ struct VideoGuideView: View {
     }
 
     private var topics: [Topic] {
+        let photos = Topic(
+            title: "TVOJE VIDEÁ SÚ VO FOTKÁCH",
+            icon: "photo.on.rectangle.angled",
+            text: "Čo natočíš v Encore, uloží sa do Fotiek do albumu Encore. Encore si pamätá len odkaz, takže video nemáš v telefóne dvakrát a zálohuje ho tvoj iCloud. Keď ho vo Fotkách zmažeš, zmizne aj z Encore."
+        )
+        let voice = Topic(
+            title: "HLASOVÉ NAHRÁVKY",
+            icon: "waveform",
+            text: "Fotky zvuk neukladajú, preto hlasové poznámky ostávajú v Encore v tvojom iPhone. Zálohujú sa so zálohou iPhonu v iCloude."
+        )
+        guard AppFeatures.sharedVideos else {
+            return [
+                photos,
+                Topic(
+                    title: "VIDEO PRE PARTNERA",
+                    icon: "paperplane.fill",
+                    text: "Video nájdeš vo Fotkách v albume Encore. Partnerovi alebo trénerovi ho pošleš cez AirDrop alebo Správy, v plnej kvalite."
+                ),
+                voice,
+            ]
+        }
         let limits = SubscriptionTier.allCases.map { "\($0.rawValue) \($0.sharedVideoStorage)" }.joined(separator: ", ")
         return [
-            Topic(
-                title: "TVOJE VIDEÁ SÚ VO FOTKÁCH",
-                icon: "photo.on.rectangle.angled",
-                text: "Čo natočíš v Encore, uloží sa do Fotiek do albumu Encore. Encore si pamätá len odkaz, takže video nemáš v telefóne dvakrát a zálohuje ho tvoj iCloud. Keď ho vo Fotkách zmažeš, zmizne aj z Encore."
-            ),
+            photos,
             Topic(
                 title: "ZDIEĽANIE S PARTNEROM A TRÉNEROM",
                 icon: "person.2.fill",
@@ -35,11 +52,7 @@ struct VideoGuideView: View {
                 icon: "square.and.arrow.down.fill",
                 text: "Video, ktoré ti niekto zdieľal, si ulož cez ⋯ → Uložiť do mojich Fotiek. Budeš ho mať natrvalo a aj bez internetu. Partner potom môže zdieľanie zrušiť a uvoľniť si miesto."
             ),
-            Topic(
-                title: "HLASOVÉ NAHRÁVKY",
-                icon: "waveform",
-                text: "Fotky zvuk neukladajú, preto hlasové poznámky ostávajú v Encore v tvojom iPhone. Zálohujú sa so zálohou iPhonu v iCloude."
-            )
+            voice,
         ]
     }
 

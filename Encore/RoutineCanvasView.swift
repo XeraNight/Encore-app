@@ -821,8 +821,10 @@ struct RoutineCanvasView: View {
             Button { showRoutineVideoVault = true } label: {
                 Label("Videá a fotky zostavy", systemImage: "photo.stack.fill")
             }
-            Button { showGuestCoachKeys = true } label: {
-                Label("Hosťujúci tréner", systemImage: "key.fill")
+            if AppFeatures.coachTools {
+                Button { showGuestCoachKeys = true } label: {
+                    Label("Hosťujúci tréner", systemImage: "key.fill")
+                }
             }
             Button { showFigureOrder = true } label: {
                 Label("Poradie figúr", systemImage: "list.number")

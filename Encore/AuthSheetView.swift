@@ -184,9 +184,11 @@ struct AuthSheetView: View {
     private var formCard: some View {
         VStack(spacing: 14) {
             if isSignUp {
-                PlannerChoice(options: [("dancer", "Tanečník"), ("coach", "Tréner")], selection: $danceRole)
-                    .accessibilityLabel("Kto som")
-                    .transition(.move(edge: .top).combined(with: .opacity))
+                if AppFeatures.coachTools {
+                    PlannerChoice(options: [("dancer", "Tanečník"), ("coach", "Tréner")], selection: $danceRole)
+                        .accessibilityLabel("Kto som")
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
 
                 TextField("", text: $nickname, prompt: fieldPrompt("Meno alebo prezývka"))
                     .textContentType(.name)

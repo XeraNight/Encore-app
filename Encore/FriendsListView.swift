@@ -17,6 +17,11 @@ struct FriendsListView: View {
         case requests = "Žiadosti"
 
         var id: String { rawValue }
+
+        /// Coaches and students wait for the coach tools (`AppFeatures.coachTools`).
+        static var visible: [ConnectionTab] {
+            AppFeatures.coachTools ? allCases : [.partners, .requests]
+        }
     }
 
     @State private var selectedTab: ConnectionTab = .partners
@@ -142,7 +147,7 @@ struct FriendsListView: View {
     // MARK: Tabs
     private var tabsBar: some View {
         HStack(spacing: 6) {
-            ForEach(ConnectionTab.allCases) { tab in
+            ForEach(ConnectionTab.visible) { tab in
                 let isSelected = selectedTab == tab
                 Button {
                     withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.78)) { selectedTab = tab }

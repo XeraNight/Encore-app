@@ -75,8 +75,10 @@ struct FigureDetailCard: View {
                             .padding(.horizontal, 4)
                             .padding(.top, 4)
                         notesSheet
-                        coachNotesCard
-                        GuestNotesOnFigure(nodeId: node.id)
+                        if AppFeatures.coachTools {
+                            coachNotesCard
+                            GuestNotesOnFigure(nodeId: node.id)
+                        }
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 8)
@@ -413,7 +415,9 @@ struct FigureDetailCard: View {
             if node.videoPath != nil {
                 Button { showCamera = true } label: { Label("Natočiť znova", systemImage: "arrow.triangle.2.circlepath") }
                 if node.sharedVideoPath == nil {
-                    Button { confirmShare = true } label: { Label("Zdieľať s partnerom a trénerom", systemImage: "person.2.fill") }
+                    if AppFeatures.sharedVideos {
+                        Button { confirmShare = true } label: { Label("Zdieľať s partnerom a trénerom", systemImage: "person.2.fill") }
+                    }
                 } else {
                     Button { confirmStopSharing = true } label: { Label("Zrušiť zdieľanie", systemImage: "person.2.slash") }
                 }

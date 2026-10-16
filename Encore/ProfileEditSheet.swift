@@ -52,7 +52,9 @@ struct ProfileEditSheet: View {
                                     if value.count > UserProfileStore.clubMaxLength { club = String(value.prefix(UserProfileStore.clubMaxLength)) }
                                 }
                                 .authFieldChrome()
-                            Text("Meno a klub uvidia tvoji partneri a tréneri a podľa mena ťa nájdu.")
+                            Text(AppFeatures.coachTools
+                                 ? "Meno a klub uvidia tvoji partneri a tréneri a podľa mena ťa nájdu."
+                                 : "Meno a klub uvidia tvoji partneri a podľa mena ťa nájdu.")
                                 .font(.caption)
                                 .foregroundColor(Color.white.opacity(0.6))
                         }

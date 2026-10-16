@@ -114,14 +114,16 @@ struct ProfileView: View {
             }
 
             HStack(spacing: 8) {
-                Label(profileStore.isCoach ? "Tréner" : "Tanečník",
-                      systemImage: profileStore.isCoach ? "person.badge.shield.checkmark.fill" : "figure.dance")
-                    .font(.caption.weight(.bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .frame(minHeight: 30)
-                    .background(Color.white.opacity(0.08), in: Capsule())
-                    .contentTransition(.opacity)
+                if AppFeatures.coachTools {
+                    Label(profileStore.isCoach ? "Tréner" : "Tanečník",
+                          systemImage: profileStore.isCoach ? "person.badge.shield.checkmark.fill" : "figure.dance")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 10)
+                        .frame(minHeight: 30)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                        .contentTransition(.opacity)
+                }
 
                 Button {
                     UIPasteboard.general.string = profileStore.dancerCode
@@ -175,12 +177,15 @@ struct ProfileView: View {
         let parts = [
             connectionManager.activePartners.count > 0
                 ? slovakCount(connectionManager.activePartners.count, one: "partner", few: "partneri", many: "partnerov") : nil,
-            connectionManager.activeCoaches.count > 0
+            AppFeatures.coachTools && connectionManager.activeCoaches.count > 0
                 ? slovakCount(connectionManager.activeCoaches.count, one: "tréner", few: "tréneri", many: "trénerov") : nil,
-            connectionManager.activeStudents.count > 0
+            AppFeatures.coachTools && connectionManager.activeStudents.count > 0
                 ? slovakCount(connectionManager.activeStudents.count, one: "žiak", few: "žiaci", many: "žiakov") : nil
         ].compactMap { $0 }
-        return parts.isEmpty ? "Pridaj partnera alebo trénera cez ID tanečníka" : parts.joined(separator: " · ")
+        if parts.isEmpty {
+            return AppFeatures.coachTools ? "Pridaj partnera alebo trénera cez ID tanečníka" : "Pridaj partnera cez ID tanečníka"
+        }
+        return parts.joined(separator: " · ")
     }
 
     /// Only numbers KSIS shows; nothing about how far the next class is.

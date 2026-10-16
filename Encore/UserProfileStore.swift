@@ -25,7 +25,8 @@ final class UserProfileStore: ObservableObject {
     /// coach powers come only from an accepted coach–student connection on the server.
     @Published var danceRole: String = "dancer"
 
-    var isCoach: Bool { danceRole == "coach" }
+    /// Coach tools are held back for a later version; until then everybody is a dancer in the app.
+    var isCoach: Bool { AppFeatures.coachTools && danceRole == "coach" }
 
     static let clubMaxLength = 80
     

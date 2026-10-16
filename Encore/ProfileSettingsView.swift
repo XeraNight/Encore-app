@@ -108,26 +108,28 @@ struct ProfileSettingsView: View {
         HomeRowGroup(title: "ÚČET") {
             HomeRow(icon: "envelope.fill", title: "E-mail", subtitle: authManager.userEmail, showsChevron: false)
 
-            HomeRowDivider()
+            if AppFeatures.coachTools {
+                HomeRowDivider()
 
-            HStack(spacing: 0) {
-                HomeRow(
-                    icon: profileStore.isCoach ? "person.badge.shield.checkmark.fill" : "figure.dance",
-                    title: "Moja rola",
-                    subtitle: "Tréneri vidia Trénerské štúdio. Práva k žiakom dáva až prijaté prepojenie.",
-                    showsChevron: false
-                )
-                Picker("Moja rola", selection: Binding(
-                    get: { profileStore.danceRole },
-                    set: { profileStore.setDanceRole($0); changeCount += 1 }
-                )) {
-                    Text("Tanečník").tag("dancer")
-                    Text("Tréner").tag("coach")
+                HStack(spacing: 0) {
+                    HomeRow(
+                        icon: profileStore.isCoach ? "person.badge.shield.checkmark.fill" : "figure.dance",
+                        title: "Moja rola",
+                        subtitle: "Tréneri vidia Trénerské štúdio. Práva k žiakom dáva až prijaté prepojenie.",
+                        showsChevron: false
+                    )
+                    Picker("Moja rola", selection: Binding(
+                        get: { profileStore.danceRole },
+                        set: { profileStore.setDanceRole($0); changeCount += 1 }
+                    )) {
+                        Text("Tanečník").tag("dancer")
+                        Text("Tréner").tag("coach")
+                    }
+                    .pickerStyle(.menu)
+                    .tint(Color.gold400)
+                    .labelsHidden()
+                    .padding(.trailing, 8)
                 }
-                .pickerStyle(.menu)
-                .tint(Color.gold400)
-                .labelsHidden()
-                .padding(.trailing, 8)
             }
 
             if authManager.canChangePassword {
@@ -241,7 +243,9 @@ struct ProfileSettingsView: View {
     private var helpSection: some View {
         HomeRowGroup(title: "POMOC A PRÁVNE") {
             NavigationLink { VideoGuideView() } label: {
-                HomeRow(icon: "play.rectangle.on.rectangle.fill", title: "Ako fungujú videá", subtitle: "Fotky, zdieľanie s partnerom a miesto v pláne.")
+                HomeRow(icon: "play.rectangle.on.rectangle.fill", title: "Ako fungujú videá", subtitle: AppFeatures.sharedVideos
+                         ? "Fotky, zdieľanie s partnerom a miesto v pláne."
+                         : "Kde sú tvoje videá a ako ich poslať partnerovi.")
             }
             .buttonStyle(.pressable(scale: 0.98))
             HomeRowDivider()

@@ -77,7 +77,7 @@ struct EncoreApp: App {
                         return
                     }
                     // 3. Guest coach key (encore://guest?k=…)
-                    if let token = GuestCoachLink.token(from: url.absoluteString) {
+                    if AppFeatures.coachTools, let token = GuestCoachLink.token(from: url.absoluteString) {
                         GuestCoachService.shared.pendingToken = token
                         return
                     }

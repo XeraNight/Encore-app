@@ -13,7 +13,7 @@ struct StudioToolsView: View {
     @State private var showDanceMirror = false
     @State private var showDanceMetronome = false
 
-    private var showsCoachTools: Bool { profileStore.isCoach || subscriptionManager.isAppOwner }
+    private var showsCoachTools: Bool { AppFeatures.coachTools && (profileStore.isCoach || subscriptionManager.isAppOwner) }
 
     var body: some View {
         ZStack {
@@ -45,14 +45,16 @@ struct StudioToolsView: View {
                                 subtitle: "Dlhé video z lekcie rozdelíš na jednotlivé figúry") { showSeminarSplitter = true }
                     }
 
-                    HomeRowGroup(title: "SEMINÁR") {
-                        NavigationLink {
-                            GuestRoutinesListView()
-                        } label: {
-                            HomeRow(icon: "key.fill", title: "Požičané zostavy",
-                                    subtitle: "Zostavy, ktoré ti tanečníci požičali kľúčom")
+                    if AppFeatures.coachTools {
+                        HomeRowGroup(title: "SEMINÁR") {
+                            NavigationLink {
+                                GuestRoutinesListView()
+                            } label: {
+                                HomeRow(icon: "key.fill", title: "Požičané zostavy",
+                                        subtitle: "Zostavy, ktoré ti tanečníci požičali kľúčom")
+                            }
+                            .buttonStyle(.pressable(scale: 0.98))
                         }
-                        .buttonStyle(.pressable(scale: 0.98))
                     }
 
                     HomeRowGroup(title: "SÁLA") {

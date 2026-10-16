@@ -172,7 +172,7 @@ struct EncoreMemberCardView: View {
                         }
                     }
 
-                    Text("Partner alebo tréner naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 7 dní, nový zneplatní ten starý.")
+                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 7 dní, nový zneplatní ten starý.")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)

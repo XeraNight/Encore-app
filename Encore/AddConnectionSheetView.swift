@@ -23,8 +23,10 @@ struct AddConnectionSheetView: View {
                 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 20) {
-                        // 1. Relationship Type Picker
-                        relationshipTypeSection
+                        // 1. Relationship Type Picker (only partners until the coach tools are back)
+                        if AppFeatures.coachTools {
+                            relationshipTypeSection
+                        }
                         
                         // 2. Search Input (Dancer ID or Name)
                         searchFieldSection

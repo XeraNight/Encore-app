@@ -297,7 +297,7 @@ struct ContentView: View {
     
     // MARK: - Routine import
     private func handleScannedCode(_ rawCode: String) {
-        if let token = GuestCoachLink.token(from: rawCode) {
+        if AppFeatures.coachTools, let token = GuestCoachLink.token(from: rawCode) {
             guestService.pendingToken = token
             return
         }

@@ -119,7 +119,9 @@ struct FigureCorrectionSheet: View {
                         .homeCard(cornerRadius: 14)
                         .disabled(snapshot == nil)
 
-                        Text("Korekcia sa pridá do poznámok figúry. Uvidia ju aj partner a tréner, s ktorými máš zostavu zdieľanú.")
+                        Text(AppFeatures.coachTools
+                         ? "Korekcia sa pridá do poznámok figúry. Uvidia ju aj partner a tréner, s ktorými máš zostavu zdieľanú."
+                         : "Korekcia sa pridá do poznámok figúry. Uvidí ju aj partner, s ktorým máš zostavu zdieľanú.")
                             .font(.footnote)
                             .foregroundColor(.white.opacity(0.6))
                     }
