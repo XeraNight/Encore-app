@@ -25,7 +25,7 @@ extension Logger {
     /// Supabase Realtime WebSocket — connect, broadcast, presence, disconnect.
     nonisolated static let realtime = Logger(subsystem: subsystem, category: "realtime")
 
-    /// Canvas gestures, node management, draw mode, PDF/QR export.
+    /// Canvas gestures, node management, draw mode, QR export.
     nonisolated static let canvas   = Logger(subsystem: subsystem, category: "canvas")
 
     /// AVFoundation camera, recording, Live Activity, Dynamic Island.

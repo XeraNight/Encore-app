@@ -3,7 +3,7 @@ import SwiftUI
 /// Saving and loading formatted figure notes.
 ///
 /// The formatted text is stored as JSON in `CanvasNode.notesRichData`. The plain text in
-/// `CanvasNode.notes` remains the source of truth for everything else (cloud sync, PDF, QR, the
+/// `CanvasNode.notes` remains the source of truth for everything else (cloud sync, QR, the
 /// coach). If the two ever disagree (someone changed the plain text from another place), the
 /// plain text wins and the formatting is dropped, so the screen can never show stale text.
 enum RichNote {

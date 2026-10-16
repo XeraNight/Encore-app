@@ -5,7 +5,6 @@ import SwiftUI
 struct StudioToolsView: View {
     @ObservedObject private var profileStore = UserProfileStore.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
-    @ObservedObject private var airPlayManager = StudioAirPlayManager.shared
 
     @State private var showCoachRoster = false
     @State private var showMusicSpeedTrainer = false
@@ -62,9 +61,7 @@ struct StudioToolsView: View {
                             HomeRow(
                                 icon: "tv.fill",
                                 title: "Obrazovka v sále",
-                                subtitle: airPlayManager.isExternalScreenConnected
-                                    ? "Pripojené k televízoru"
-                                    : "Zostavu ukážeš na televízore cez AirPlay",
+                                subtitle: "Videá pošleš cez AirPlay. Celý parket ukážeš cez Zrkadlenie obrazovky v Ovládacom centre.",
                                 showsChevron: false
                             )
                             AirPlayRoutePickerRepresentable(tintColor: UIColor(Color.gold400))

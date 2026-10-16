@@ -72,8 +72,9 @@ public struct GlassCircleLabel: View {
 }
 
 // MARK: - AirPlay button
+/// Sends videos and sound to a TV or speaker over AirPlay; the picker turns gold while a route is active.
+/// The whole canvas goes to the TV through Screen Mirroring in Control Center.
 public struct AirPlayPickerButton: View {
-    @ObservedObject private var airPlayManager = StudioAirPlayManager.shared
     public var size: CGFloat = 44
 
     public init(size: CGFloat = 44) {
@@ -81,27 +82,11 @@ public struct AirPlayPickerButton: View {
     }
 
     public var body: some View {
-        AirPlayRoutePickerRepresentable(
-            tintColor: airPlayManager.isExternalScreenConnected ? UIColor(LuxuryTheme.gold400) : .white,
-            activeTintColor: UIColor(LuxuryTheme.gold400)
-        )
-        .frame(width: size - 14, height: size - 14)
-        .frame(width: size, height: size)
-        .glassEffect(
-            airPlayManager.isExternalScreenConnected ? .regular.tint(LuxuryTheme.gold500.opacity(0.3)) : .regular,
-            in: .circle
-        )
-        .overlay(alignment: .topTrailing) {
-            if airPlayManager.isExternalScreenConnected {
-                Circle()
-                    .fill(Color.syncEmerald)
-                    .frame(width: 9, height: 9)
-                    .offset(x: -3, y: 3)
-                    .transition(.scale.combined(with: .opacity))
-            }
-        }
-        .animation(.spring(response: 0.3, dampingFraction: 0.75), value: airPlayManager.isExternalScreenConnected)
-        .accessibilityLabel(airPlayManager.isExternalScreenConnected ? "Premietanie zapnuté" : "Premietať na obrazovku")
+        AirPlayRoutePickerRepresentable(tintColor: .white, activeTintColor: UIColor(LuxuryTheme.gold400))
+            .frame(width: size - 14, height: size - 14)
+            .frame(width: size, height: size)
+            .glassEffect(.regular, in: .circle)
+            .accessibilityLabel("AirPlay na televízor")
     }
 }
 

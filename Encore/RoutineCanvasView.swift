@@ -126,7 +126,6 @@ struct RoutineCanvasView: View {
     @State private var currentPath = Path()
     @State private var isDrawingMode = false
     @State private var showQRExport = false
-    @State private var showPDFExport = false
     @State private var showRoutineVideoVault = false
     /// Partner moves arrive many times a second; they are written to disk once the partner stops.
     @State private var remoteMoveSaveTask: Task<Void, Never>?
@@ -556,9 +555,6 @@ struct RoutineCanvasView: View {
             TransitionEditSheet(fromNode: conn.from, toNode: conn.to, realtimeManager: realtimeManager) {
                 selectedConnectionForEdit = nil
             }
-        }
-        .sheet(isPresented: $showPDFExport) {
-            RoutinePDFPreviewSheet(routine: routine)
         }
         .sheet(isPresented: $showQRExport) {
             QRExportSheet(routine: routine)

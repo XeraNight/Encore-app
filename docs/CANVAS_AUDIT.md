@@ -77,8 +77,9 @@
 **Hotové:** C1 (proti smeru hodinových ručičiek), C4–C8, F1–F4, U1–U6, K1–K3.
 Mini prehrávač nad tab barom je od iOS 26.1; na iOS 26.0 sa video so zvukom po zatvorení figúry zastaví.
 
+**C2:** PDF export zmazaný (16. 10. 2026, nikto ho nepotreboval).
+
 **Čaká na rozhodnutie:**
-- C2: PDF export ostal bez tlačidla. Zmazať ho, alebo pridať do ⋯ menu?
 - C3, F5: kresba po parkete sa neukladá. Zmazať kreslenie, alebo ho dorobiť (uloženie, vrátiť ťah, farby; zdieľanie s partnerom potrebuje nový stĺpec v databáze)?
 
 Overené buildom a testami; naživo v simulátore to bez prihlásenia skúsiť nejde.

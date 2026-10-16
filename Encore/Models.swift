@@ -159,7 +159,7 @@ final class CanvasNode {
     var transitionNotes: String
     var masteryRating: Int = 3 // 1 to 5 stars
     /// Formatted version of `notes` (AttributedString as JSON). Local only. `notes` stays the plain
-    /// text mirror that sync, PDF, QR and the coach use; the formatting is dropped when they differ.
+    /// text mirror that sync, QR and the coach use; the formatting is dropped when they differ.
     var notesRichData: Data? = nil
     /// Quarter turns of the figure video, like rotating in Photos: 0, 90, 180 or 270 degrees (local only).
     var videoRotation: Int? = nil
