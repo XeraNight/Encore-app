@@ -74,12 +74,13 @@
 7. **UI** U1–U6 a uvoľnenie miesta po zmazaní zostavy (K2).
 
 ## 4. Stav (15. 10. 2026)
-**Hotové:** C1 (proti smeru hodinových ručičiek), C4–C8, F1–F4, U1–U6, K1–K3.
+**Hotové:** C1 (proti smeru hodinových ručičiek), C3–C8, F1–F5, U1–U6, K1–K3.
 Mini prehrávač nad tab barom je od iOS 26.1; na iOS 26.0 sa video so zvukom po zatvorení figúry zastaví.
 
 **C2:** PDF export zmazaný (16. 10. 2026, nikto ho nepotreboval).
 
-**Čaká na rozhodnutie:**
-- C3, F5: kresba po parkete sa neukladá. Zmazať kreslenie, alebo ho dorobiť (uloženie, vrátiť ťah, farby; zdieľanie s partnerom potrebuje nový stĺpec v databáze)?
+**C3, F5 (16. 10. 2026):** kresba sa ukladá k zostave v telefóne, ostáva na parkete aj mimo režimu kreslenia,
+má tri farby, vrátenie ťahu a potvrdenie pred zmazaním celej kresby. Partner ju zatiaľ nevidí (potrebuje
+nový stĺpec v databáze, SQL až na požiadanie).
 
 Overené buildom a testami; naživo v simulátore to bez prihlásenia skúsiť nejde.

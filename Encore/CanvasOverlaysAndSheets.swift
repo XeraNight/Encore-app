@@ -340,43 +340,100 @@ struct CanvasGestureView: UIViewRepresentable {
 }
 
 // MARK: - Drawing Canvas
-struct DrawingCanvas: View {
-    @Binding var paths: [Path]
-    @Binding var currentPath: Path
-    
-    var body: some View {
-        Canvas { context, size in
-            for path in paths {
-                context.stroke(
-                    path,
-                    with: .color(Color.latinRed),
-                    style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
-                )
-            }
-            context.stroke(
-                currentPath,
-                with: .color(Color.latinRed),
-                style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round)
-            )
+// MARK: - Drawing on the floor
+/// A stroke in floor coordinates, so it stays in place when the floor is panned or zoomed.
+struct SketchStroke: Codable, Equatable {
+    var points: [CGPoint]
+    var color: SketchColor
+}
+
+enum SketchColor: String, Codable, CaseIterable, Identifiable {
+    case red, gold, white
+    var id: String { rawValue }
+
+    var color: Color {
+        switch self {
+        case .red: return Color.latinRed
+        case .gold: return Color.gold400
+        case .white: return .white
         }
-        .background(Color.black.opacity(0.001))
-        .gesture(
-            DragGesture(minimumDistance: 0)
-                .onChanged { value in
-                    let point = value.location
-                    if currentPath.isEmpty {
-                        currentPath.move(to: point)
-                    } else {
-                        currentPath.addLine(to: point)
+    }
+
+    var name: String {
+        switch self {
+        case .red: return "Červená"
+        case .gold: return "Zlatá"
+        case .white: return "Biela"
+        }
+    }
+}
+
+/// The routine's drawing, stored in `Routine.sketchData` on this iPhone.
+struct CanvasSketch: Codable, Equatable {
+    var strokes: [SketchStroke] = []
+
+    init(strokes: [SketchStroke] = []) { self.strokes = strokes }
+
+    init(data: Data?) {
+        strokes = data.flatMap { try? JSONDecoder().decode(CanvasSketch.self, from: $0) }?.strokes ?? []
+    }
+
+    var data: Data? { strokes.isEmpty ? nil : try? JSONEncoder().encode(self) }
+}
+
+/// Draws the strokes; smooth curves through the touch points.
+struct SketchLayer: View {
+    let strokes: [SketchStroke]
+    var current: SketchStroke? = nil
+
+    var body: some View {
+        Canvas { context, _ in
+            for stroke in strokes + (current.map { [$0] } ?? []) {
+                context.stroke(Self.path(stroke.points), with: .color(stroke.color.color),
+                               style: StrokeStyle(lineWidth: 4, lineCap: .round, lineJoin: .round))
+            }
+        }
+    }
+
+    static func path(_ points: [CGPoint]) -> Path {
+        var path = Path()
+        guard let first = points.first else { return path }
+        path.move(to: first)
+        if points.count == 1 {
+            path.addLine(to: first)   // a tap leaves a dot
+            return path
+        }
+        for index in 1..<points.count {
+            let previous = points[index - 1], point = points[index]
+            path.addQuadCurve(to: CGPoint(x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2), control: previous)
+        }
+        if let last = points.last { path.addLine(to: last) }
+        return path
+    }
+}
+
+/// Draw mode: a finger draws in the chosen colour; each finished stroke is handed to `onStroke`.
+struct DrawingCanvas: View {
+    let strokes: [SketchStroke]
+    let color: SketchColor
+    let onStroke: (SketchStroke) -> Void
+
+    @State private var current: SketchStroke?
+
+    var body: some View {
+        SketchLayer(strokes: strokes, current: current)
+            .background(Color.black.opacity(0.001))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { value in
+                        if current == nil { current = SketchStroke(points: [], color: color) }
+                        current?.points.append(value.location)
                     }
-                }
-                .onEnded { _ in
-                    if !currentPath.isEmpty {
-                        paths.append(currentPath)
-                        currentPath = Path()
+                    .onEnded { _ in
+                        if let current, !current.points.isEmpty { onStroke(current) }
+                        current = nil
                     }
-                }
-        )
+            )
     }
 }
 

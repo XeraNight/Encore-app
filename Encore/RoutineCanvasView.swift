@@ -122,8 +122,9 @@ struct RoutineCanvasView: View {
     
     @State private var realtimeManager = CanvasRealtimeManager()
     @State private var isRefreshing = false
-    @State private var sketchPaths: [Path] = []
-    @State private var currentPath = Path()
+    @State private var sketch: [SketchStroke] = []
+    @State private var sketchColor: SketchColor = .red
+    @State private var confirmClearSketch = false
     @State private var isDrawingMode = false
     @State private var showQRExport = false
     @State private var showRoutineVideoVault = false
@@ -228,9 +229,17 @@ struct RoutineCanvasView: View {
                         BallroomMarkingsView(roomSize: canvasSize)
                             .allowsHitTesting(false)
                         
+                        // The drawing stays on the floor; in draw mode the finger adds to it.
                         if isDrawingMode {
-                            DrawingCanvas(paths: $sketchPaths, currentPath: $currentPath)
+                            DrawingCanvas(strokes: sketch, color: sketchColor) { stroke in
+                                sketch.append(stroke)
+                                saveSketch()
+                            }
+                            .frame(width: canvasSize, height: canvasSize)
+                        } else if !sketch.isEmpty {
+                            SketchLayer(strokes: sketch)
                                 .frame(width: canvasSize, height: canvasSize)
+                                .allowsHitTesting(false)
                         }
                         
                         ConnectionsLayer(
@@ -332,9 +341,14 @@ struct RoutineCanvasView: View {
                             }
                             .accessibilityIdentifier("canvas.draw")
 
-                            if isDrawingMode && !sketchPaths.isEmpty {
+                            if isDrawingMode && !sketch.isEmpty {
+                                LiquidGlassCircleButton(icon: "arrow.uturn.backward", label: "Vrátiť ťah", size: 38) {
+                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { _ = sketch.popLast() }
+                                    saveSketch()
+                                }
+                                .transition(.scale.combined(with: .opacity))
                                 LiquidGlassCircleButton(icon: "trash", label: "Zmazať kresbu", size: 38) {
-                                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { sketchPaths.removeAll() }
+                                    confirmClearSketch = true
                                 }
                                 .transition(.scale.combined(with: .opacity))
                             }
@@ -342,7 +356,10 @@ struct RoutineCanvasView: View {
 
                         Spacer()
 
-                        if !isDrawingMode {
+                        if isDrawingMode {
+                            sketchColorPicker
+                                .transition(.scale(scale: 0.8).combined(with: .opacity))
+                        } else {
                             addFigureButton
                                 .accessibilityIdentifier("canvas.addFigure")
                                 .transition(.scale(scale: 0.8).combined(with: .opacity))
@@ -559,6 +576,14 @@ struct RoutineCanvasView: View {
         .sheet(isPresented: $showQRExport) {
             QRExportSheet(routine: routine)
         }
+        .confirmationDialog("Zmazať celú kresbu?", isPresented: $confirmClearSketch, titleVisibility: .visible) {
+            Button("Zmazať kresbu", role: .destructive) {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { sketch.removeAll() }
+                saveSketch()
+            }
+        } message: {
+            Text("Posledný ťah vrátiš aj šípkou späť, bez mazania celej kresby.")
+        }
         .sheet(isPresented: $showGuestCoachKeys) {
             GuestCoachKeysSheet(routine: routine)
         }
@@ -585,6 +610,7 @@ struct RoutineCanvasView: View {
         .onAppear {
             AppDelegate.orientationLock = .allButUpsideDown
             UIApplication.shared.isIdleTimerDisabled = true
+            sketch = CanvasSketch(data: routine.sketchData).strokes
             NavDepth.shared.push()   // hide floating dock while canvas is displayed for full screen ballroom view
             realtimeManager.connect(to: routine.id, userName: userName)
             startLiveActivity()
@@ -935,6 +961,37 @@ struct RoutineCanvasView: View {
         for (index, figure) in remaining.enumerated() { figure.orderIndex = index }
         routineChangedLocally()
         realtimeManager.broadcastNodeDeleted(nodeId: pending.id, figureName: pending.name, senderName: userName)
+    }
+
+    /// The drawing stays on this iPhone (no sync), so a save is enough.
+    private func saveSketch() {
+        routine.sketchData = CanvasSketch(strokes: sketch).data
+        try? modelContext.save()
+    }
+
+    /// Three colours for the drawing, in the place of "+ Figúra" while drawing.
+    private var sketchColorPicker: some View {
+        HStack(spacing: 14) {
+            ForEach(SketchColor.allCases) { color in
+                let isOn = sketchColor == color
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) { sketchColor = color }
+                } label: {
+                    Circle()
+                        .fill(color.color)
+                        .frame(width: isOn ? 30 : 24, height: isOn ? 30 : 24)
+                        .overlay(Circle().stroke(Color.white.opacity(isOn ? 0.9 : 0.3), lineWidth: isOn ? 2.5 : 1))
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable(scale: 0.85))
+                .accessibilityLabel(color.name)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal, 10)
+        .glassEffect(.regular, in: .capsule)
+        .sensoryFeedback(.selection, trigger: sketchColor)
     }
 
     /// Saves, marks the routine as changed by this user and syncs it.

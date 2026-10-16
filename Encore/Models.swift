@@ -123,6 +123,8 @@ final class Routine {
     var lastModifiedBy: String?
     var videoPath: String?
     var activeTargetVideoPath: String?
+    /// The drawing on the floor (`CanvasSketch`), kept on this iPhone only; it is not part of the sync.
+    @Attribute(.externalStorage) var sketchData: Data? = nil
     
     @Relationship(deleteRule: .cascade, inverse: \CanvasNode.routine)
     var canvasNodes: [CanvasNode] = []
