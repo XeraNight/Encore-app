@@ -69,6 +69,21 @@ tém. Pripravím ich, ty ich schváliš.
 - Apple Watch (`docs/WATCHOS_V1_1_PLAN.md`).
 - Poznámky a Plán aj na server (dnes len v telefóne).
 
+### Odložené: tréner a zdieľané videá (rozhodnuté 16. 10. 2026)
+v1 je pre tanečníka a jeho partnera. Kód, tabuľky aj serverové funkcie ostali, vypína ich `Encore/AppFeatures.swift`:
+- `coachTools`: rola Tréner pri registrácii a v Nastaveniach, karty Tréneri a Zverenci, „Moji zverenci“,
+  zápis lekcií („čo sme robili naposledy“), poznámky trénera pri figúre, kľúče pre hosťujúcich trénerov a Požičané zostavy.
+- `sharedVideos`: „Zdieľať s partnerom a trénerom“ pri videu figúry (kópia 720p na Cloudflare R2). Videá ostávajú vo Fotkách.
+
+Ostáva: partner (pozvánka cez QR na kartičke, spoločné zostavy a poznámky naživo), QR zostavy, záloha zostáv v cloude.
+
+Zapnutie (vždy novou verziou cez App Review, nikdy zo servera, pravidlo 2.3.1):
+1. Najprv Supabase Pro (denné zálohy, žiadne pozastavenie projektu).
+2. Prepínač v `AppFeatures.swift` na `true`. Paywall a texty v appke sa prispôsobia samy.
+3. Web ručne: cenník a FAQ (`web/src/lib/site.ts`), záložka Tréner (`AudienceTabs.tsx`), opisy pre trénerov,
+   Cloudflare ako úložisko videí v `privacy/page.tsx`.
+4. App Store: popis, popisy predplatného, štítky súkromia (zdieľané videá), poznámky pre review.
+
 ## Hotové a overené (9. 10.)
 - C9, C13, C14 opravené, C20 už v appke bolo (`docs/V1_LAUNCH_CHECKLIST.md`). Na tebe: spustiť SQL `20261009_app_config.sql`.
 - Export „Stiahnuť moje dáta“ vrátane zdieľaných videí je nasadený.

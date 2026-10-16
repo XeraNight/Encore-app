@@ -114,14 +114,52 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 | E1 | Názov (do 30 znakov), podtitul, kľúčové slová, popis (SK, ideálne aj EN), promo text | ⚠️ | Popis smie sľubovať len to, čo appka vie (C2). |
 | E2 | Kategória | ⚠️ | Návrh: **Sports**, druhá Health & Fitness. |
 | E3 | **Vekové hodnotenie** (nový dotazník vrátane otázok o sociálnych funkciách, povinných od septembra 2026) | ⚠️ | Odpovedaj pravdivo: obsah od používateľov zdieľaný s prepojenými ľuďmi, vyhľadávanie tanečníkov. „Sociálne médiá: áno“ znamená minimálne 13+. |
-| E4 | **App Privacy** (štítky súkromia) | ⚠️ | Rovnako ako privacy manifest: e-mail, meno, ID používateľa, fotky a videá (profilová fotka a zdieľané kópie), iný obsah (zostavy, poznámky, výsledky), história nákupov. Všetko „prepojené s používateľom“, „funkčnosť appky“, **bez sledovania**. Diagnostika: nie. |
+| E4 | **App Privacy** (štítky súkromia) | ⚠️ | Rovnako ako privacy manifest: e-mail, meno, ID používateľa, fotky (profilová fotka; zdieľané videá sú vo v1 vypnuté), iný obsah (zostavy, poznámky, výsledky), história nákupov. Všetko „prepojené s používateľom“, „funkčnosť appky“, **bez sledovania**. Diagnostika: nie. |
 | E5 | Snímky obrazovky **6,9" iPhone 1320×2868** (3 až 10 ks), voliteľne video 15–30 s | ⚠️ | Iba iPhone (C1). Iba skutočné obrazovky, bez sľubov, ktoré appka nesplní. |
 | E6 | Predplatné: jedna skupina „Encore“: Plus mesačne a ročne, Premium mesačne a ročne (`com.jakub.encore.plus.*`, `com.jakub.encore.premium.*`) | ⏳ | Lokalizované názvy a popisy, ceny, screenshot paywallu pre review. Rozhodni, či povolíš Family Sharing. |
 | E7 | App Store Server Notifications V2 URL | ⏳ | Na serverovú funkciu z C5. |
-| E8 | **Poznámky pre review + 2 demo účty** | ⚠️ | Dva účty s overeným e-mailom (napríklad partner a partnerka), prepojené, s ukážkovou zostavou, figúrami a zdieľaným videom. Napíš, ako otestovať zdieľanie a predplatné (sandbox). Účty vytvoríš ty. |
+| E8 | **Poznámky pre review + 2 demo účty** | ⚠️ | Dva účty s overeným e-mailom (napríklad partner a partnerka), prepojené, s ukážkovou zostavou a figúrami. Napíš, ako otestovať spoločnú zostavu naživo a predplatné (sandbox). Účty vytvoríš ty. |
 | E9 | Dostupnosť: krajiny, cena | ⚠️ | Mac a Vision Pro vypnúť (C1). |
 | E10 | Export compliance | ✅ | Vyrieši kľúč v `Info.plist` (C25). |
 | E11 | Accessibility Nutrition Labels | voliteľné | Môžeš vyplniť neskôr. |
+
+### Návrh textov do App Store (16. 10. 2026, v1 bez trénera a zdieľaných videí)
+**Podtitul** (do 30 znakov): Zostavy, tréningy a súťaže
+
+**Promo text:** Zostavy na parkete, poznámky z lekcie a výsledky z KSIS v jednej appke. Pre tanečníkov a páry štandardných a latinskoamerických tancov.
+
+**Popis:**
+> Encore je tréningový denník pre tanečníkov a páry štandardných a latinskoamerických tancov.
+>
+> PARKET A ZOSTAVY
+> • Poskladaj figúry na parkete tak, ako idú v sále, s dobami a smerom tanca.
+> • Partner vidí tú istú zostavu a každú zmenu hneď.
+> • Zostavu pošleš aj QR kódom.
+>
+> POZNÁMKY A VIDEO
+> • Nadiktuj, čo tréner povedal. Encore to prepíše po slovensky a uloží k tancu alebo figúre.
+> • Natoč figúru, video sa uloží do tvojich Fotiek.
+>
+> KALENDÁR
+> • Týždenný režim, samotréningy, lekcie a súťaže na jednom mieste, aj v Apple Kalendári.
+> • Po tréningu krátka reflexia, pripomienka uzávierky prihlášok.
+>
+> SÚŤAŽE
+> • Výsledky a krížiky tvojho páru z verejného systému KSIS.
+>
+> NÁSTROJE
+> • Zrkadlo, metronóm a hudba pomalšie bez zmeny tóniny.
+>
+> PLUS A PREMIUM
+> • Plus: neobmedzené zostavy a Top 3 priority po lekcii.
+> • Premium: porovnanie tvojho videa so vzorom, olovnica, sklon ramien a korekcie uložené k figúre.
+>
+> Encore nie je oficiálna aplikácia SZTŠ. Výsledky pochádzajú z verejného systému KSIS.
+> Predplatné sa obnovuje automaticky, zrušíš ho v Nastaveniach iPhonu.
+> Podmienky: https://www.encore-sk.com/terms · Súkromie: https://www.encore-sk.com/privacy
+
+**Popisy predplatného** (ako v `EncoreProducts.storekit`): Plus „Neobmedzené zostavy a Top 3 priority po lekcii“,
+Premium „Porovnanie videa so vzorom a všetko z Plus“.
 | E12 | Copyright riadok | ⚠️ | Napríklad „© 2026 Jakub Kalina“. |
 
 ## F. Testovanie pred odoslaním (TestFlight)
@@ -134,8 +172,8 @@ jeden reálny iPhone s iOS z C15. Interní testeri hneď; externí testeri potre
 - [ ] Face ID: zapnutie, zámok po 5 min na pozadí, odhlásenie zo zámku
 - [ ] Domov: text, hlas, video → video je vo Fotkách v albume Encore
 - [ ] Zostava: vytvorenie, figúry, poznámky s formátovaním, otočenie videa, duel
-- [ ] Zdieľanie videa s partnerom: partner vidí, uloží si do Fotiek, zrušenie zdieľania
-- [ ] Prepojenie partner / tréner cez QR (skener v appke aj Fotoaparát, C7), poznámky trénera
+- [ ] Prepojenie s partnerom cez QR (skener v appke aj Fotoaparát, C7), spoločná zostava a poznámky naživo
+- [ ] Žiadne stopy po trénerovi a zdieľaní videí (registrácia, Profil, Prepojenia, Nástroje, plátno ⋯, detail figúry, paywall)
 - [ ] Nahlásenie a zrušenie prepojenia (C6)
 - [ ] Plán: tréningy, súťaže, pridanie a hromadné odstránenie z Apple Kalendára
 - [ ] KSIS: prepojenie páru, import výsledkov, body
