@@ -197,7 +197,7 @@ Aplikácia obsahuje komplexnú výbavu, ktorá ďaleko presahuje bežné poznám
 13. ✂️ **Strihač seminárov (`SeminarSplitterView`):** Rýchle rozstrihanie celého 45-minútového kempu na samostatné 10-sekundové figúry.
 14. ✂️ **Strih a orezanie videa (`VideoTrimView`):** Orezanie zbytočného začiatku a konca nahrávky.
 15. 🧍 **AI Analýza držania tela (`PostureAnalysisOverlayView`):** Detekcia línie pliec, chrbtice a náklonu hlavy cez Apple Vision AI v reálnom čase.
-16. 🎵 **Music Speed Trainer (`MusicSpeedTrainerSheet`):** Zmena tempa skladby (70 % až 130 % BPM) so zachovaním pôvodnej tóniny (bez zmeny výšky tónu).
+16. ~~Music Speed Trainer~~ zmazaný 16. 10. 2026 (hudbu si tanečníci púšťajú zo Spotify).
 17. 🏆 **Súťažný simulátor finále (`CompetitionFinalSimulatorView`):** Tréning 5 tancov v plnom tempe s pauzami a výpočtom výsledkov podľa WDSF Skating systému.
 18. 📋 **Súťažný organizér kôl (`CompetitionOrganizerView`):** Správa štartovných čísel, rozdelenia do heatov a časového harmonogramu súťaže.
 19. 📺 **AirPlay TV Hub (`StudioAirPlayManager`):** Okamžité bezdrôtové premietanie parketu alebo videa na TV v sále.
@@ -262,7 +262,7 @@ Nápady na rozšírenie nastavení a ďalšie nástroje pripravené na realizác
     1. **Nová zostava** (Hore-Vľavo)
     2. **Mirror / Čisté Zrkadlo** (Hore-Vpravo)
     3. **Súťažný organizér kôl** (Dole-Vľavo)
-    4. **Music Speed Trainer** (Dole-Vpravo)
+    4. **Porovnanie videí** (Dole-Vpravo)
 * **Spodný výsuvný panel zostáv (Routines Deck):**
   * Každý tanec primárne ukazuje svoju **najnovšiu (poslednú upravovanú) zostavu**.
   * Ak má tanečník viac zostáv pre rovnaký tanec (napr. Cha-Cha pre C aj B), ostatné zostavy sa zobrazia po rozbalení panelu a ťuknutí na konkrétny tanec.

@@ -20,7 +20,6 @@ export async function GET() {
       posture_analysis: true,
       ghost_overlay: true,
       dual_video_comparison: true,
-      music_speed_trainer: true,
       dance_metronome: true,
       in_app_feedback: true,
     },

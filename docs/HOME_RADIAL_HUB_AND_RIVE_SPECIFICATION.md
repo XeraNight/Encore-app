@@ -28,7 +28,7 @@
        - 🌟 **Nová zostava** (Hore-Vľavo, -135°)
        - 🪞 **Mirror / Čisté Zrkadlo** (Hore-Vpravo, -45°)
        - 📋 **Súťažný organizér kôl** (Dole-Vľavo, 135°)
-       - 🎵 **Music Speed Trainer** (Dole-Vpravo, 45°)
+       - 🎞️ **Porovnanie videí** (Dole-Vpravo, 45°; do 16. 10. 2026 tu bola Hudba pomalšie)
      - Pozadie za logom sa jemne stmaví s rozostrením (backdrop blur), aby satelitné možnosti vystúpili do popredia.
   3. Dole pod logom sa jemne a nenásilne vysunie **spodný panel s existujúcimi zostavami (Routines Deck)**.
 
@@ -41,7 +41,7 @@
                   │       (  LOGO   )             │
                   │            │                  │
                   │            ▼                  │
-                  │    [ 🎵 Speed Trainer ]       │
+                  │    [ 🎞️ Porovnanie ]          │
                   └───────────────────────────────┘
                                   │
                                   ▼
@@ -165,7 +165,7 @@ func satelliteOffset(angleDegrees: Double, radius: CGFloat, isExpanded: Bool) ->
 // 1. Nová zostava:           -135° (vľavo hore)
 // 2. Tanečné zrkadlo:        -45°  (vpravo hore)
 // 3. Súťažný organizér:       135° (vľavo dole)
-// 4. Music Speed Trainer:     45°  (vpravo dole)
+// 4. Porovnanie videí:        45°  (vpravo dole)
 ```
 
 Tento dokument slúži ako kompletný základ pre implementáciu nového interaktívneho domovského prostredia.

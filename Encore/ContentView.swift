@@ -27,7 +27,6 @@ struct ContentView: View {
     @State private var showNewRoutineCategorySheet = false
     @State private var showDanceMirrorModal = false
     @State private var showMetronomeSheet = false
-    @State private var showMusicSpeedTrainerSheet = false
     @State private var showCompareModeSheet = false
     @State private var showGlobalLibrarySheet = false
     @State private var showAllRoutinesSheet = false
@@ -204,9 +203,6 @@ struct ContentView: View {
             .sheet(isPresented: $showMetronomeSheet) {
                 DanceMetronomeView()
             }
-            .sheet(isPresented: $showMusicSpeedTrainerSheet) {
-                MusicSpeedTrainerSheet()
-            }
             .qrScanner(isPresented: $showQRScanner, onScan: handleScannedCode)
             .sheet(isPresented: Binding(
                 get: { guestService.pendingToken != nil },
@@ -290,8 +286,8 @@ struct ContentView: View {
             AnalyticsManager.shared.mirrorOpened(source: "radial_hub")
         case .metronome:
             showMetronomeSheet = true
-        case .speedTrainer:
-            showMusicSpeedTrainerSheet = true
+        case .compare:
+            showCompareModeSheet = true
         }
     }
     

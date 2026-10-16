@@ -5,7 +5,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
     case newRoutine
     case mirror
     case metronome
-    case speedTrainer
+    case compare
 
     public var id: String { rawValue }
 
@@ -14,7 +14,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         case .newRoutine:    return "Nová zostava"
         case .mirror:        return "Zrkadlo"
         case .metronome:     return "Metronóm"
-        case .speedTrainer:  return "Hudba pomalšie"
+        case .compare:       return "Porovnanie videí"
         }
     }
 
@@ -23,7 +23,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         case .newRoutine:    return "Nová zostava"
         case .mirror:        return "Zrkadlo"
         case .metronome:     return "Metronóm"
-        case .speedTrainer:  return "Hudba"
+        case .compare:       return "Porovnať"
         }
     }
 
@@ -32,7 +32,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         case .newRoutine:    return "plus"
         case .mirror:        return "figure.stand.line.dotted.figure.stand"
         case .metronome:     return "metronome.fill"
-        case .speedTrainer:  return "music.quarternote.3"
+        case .compare:       return "rectangle.split.2x1.fill"
         }
     }
 
@@ -45,7 +45,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         case .newRoutine:    return CGSize(width: -86, height: -82)
         case .mirror:        return CGSize(width: 86,  height: -82)
         case .metronome:     return CGSize(width: -86, height: 82)
-        case .speedTrainer:  return CGSize(width: 86,  height: 82)
+        case .compare:       return CGSize(width: 86,  height: 82)
         }
     }
 
@@ -54,7 +54,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         switch self {
         case .newRoutine:    return 0
         case .metronome:     return 1
-        case .speedTrainer:  return 2
+        case .compare:       return 2
         case .mirror:        return 3
         }
     }
@@ -445,7 +445,7 @@ public struct EncoreRadialHubView: View {
         if dx < 0 && dy < 0 { return .newRoutine }
         if dx >= 0 && dy < 0 { return .mirror }
         if dx < 0 { return .metronome }
-        return .speedTrainer
+        return .compare
     }
 
     private func handleDragEnded(_ value: DragGesture.Value) {

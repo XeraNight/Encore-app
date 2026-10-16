@@ -120,7 +120,7 @@ export default function TermsPage() {
                 <strong>Názvy tanečných figúr:</strong> Štandardizované tanečné termíny (napr. <em>Natural Spin Turn</em>, <em>Open Hip Twist</em>) vychádzajú z verejných medzinárodných sylabov (WDSF, ISTD) a ich použitie je voľné.
               </li>
               <li>
-                <strong>Zvukový obsah:</strong> Metronóm generuje zvuk matematickou PCM syntézou priamo v RAM pamäti zariadenia. Funkcia Speed Trainer prehráva výhradne lokálne zvukové súbory, ktoré si používateľ sám legálne vlastní a vloží do aplikácie.
+                <strong>Zvukový obsah:</strong> Metronóm generuje zvuk matematickou PCM syntézou priamo v RAM pamäti zariadenia.
               </li>
             </ul>
           </section>

@@ -148,7 +148,7 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 > • Výsledky a krížiky tvojho páru z verejného systému KSIS.
 >
 > NÁSTROJE
-> • Zrkadlo, metronóm a hudba pomalšie bez zmeny tóniny.
+> • Zrkadlo s jemným svetlom na detaily líčenia a metronóm pre všetkých 10 tancov.
 >
 > PLUS A PREMIUM
 > • Plus: neobmedzené zostavy, Top 3 priority po lekcii, Moja sezóna (v ktorom tanci dostávaš najmenej krížikov a vývoj počas sezóny), súťažný deň (tance v poradí a pri každom tvoje Top 3), vývoj tréningov za mesiace a sezónu a strih hodinovej lekcie na figúry.

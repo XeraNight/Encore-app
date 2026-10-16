@@ -16,12 +16,11 @@ KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje 
 | **Súťažný deň** (tance v poradí, pri každom Top 3) ✅ 16. 10. | – | ✓ | ✓ |
 | Zrkadlo, metronóm | ✓ | ✓ | ✓ |
 | Strih lekcie na figúry ✅ 16. 10. (prerobený) | – | ✓ (presun z Free) | ✓ |
-| Hudba pomalšie (len súbory, nie Spotify) | ✓ | ✓ | ✓ |
 | Natočiť s duchom, duel vedľa seba | ✓ | ✓ | ✓ |
 | Porovnanie so vzorom, čiary, korekcie | – | – | ✓ |
 | **Časová os figúry** ✅ 16. 10. | – | – | ✓ |
 
-✱ dorobiť pred vydaním. Poradie: presun Hudba pomalšie a Strih lekcie do Plus → Moja sezóna → Súťažný deň →
+✱ dorobiť pred vydaním. Poradie: presun Strihu lekcie do Plus (Hudba pomalšie zmazaná 16. 10., hudbu si ľudia pustia zo Spotify) → Moja sezóna → Súťažný deň →
 vývoj v Kalendári → Časová os figúry. Každá funkcia sa v paywalli ukáže až hotová a otestovaná.
 
 Paywall smie sľubovať len to, čo funguje (App Review 2.3.1 a 3.1.2). Preto každá funkcia ide do

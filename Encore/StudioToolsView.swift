@@ -7,7 +7,6 @@ struct StudioToolsView: View {
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
 
     @State private var showCoachRoster = false
-    @State private var showMusicSpeedTrainer = false
     @State private var showSeminarSplitter = false
     @State private var showDanceMirror = false
     @State private var showDanceMetronome = false
@@ -40,9 +39,6 @@ struct StudioToolsView: View {
                         HomeRowDivider()
                         toolRow(icon: "metronome.fill", title: "Metronóm a tempo",
                                 subtitle: "Klik pre všetkých 10 tancov, hrá aj popri hudbe") { showDanceMetronome = true }
-                        HomeRowDivider()
-                        toolRow(icon: "music.note", title: "Hudba pomalšie a rýchlejšie",
-                                subtitle: "Tvoja skladba od 70 do 130 % bez zmeny tóniny") { showMusicSpeedTrainer = true }
                         HomeRowDivider()
                         toolRow(icon: "scissors", title: "Strih lekcie na figúry",
                                 subtitle: "Dlhé video z lekcie rozdelíš na jednotlivé figúry",
@@ -86,7 +82,6 @@ struct StudioToolsView: View {
         .navigationTitle("Nástroje")
         .navigationBarTitleDisplayMode(.inline)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsCoachTools)
-        .sheet(isPresented: $showMusicSpeedTrainer) { MusicSpeedTrainerSheet() }
         .sheet(isPresented: $showSeminarSplitter) { SeminarSplitterView() }
         .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         .sheet(isPresented: $showCoachRoster) {
