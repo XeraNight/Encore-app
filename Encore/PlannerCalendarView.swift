@@ -2,28 +2,43 @@ import SwiftUI
 import SwiftData
 
 // MARK: - One training on one day
-/// A weekly training on a concrete day, or a one-off training. Shared by Dnes and Kalendár.
+/// A weekly training on a concrete day, a one-off training, or a recorded day whose training is gone.
+/// Shared by Dnes and Kalendár.
 struct TrainingOccurrence: Identifiable {
     enum Source {
         case weekly(TrainingCadence)
         case session(PlannedSession)
+        /// A reflection whose training was deleted or moved to another weekday: it stays on its day.
+        case recorded(TrainingLogEntry)
     }
 
     let source: Source
     /// Start of the day.
     let day: Date
 
+    /// Days back a weekly training still shows without anything recorded, so a forgotten reflection
+    /// or "Nebol som" can be filled in. Older days show only what was recorded.
+    static let missedDays = 7
+
     var id: String {
         switch source {
         case .weekly(let cadence): return "w\(cadence.id.uuidString)\(Int(day.timeIntervalSince1970))"
         case .session(let session): return "s\(session.id.uuidString)"
+        case .recorded(let entry): return "r\(entry.id.uuidString)"
         }
+    }
+
+    /// A recorded day has no time any more (its training is gone).
+    var hasTime: Bool {
+        if case .recorded = source { return false }
+        return true
     }
 
     var start: Date {
         switch source {
         case .weekly(let cadence): return PlannerCalendar.date(on: day, minutes: cadence.startMinutes)
         case .session(let session): return session.start
+        case .recorded: return day
         }
     }
 
@@ -31,6 +46,7 @@ struct TrainingOccurrence: Identifiable {
         switch source {
         case .weekly(let cadence): return PlannerCalendar.date(on: day, minutes: cadence.endMinutes)
         case .session(let session): return session.end
+        case .recorded: return day
         }
     }
 
@@ -38,6 +54,7 @@ struct TrainingOccurrence: Identifiable {
         switch source {
         case .weekly(let cadence): return cadence.title.isEmpty ? "Tréning" : cadence.title
         case .session(let session): return session.displayTitle
+        case .recorded(let entry): return entry.title.isEmpty ? "Tréning" : entry.title
         }
     }
 
@@ -45,6 +62,7 @@ struct TrainingOccurrence: Identifiable {
         switch source {
         case .weekly: return "Každý týždeň"
         case .session(let session): return session.kind.title
+        case .recorded: return "Zapísané"
         }
     }
 
@@ -52,6 +70,7 @@ struct TrainingOccurrence: Identifiable {
         switch source {
         case .weekly(let cadence): return cadence.location
         case .session(let session): return session.location
+        case .recorded: return ""
         }
     }
 
@@ -65,10 +84,15 @@ struct TrainingOccurrence: Identifiable {
         return session.goalOutcome
     }
 
+    var isSolo: Bool {
+        if case .session(let session) = source { return session.kind == .solo }
+        return false
+    }
+
     /// Dot in the calendar: white for weekly trainings, gold for one-off ones.
     var dotColor: Color {
         switch source {
-        case .weekly: return .white.opacity(0.85)
+        case .weekly, .recorded: return .white.opacity(0.85)
         case .session: return Color.gold400
         }
     }
@@ -77,26 +101,61 @@ struct TrainingOccurrence: Identifiable {
         switch source {
         case .weekly(let cadence): return PlannerAttendance.entry(cadence: cadence, on: day, in: logs)
         case .session(let session): return PlannerAttendance.entry(session: session, in: logs)
+        case .recorded(let entry): return entry
         }
     }
 
-    /// Trainings of one day. Weekly trainings show from today on; on past days only where something was
-    /// recorded (the weekly rhythm may not have existed back then).
+    func entryCreatingIfNeeded(in logs: [TrainingLogEntry], context: ModelContext) -> TrainingLogEntry {
+        switch source {
+        case .weekly(let cadence):
+            return PlannerAttendance.entryCreatingIfNeeded(cadence: cadence, on: day, in: logs, context: context)
+        case .session(let session):
+            return PlannerAttendance.entryCreatingIfNeeded(session: session, in: logs, context: context)
+        case .recorded(let entry):
+            return entry
+        }
+    }
+
+    func setStatus(_ status: TrainingStatus, logs: [TrainingLogEntry], context: ModelContext) {
+        switch source {
+        case .weekly(let cadence):
+            PlannerAttendance.setStatus(status, cadence: cadence, on: day, logs: logs, context: context)
+        case .session(let session):
+            PlannerAttendance.setStatus(status, session: session, logs: logs, context: context)
+        case .recorded:
+            break
+        }
+    }
+
+    /// Trainings of one day. Weekly trainings show from today on and for the last `missedDays` days (since the
+    /// training exists); further back only where something was recorded. A reflection stays on its day even
+    /// when its training was deleted or moved.
     static func on(_ day: Date, cadences: [TrainingCadence], sessions: [PlannedSession],
                    logs: [TrainingLogEntry]) -> [TrainingOccurrence] {
         let cal = PlannerCalendar.calendar
         let date = cal.startOfDay(for: day)
         let today = cal.startOfDay(for: Date())
+        let recentStart = cal.date(byAdding: .day, value: -missedDays, to: today) ?? today
         let weekday = PlannerCalendar.isoWeekday(of: date)
         var list: [TrainingOccurrence] = []
         for cadence in cadences where cadence.weekday == weekday {
             let recorded = PlannerAttendance.entry(cadence: cadence, on: date, in: logs) != nil
-            if (date >= today && cadence.isEnabled) || recorded {
+            let scheduled = cadence.isEnabled && date >= recentStart && date >= cal.startOfDay(for: cadence.createdAt)
+            if scheduled || recorded {
                 list.append(TrainingOccurrence(source: .weekly(cadence), day: date))
             }
         }
         for session in sessions where cal.isDate(session.start, inSameDayAs: date) {
             list.append(TrainingOccurrence(source: .session(session), day: date))
+        }
+
+        let shown = Set(list.compactMap { $0.entry(in: logs)?.id })
+        let sessionIds = Set(sessions.map(\.id))
+        for entry in logs where entry.status == .attended && !shown.contains(entry.id)
+            && cal.isDate(entry.day, inSameDayAs: date) {
+            // A one-off training that still exists shows its reflection on the training's own day.
+            if let sessionId = entry.sessionId, sessionIds.contains(sessionId) { continue }
+            list.append(TrainingOccurrence(source: .recorded(entry), day: date))
         }
         return list.sorted { $0.start < $1.start }
     }
@@ -121,9 +180,11 @@ struct TrainingOccurrenceCard: View {
             Button(action: onEdit) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("\(occurrence.start.formatted(date: .omitted, time: .shortened)) – \(occurrence.end.formatted(date: .omitted, time: .shortened))")
-                            .font(.system(.caption, design: .rounded).weight(.bold))
-                            .foregroundColor(Color.gold400)
+                        if occurrence.hasTime {
+                            Text("\(occurrence.start.formatted(date: .omitted, time: .shortened)) – \(occurrence.end.formatted(date: .omitted, time: .shortened))")
+                                .font(.system(.caption, design: .rounded).weight(.bold))
+                                .foregroundColor(Color.gold400)
+                        }
                         Text(occurrence.title)
                             .font(.headline)
                             .foregroundColor(.white.opacity(isCancelled ? 0.5 : 1))
@@ -152,7 +213,7 @@ struct TrainingOccurrenceCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable(scale: 0.98))
-            .accessibilityHint("Upraviť tréning")
+            .accessibilityHint(occurrence.hasTime ? "Upraviť tréning" : "Upraviť reflexiu")
 
             actions
         }
@@ -362,7 +423,7 @@ struct PlannerCalendarView: View {
                     occurrence: occurrence,
                     entry: occurrence.entry(in: logs),
                     onSetStatus: { setStatus($0, for: occurrence) },
-                    onDebrief: { debriefEntry = entryCreatingIfNeeded(for: occurrence) },
+                    onDebrief: { debriefEntry = occurrence.entryCreatingIfNeeded(in: logs, context: modelContext) },
                     onEdit: { edit(occurrence) }
                 )
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
@@ -489,29 +550,16 @@ struct PlannerCalendarView: View {
 
     private func setStatus(_ status: TrainingStatus, for occurrence: TrainingOccurrence) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            switch occurrence.source {
-            case .weekly(let cadence):
-                PlannerAttendance.setStatus(status, cadence: cadence, on: occurrence.day, logs: logs, context: modelContext)
-            case .session(let session):
-                PlannerAttendance.setStatus(status, session: session, logs: logs, context: modelContext)
-            }
+            occurrence.setStatus(status, logs: logs, context: modelContext)
         }
         changeTick += 1
-    }
-
-    private func entryCreatingIfNeeded(for occurrence: TrainingOccurrence) -> TrainingLogEntry {
-        switch occurrence.source {
-        case .weekly(let cadence):
-            return PlannerAttendance.entryCreatingIfNeeded(cadence: cadence, on: occurrence.day, in: logs, context: modelContext)
-        case .session(let session):
-            return PlannerAttendance.entryCreatingIfNeeded(session: session, in: logs, context: modelContext)
-        }
     }
 
     private func edit(_ occurrence: TrainingOccurrence) {
         switch occurrence.source {
         case .weekly(let cadence): editingCadence = cadence
         case .session(let session): editingSession = session
+        case .recorded(let entry): debriefEntry = entry
         }
     }
 

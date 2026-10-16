@@ -120,11 +120,12 @@ struct PlannerTodayView: View {
                     occurrence: occurrence,
                     entry: occurrence.entry(in: logs),
                     onSetStatus: { setStatus($0, for: occurrence) },
-                    onDebrief: { debriefEntry = entryCreatingIfNeeded(for: occurrence) },
+                    onDebrief: { debriefEntry = occurrence.entryCreatingIfNeeded(in: logs, context: modelContext) },
                     onEdit: {
                         switch occurrence.source {
                         case .weekly(let cadence): editingCadence = cadence
                         case .session(let session): editingSession = session
+                        case .recorded(let entry): debriefEntry = entry
                         }
                     }
                 )
@@ -132,23 +133,9 @@ struct PlannerTodayView: View {
         }
     }
 
-    private func entryCreatingIfNeeded(for occurrence: TrainingOccurrence) -> TrainingLogEntry {
-        switch occurrence.source {
-        case .weekly(let cadence):
-            return PlannerAttendance.entryCreatingIfNeeded(cadence: cadence, on: today, in: logs, context: modelContext)
-        case .session(let session):
-            return PlannerAttendance.entryCreatingIfNeeded(session: session, in: logs, context: modelContext)
-        }
-    }
-
     private func setStatus(_ status: TrainingStatus, for occurrence: TrainingOccurrence) {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            switch occurrence.source {
-            case .weekly(let cadence):
-                PlannerAttendance.setStatus(status, cadence: cadence, on: today, logs: logs, context: modelContext)
-            case .session(let session):
-                PlannerAttendance.setStatus(status, session: session, logs: logs, context: modelContext)
-            }
+            occurrence.setStatus(status, logs: logs, context: modelContext)
         }
         changeTick += 1
     }
@@ -240,9 +227,7 @@ struct PlannerWeekSummary: View {
                 totals.plannedMinutes += minutes
                 guard occurrence.end <= now else { continue }
                 totals.doneMinutes += minutes
-                if case .session(let session) = occurrence.source, session.kind == .solo {
-                    totals.soloMinutes += minutes
-                }
+                if occurrence.isSolo { totals.soloMinutes += minutes }
                 if let entry { entryIds.insert(entry.id) }
             }
         }

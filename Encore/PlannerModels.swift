@@ -19,6 +19,8 @@ final class TrainingCadence {
     var isEnabled: Bool = true
     /// Identifier of the recurring Apple Calendar event, if exported.
     var calendarEventId: String? = nil
+    /// Past days show this training only from here on (it did not exist before).
+    var createdAt: Date = Date()
 
     init(
         id: UUID = UUID(),

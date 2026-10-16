@@ -50,7 +50,7 @@ struct SessionEditorSheet: View {
                 PlannerEditorDelete(
                     buttonTitle: "Zmazať tréning",
                     question: "Zmazať tréning?",
-                    message: "Zmizne z Plánu aj z Apple Kalendára. Zapísaná reflexia ostane v poznámkach.",
+                    message: "Zmizne z Encore aj z Apple Kalendára. Zapísaná reflexia ostane v kalendári aj v poznámkach.",
                     actions: [.init(title: "Zmazať") { session.delete(in: modelContext) }]
                 )
             }
@@ -181,6 +181,12 @@ struct SessionEditorSheet: View {
         target.durationMinutes = duration
         target.goal = goal.trimmingCharacters(in: .whitespacesAndNewlines)
         target.goalPriorityId = goalPriorityId
+        // A training moved to another day takes its going / cancelled / reflection along.
+        let sessionId = target.id
+        if let entry = try? modelContext.fetch(FetchDescriptor<TrainingLogEntry>(predicate: #Predicate { $0.sessionId == sessionId })).first {
+            entry.day = PlannerCalendar.startOfDay(start)
+            entry.title = target.displayTitle
+        }
         try? modelContext.save()
         saveTick += 1
 
