@@ -3,30 +3,26 @@ import SwiftUI
 import SwiftData
 
 // MARK: - Shared card look for the planner
+/// The §1A glass card with the planner's inner padding.
 extension View {
     func plannerCard(cornerRadius: CGFloat = 18) -> some View {
-        self
-            .padding(14)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
-            )
+        padding(14).homeCard(cornerRadius: cornerRadius)
     }
 }
 
 func plannerSectionTitle(_ text: String) -> some View {
     Text(text)
-        .font(.system(size: 11, weight: .black, design: .rounded))
+        .font(.system(.caption, design: .rounded).weight(.black))
         .foregroundColor(Color.gold400)
         .tracking(1.4)
+        .accessibilityAddTraits(.isHeader)
 }
 
-// MARK: - Planner tab ("Plán")
-/// Third dock tab: today's training, the permanent weekly rhythm and tracked competitions.
+// MARK: - Kalendár tab
+/// Third dock tab: today's training, the month with everything in it and the permanent weekly rhythm.
 struct DancePlannerView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case today = "Dnes", calendar = "Kalendár", routine = "Režim"
+        case today = "Dnes", calendar = "Mesiac", routine = "Režim"
         var id: String { rawValue }
     }
 
@@ -141,8 +137,8 @@ struct DancePlannerView: View {
 
     private var header: some View {
         HStack {
-            Text("PLÁN")
-                .font(.system(size: 13, weight: .black, design: .rounded))
+            Text("KALENDÁR")
+                .font(.system(.footnote, design: .rounded).weight(.black))
                 .foregroundColor(.white)
                 .tracking(2.6)
             Spacer()
@@ -159,7 +155,7 @@ struct DancePlannerView: View {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { section = item }
                 } label: {
                     Text(item.rawValue)
-                        .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                        .font(.footnote.weight(isSelected ? .bold : .medium))
                         .foregroundColor(isSelected ? .white : Color.white.opacity(0.6))
                         .padding(.vertical, 8)
                         .frame(maxWidth: .infinity)

@@ -61,7 +61,7 @@ struct PlannerTodayView: View {
         VStack(alignment: .leading, spacing: 18) {
             Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
                 .textCase(.uppercase)
-                .font(.system(size: 22, weight: .bold, design: .rounded))
+                .font(.system(.title2, design: .rounded).weight(.bold))
                 .foregroundColor(.white)
 
             LessonPrioritiesSection()
@@ -100,14 +100,14 @@ struct PlannerTodayView: View {
         if cadences.isEmpty && sessions.isEmpty && todaysTrainings.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
                 Text("Nastav si týždenný režim")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundColor(.white)
-                Text("Raz zadáš, kedy trénuješ. Potom ti stačí v daný deň ťuknúť Idem alebo Nejdem a po tréningu zapísať, čo si sa naučil.")
-                    .font(.system(size: 13))
+                Text("Raz zadáš, kedy trénuješ. Potom ti stačí v daný deň ťuknúť Idem alebo Nejdem a po tréningu zapísať, čo nové sa ti podarilo.")
+                    .font(.footnote)
                     .foregroundColor(Color.white.opacity(0.6))
                 Button(action: onOpenRoutine) {
                     Text("Nastaviť režim")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
@@ -120,7 +120,7 @@ struct PlannerTodayView: View {
         } else if todaysTrainings.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Dnes máš voľno")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundColor(.white)
                 if let next = nextTraining {
                     Text(nextTrainingText(next))
@@ -201,11 +201,11 @@ struct PlannerTodayView: View {
             plannerSectionTitle("NAJBLIŽŠIA SÚŤAŽ")
             HStack(alignment: .firstTextBaseline) {
                 Text("\(PlannerCalendar.daysText(until: comp.date)) — \(comp.name)")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundColor(.white)
                 Spacer(minLength: 8)
                 Text(comp.intent.title)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.caption2.weight(.bold))
                     .foregroundColor(comp.intent == .going ? Color.obsidian900 : Color.gold300)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 3)
@@ -213,7 +213,7 @@ struct PlannerTodayView: View {
             }
             if !comp.city.isEmpty {
                 Text(comp.city)
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundColor(Color.white.opacity(0.6))
             }
             if let deadline = comp.entryDeadline,
@@ -221,7 +221,7 @@ struct PlannerTodayView: View {
                (PlannerCalendar.calendar.dateComponents([.day], from: today, to: PlannerCalendar.startOfDay(deadline)).day ?? 99) <= 7 {
                 Label("Uzávierka prihlášok: \(deadline.formatted(.dateTime.weekday(.wide).day().month()))",
                       systemImage: "exclamationmark.circle.fill")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.caption.weight(.semibold))
                     .foregroundColor(Color.latinCrimson)
             }
         }
@@ -234,15 +234,15 @@ struct PlannerTodayView: View {
             HStack {
                 Text(entry.feeling?.emoji ?? "📝")
                 Text(entry.title.isEmpty ? "Tréning" : entry.title)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.footnote.weight(.bold))
                     .foregroundColor(.white)
                 Spacer()
                 Text(entry.day, format: .dateTime.day().month(.abbreviated))
-                    .font(.system(size: 11))
+                    .font(.caption2)
                     .foregroundColor(Color.white.opacity(0.4))
             }
             Text(entry.reflectionNote)
-                .font(.system(size: 13))
+                .font(.footnote)
                 .foregroundColor(Color.white.opacity(0.75))
                 .lineLimit(3)
         }

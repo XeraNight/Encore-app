@@ -17,7 +17,7 @@ struct TrainingOccurrence: Identifiable {
     let day: Date
 
     /// Days back a weekly training still shows without anything recorded, so a forgotten reflection
-    /// or "Nebol som" can be filled in. Older days show only what was recorded.
+    /// or "Vynechať" can be filled in. Older days show only what was recorded.
     static let missedDays = 7
 
     var id: String {
@@ -231,7 +231,7 @@ struct TrainingOccurrenceCard: View {
                 HStack(spacing: 10) {
                     pill("Zapísať reflexiu", icon: "square.and.pencil", filled: true, action: onDebrief)
                     if status == .planned {
-                        pill("Nebol som", icon: "xmark", filled: false) { onSetStatus(.skipped) }
+                        pill("Vynechať", icon: "xmark", filled: false) { onSetStatus(.skipped) }
                     }
                 }
             } else if status == .going {
@@ -306,7 +306,7 @@ struct TrainingOccurrenceCard: View {
     }
 }
 
-// MARK: - Plán → Kalendár
+// MARK: - Kalendár → Mesiac
 /// Everything on one calendar: trainings (white dot weekly, gold dot one-off), planned competitions (dashed
 /// ring), danced competitions from KSIS (ring, filled for a podium). The tapped day lists its trainings,
 /// competitions, results and the notes written that day; "+" adds to that day.
@@ -458,7 +458,7 @@ struct PlannerCalendarView: View {
             Text(day < PlannerCalendar.startOfDay(Date()) ? "V tento deň nič nie je zapísané" : "Voľný deň")
                 .font(.subheadline.weight(.bold))
                 .foregroundColor(.white)
-            Text("Cez Pridať sem dáš samotréning, lekciu alebo súťaž. Aj spätne, keď si trénoval bez plánu.")
+            Text("Cez Pridať sem dáš samotréning, lekciu alebo súťaž. Aj spätne, napríklad tréning navyše.")
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.6))
                 .fixedSize(horizontal: false, vertical: true)

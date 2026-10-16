@@ -350,6 +350,13 @@ enum PlannerCalendar {
         "\(timeString(minutes: cadence.startMinutes)) – \(timeString(minutes: cadence.endMinutes))"
     }
 
+    /// The dance season runs from September to August.
+    static func seasonStart(of date: Date = Date()) -> Date {
+        let parts = calendar.dateComponents([.year, .month], from: date)
+        let year = (parts.year ?? 2000) - ((parts.month ?? 9) >= 9 ? 0 : 1)
+        return calendar.date(from: DateComponents(year: year, month: 9, day: 1)) ?? startOfDay(date)
+    }
+
     /// "Dnes", "Zajtra", "O 2 dni", "O 11 dní", "Pred 3 dňami".
     static func daysText(until date: Date, from now: Date = Date()) -> String {
         let days = calendar.dateComponents([.day], from: startOfDay(now), to: startOfDay(date)).day ?? 0

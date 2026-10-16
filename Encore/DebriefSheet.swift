@@ -89,12 +89,12 @@ struct DebriefSheet: View {
                                 .foregroundColor(.white)
                                 .frame(minHeight: 130)
                         }
-                        .font(.system(size: 16))
+                        .font(.callout)
 
                         Button(action: toggleDictation) {
                             Label(speech.isRecording ? "Zastaviť diktovanie" : "Diktovať",
                                   systemImage: speech.isRecording ? "stop.fill" : "mic.fill")
-                                .font(.system(size: 13, weight: .bold))
+                                .font(.footnote.weight(.bold))
                                 .foregroundColor(speech.isRecording ? .white : Color.obsidian900)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 8)
@@ -141,9 +141,9 @@ struct DebriefSheet: View {
                                     feeling = (feeling == item) ? nil : item
                                 } label: {
                                     VStack(spacing: 4) {
-                                        Text(item.emoji).font(.system(size: 26))
+                                        Text(item.emoji).font(.title)
                                         Text(item.title)
-                                            .font(.system(size: 11, weight: .semibold))
+                                            .font(.caption2.weight(.semibold))
                                             .foregroundColor(.white.opacity(0.85))
                                             .multilineTextAlignment(.center)
                                     }
@@ -165,7 +165,7 @@ struct DebriefSheet: View {
 
                     Button(action: save) {
                         Text("Uložiť reflexiu")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.callout.weight(.bold))
                             .foregroundColor(Color.obsidian900)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
@@ -195,7 +195,7 @@ struct DebriefSheet: View {
                 Button("Zahodiť", role: .destructive) { dismiss() }
                 Button("Písať ďalej", role: .cancel) {}
             } message: {
-                Text("To, čo si napísal, sa neuloží.")
+                Text("Napísaný text sa neuloží.")
             }
             .onAppear {
                 text = entry.reflectionNote
@@ -261,7 +261,7 @@ struct DebriefSheet: View {
                 LessonPriorityFields(texts: $priorityTexts, isEnabled: danceName != nil)
                 if danceName == nil {
                     Text("Vyber tanec a zapíš 3 hlavné korekcie. Uvidíš ich na Domove, kým ich nezvládneš.")
-                        .font(.system(size: 12))
+                        .font(.caption)
                         .foregroundColor(Color.white.opacity(0.55))
                 }
             } else {
@@ -272,12 +272,12 @@ struct DebriefSheet: View {
                         Image(systemName: "lock.fill")
                             .foregroundColor(Color.gold400)
                         Text("Zapíš si 3 hlavné korekcie trénera pre tanec. Budú na Domove, kým ich nezvládneš.")
-                            .font(.system(size: 13))
+                            .font(.footnote)
                             .foregroundColor(Color.white.opacity(0.8))
                             .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
                         Text("PLUS")
-                            .font(.system(size: 10, weight: .black, design: .rounded))
+                            .font(.system(.caption2, design: .rounded).weight(.black))
                             .foregroundColor(Color.obsidian900)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
@@ -293,7 +293,7 @@ struct DebriefSheet: View {
     private func chip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.caption.weight(.semibold))
                 .padding(.horizontal, 11)
                 .padding(.vertical, 6)
                 .foregroundColor(isOn ? Color.obsidian900 : Color.white.opacity(0.85))

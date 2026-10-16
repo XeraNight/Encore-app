@@ -312,7 +312,7 @@ struct KSISBrowserView: View {
                 Text("Ste prihlásení: \(categories.joined(separator: ", "))")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.85))
-                primaryButton("Pridať do Plánu") { addToPlan(event: event, categories: categories) }
+                primaryButton("Pridať do kalendára") { addToPlan(event: event, categories: categories) }
             } else {
                 hint(reply.isLinked == true
                      ? "Tvoj prepojený pár tu prihlásený nie je."
@@ -484,7 +484,7 @@ struct KSISBrowserView: View {
         }
         try? modelContext.save()
         successTick += 1
-        notice = "Súťaž je v Pláne aj s vašimi kategóriami."
+        notice = "Súťaž je v kalendári aj s vašimi kategóriami."
     }
 
     // MARK: Dates

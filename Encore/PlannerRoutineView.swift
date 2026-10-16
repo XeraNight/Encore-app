@@ -39,7 +39,7 @@ struct PlannerRoutineView: View {
 
             if sorted.isEmpty {
                 Text("Zatiaľ tu nič nie je. Pridaj tréningy, ktoré máš každý týždeň, a appka ti v daný deň ponúkne Idem / Nejdem a po tréningu reflexiu.")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundColor(Color.white.opacity(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .plannerCard()
@@ -65,7 +65,7 @@ struct PlannerRoutineView: View {
             } else {
                 Button { showNew = true } label: {
                     Label("Pridať tréning", systemImage: "plus")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.subheadline.weight(.bold))
                         .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 11)
@@ -131,7 +131,7 @@ struct PlannerRoutineView: View {
         VStack(alignment: .leading, spacing: 6) {
             Button { confirmRemoveFromCalendar = true } label: {
                 Label("Odstrániť tréningy z Apple Kalendára", systemImage: "calendar.badge.minus")
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.footnote.weight(.semibold))
                     .foregroundColor(Color.white.opacity(0.75))
                     .padding(.vertical, 6)
             }
@@ -140,7 +140,7 @@ struct PlannerRoutineView: View {
 
             if let calendarMessage {
                 Text(calendarMessage)
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(Color.white.opacity(0.55))
             }
         }
@@ -182,14 +182,14 @@ struct PlannerRoutineView: View {
             Button { isSelecting ? toggleSelection(cadence) : (editing = cadence) } label: {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(PlannerCalendar.weekdayName(iso: cadence.weekday)) · \(PlannerCalendar.timeRange(of: cadence))")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.bold))
                         .foregroundColor(Color.gold400)
                     Text(cadence.title.isEmpty ? "Tréning" : cadence.title)
-                        .font(.system(size: 16, weight: .bold))
+                        .font(.callout.weight(.bold))
                         .foregroundColor(.white)
                     if !cadence.location.isEmpty {
                         Label(cadence.location, systemImage: "mappin.and.ellipse")
-                            .font(.system(size: 12))
+                            .font(.caption)
                             .foregroundColor(Color.white.opacity(0.55))
                     }
                 }

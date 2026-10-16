@@ -74,7 +74,7 @@ struct LessonPrioritiesSection: View {
                     Text("Po lekcii si zapíš 3 hlavné korekcie")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
-                    Text("Pre každý tanec. Budeš ich mať tu a v Pláne, kým ich nezvládneš.")
+                    Text("Pre každý tanec. Budeš ich mať tu a v Kalendári, kým ich nezvládneš.")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)

@@ -4,7 +4,7 @@ import SwiftData
 // MARK: - Main Tab View (native Liquid Glass TabView)
 struct MainTabView: View {
 
-    // Tab index: 0 = Domov, 1 = Canvas, 2 = Plán, 3 = Profil
+    // Tab index: 0 = Domov, 1 = Canvas, 2 = Kalendár, 3 = Profil
     @State private var selectedTab: Int = 0
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var plannerRouter = PlannerRouter.shared
@@ -24,7 +24,7 @@ struct MainTabView: View {
                     CanvasRoutinesHubView()
                 }
 
-                Tab("Plán", systemImage: "calendar.badge.clock", value: 2) {
+                Tab("Kalendár", systemImage: "calendar", value: 2) {
                     DancePlannerView()
                 }
 
@@ -37,7 +37,7 @@ struct MainTabView: View {
         }
         // Signed out: a figure video with sound must not play on.
         .onDisappear { FigureVideoPlayback.shared.stop() }
-        // A tapped "Tréning skončil" notification: the Plán tab opens the reflection.
+        // A tapped "Tréning skončil" notification: the Kalendár tab opens the reflection.
         .onChange(of: plannerRouter.pending, initial: true) { _, request in
             if request != nil { selectedTab = 2 }
         }

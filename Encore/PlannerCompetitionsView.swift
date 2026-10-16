@@ -10,6 +10,7 @@ struct PlannerCompetitionsView: View {
     @State private var editing: PlannedCompetition?
     @State private var showNew = false
     @State private var pendingDelete: PlannedCompetition?
+    @State private var showsOlderSeasons = false
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
     private var upcoming: [PlannedCompetition] {
@@ -18,6 +19,11 @@ struct PlannerCompetitionsView: View {
     private var past: [PlannedCompetition] {
         competitions.filter { PlannerCalendar.startOfDay($0.date) < today }.reversed()
     }
+    /// Past competitions of this season; older seasons only on request, so the list does not grow forever.
+    private var pastShown: [PlannedCompetition] {
+        let seasonStart = PlannerCalendar.seasonStart()
+        return showsOlderSeasons ? past : past.filter { $0.date >= seasonStart }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -25,7 +31,7 @@ struct PlannerCompetitionsView: View {
 
             if upcoming.isEmpty {
                 Text("Pridaj súťaž a nastav Idem. Appka ti pripomenie uzávierku prihlášok a deň pred súťažou.")
-                    .font(.system(size: 13))
+                    .font(.footnote)
                     .foregroundColor(Color.white.opacity(0.6))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .plannerCard()
@@ -35,7 +41,7 @@ struct PlannerCompetitionsView: View {
 
             Button { showNew = true } label: {
                 Label("Pridať súťaž", systemImage: "plus")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.subheadline.weight(.bold))
                     .foregroundColor(Color.obsidian900)
                     .padding(.horizontal, 18)
                     .padding(.vertical, 11)
@@ -46,12 +52,17 @@ struct PlannerCompetitionsView: View {
             if !past.isEmpty {
                 plannerSectionTitle("MINULÉ")
                     .padding(.top, 8)
-                ForEach(past) { card($0) }
+                ForEach(pastShown) { card($0) }
+                if past.count > pastShown.count {
+                    Button("Staršie sezóny (\(past.count - pastShown.count))") {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { showsOlderSeasons = true }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 44)
+                    .buttonStyle(.pressable)
+                }
             }
-
-            Text("Zoznam turnajov priamo z KSIS a sledovanie bodov pribudnú neskôr.")
-                .font(.system(size: 11))
-                .foregroundColor(Color.white.opacity(0.35))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: competitions.map(\.id))
@@ -72,11 +83,11 @@ struct PlannerCompetitionsView: View {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(PlannerCalendar.daysText(until: comp.date))
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .font(.system(.caption, design: .rounded).weight(.bold))
                         .foregroundColor(Color.gold400)
                     if comp.isTargetCompetition {
                         Image(systemName: "star.fill")
-                            .font(.system(size: 10))
+                            .font(.caption2)
                             .foregroundColor(Color.gold300)
                     }
                     Spacer()
@@ -84,7 +95,7 @@ struct PlannerCompetitionsView: View {
                         DancedPlaceChip(place: place)
                     } else {
                         Text(comp.intent.title)
-                            .font(.system(size: 10, weight: .bold))
+                            .font(.caption2.weight(.bold))
                             .foregroundColor(chipText(comp.intent))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
@@ -92,19 +103,19 @@ struct PlannerCompetitionsView: View {
                     }
                 }
                 Text(comp.name)
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.callout.weight(.bold))
                     .foregroundColor(.white)
                 Text("\(comp.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))\(comp.city.isEmpty ? "" : " · \(comp.city)")")
-                    .font(.system(size: 12))
+                    .font(.caption)
                     .foregroundColor(Color.white.opacity(0.6))
                 if !comp.targetCategories.isEmpty {
                     Text(comp.targetCategories.joined(separator: " · "))
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.caption2.weight(.medium))
                         .foregroundColor(Color.gold300.opacity(0.85))
                 }
                 if let deadline = comp.entryDeadline {
                     Label("Uzávierka: \(deadline.formatted(.dateTime.day().month()))", systemImage: "clock")
-                        .font(.system(size: 11))
+                        .font(.caption2)
                         .foregroundColor(Color.white.opacity(0.5))
                 }
             }
@@ -208,7 +219,7 @@ struct CompetitionEditorSheet: View {
                 }
             }
 
-            PlannerFormSection(title: "MÔJ PLÁN", systemImage: "flag.fill") {
+            PlannerFormSection(title: "MOJA ÚČASŤ", systemImage: "flag.fill") {
                 PlannerChoice(
                     options: CompetitionIntent.allCases.map { ($0, $0.title) },
                     selection: $intent
