@@ -1,5 +1,28 @@
 # Funkcie z paywallu, ktoré dorobíme (rozhodnuté 8. 10. 2026)
 
+## Rozdelenie plánov (rozhodnuté 16. 10. 2026)
+v1 bez trénera a zdieľaných videí (`docs/V1_REMAINING_WORK.md` §4). Logika: **Free** = trénuješ s partnerom
+každý deň, **Plus** = vieš, na čom pracovať (lekcia → súťaž), **Premium** = každý detail vo videu.
+KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje (SZTŠ, App Review, recenzie).
+
+| | Free | Plus | Premium |
+|---|---|---|---|
+| Zostavy a parket | 1 na tanec | neobmedzené | ✓ |
+| Partner naživo, QR zostavy, poznámky, diktovanie | ✓ | ✓ | ✓ |
+| Kalendár, reflexia, týždeň v číslach | ✓ | + **vývoj za mesiac a sezónu** ✱ | ✓ |
+| Top 3 priority po lekcii | – | ✓ | ✓ |
+| KSIS: výsledky, body, krížiky, história | ✓ | ✓ | ✓ |
+| **Moja sezóna** (krížiky podľa tancov, vývoj, finále) ✱ | – | ✓ | ✓ |
+| **Súťažný deň** (tance v poradí, pri každom Top 3) ✱ | – | ✓ | ✓ |
+| Zrkadlo, metronóm | ✓ | ✓ | ✓ |
+| Hudba pomalšie, strih lekcie na figúry | – | ✓ (presun z Free) | ✓ |
+| Natočiť s duchom, duel vedľa seba | ✓ | ✓ | ✓ |
+| Porovnanie so vzorom, čiary, korekcie | – | – | ✓ |
+| **Časová os figúry** ✱ | – | – | ✓ |
+
+✱ dorobiť pred vydaním. Poradie: presun Hudba pomalšie a Strih lekcie do Plus → Moja sezóna → Súťažný deň →
+vývoj v Kalendári → Časová os figúry. Každá funkcia sa v paywalli ukáže až hotová a otestovaná.
+
 Paywall smie sľubovať len to, čo funguje (App Review 2.3.1 a 3.1.2). Preto každá funkcia ide do
 paywallu až keď je hotová a otestovaná. Dovtedy sa riadok v paywalli nezobrazuje.
 
