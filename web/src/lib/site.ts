@@ -58,6 +58,7 @@ export const PLANS: Plan[] = [
       'Neobmedzené zostavy na každý tanec',
       'Top 3 priority od trénera po každej lekcii',
       'Moja sezóna: krížiky podľa tancov a vývoj počas sezóny',
+      'Súťažný deň: tance v poradí a pri každom tvoje Top 3',
       'Strih hodinovej lekcie na jednotlivé figúry',
     ],
   },

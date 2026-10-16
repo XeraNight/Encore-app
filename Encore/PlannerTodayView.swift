@@ -12,6 +12,9 @@ struct PlannerTodayView: View {
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var notifications = NotificationManager.shared
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    @State private var competitionDay: PlannedCompetition?
+    @State private var showPaywall = false
     @State private var debriefEntry: TrainingLogEntry?
     @State private var editingCadence: TrainingCadence?
     @State private var editingSession: PlannedSession?
@@ -92,6 +95,8 @@ struct PlannerTodayView: View {
         }
         .sheet(item: $editingCadence) { CadenceEditorSheet(cadence: $0) }
         .sheet(item: $editingSession) { SessionEditorSheet(session: $0) }
+        .fullScreenCover(item: $competitionDay) { CompetitionDayView(competition: $0) }
+        .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
     }
 
     // MARK: Trainings
@@ -224,9 +229,40 @@ struct PlannerTodayView: View {
                     .font(.caption.weight(.semibold))
                     .foregroundColor(Color.latinCrimson)
             }
+            // The day before and on the day: the dances with the coach's Top 3 (Plus).
+            if (0...1).contains(PlannerCalendar.calendar.dateComponents([.day], from: today, to: PlannerCalendar.startOfDay(comp.date)).day ?? -1) {
+                competitionDayButton(comp)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .plannerCard()
+    }
+
+    private func competitionDayButton(_ comp: PlannedCompetition) -> some View {
+        let hasPlus = subscriptionManager.currentTier >= .plus
+        return Button {
+            if hasPlus { competitionDay = comp } else { showPaywall = true }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: hasPlus ? "list.number" : "lock.fill")
+                Text("Súťažný deň: tance a tvoje Top 3")
+                Spacer(minLength: 0)
+                if !hasPlus {
+                    Text("PLUS")
+                        .font(.system(.caption2, design: .rounded).weight(.black))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.obsidian900.opacity(0.2), in: Capsule())
+                }
+            }
+            .font(.subheadline.weight(.bold))
+            .foregroundColor(Color.obsidian900)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(Color.gold400, in: Capsule())
+        }
+        .buttonStyle(.pressable)
+        .padding(.top, 4)
     }
 
     private func reflectionRow(_ entry: TrainingLogEntry) -> some View {

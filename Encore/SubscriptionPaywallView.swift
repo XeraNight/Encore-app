@@ -39,6 +39,8 @@ public struct SubscriptionPaywallView: View {
                         detail: "Tri hlavné korekcie trénera pre každý tanec. Máš ich na Domove, kým ich nezvládneš."),
                 Feature(icon: "chart.bar.xaxis", title: "Moja sezóna",
                         detail: "Z tvojich výsledkov v KSIS: v ktorom tanci dostávaš najmenej krížikov, finále a vývoj počas sezóny."),
+                Feature(icon: "list.number", title: "Súťažný deň",
+                        detail: "Tance v poradí a pri každom tvoje Top 3 od trénera. Pred kolom si ich prečítaš za 10 sekúnd."),
                 Feature(icon: "scissors", title: "Strih lekcie na figúry",
                         detail: "Hodinové video z lekcie rozdelíš na figúry a uložíš ich k zostave."),
                 coach ? Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",

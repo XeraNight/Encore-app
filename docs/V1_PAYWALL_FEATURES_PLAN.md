@@ -13,7 +13,7 @@ KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje 
 | Top 3 priority po lekcii | – | ✓ | ✓ |
 | KSIS: výsledky, body, krížiky, história | ✓ | ✓ | ✓ |
 | **Moja sezóna** (krížiky podľa tancov, vývoj, finále) ✅ 16. 10. | – | ✓ | ✓ |
-| **Súťažný deň** (tance v poradí, pri každom Top 3) ✱ | – | ✓ | ✓ |
+| **Súťažný deň** (tance v poradí, pri každom Top 3) ✅ 16. 10. | – | ✓ | ✓ |
 | Zrkadlo, metronóm | ✓ | ✓ | ✓ |
 | Strih lekcie na figúry ✅ 16. 10. (prerobený) | – | ✓ (presun z Free) | ✓ |
 | Hudba pomalšie (len súbory, nie Spotify) | ✓ | ✓ | ✓ |
