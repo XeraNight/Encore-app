@@ -49,9 +49,10 @@ final class FigureVideoPlayback: ObservableObject {
         // Keeps the sound going when Encore goes to the background (needs the audio background mode).
         queue.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
         looper = AVPlayerLooper(player: queue, templateItem: AVPlayerItem(url: url))
-        statusObservation = queue.observe(\.timeControlStatus, options: [.initial, .new]) { [weak self] player, _ in
+        statusObservation = queue.observe(\.timeControlStatus, options: [.initial, .new]) { player, _ in
             let playing = player.timeControlStatus != .paused
-            Task { @MainActor in self?.playbackChanged(playing) }
+            let source = ObjectIdentifier(player)
+            Task { @MainActor in FigureVideoPlayback.shared.playbackChanged(playing, source: source) }
         }
         player = queue
         self.url = url
@@ -120,8 +121,9 @@ final class FigureVideoPlayback: ObservableObject {
         }
     }
 
-    private func playbackChanged(_ playing: Bool) {
-        guard isPlaying != playing else { return }
+    /// Ignores a late report from a player that was already replaced.
+    private func playbackChanged(_ playing: Bool, source: ObjectIdentifier) {
+        guard player.map(ObjectIdentifier.init) == source, isPlaying != playing else { return }
         isPlaying = playing
         if !isMuted { updateNowPlaying() }
     }

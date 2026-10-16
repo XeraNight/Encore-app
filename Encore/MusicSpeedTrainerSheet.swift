@@ -287,7 +287,7 @@ final class MusicSpeedTrainerEngine: ObservableObject, @unchecked Sendable {
         let id = scheduleID
         needsSchedule = false
         playerNode.scheduleFile(file, at: nil, completionCallbackType: .dataPlayedBack) { [weak self] _ in
-            Task { @MainActor in
+            Task { @MainActor [weak self] in
                 guard let self, self.scheduleID == id else { return }
                 // Played to the end: the next tap starts the song from the beginning.
                 self.playerNode.stop()

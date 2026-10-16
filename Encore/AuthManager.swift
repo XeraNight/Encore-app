@@ -898,7 +898,7 @@ final class AuthManager: ObservableObject {
         var body = ["confirm": "DELETE"]
         if isAppleAccount {
             // Apple requires revoking its tokens; that needs a fresh code from Apple.
-            guard let code = await AppleReauthorization().authorizationCode() else {
+            guard let code = await AppleReauthorization.authorizationCode() else {
                 return "Na zmazanie účtu sa potvrď cez Apple. Nič nebolo zmazané."
             }
             body["appleAuthorizationCode"] = code

@@ -83,9 +83,20 @@ enum NameRules {
 /// Asks Apple for a fresh authorization code. Deleting an Apple-linked account needs it, so the server
 /// can revoke the user's Apple tokens (App Review 5.1.1(v)). Returns nil when the user cancels.
 final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    private let anchor: ASPresentationAnchor
     private var continuation: CheckedContinuation<String?, Never>?
 
-    func authorizationCode() async -> String? {
+    private init(anchor: ASPresentationAnchor) {
+        self.anchor = anchor
+    }
+
+    /// Nil also when no window is on screen: Apple's sheet would have nothing to appear over.
+    static func authorizationCode() async -> String? {
+        guard let window = UIViewController.topMost()?.view.window else { return nil }
+        return await AppleReauthorization(anchor: window).run()
+    }
+
+    private func run() async -> String? {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
             let request = ASAuthorizationAppleIDProvider().createRequest()
@@ -109,7 +120,7 @@ final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, A
     }
 
     func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
-        UIViewController.topMost()?.view.window ?? ASPresentationAnchor()
+        anchor
     }
 
     private func finish(_ code: String?) {

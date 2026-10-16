@@ -361,7 +361,7 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    private static func parseTimestamp(_ text: String) -> Date? {
+    nonisolated private static func parseTimestamp(_ text: String) -> Date? {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: text) { return date }
