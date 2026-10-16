@@ -25,6 +25,12 @@ struct SessionEditorSheet: View {
     @State private var goalPriorityId: UUID?
     @State private var inCalendar = false
     @State private var saveTick = 0
+    @State private var loaded: String?
+
+    private var signature: String {
+        [kind.rawValue, title, location, category, "\(day.timeIntervalSince1970)", "\(startTime.timeIntervalSince1970)",
+         "\(duration)", goal, goalPriorityId?.uuidString ?? "", "\(inCalendar)"].joined(separator: "|")
+    }
 
     private var openPriorities: [LessonPriority] {
         LessonPriorities.activeSets(priorities).flatMap { $0.items.filter(\.isOpen) }
@@ -45,6 +51,7 @@ struct SessionEditorSheet: View {
         PlannerEditorScaffold(
             title: session == nil ? "Nový tréning" : "Upraviť tréning",
             canSave: true,
+            hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
             delete: session.map { session in
                 PlannerEditorDelete(
@@ -138,6 +145,7 @@ struct SessionEditorSheet: View {
     }
 
     private func load() {
+        defer { loaded = signature }
         guard let session else {
             if let initialDate { day = initialDate }
             kind = initialKind

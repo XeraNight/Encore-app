@@ -9,6 +9,7 @@ struct PlannerCompetitionsView: View {
     @ObservedObject private var ksis = CompetitionManager.shared
     @State private var editing: PlannedCompetition?
     @State private var showNew = false
+    @State private var pendingDelete: PlannedCompetition?
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
     private var upcoming: [PlannedCompetition] {
@@ -56,6 +57,14 @@ struct PlannerCompetitionsView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: competitions.map(\.id))
         .sheet(isPresented: $showNew) { CompetitionEditorSheet(competition: nil) }
         .sheet(item: $editing) { CompetitionEditorSheet(competition: $0) }
+        .confirmationDialog("Zmazať súťaž?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible, presenting: pendingDelete) { competition in
+            Button("Zmazať „\(competition.name)“", role: .destructive) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { competition.delete(in: modelContext) }
+            }
+        } message: { _ in
+            Text("Zmizne z Encore aj z Apple Kalendára.")
+        }
     }
 
     private func card(_ comp: PlannedCompetition) -> some View {
@@ -108,9 +117,7 @@ struct PlannerCompetitionsView: View {
             ForEach(CompetitionIntent.allCases) { intent in
                 Button(intent.title) { comp.setIntent(intent, context: modelContext) }
             }
-            Button(role: .destructive) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { comp.delete(in: modelContext) }
-            } label: { Label("Zmazať", systemImage: "trash") }
+            Button(role: .destructive) { pendingDelete = comp } label: { Label("Zmazať", systemImage: "trash") }
         }
     }
 
@@ -150,20 +157,33 @@ struct CompetitionEditorSheet: View {
     @State private var isTarget = false
     @State private var inCalendar = false
     @State private var saveTick = 0
+    @State private var loaded: String?
+    /// Categories from KSIS ("Dospelí D ŠTT") stay as they are unless the discipline is changed here.
+    @State private var loadedDiscipline: String?
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
+
+    private var deadlineIsValid: Bool {
+        !hasDeadline || PlannerCalendar.startOfDay(deadline) <= PlannerCalendar.startOfDay(date)
+    }
+
+    private var signature: String {
+        [name, city, "\(date.timeIntervalSince1970)", discipline, "\(hasDeadline)", "\(deadline.timeIntervalSince1970)",
+         intent.rawValue, "\(isTarget)", "\(inCalendar)"].joined(separator: "|")
+    }
 
     var body: some View {
         PlannerEditorScaffold(
             title: competition == nil ? "Nová súťaž" : "Upraviť súťaž",
-            canSave: !trimmedName.isEmpty,
-            disabledHint: "Doplň názov súťaže.",
+            canSave: !trimmedName.isEmpty && deadlineIsValid,
+            disabledHint: trimmedName.isEmpty ? "Doplň názov súťaže." : "Uzávierka musí byť najneskôr v deň súťaže.",
+            hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
             delete: competition.map { competition in
                 PlannerEditorDelete(
                     buttonTitle: "Zmazať súťaž",
                     question: "Zmazať súťaž?",
-                    message: "Zmizne z Plánu aj z Apple Kalendára.",
+                    message: "Zmizne z Encore aj z Apple Kalendára.",
                     actions: [.init(title: "Zmazať") { competition.delete(in: modelContext) }]
                 )
             }
@@ -209,6 +229,7 @@ struct CompetitionEditorSheet: View {
     }
 
     private func load() {
+        defer { loaded = signature }
         guard let competition else {
             if let initialDate { date = initialDate }
             return
@@ -222,6 +243,7 @@ struct CompetitionEditorSheet: View {
         intent = competition.intent
         isTarget = competition.isTargetCompetition
         inCalendar = competition.calendarEventId != nil
+        loadedDiscipline = discipline
     }
 
     private func save() {
@@ -237,7 +259,9 @@ struct CompetitionEditorSheet: View {
         target.city = city.trimmingCharacters(in: .whitespacesAndNewlines)
         target.date = date
         target.entryDeadline = hasDeadline ? deadline : nil
-        target.targetCategories = PlannerDisciplineChoice.competitionCategories(for: discipline)
+        if discipline != loadedDiscipline {
+            target.targetCategories = PlannerDisciplineChoice.competitionCategories(for: discipline)
+        }
         target.intent = intent
         target.isTargetCompetition = isTarget
         try? modelContext.save()

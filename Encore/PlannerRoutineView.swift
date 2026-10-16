@@ -14,6 +14,7 @@ struct PlannerRoutineView: View {
     @State private var isSelecting = false
     @State private var selected: Set<UUID> = []
     @State private var confirmDeleteSelected = false
+    @State private var pendingDelete: TrainingCadence?
 
     private var sorted: [TrainingCadence] {
         cadences.sorted { ($0.weekday, $0.startMinutes) < ($1.weekday, $1.startMinutes) }
@@ -95,7 +96,15 @@ struct PlannerRoutineView: View {
         ) {
             Button("Zmazať všetky budúce", role: .destructive, action: deleteSelected)
         } message: {
-            Text("Zmiznú z Plánu a ich budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.")
+            Text("Zmiznú z Encore a ich budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.")
+        }
+        .confirmationDialog("Zmazať týždenný tréning?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
+                            titleVisibility: .visible, presenting: pendingDelete) { cadence in
+            Button("Zmazať všetky budúce", role: .destructive) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { cadence.delete(in: modelContext) }
+            }
+        } message: { _ in
+            Text("Zmizne z Encore a budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.")
         }
         .sensoryFeedback(.selection, trigger: selected)
         .sheet(isPresented: $showNew) { CadenceEditorSheet(cadence: nil) }
@@ -215,9 +224,7 @@ struct PlannerRoutineView: View {
                     Task { await cadence.syncAppleCalendar(changed: false, context: modelContext) }
                 } label: { Label("Odstrániť z kalendára", systemImage: "calendar.badge.minus") }
             }
-            Button(role: .destructive) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { cadence.delete(in: modelContext) }
-            } label: { Label("Zmazať", systemImage: "trash") }
+            Button(role: .destructive) { pendingDelete = cadence } label: { Label("Zmazať", systemImage: "trash") }
         }
     }
 }
@@ -239,6 +246,12 @@ struct CadenceEditorSheet: View {
     @State private var category = "Standard"
     @State private var inCalendar = false
     @State private var saveTick = 0
+    @State private var loaded: String?
+
+    private var signature: String {
+        [title, location, category, "\(weekday)", "\(startDate.timeIntervalSince1970)", "\(duration)", "\(inCalendar)"]
+            .joined(separator: "|")
+    }
 
     private var weekdays: [(value: Int, title: String)] {
         let symbols = PlannerCalendar.calendar.shortStandaloneWeekdaySymbols
@@ -252,12 +265,13 @@ struct CadenceEditorSheet: View {
         PlannerEditorScaffold(
             title: cadence == nil ? "Nový tréning" : "Upraviť tréning",
             canSave: true,
+            hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
             delete: cadence.map { cadence in
                 PlannerEditorDelete(
                     buttonTitle: "Zmazať tréning",
                     question: "Zmazať týždenný tréning?",
-                    message: "Zmizne z Plánu a všetky budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.",
+                    message: "Zmizne z Encore a budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.",
                     actions: [.init(title: "Zmazať všetky budúce") { cadence.delete(in: modelContext) }]
                 )
             }
@@ -286,6 +300,7 @@ struct CadenceEditorSheet: View {
     }
 
     private func load() {
+        defer { loaded = signature }
         guard let cadence else {
             if let initialWeekday { weekday = initialWeekday }
             return

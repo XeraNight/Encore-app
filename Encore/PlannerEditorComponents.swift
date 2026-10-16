@@ -10,12 +10,17 @@ struct PlannerEditorScaffold<Content: View>: View {
     let canSave: Bool
     /// Shown under the dimmed save button: why it cannot be tapped yet.
     var disabledHint: String? = nil
+    /// Something was changed: closing asks first and swipe-down is blocked.
+    var hasChanges = false
     let onSave: () -> Void
     var delete: PlannerEditorDelete? = nil
     @ViewBuilder let content: Content
 
     @Environment(\.dismiss) private var dismiss
     @State private var confirmDelete = false
+    @State private var confirmDiscard = false
+    /// One tap saves once, even when the second tap lands before the sheet is gone.
+    @State private var isSaving = false
 
     var body: some View {
         ZStack {
@@ -58,6 +63,11 @@ struct PlannerEditorScaffold<Content: View>: View {
         } message: {
             if let message = delete?.message { Text(message) }
         }
+        .confirmationDialog("Zahodiť zmeny?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+            Button("Zahodiť", role: .destructive) { dismiss() }
+            Button("Upravovať ďalej", role: .cancel) {}
+        }
+        .interactiveDismissDisabled(hasChanges)
     }
 
     private var header: some View {
@@ -67,7 +77,9 @@ struct PlannerEditorScaffold<Content: View>: View {
                 .foregroundColor(.white)
                 .accessibilityAddTraits(.isHeader)
             HStack {
-                LiquidGlassCircleButton(icon: "xmark", label: "Zrušiť", size: 40) { dismiss() }
+                LiquidGlassCircleButton(icon: "xmark", label: "Zrušiť", size: 40) {
+                    if hasChanges { confirmDiscard = true } else { dismiss() }
+                }
                 Spacer()
             }
         }
@@ -78,7 +90,11 @@ struct PlannerEditorScaffold<Content: View>: View {
 
     private var saveBar: some View {
         VStack(spacing: 6) {
-            PrimarySheetButton(title: saveTitle, isLoading: false, isEnabled: canSave, action: onSave)
+            PrimarySheetButton(title: saveTitle, isLoading: false, isEnabled: canSave) {
+                guard !isSaving else { return }
+                isSaving = true
+                onSave()
+            }
                 .accessibilityIdentifier("plan.editor.save")
             if !canSave, let disabledHint {
                 Text(disabledHint)
