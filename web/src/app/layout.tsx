@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     default: 'Encore – tréningový denník pre spoločenské tance',
     template: '%s · Encore',
   },
-  description: 'Zostavy, poznámky od trénera, tréningový plán a výsledky zo súťaží v jednej aplikácii pre iPhone. Pre tanečníkov, páry a trénerov štandardných a latinskoamerických tancov.',
+  description: 'Zostavy, poznámky od trénera, tréningový plán a výsledky zo súťaží v jednej aplikácii pre iPhone. Pre tanečníkov a páry štandardných a latinskoamerických tancov.',
   icons: {
     icon: [
       { url: '/favicon.ico' },

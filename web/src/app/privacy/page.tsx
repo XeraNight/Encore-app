@@ -113,7 +113,7 @@ export default function PrivacyPolicyPage() {
             <p>Na prevádzku služby využívame týchto spracovateľov. Každý dostane len údaje, ktoré na svoju úlohu potrebuje:</p>
             <ul className="list-disc pl-5 space-y-2">
               <li><strong>Supabase</strong> (Írsko, EÚ): účty, databáza, súbory a prihlasovanie.</li>
-              <li><strong>Cloudflare</strong> (dátové centrá v Európe): úložisko videí zdieľaných s partnerom a trénerom, doména a preposielanie e-mailov na adresu podpory.</li>
+              <li><strong>Cloudflare</strong> (dátové centrá v Európe): doména a preposielanie e-mailov na adresu podpory.</li>
               <li><strong>Resend</strong> (Írsko, EÚ): odosielanie e-mailov s overovacím kódom a obnovou hesla.</li>
               <li><strong>Apple</strong> a <strong>Google</strong>: prihlásenie cez Apple alebo Google, ak ho zvolíte; platby predplatného spracúva výhradne Apple (App Store).</li>
               <li><strong>Vercel</strong>: prevádzka tejto webovej stránky a anonymná štatistika návštevnosti bez cookies.</li>

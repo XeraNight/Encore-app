@@ -72,7 +72,7 @@ export default function TermsPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-white">2. Predplatné a In-App platby (Apple StoreKit)</h2>
             <p>
-              Encore ponúka bezplatnú verziu (Free) a voliteľné prémiové balíky s automatickým obnovovaním (<strong>Encore Plus</strong> a <strong>Encore Studio</strong>):
+              Encore ponúka bezplatnú verziu (Free) a voliteľné prémiové balíky s automatickým obnovovaním (<strong>Encore Plus</strong> a <strong>Encore Premium</strong>):
             </p>
             <ul className="list-disc pl-5 space-y-2 text-zinc-300">
               <li>

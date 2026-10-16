@@ -20,23 +20,13 @@ const AUDIENCES = [
     title: 'Jedna zostava. Obaja ju tancujete rovnako.',
     points: [
       'Spoločné zostavy a figúry, ktoré sa obom zosynchronizujú.',
-      'Videá z tréningu zdieľané len medzi vami a trénerom.',
+      'Poznámky k figúram, ktoré vidíte obaja, aj zmeny partnera naživo.',
       'Výsledky páru z KSIS v denníku aj kalendári.',
-    ],
-  },
-  {
-    id: 'coach',
-    label: 'Tréner',
-    title: 'Poznámky priamo do zostáv tvojich párov.',
-    points: [
-      'Zverenci ti zdieľajú zostavy, ty do nich píšeš korekcie.',
-      'Hosťujúci tréner dostane kľúč k jednej zostave, bez účtu navyše.',
-      'S Premium vidíš pri každom páre, čo ste robili na poslednej lekcii.',
     ],
   },
 ]
 
-/** Tanečník, Pár, Tréner: roles, not plans (a coach can use Free too). */
+/** Tanečník and Pár: roles, not plans. Coach tools come in a later version. */
 export default function AudienceTabs() {
   const [active, setActive] = useState(AUDIENCES[0].id)
   const audience = AUDIENCES.find((item) => item.id === active) ?? AUDIENCES[0]

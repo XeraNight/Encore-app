@@ -27,7 +27,7 @@ import { FAQ, SCREENS, SITE_URL } from '@/lib/site'
 export const metadata: Metadata = {
   title: { absolute: 'Encore – tréningový denník pre spoločenské tance' },
   description:
-    'Zostavy na parkete, poznámky od trénera, tréningový plán a výsledky z KSIS v jednej aplikácii pre iPhone. Pre tanečníkov, páry a trénerov štandardných a latinskoamerických tancov.',
+    'Zostavy na parkete, poznámky od trénera, tréningový plán a výsledky z KSIS v jednej aplikácii pre iPhone. Pre tanečníkov a páry štandardných a latinskoamerických tancov.',
   alternates: { canonical: '/' },
   openGraph: {
     title: 'Encore – tréningový denník pre spoločenské tance',
@@ -82,7 +82,7 @@ const FEATURES: {
     eyebrow: 'Parket',
     icon: IconFloor,
     title: 'Zostava, ktorú obaja tancujete rovnako.',
-    text: 'Poskladaj figúry na parkete presne tak, ako idú v sále. Partner aj tréner vidia tú istú verziu a každú zmenu hneď.',
+    text: 'Poskladaj figúry na parkete presne tak, ako idú v sále. Partner vidí tú istú verziu a každú zmenu hneď.',
     points: ['Doby, nášľapy a smer tanca pri každej figúre', 'Poznámka k prechodu medzi figúrami', 'Zdieľanie QR kódom alebo priamo s partnerom'],
     screen: SCREENS.canvas,
     screenLabel: 'Parket',
@@ -180,8 +180,8 @@ export default function HomePage() {
               <span className="text-[#FFE088]">V jednom mobile.</span>
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-white/75 lg:mx-0">
-              Zostavy na parkete, korekcie od trénera, tréningový plán a výsledky z KSIS. Encore je denník pre tanečníkov,
-              páry a trénerov štandardných a latinskoamerických tancov.
+              Zostavy na parkete, korekcie od trénera, tréningový plán a výsledky z KSIS. Encore je denník pre tanečníkov
+              a páry štandardných a latinskoamerických tancov.
             </p>
             <div className="mt-9 flex flex-col items-center gap-4 sm:flex-row sm:justify-center lg:justify-start">
               <AppStoreButton />

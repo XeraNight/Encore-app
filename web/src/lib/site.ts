@@ -43,9 +43,8 @@ export const PLANS: Plan[] = [
       'Poznámky, diktovanie a hlasové poznámky',
       'Tréningový plán a kalendár',
       'Výsledky a krížiky z KSIS',
-      'Zdieľanie s partnerom a trénerom',
-      'Kľúč pre hosťujúceho trénera na 7 dní',
-      '1 GB na zdieľané videá',
+      'Spoločné zostavy s partnerom',
+      'Zdieľanie zostavy QR kódom',
     ],
   },
   {
@@ -58,8 +57,6 @@ export const PLANS: Plan[] = [
       'Všetko z Free',
       'Neobmedzené zostavy na každý tanec',
       'Top 3 priority od trénera po každej lekcii',
-      'Kľúče pre viac trénerov, až na 30 dní',
-      '10 GB na zdieľané videá',
     ],
   },
   {
@@ -70,8 +67,7 @@ export const PLANS: Plan[] = [
     features: [
       'Všetko z Plus',
       'Porovnanie so vzorom: priesvitný vzor, olovnica, sklon ramien',
-      'Pre trénerov: čo ste robili na poslednej lekcii',
-      '50 GB na zdieľané videá',
+      'Korekcie z porovnania uložené rovno k figúre',
     ],
   },
 ]
@@ -87,11 +83,11 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Funguje Encore bez internetu?',
-    a: 'Áno. Zostavy, poznámky a plán máš priamo v telefóne, takže v sále bez signálu fungujú. Keď je pripojenie, zmeny sa zosynchronizujú s partnerom a trénerom.',
+    a: 'Áno. Zostavy, poznámky a plán máš priamo v telefóne, takže v sále bez signálu fungujú. Keď je pripojenie, zmeny sa zosynchronizujú s partnerom.',
   },
   {
     q: 'Kto vidí moje zostavy a videá?',
-    a: 'Iba ty a ľudia, s ktorými sa v aplikácii prepojíš, napríklad partner alebo tréner. Každé prepojenie potvrdzuješ ty a kedykoľvek ho môžeš zrušiť. Dáta sú uložené na serveroch v EÚ.',
+    a: 'Zostavy vidíš ty a partner, s ktorým sa v aplikácii prepojíš. Prepojenie potvrdzuješ ty a kedykoľvek ho môžeš zrušiť. Dáta sú uložené na serveroch v EÚ. Videá ostávajú v tvojich Fotkách a partnerovi ich pošleš sám.',
   },
   {
     q: 'Je Encore aj pre Android?',
@@ -107,6 +103,6 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Ako zmažem svoj účet?',
-    a: 'V aplikácii v Profile → Nastavenia → Zmazať účet a osobné dáta. Zmažú sa všetky tvoje údaje aj zdieľané videá. Postup nájdeš aj na stránke Zmazanie účtu.',
+    a: 'V aplikácii v Profile → Nastavenia → Zmazať účet a osobné dáta. Zmažú sa všetky tvoje údaje na serveri. Postup nájdeš aj na stránke Zmazanie účtu.',
   },
 ]

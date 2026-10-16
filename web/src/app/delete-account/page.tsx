@@ -102,7 +102,7 @@ export default function DeleteAccountPage() {
               <li>Priradené licenčné preukazy Apple Wallet.</li>
             </ul>
             <p className="text-xs text-zinc-500">
-              * Upozornenie: Ak máte aktívne predplatné Encore Plus alebo Studio cez Apple StoreKit, zmazanie účtu v aplikácii automaticky neruší predplatné v Apple ID (to vyžaduje Apple pravidlá). Predplatné zrušíte v <em>Nastavenia → Apple ID → Predplatné</em>.
+              * Upozornenie: Ak máte aktívne predplatné Encore Plus alebo Premium cez Apple StoreKit, zmazanie účtu v aplikácii automaticky neruší predplatné v Apple ID (to vyžaduje Apple pravidlá). Predplatné zrušíte v <em>Nastavenia → Apple ID → Predplatné</em>.
             </p>
           </section>
 

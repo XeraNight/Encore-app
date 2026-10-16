@@ -19,7 +19,7 @@ export default function LandingFooter() {
             <span className="font-rounded text-sm font-black tracking-[0.2em] text-white">ENCORE</span>
           </div>
           <p className="mt-4 text-sm leading-relaxed text-white/60">
-            Tréningový denník pre tanečníkov, páry a trénerov štandardných a latinskoamerických tancov.
+            Tréningový denník pre tanečníkov a páry štandardných a latinskoamerických tancov.
           </p>
           <a href={`mailto:${SUPPORT_EMAIL}`} className="mt-4 inline-block text-sm text-white/80 underline-offset-4 hover:underline">
             {SUPPORT_EMAIL}
