@@ -27,4 +27,14 @@ struct PlannerCalendarTests {
         #expect(hourAndMinute(end) == [0, 30])
         #expect(PlannerCalendar.calendar.component(.day, from: end) == 26)
     }
+
+    @Test func notificationCarriesTheTrainingItOpens() throws {
+        let day = try day(2026, 10, 20)
+        let weekly = PlannerOpenRequest(target: .weekly(cadenceId: UUID(), day: PlannerCalendar.startOfDay(day)))
+        let session = PlannerOpenRequest(target: .session(UUID()))
+
+        #expect(PlannerOpenRequest(userInfo: weekly.userInfo) == weekly)
+        #expect(PlannerOpenRequest(userInfo: session.userInfo) == session)
+        #expect(PlannerOpenRequest(userInfo: ["partner": "x"]) == nil)
+    }
 }

@@ -7,6 +7,7 @@ struct MainTabView: View {
     // Tab index: 0 = Domov, 1 = Canvas, 2 = Plán, 3 = Profil
     @State private var selectedTab: Int = 0
     @ObservedObject private var authManager = AuthManager.shared
+    @ObservedObject private var plannerRouter = PlannerRouter.shared
     @State private var offerBiometricLogin = false
 
     var body: some View {
@@ -36,6 +37,10 @@ struct MainTabView: View {
         }
         // Signed out: a figure video with sound must not play on.
         .onDisappear { FigureVideoPlayback.shared.stop() }
+        // A tapped "Tréning skončil" notification: the Plán tab opens the reflection.
+        .onChange(of: plannerRouter.pending, initial: true) { _, request in
+            if request != nil { selectedTab = 2 }
+        }
         .task {
             // Once per account, a moment after the first sign-in on this iPhone.
             try? await Task.sleep(for: .seconds(1.5))

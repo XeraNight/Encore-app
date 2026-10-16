@@ -95,4 +95,16 @@ final class NotificationManager: NSObject, ObservableObject, UNUserNotificationC
         // Show banner even when app is open in foreground
         completionHandler([.banner, .sound, .badge])
     }
+
+    /// "Tréning skončil" opens the reflection of that training.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if let request = PlannerOpenRequest(userInfo: response.notification.request.content.userInfo) {
+            Task { @MainActor in PlannerRouter.shared.pending = request }
+        }
+        completionHandler()
+    }
 }

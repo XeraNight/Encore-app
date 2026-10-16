@@ -37,6 +37,9 @@ struct DancePlannerView: View {
 
     @State private var section: Section = .today
     @Namespace private var sectionNamespace
+    @Environment(\.modelContext) private var modelContext
+    @ObservedObject private var router = PlannerRouter.shared
+    @State private var debriefEntry: TrainingLogEntry?
 
     /// Changes whenever something that affects notifications changes.
     private var planSignature: String {
@@ -100,6 +103,24 @@ struct DancePlannerView: View {
             Task { await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions) }
         }
         .sensoryFeedback(.selection, trigger: section)
+        .onChange(of: router.pending, initial: true) { _, request in
+            guard let request else { return }
+            router.pending = nil
+            open(request)
+        }
+        .sheet(item: $debriefEntry) { DebriefSheet(entry: $0).presentationDetents([.large]) }
+    }
+
+    /// Opens the reflection of the training a notification was about (if it still exists).
+    private func open(_ request: PlannerOpenRequest) {
+        switch request.target {
+        case .weekly(let cadenceId, let day):
+            guard let cadence = cadences.first(where: { $0.id == cadenceId }) else { return }
+            debriefEntry = PlannerAttendance.entryCreatingIfNeeded(cadence: cadence, on: day, in: logs, context: modelContext)
+        case .session(let id):
+            guard let session = sessions.first(where: { $0.id == id }) else { return }
+            debriefEntry = PlannerAttendance.entryCreatingIfNeeded(session: session, in: logs, context: modelContext)
+        }
     }
 
     private var header: some View {

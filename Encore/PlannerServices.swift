@@ -1,8 +1,56 @@
+import Combine
 import Foundation
 import SwiftData
 import EventKit
 import OSLog
 import UserNotifications
+
+// MARK: - Opening a training from its notification
+/// The training a "Tréning skončil" notification belongs to. Tapping it opens that training's reflection.
+nonisolated struct PlannerOpenRequest: Equatable, Sendable {
+    enum Target: Equatable, Sendable {
+        case weekly(cadenceId: UUID, day: Date)
+        case session(UUID)
+    }
+
+    let target: Target
+
+    fileprivate static let cadenceKey = "plan.cadence"
+    fileprivate static let dayKey = "plan.day"
+    fileprivate static let sessionKey = "plan.session"
+
+    init(target: Target) {
+        self.target = target
+    }
+
+    init?(userInfo: [AnyHashable: Any]) {
+        if let id = (userInfo[Self.sessionKey] as? String).flatMap(UUID.init(uuidString:)) {
+            target = .session(id)
+        } else if let id = (userInfo[Self.cadenceKey] as? String).flatMap(UUID.init(uuidString:)),
+                  let day = userInfo[Self.dayKey] as? Double {
+            target = .weekly(cadenceId: id, day: Date(timeIntervalSince1970: day))
+        } else {
+            return nil
+        }
+    }
+
+    var userInfo: [String: Any] {
+        switch target {
+        case .weekly(let cadenceId, let day):
+            return [Self.cadenceKey: cadenceId.uuidString, Self.dayKey: day.timeIntervalSince1970]
+        case .session(let id):
+            return [Self.sessionKey: id.uuidString]
+        }
+    }
+}
+
+/// Hands a tapped notification over to the Kalendár tab, which may not exist yet (cold start, locked app).
+@MainActor
+final class PlannerRouter: ObservableObject {
+    static let shared = PlannerRouter()
+    @Published var pending: PlannerOpenRequest?
+    private init() {}
+}
 
 // MARK: - Local notifications for the planner
 /// Plans notifications for the next two weeks (not a repeating weekly trigger) so that a day the
@@ -32,7 +80,9 @@ enum PlannerNotifications {
         let cal = PlannerCalendar.calendar
         let now = Date()
         let today = PlannerCalendar.startOfDay(now)
-        let skipped = Set(logs.filter { $0.status == .skipped }.map { key(cadence: $0.cadenceId, day: $0.day) })
+        // A cancelled day needs no reminder, a day with its reflection already written neither.
+        let settled = logs.filter { $0.status == .skipped || $0.status == .attended }
+        let skipped = Set(settled.map { key(cadence: $0.cadenceId, day: $0.day) })
 
         for offset in 0..<horizonDays {
             guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
@@ -48,23 +98,26 @@ enum PlannerNotifications {
                     title: "Tréning skončil",
                     body: "Čo kľúčové ste dnes vylepšili? Zapíš to za 20 sekúnd.",
                     at: fire,
+                    open: PlannerOpenRequest(target: .weekly(cadenceId: cadence.id, day: day)),
                     center: center
                 )
             }
         }
 
-        let skippedSessions = Set(logs.filter { $0.status == .skipped }.compactMap(\.sessionId))
+        let skippedSessions = Set(settled.compactMap(\.sessionId))
         let horizon = cal.date(byAdding: .day, value: horizonDays, to: today) ?? today
         for session in sessions where !skippedSessions.contains(session.id) && session.start < horizon {
             let fire = session.end.addingTimeInterval(5 * 60)
             guard fire > now else { continue }
+            // "Lekcia" and an own name have their own gender, so the title stays neutral.
             add(
                 id: "\(prefix)session.\(session.id.uuidString)",
-                title: "\(session.displayTitle) skončil",
+                title: "Tréning skončil",
                 body: session.goal.isEmpty
-                    ? "Čo ste riešili? Zapíš to za 20 sekúnd."
-                    : "Cieľ: \(session.goal). Ako to dopadlo?",
+                    ? "\(session.displayTitle): čo ste riešili? Zapíš to za 20 sekúnd."
+                    : "\(session.displayTitle) · cieľ: \(session.goal). Ako to dopadlo?",
                 at: fire,
+                open: PlannerOpenRequest(target: .session(session.id)),
                 center: center
             )
         }
@@ -106,11 +159,13 @@ enum PlannerNotifications {
         "\(cadence?.uuidString ?? "-")|\(Int(PlannerCalendar.startOfDay(day).timeIntervalSince1970))"
     }
 
-    private static func add(id: String, title: String, body: String, at date: Date, center: UNUserNotificationCenter) {
+    private static func add(id: String, title: String, body: String, at date: Date,
+                            open: PlannerOpenRequest? = nil, center: UNUserNotificationCenter) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
+        if let open { content.userInfo = open.userInfo }
 
         let comps = PlannerCalendar.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
