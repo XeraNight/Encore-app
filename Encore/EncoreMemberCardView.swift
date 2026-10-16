@@ -3,6 +3,7 @@ import CoreImage.CIFilterBuiltins
 
 // MARK: - Luxury Encore Member Card (Italian Carmine Leather & Metallic 3D Gold)
 struct EncoreMemberCardView: View {
+    @ObservedObject private var appearance = AppearanceStore.shared
     var name: String
     var club: String
     var userId: String
@@ -23,9 +24,6 @@ struct EncoreMemberCardView: View {
     @ObservedObject private var friendManager = FriendManager.shared
     
     // Custom Carmine & Wine Leather Palette
-    private let leatherDeepCarmine = Color(red: 0.52, green: 0.05, blue: 0.11) // #850D1C
-    private let leatherWineCenter  = Color(red: 0.35, green: 0.02, blue: 0.07) // #590512
-    private let leatherDarkShade   = Color(red: 0.20, green: 0.01, blue: 0.04) // #33030A
     
     private var targetQRString: String {
         qrURL ?? FriendManager.shared.buildMemberCardURL()
@@ -75,7 +73,7 @@ struct EncoreMemberCardView: View {
                     )
             )
             .shadow(color: Color.black.opacity(0.75), radius: 20, x: 0, y: 10)
-            .shadow(color: leatherDeepCarmine.opacity(0.35), radius: 26, x: 0, y: 12)
+            .shadow(color: appearance.theme.light.opacity(0.35), radius: 26, x: 0, y: 12)
             // Interactive 3D Tilt Parallax on Finger Drag
             .rotation3DEffect(
                 .degrees(allowInteractiveTilt ? Double(dragOffset.width / 14) : 0),
@@ -242,7 +240,7 @@ struct EncoreMemberCardView: View {
     private var cardFrontView: some View {
         ZStack {
             // 1. Handcrafted Red Leather Base Surface with Saddle Stitching
-            LeatherCardSurface(isFront: true)
+            LeatherCardSurface(isFront: true, theme: appearance.theme)
             
             // 2. Card Content Layers
             VStack(alignment: .leading) {
@@ -309,7 +307,7 @@ struct EncoreMemberCardView: View {
                             
                             // Center tiny Encore seal
                             Circle()
-                                .fill(leatherDeepCarmine)
+                                .fill(appearance.theme.light)
                                 .frame(width: 9, height: 9)
                                 .overlay(
                                     Circle()
@@ -387,7 +385,7 @@ struct EncoreMemberCardView: View {
     private var cardBackView: some View {
         ZStack {
             // 1. Leather Surface
-            LeatherCardSurface(isFront: false)
+            LeatherCardSurface(isFront: false, theme: appearance.theme)
             
             // 2. Information Layout (Normal Left-to-Right Reading)
             VStack(alignment: .leading, spacing: 10) {
@@ -552,20 +550,17 @@ struct EncoreMemberCardView: View {
 // MARK: - Luxury Handcrafted Leather Surface with Saddle Stitching
 struct LeatherCardSurface: View {
     var isFront: Bool = true
-    
-    // Italian Leather Palette
-    private let leatherDeepCarmine = Color(red: 0.52, green: 0.05, blue: 0.11) // #850D1C
-    private let leatherWineCenter  = Color(red: 0.35, green: 0.02, blue: 0.07) // #590512
-    private let leatherDarkShade   = Color(red: 0.20, green: 0.01, blue: 0.04) // #33030A
+    /// The leather colour (Vzhľad); Karmín by default.
+    var theme: CardTheme = .carmine
     
     var body: some View {
         ZStack {
             // 1. Base Rich Matte Leather Gradient (No plastic shine)
             LinearGradient(
                 stops: [
-                    .init(color: leatherDeepCarmine, location: 0.0),
-                    .init(color: leatherWineCenter, location: 0.48),
-                    .init(color: leatherDarkShade, location: 1.0)
+                    .init(color: theme.light, location: 0.0),
+                    .init(color: theme.middle, location: 0.48),
+                    .init(color: theme.dark, location: 1.0)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing

@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     // Fetch user profile & invite code
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, invite_code, club')
+      .select('id, name, invite_code, club, card_theme')
       .eq('id', user.id)
       .single()
 
@@ -103,9 +103,10 @@ export async function GET(request: NextRequest) {
         organizationName: 'Encore Dance',
         description: 'Encore Ballroom & Latin Member Pass',
         serialNumber: `ENC-${inviteCode}`,
-        foregroundColor: 'rgb(255, 230, 153)', // Champagne Gold
-        backgroundColor: 'rgb(102, 3, 18)',    // Deep Carmine Wine
-        labelColor: 'rgb(212, 175, 55)',        // Rich Gold
+        // The card theme chosen in the app (Profil → Vzhľad); Karmín when there is none.
+        foregroundColor: rgbOr(profile?.card_theme?.foreground_color, 'rgb(255, 230, 153)'),
+        backgroundColor: rgbOr(profile?.card_theme?.background_color, 'rgb(102, 3, 18)'),
+        labelColor: rgbOr(profile?.card_theme?.label_color, 'rgb(212, 175, 55)'),
         logoText: 'ENCORE'
       }
     )
@@ -195,4 +196,9 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/** Only a plain "rgb(r, g, b)" from the profile reaches the pass; anything else falls back. */
+function rgbOr(value: unknown, fallback: string): string {
+  return typeof value === 'string' && /^rgb\(\d{1,3}, ?\d{1,3}, ?\d{1,3}\)$/.test(value) ? value : fallback
 }

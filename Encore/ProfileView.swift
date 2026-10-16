@@ -7,6 +7,7 @@ import StoreKit
 /// header → account → dance world (connections, competitions, tools) → membership → card →
 /// library → settings. Each destination is its own screen.
 struct ProfileView: View {
+    @ObservedObject private var appearance = AppearanceStore.shared
     @Query private var routines: [Routine]
     @Query private var figures: [FigureLibraryItem]
     @Query private var nodes: [CanvasNode]
@@ -39,6 +40,12 @@ struct ProfileView: View {
                         HomeRowGroup(title: "MOJA KARTA") {
                             NavigationLink { MemberCardScreen() } label: {
                                 HomeRow(icon: "wallet.pass.fill", title: "Digitálna karta", subtitle: "QR na prepojenie a Apple Peňaženka")
+                            }
+                            .buttonStyle(.pressable(scale: 0.98))
+                            HomeRowDivider()
+                            NavigationLink { AppearanceView() } label: {
+                                HomeRow(icon: "paintpalette.fill", title: "Vzhľad", subtitle: "Motív karty a rámik profilovky",
+                                        badge: subscriptionManager.currentTier >= .plus ? nil : "PLUS")
                             }
                             .buttonStyle(.pressable(scale: 0.98))
                         }
@@ -91,6 +98,7 @@ struct ProfileView: View {
                     avatarURL: authManager.userAvatarURL,
                     size: 96
                 )
+                .avatarFrame(appearance.frame, size: 96)
                 .overlay(alignment: .bottomTrailing) {
                     Image(systemName: "pencil")
                         .font(.caption.weight(.bold))
