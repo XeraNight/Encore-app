@@ -151,7 +151,7 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 > • Zrkadlo, metronóm a hudba pomalšie bez zmeny tóniny.
 >
 > PLUS A PREMIUM
-> • Plus: neobmedzené zostavy, Top 3 priority po lekcii, Moja sezóna (v ktorom tanci dostávaš najmenej krížikov a vývoj počas sezóny), súťažný deň (tance v poradí a pri každom tvoje Top 3) a strih hodinovej lekcie na figúry.
+> • Plus: neobmedzené zostavy, Top 3 priority po lekcii, Moja sezóna (v ktorom tanci dostávaš najmenej krížikov a vývoj počas sezóny), súťažný deň (tance v poradí a pri každom tvoje Top 3), vývoj tréningov za mesiace a sezónu a strih hodinovej lekcie na figúry.
 > • Premium: porovnanie tvojho videa so vzorom, olovnica, sklon ramien a korekcie uložené k figúre.
 >
 > Encore nie je oficiálna aplikácia SZTŠ. Výsledky pochádzajú z verejného systému KSIS.

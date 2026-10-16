@@ -130,12 +130,14 @@ struct TrainingOccurrence: Identifiable {
     /// Trainings of one day. Weekly trainings show from today on and for the last `missedDays` days (since the
     /// training exists); further back only where something was recorded. A reflection stays on its day even
     /// when its training was deleted or moved.
+    /// `wholePast` (trends): a weekly training counts on every past day since it was added, not only
+    /// the last `missedDays`.
     static func on(_ day: Date, cadences: [TrainingCadence], sessions: [PlannedSession],
-                   logs: [TrainingLogEntry]) -> [TrainingOccurrence] {
+                   logs: [TrainingLogEntry], wholePast: Bool = false) -> [TrainingOccurrence] {
         let cal = PlannerCalendar.calendar
         let date = cal.startOfDay(for: day)
         let today = cal.startOfDay(for: Date())
-        let recentStart = cal.date(byAdding: .day, value: -missedDays, to: today) ?? today
+        let recentStart = wholePast ? Date.distantPast : (cal.date(byAdding: .day, value: -missedDays, to: today) ?? today)
         let weekday = PlannerCalendar.isoWeekday(of: date)
         var list: [TrainingOccurrence] = []
         for cadence in cadences where cadence.weekday == weekday {

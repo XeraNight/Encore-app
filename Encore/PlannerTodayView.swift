@@ -295,6 +295,10 @@ struct PlannerWeekSummary: View {
     let sessions: [PlannedSession]
     let logs: [TrainingLogEntry]
 
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    @State private var showTrends = false
+    @State private var showPaywall = false
+
     private struct Totals: Equatable {
         var doneMinutes = 0
         var plannedMinutes = 0
@@ -339,12 +343,43 @@ struct PlannerWeekSummary: View {
                         tile(totals.topDance.map(DanceNames.display) ?? "–", "najviac riešené")
                     }
                     progressBar(done: totals.doneMinutes, planned: totals.plannedMinutes)
+                    trendsButton
                 }
                 .padding(14)
                 .homeCard(cornerRadius: 20)
                 .animation(.spring(response: 0.5, dampingFraction: 0.85), value: totals)
             }
+            .sheet(isPresented: $showTrends) { TrainingTrendsView(cadences: cadences, sessions: sessions, logs: logs) }
+            .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         }
+    }
+
+    /// Weeks and months behind this week (Plus).
+    private var trendsButton: some View {
+        let hasPlus = subscriptionManager.currentTier >= .plus
+        return Button {
+            if hasPlus { showTrends = true } else { showPaywall = true }
+        } label: {
+            HStack(spacing: 6) {
+                Text("Vývoj za mesiac a sezónu")
+                if !hasPlus {
+                    Text("PLUS")
+                        .font(.system(.caption2, design: .rounded).weight(.black))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gold400, in: Capsule())
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+            }
+            .font(.footnote.weight(.bold))
+            .foregroundColor(Color.gold400)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable(scale: 0.98))
     }
 
     private func tile(_ value: String, _ caption: String) -> some View {

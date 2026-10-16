@@ -9,7 +9,7 @@ KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje 
 |---|---|---|---|
 | Zostavy a parket | 1 na tanec | neobmedzené | ✓ |
 | Partner naživo, QR zostavy, poznámky, diktovanie | ✓ | ✓ | ✓ |
-| Kalendár, reflexia, týždeň v číslach | ✓ | + **vývoj za mesiac a sezónu** ✱ | ✓ |
+| Kalendár, reflexia, týždeň v číslach | ✓ | + **vývoj za mesiac a sezónu** ✅ 16. 10. | ✓ |
 | Top 3 priority po lekcii | – | ✓ | ✓ |
 | KSIS: výsledky, body, krížiky, história | ✓ | ✓ | ✓ |
 | **Moja sezóna** (krížiky podľa tancov, vývoj, finále) ✅ 16. 10. | – | ✓ | ✓ |
