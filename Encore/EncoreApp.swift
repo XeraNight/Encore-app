@@ -76,19 +76,28 @@ struct EncoreApp: App {
                         Task { await AuthManager.shared.handleDeepLink(url) }
                         return
                     }
-                    // 3. Guest coach key (encore://guest?k=…)
+                    // 3. Lock Screen / Control Center buttons (encore://quick/…)
+                    if let action = QuickAction(url: url) {
+                        QuickActionRouter.shared.pending = action
+                        return
+                    }
+                    // 4. Guest coach key (encore://guest?k=…)
                     if AppFeatures.coachTools, let token = GuestCoachLink.token(from: url.absoluteString) {
                         GuestCoachService.shared.pendingToken = token
                         return
                     }
-                    // 4. Friend invites / profile links
+                    // 5. Friend invites / profile links
                     Task { _ = FriendManager.shared.handleIncomingURL(url) }
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in
-                    if let url = userActivity.webpageURL {
-                        Task {
-                            _ = FriendManager.shared.handleIncomingURL(url)
-                        }
+                    guard let url = userActivity.webpageURL else { return }
+                    // Lock Screen / Control Center buttons open https://www.encore-sk.com/quick/…
+                    if let action = QuickAction(url: url) {
+                        QuickActionRouter.shared.pending = action
+                        return
+                    }
+                    Task {
+                        _ = FriendManager.shared.handleIncomingURL(url)
                     }
                 }
         }

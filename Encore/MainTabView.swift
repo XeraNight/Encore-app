@@ -8,6 +8,8 @@ struct MainTabView: View {
     @State private var selectedTab: Int = 0
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var plannerRouter = PlannerRouter.shared
+    @ObservedObject private var quickActions = QuickActionRouter.shared
+    @State private var ksisBrowser: KSISBrowserTarget?
     @State private var offerBiometricLogin = false
 
     var body: some View {
@@ -41,6 +43,23 @@ struct MainTabView: View {
         .onChange(of: plannerRouter.pending, initial: true) { _, request in
             if request != nil { selectedTab = 2 }
         }
+        // A Lock Screen button: camera, voice and text open on Home (it handles them), KSIS opens here.
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard let action else { return }
+            guard action == .ksis else {
+                selectedTab = 0
+                return
+            }
+            quickActions.pending = nil
+            Task {
+                let manager = CompetitionManager.shared
+                if manager.couples.isEmpty { await manager.loadAllData() }
+                if let url = QuickAction.ksisStartURL(pairNumber: manager.couples.first?.pairNumber) {
+                    ksisBrowser = KSISBrowserTarget(url: url)
+                }
+            }
+        }
+        .fullScreenCover(item: $ksisBrowser) { KSISBrowserView(startURL: $0.url) }
         .task {
             // Once per account, a moment after the first sign-in on this iPhone.
             try? await Task.sleep(for: .seconds(1.5))

@@ -33,6 +33,11 @@ const nextConfig: NextConfig = {
     ]
   },
 
+  // Lock Screen buttons of the app open /quick/…; without Encore installed they land on the download page.
+  async redirects() {
+    return [{ source: '/quick/:action*', destination: '/download/ios', permanent: false }]
+  },
+
   // Images: only allow Supabase storage domain
   images: {
     remotePatterns: [

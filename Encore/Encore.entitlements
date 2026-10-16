@@ -6,6 +6,10 @@
 	<array>
 		<string>Default</string>
 	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:www.encore-sk.com</string>
+	</array>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

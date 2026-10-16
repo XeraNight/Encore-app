@@ -8,6 +8,10 @@ struct EncoreWidgetBundle: WidgetBundle {
     var body: some Widget {
         EncoreLiveActivity()
         RecordingLiveActivity()
+        EncoreVideoControl()
+        EncoreVoiceControl()
+        EncoreTextControl()
+        EncoreKSISControl()
     }
 }
 

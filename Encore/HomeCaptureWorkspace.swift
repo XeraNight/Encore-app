@@ -39,6 +39,8 @@ struct HomeCaptureWorkspace: View {
     @State private var capturedVideoPath: String?
     @FocusState private var isTextFocused: Bool
     @Namespace private var modeNamespace
+    @ObservedObject private var quickActions = QuickActionRouter.shared
+    @State private var startVoiceNow = false
 
     var body: some View {
         VStack(spacing: 14) {
@@ -72,6 +74,32 @@ struct HomeCaptureWorkspace: View {
         }
         .sensoryFeedback(.success, trigger: savedCounter)
         .sensoryFeedback(.selection, trigger: mode)
+        .onChange(of: quickActions.pending, initial: true) { _, action in
+            guard let action, action != .ksis else { return }
+            quickActions.pending = nil
+            open(action)
+        }
+    }
+
+    /// A Lock Screen button: the camera, a voice note that records right away, or the text field ready to type.
+    private func open(_ action: QuickAction) {
+        switch action {
+        case .video:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { mode = .camera }
+            isCameraPresented = true
+        case .voice:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { mode = .voice }
+            startVoiceNow = true
+        case .text:
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { mode = .text }
+            Task {
+                // After the tab switch and the mode change, so the keyboard comes up on the visible field.
+                try? await Task.sleep(for: .milliseconds(400))
+                isTextFocused = true
+            }
+        case .ksis:
+            break
+        }
     }
 
     // MARK: Field
@@ -81,7 +109,7 @@ struct HomeCaptureWorkspace: View {
             case .text:
                 textCapture.transition(.opacity)
             case .voice:
-                VoiceCaptureView { fileName, duration in
+                VoiceCaptureView(startNow: $startVoiceNow) { fileName, duration in
                     save(InstantNote(audioPath: fileName, audioDuration: duration, danceName: selectedDance))
                 }
                 .transition(.opacity)

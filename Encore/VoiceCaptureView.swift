@@ -3,10 +3,17 @@ import SwiftUI
 /// Voice notes on Home. Records the real audio in full quality; the dancer listens to it later and
 /// writes down what matters. Owns the recorder so the fast-changing level only redraws this view.
 struct VoiceCaptureView: View {
+    /// Set by the Lock Screen button: start recording right away (it resets itself).
+    @Binding var startNow: Bool
     /// Called with the saved file name and its length when the recording is kept.
     let onSave: (String, TimeInterval) -> Void
 
     @StateObject private var recorder = VoiceNoteRecorder()
+
+    init(startNow: Binding<Bool> = .constant(false), onSave: @escaping (String, TimeInterval) -> Void) {
+        _startNow = startNow
+        self.onSave = onSave
+    }
 
     var body: some View {
         VStack(spacing: 20) {
@@ -44,6 +51,12 @@ struct VoiceCaptureView: View {
         }
         .onDisappear(perform: keepWhatWasRecorded)
         .sensoryFeedback(.impact(flexibility: .rigid), trigger: recorder.state)
+        .onChange(of: startNow, initial: true) { _, start in
+            guard start else { return }
+            startNow = false
+            guard recorder.state == .idle else { return }
+            Task { await recorder.start() }
+        }
     }
 
     // MARK: Controls
