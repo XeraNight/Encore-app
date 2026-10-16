@@ -4,7 +4,7 @@
     "policies" : [
       {
         "locale" : "sk",
-        "policyText" : "Predplatné Encore Plus a Encore Premium poskytuje prístup k prémiovým funkciám pre tanečníkov a trénerov."
+        "policyText" : "Predplatné Encore Plus a Encore Premium poskytuje prístup k prémiovým funkciám pre tanečníkov."
       }
     ]
   },
@@ -45,7 +45,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Neobmedzené choreografie, kalendár a vlastné KSIS body",
+              "description" : "Neobmedzené zostavy a Top 3 priority po lekcii",
               "displayName" : "Encore Plus (Mesačne)",
               "locale" : "sk"
             }
@@ -73,7 +73,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Neobmedzené choreografie so zľavou 30%",
+              "description" : "Neobmedzené zostavy a Top 3 priority so zľavou 30 %",
               "displayName" : "Encore Plus (Ročne)",
               "locale" : "sk"
             }
@@ -101,7 +101,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "KSIS Radar súperov, video duel a trénerský manažment",
+              "description" : "Porovnanie videa so vzorom a všetko z Plus",
               "displayName" : "Encore Premium (Mesačne)",
               "locale" : "sk"
             }
@@ -129,7 +129,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "KSIS Radar súperov, video duel so zľavou 30%",
+              "description" : "Porovnanie so vzorom a všetko z Plus, zľava 30 %",
               "displayName" : "Encore Premium (Ročne)",
               "locale" : "sk"
             }

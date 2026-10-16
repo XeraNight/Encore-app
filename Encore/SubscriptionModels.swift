@@ -22,15 +22,21 @@ public enum SubscriptionTier: String, CaseIterable, Codable, Sendable {
         }
     }
     
-    /// One line on the Profile card. Only what the plan really adds (same as `SubscriptionPaywallView.features`).
+    /// One line on the Profile card. Only what the plan really adds (same as `SubscriptionPaywallView.features`);
+    /// features held back in `AppFeatures` are not promised.
     public var shortDescription: String {
+        let coach = AppFeatures.coachTools
+        let videos = AppFeatures.sharedVideos
         switch self {
         case .free:
-            return "Poznámky, plátno, výsledky z KSIS, 1 zostava na tanec, 1 kľúč pre trénera, 1 GB na zdieľané videá"
+            return ["Poznámky, plátno, výsledky z KSIS, 1 zostava na tanec", coach ? "1 kľúč pre trénera" : nil,
+                    videos ? "1 GB na zdieľané videá" : nil].compactMap { $0 }.joined(separator: ", ")
         case .plus:
-            return "Neobmedzené zostavy, Top 3 priority po lekcii, kľúče pre trénerov až na 30 dní, 10 GB na zdieľané videá"
+            return ["Neobmedzené zostavy, Top 3 priority po lekcii", coach ? "kľúče pre trénerov až na 30 dní" : nil,
+                    videos ? "10 GB na zdieľané videá" : nil].compactMap { $0 }.joined(separator: ", ")
         case .premium:
-            return "Všetko z Plus, porovnanie so vzorom a korekcie, zápis lekcií pre trénerov, 50 GB na zdieľané videá"
+            return ["Všetko z Plus, porovnanie so vzorom a korekcie", coach ? "zápis lekcií pre trénerov" : nil,
+                    videos ? "50 GB na zdieľané videá" : nil].compactMap { $0 }.joined(separator: ", ")
         }
     }
     

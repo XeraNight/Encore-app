@@ -27,30 +27,34 @@ public struct SubscriptionPaywallView: View {
 
     /// What each plan adds. Keep in step with the code that gates it.
     static func features(for tier: SubscriptionTier) -> [Feature] {
+        // Features held back in `AppFeatures` are not offered.
+        let coach = AppFeatures.coachTools
+        let videos = AppFeatures.sharedVideos
         switch tier {
-        case .free:
-            return []
         case .plus:
             return [
                 Feature(icon: "square.stack.3d.up.fill", title: "Neobmedzené zostavy",
                         detail: "Viac zostáv na každý tanec. Free má jednu."),
                 Feature(icon: "target", title: "Top 3 priority po lekcii",
                         detail: "Tri hlavné korekcie trénera pre každý tanec. Máš ich na Domove, kým ich nezvládneš."),
-                Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",
-                        detail: "Požičaj zostavu viacerým trénerom naraz a až na 30 dní. Free má jeden kľúč na 7 dní."),
-                Feature(icon: "icloud.and.arrow.up.fill", title: "10 GB na zdieľané videá",
-                        detail: "Pre partnera a trénera. Free má 1 GB."),
-            ]
+                coach ? Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",
+                                detail: "Požičaj zostavu viacerým trénerom naraz a až na 30 dní. Free má jeden kľúč na 7 dní.") : nil,
+                videos ? Feature(icon: "icloud.and.arrow.up.fill", title: "10 GB na zdieľané videá",
+                                 detail: "Pre partnera a trénera. Free má 1 GB.") : nil,
+            ].compactMap { $0 }
         case .premium:
             return [
-                Feature(icon: "checkmark.seal.fill", title: "Všetko z Plus", detail: "Zostavy, Top 3 priority, kľúče pre trénerov a ďalšie."),
+                Feature(icon: "checkmark.seal.fill", title: "Všetko z Plus",
+                        detail: coach ? "Zostavy, Top 3 priority, kľúče pre trénerov a ďalšie." : "Neobmedzené zostavy a Top 3 priority po lekcii."),
                 Feature(icon: "square.on.square", title: "Porovnanie so vzorom",
                         detail: "Vzor priesvitne cez tvoje video, olovnica, sklon ramien a korekcie uložené k figúre."),
-                Feature(icon: "clock.arrow.circlepath", title: "Pre trénerov: čo sme robili naposledy",
-                        detail: "Pri každom zverencovi zápis z poslednej lekcie. Vidíš ho len ty."),
-                Feature(icon: "icloud.and.arrow.up.fill", title: "50 GB na zdieľané videá",
-                        detail: "Pre partnera a trénera."),
-            ]
+                coach ? Feature(icon: "clock.arrow.circlepath", title: "Pre trénerov: čo sme robili naposledy",
+                                detail: "Pri každom zverencovi zápis z poslednej lekcie. Vidíš ho len ty.") : nil,
+                videos ? Feature(icon: "icloud.and.arrow.up.fill", title: "50 GB na zdieľané videá",
+                                 detail: "Pre partnera a trénera.") : nil,
+            ].compactMap { $0 }
+        case .free:
+            return []
         }
     }
 
@@ -109,7 +113,9 @@ public struct SubscriptionPaywallView: View {
             Text("Viac času na tanec")
                 .font(.system(.title2, design: .rounded).weight(.heavy))
                 .foregroundColor(.white)
-            Text("Free ti ostane navždy: poznámky, plátno, výsledky z KSIS, zdieľanie s partnerom a kľúč pre hosťujúceho trénera. Plus a Premium pridávajú pohodlie a analýzu.")
+            Text(AppFeatures.coachTools
+                 ? "Free ti ostane navždy: poznámky, plátno, výsledky z KSIS, zdieľanie s partnerom a kľúč pre hosťujúceho trénera. Plus a Premium pridávajú pohodlie a analýzu."
+                 : "Free ti ostane navždy: poznámky, plátno, výsledky z KSIS a spoločné zostavy s partnerom. Plus a Premium pridávajú pohodlie a analýzu.")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
