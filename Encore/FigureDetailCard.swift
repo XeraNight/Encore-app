@@ -41,6 +41,9 @@ struct FigureDetailCard: View {
     @State private var showCamera = false
     @State private var showMediaPicker = false
     @State private var showDuelComparison = false
+    @State private var showTimeline = false
+    @State private var showPremiumPaywall = false
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @State private var confirmDeleteVideo = false
 
     // Sharing with partner and coach
@@ -137,7 +140,7 @@ struct FigureDetailCard: View {
         }
         .fullScreenCover(isPresented: $showCamera) {
             DanceCameraView(ghostVideoPath: node.activeTargetVideoPath, savesToPhotos: true) { localPath in
-                node.videoPath = localPath
+                replaceVideo(with: localPath)
                 showCamera = false
                 routineDidChange()
                 // A shared figure keeps being shared: partner and coach get the new take.
@@ -150,7 +153,7 @@ struct FigureDetailCard: View {
                 slotTitle: "Video figúry",
                 currentPath: node.videoPath,
                 onSelectMedia: { path in
-                    node.videoPath = path
+                    replaceVideo(with: path)
                     routineDidChange()
                 },
                 onClearMedia: {}
@@ -329,6 +332,9 @@ struct FigureDetailCard: View {
             if node.displayVideoPath != nil {
                 resizeHandle(currentHeight: height, maxHeight: maxHeight)
             }
+            if node.videoPath != nil {
+                timelineChip
+            }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: isPortraitLayout)
         .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: rotation)
@@ -478,6 +484,44 @@ struct FigureDetailCard: View {
     }
 
     /// Drag to make the video taller or shorter; the notes follow.
+    /// Every take of this figure by date (Premium).
+    private var timelineChip: some View {
+        let takes = node.timelineTakeCount
+        let hasPremium = subscriptionManager.currentTier >= .premium
+        return Button {
+            if hasPremium { showTimeline = true } else { showPremiumPaywall = true }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: hasPremium ? "clock.arrow.circlepath" : "lock.fill")
+                Text(takes > 1 ? "Časová os · \(slovakCount(takes, one: "záber", few: "zábery", many: "záberov"))" : "Časová os figúry")
+                if !hasPremium {
+                    Text("PREMIUM")
+                        .font(.system(.caption2, design: .rounded).weight(.black))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.gold400, in: Capsule())
+                }
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(Color.gold300)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 36)
+            .background(Color.white.opacity(0.07), in: Capsule())
+            .frame(minHeight: 44)
+        }
+        .buttonStyle(.pressable)
+        .sheet(isPresented: $showTimeline) { FigureTimelineView(node: node, onSaveCorrection: addCorrection) }
+        .sheet(isPresented: $showPremiumPaywall) { SubscriptionPaywallView(initialTier: .premium) }
+    }
+
+    /// A new video: the old take stays in the figure's timeline and the new one joins it.
+    private func replaceVideo(with path: String) {
+        if let old = node.videoPath, old != path { node.recordTake(old, in: modelContext) }
+        node.videoPath = path
+        node.recordTake(path, in: modelContext)
+    }
+
     private func resizeHandle(currentHeight: CGFloat, maxHeight: CGFloat) -> some View {
         Capsule()
             .fill(Color.white.opacity(0.35))
@@ -623,6 +667,10 @@ struct FigureDetailCard: View {
         }
         stopPlayer()
         MediaStorageManager.removeFile(named: videoPath)   // a Fotky video stays in Fotky
+        // A file kept in Encore is gone now, so its take leaves the timeline too; a Fotky take stays.
+        if !PhotoLibraryVideoStore.isReference(videoPath) {
+            node.mediaVault.filter { $0.filePath == videoPath }.forEach(modelContext.delete)
+        }
         node.videoPath = nil
         routineDidChange()
     }

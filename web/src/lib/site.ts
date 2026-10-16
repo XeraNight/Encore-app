@@ -72,6 +72,7 @@ export const PLANS: Plan[] = [
       'Všetko z Plus',
       'Porovnanie so vzorom: priesvitný vzor, olovnica, sklon ramien',
       'Korekcie z porovnania uložené rovno k figúre',
+      'Časová os figúry: prvý a posledný záber vedľa seba',
     ],
   },
 ]

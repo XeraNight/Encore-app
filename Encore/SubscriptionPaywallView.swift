@@ -56,6 +56,8 @@ public struct SubscriptionPaywallView: View {
                         detail: coach ? "Zostavy, Top 3 priority, kľúče pre trénerov a ďalšie." : "Neobmedzené zostavy, Top 3 priority a strih lekcie."),
                 Feature(icon: "square.on.square", title: "Porovnanie so vzorom",
                         detail: "Vzor priesvitne cez tvoje video, olovnica, sklon ramien a korekcie uložené k figúre."),
+                Feature(icon: "clock.arrow.circlepath", title: "Časová os figúry",
+                        detail: "Všetky zábery figúry podľa dátumu. Prvý a posledný vedľa seba jedným ťuknutím."),
                 coach ? Feature(icon: "clock.arrow.circlepath", title: "Pre trénerov: čo sme robili naposledy",
                                 detail: "Pri každom zverencovi zápis z poslednej lekcie. Vidíš ho len ty.") : nil,
                 videos ? Feature(icon: "icloud.and.arrow.up.fill", title: "50 GB na zdieľané videá",

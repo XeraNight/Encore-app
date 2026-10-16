@@ -89,6 +89,12 @@ nonisolated enum PhotoLibraryVideoStore {
         }
     }
 
+    /// When the video was filmed, for a `photos:` reference (nil for app files or a missing asset).
+    static func creationDate(of path: String) -> Date? {
+        guard isReference(path), hasAccess else { return nil }
+        return asset(for: path)?.creationDate
+    }
+
     // MARK: Private
     private static func asset(for reference: String) -> PHAsset? {
         let identifier = String(reference.dropFirst(referencePrefix.count))

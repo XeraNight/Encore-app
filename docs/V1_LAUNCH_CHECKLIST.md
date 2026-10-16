@@ -152,7 +152,7 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 >
 > PLUS A PREMIUM
 > • Plus: neobmedzené zostavy, Top 3 priority po lekcii, Moja sezóna (v ktorom tanci dostávaš najmenej krížikov a vývoj počas sezóny), súťažný deň (tance v poradí a pri každom tvoje Top 3), vývoj tréningov za mesiace a sezónu a strih hodinovej lekcie na figúry.
-> • Premium: porovnanie tvojho videa so vzorom, olovnica, sklon ramien a korekcie uložené k figúre.
+> • Premium: porovnanie tvojho videa so vzorom, olovnica, sklon ramien, korekcie uložené k figúre a časová os figúry (prvý a posledný záber vedľa seba).
 >
 > Encore nie je oficiálna aplikácia SZTŠ. Výsledky pochádzajú z verejného systému KSIS.
 > Predplatné sa obnovuje automaticky, zrušíš ho v Nastaveniach iPhonu.

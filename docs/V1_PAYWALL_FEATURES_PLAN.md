@@ -19,7 +19,7 @@ KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje 
 | Hudba pomalšie (len súbory, nie Spotify) | ✓ | ✓ | ✓ |
 | Natočiť s duchom, duel vedľa seba | ✓ | ✓ | ✓ |
 | Porovnanie so vzorom, čiary, korekcie | – | – | ✓ |
-| **Časová os figúry** ✱ | – | – | ✓ |
+| **Časová os figúry** ✅ 16. 10. | – | – | ✓ |
 
 ✱ dorobiť pred vydaním. Poradie: presun Hudba pomalšie a Strih lekcie do Plus → Moja sezóna → Súťažný deň →
 vývoj v Kalendári → Časová os figúry. Každá funkcia sa v paywalli ukáže až hotová a otestovaná.

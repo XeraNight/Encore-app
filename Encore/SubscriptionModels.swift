@@ -35,7 +35,7 @@ public enum SubscriptionTier: String, CaseIterable, Codable, Sendable {
             return ["Neobmedzené zostavy, Top 3 priority po lekcii, Moja sezóna, vývoj tréningov, súťažný deň, strih lekcie na figúry", coach ? "kľúče pre trénerov až na 30 dní" : nil,
                     videos ? "10 GB na zdieľané videá" : nil].compactMap { $0 }.joined(separator: ", ")
         case .premium:
-            return ["Všetko z Plus, porovnanie so vzorom a korekcie", coach ? "zápis lekcií pre trénerov" : nil,
+            return ["Všetko z Plus, porovnanie so vzorom a korekcie, časová os figúry", coach ? "zápis lekcií pre trénerov" : nil,
                     videos ? "50 GB na zdieľané videá" : nil].compactMap { $0 }.joined(separator: ", ")
         }
     }
