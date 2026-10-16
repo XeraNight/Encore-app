@@ -37,6 +37,8 @@ public struct SubscriptionPaywallView: View {
                         detail: "Viac zostáv na každý tanec. Free má jednu."),
                 Feature(icon: "target", title: "Top 3 priority po lekcii",
                         detail: "Tri hlavné korekcie trénera pre každý tanec. Máš ich na Domove, kým ich nezvládneš."),
+                Feature(icon: "chart.bar.xaxis", title: "Moja sezóna",
+                        detail: "Z tvojich výsledkov v KSIS: v ktorom tanci dostávaš najmenej krížikov, finále a vývoj počas sezóny."),
                 Feature(icon: "scissors", title: "Strih lekcie na figúry",
                         detail: "Hodinové video z lekcie rozdelíš na figúry a uložíš ich k zostave."),
                 coach ? Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",

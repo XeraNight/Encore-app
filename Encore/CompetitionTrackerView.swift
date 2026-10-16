@@ -6,6 +6,8 @@ import SwiftUI
 /// Free for everyone. Numbers come only from KSIS; class-promotion thresholds are never computed here.
 struct CompetitionTrackerView: View {
     @ObservedObject private var manager = CompetitionManager.shared
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    @State private var showPaywall = false
 
     @State private var browser: KSISBrowserTarget?
     @State private var searchText = ""
@@ -28,6 +30,9 @@ struct CompetitionTrackerView: View {
                     } else {
                         ForEach(manager.couples) { couple in
                             coupleSection(couple)
+                        }
+                        if !manager.results.isEmpty {
+                            mySeasonCard
                         }
                     }
 
@@ -84,7 +89,31 @@ struct CompetitionTrackerView: View {
             Text(errorText ?? "")
         }
         .task { await manager.loadAllData() }
+        .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         .preferredColorScheme(.dark)
+    }
+
+    // MARK: Moja sezóna (Plus)
+    /// The saved results stay free; the analysis of them is Plus (docs/V1_PAYWALL_FEATURES_PLAN.md).
+    @ViewBuilder
+    private var mySeasonCard: some View {
+        let hasPlus = subscriptionManager.currentTier >= .plus
+        let row = HomeRow(
+            icon: "chart.bar.xaxis",
+            title: "Moja sezóna",
+            subtitle: "Krížiky podľa tancov, finále a vývoj počas sezóny",
+            badge: hasPlus ? nil : "PLUS"
+        )
+        .padding(.vertical, 4)
+        .homeCard(cornerRadius: 20)
+
+        if hasPlus {
+            NavigationLink { MySeasonView(results: manager.results) } label: { row }
+                .buttonStyle(.pressable(scale: 0.98))
+        } else {
+            Button { showPaywall = true } label: { row }
+                .buttonStyle(.pressable(scale: 0.98))
+        }
     }
 
     // MARK: Link
