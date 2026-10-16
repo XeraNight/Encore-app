@@ -22,6 +22,10 @@ struct DebriefSheet: View {
     @State private var priorityTexts = ["", "", ""]
     @State private var showPaywall = false
     @State private var goalOutcome: SessionGoalOutcome?
+    /// What was written before dictation started; the dictated words are added after it.
+    @State private var dictationBase = ""
+    @State private var confirmDiscard = false
+    @State private var isSaving = false
 
     /// The one-off training this reflection is for, when it had a goal.
     private var sessionWithGoal: PlannedSession? {
@@ -41,6 +45,17 @@ struct DebriefSheet: View {
         return cleanedPriorities != LessonPriorities.openTexts(for: danceName, in: priorities)
     }
 
+    private var hasChanges: Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines) != entry.reflectionNote
+            || danceName != entry.danceName || feeling != entry.feeling
+            || goalOutcome != sessionWithGoal?.goalOutcome || prioritiesChanged
+    }
+
+    /// "dnes" only on the day of the training; a reflection written the next morning asks without it.
+    private var question: String {
+        PlannerCalendar.calendar.isDateInToday(entry.day) ? "Čo kľúčové ste dnes vylepšili?" : "Čo kľúčové ste vylepšili?"
+    }
+
     private var canSave: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feeling != nil || prioritiesChanged || goalOutcome != nil
     }
@@ -49,9 +64,16 @@ struct DebriefSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Čo kľúčové ste dnes vylepšili?")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(question)
+                            .font(.system(.title2, design: .rounded).weight(.bold))
+                            .foregroundColor(.white)
+                        if !PlannerCalendar.calendar.isDateInToday(entry.day) {
+                            Text(entry.day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "sk"))))
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(Color.gold400)
+                        }
+                    }
 
                     VStack(alignment: .leading, spacing: 10) {
                         ZStack(alignment: .topLeading) {
@@ -79,8 +101,17 @@ struct DebriefSheet: View {
                                 .background(speech.isRecording ? Color.latinCrimson : Color.gold400, in: Capsule())
                         }
                         .buttonStyle(.pressable)
+
+                        if let error = speech.errorMessage {
+                            Text(error)
+                                .font(.footnote)
+                                .foregroundColor(Color.latinRed)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .transition(.opacity)
+                        }
                     }
                     .plannerCard()
+                    .animation(.easeOut(duration: 0.2), value: speech.errorMessage)
 
                     if let session = sessionWithGoal {
                         goalSection(session)
@@ -151,11 +182,20 @@ struct DebriefSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Zrušiť") { dismiss() }
+                    Button("Zrušiť") {
+                        if hasChanges { confirmDiscard = true } else { dismiss() }
+                    }
                 }
             }
             .onChange(of: speech.transcript) { _, newValue in
-                if !newValue.isEmpty { text = newValue }
+                if !newValue.isEmpty { text = afterDictation(newValue) }
+            }
+            .interactiveDismissDisabled(hasChanges)
+            .confirmationDialog("Zahodiť reflexiu?", isPresented: $confirmDiscard, titleVisibility: .visible) {
+                Button("Zahodiť", role: .destructive) { dismiss() }
+                Button("Písať ďalej", role: .cancel) {}
+            } message: {
+                Text("To, čo si napísal, sa neuloží.")
             }
             .onAppear {
                 text = entry.reflectionNote
@@ -265,18 +305,27 @@ struct DebriefSheet: View {
     private func toggleDictation() {
         if speech.isRecording {
             let captured = speech.stopTranscribing()
-            if !captured.isEmpty { text = captured }
+            if !captured.isEmpty { text = afterDictation(captured) }
         } else {
+            dictationBase = text
             speech.requestPermissions()
             speech.transcript = ""
             speech.startTranscribing()
         }
     }
 
+    /// Dictation adds to what is written, it never replaces it.
+    private func afterDictation(_ spoken: String) -> String {
+        let base = dictationBase.trimmingCharacters(in: .whitespacesAndNewlines)
+        return base.isEmpty ? spoken : "\(base) \(spoken)"
+    }
+
     private func save() {
+        guard !isSaving else { return }
+        isSaving = true
         if speech.isRecording {
             let captured = speech.stopTranscribing()
-            if !captured.isEmpty { text = captured }
+            if !captured.isEmpty { text = afterDictation(captured) }
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -286,10 +335,16 @@ struct DebriefSheet: View {
         entry.status = .attended
 
         if let session = sessionWithGoal {
+            let wasDone = session.goalOutcome == .done
             session.goalOutcome = goalOutcome
-            if goalOutcome == .done, let priorityId = session.goalPriorityId,
-               let priority = priorities.first(where: { $0.id == priorityId }), priority.isOpen {
-                priority.doneAt = Date()
+            if let priorityId = session.goalPriorityId,
+               let priority = priorities.first(where: { $0.id == priorityId }), priority.replacedAt == nil {
+                // Splnené ticks the Top 3 item off; changing it back later opens it again.
+                if goalOutcome == .done, priority.doneAt == nil {
+                    priority.doneAt = Date()
+                } else if wasDone, goalOutcome != .done {
+                    priority.doneAt = nil
+                }
             }
         }
 
@@ -297,7 +352,11 @@ struct DebriefSheet: View {
             LessonPriorities.save(priorityTexts, danceName: danceName, logEntryId: entry.id, in: modelContext)
         }
 
-        if !trimmed.isEmpty {
+        if trimmed.isEmpty {
+            // Text deleted: the note in Poznámky goes too, it would keep the old words.
+            if let noteId = entry.noteId, let existing = fetchNote(noteId) { modelContext.delete(existing) }
+            entry.noteId = nil
+        } else {
             if let noteId = entry.noteId, let existing = fetchNote(noteId) {
                 existing.text = trimmed
                 existing.danceName = danceName
