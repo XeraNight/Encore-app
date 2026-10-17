@@ -96,11 +96,20 @@ enum AppIconChoice: String, CaseIterable, Identifiable {
         }
     }
 
-    /// The small icon the system built from the asset catalog; nil when this icon is not in the build.
-    var preview: UIImage? { UIImage(named: "\(assetName ?? "AppIcon")60x60") }
+    /// A small picture of the icon: the system's copy of the original, a preview image for the others
+    /// (icon sets cannot be loaded as images).
+    var preview: UIImage? {
+        guard let assetName else { return UIImage(named: "AppIcon60x60") }
+        return UIImage(named: assetName.replacingOccurrences(of: "AppIcon-", with: "AppIconPreview-"))
+    }
 
-    /// Icons this build really has, so the picker never offers one that cannot be set.
-    static var available: [AppIconChoice] { allCases.filter { $0.preview != nil } }
+    /// Icons this build really has (Xcode lists them in Info.plist), so the picker never offers one that
+    /// cannot be set.
+    static var available: [AppIconChoice] {
+        let icons = Bundle.main.object(forInfoDictionaryKey: "CFBundleIcons") as? [String: Any]
+        let alternates = Set((icons?["CFBundleAlternateIcons"] as? [String: Any])?.keys.map { $0 } ?? [])
+        return allCases.filter { choice in choice.assetName.map(alternates.contains) ?? true }
+    }
 }
 
 /// The chosen look. A choice is kept when Plus ends, but the free look is shown until Plus is back.

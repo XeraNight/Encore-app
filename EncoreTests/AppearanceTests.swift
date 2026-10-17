@@ -16,4 +16,11 @@ struct AppearanceTests {
             #expect(theme.walletBackground.range(of: #"^rgb\(\d{1,3}, \d{1,3}, \d{1,3}\)$"#, options: .regularExpression) != nil)
         }
     }
+
+    /// The picker shows every icon this build contains, each with a preview (alternate icons ship only
+    /// with "Include All App Icon Assets" on the Encore target).
+    @Test func everyIconIsOfferedWithAPreview() {
+        #expect(AppIconChoice.available == AppIconChoice.allCases)
+        #expect(AppIconChoice.allCases.allSatisfy { $0.preview != nil })
+    }
 }
