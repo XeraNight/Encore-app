@@ -22,9 +22,9 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
     
     private let passTypeIdentifier = "pass.com.jakub.encore"
 
-    /// Off until the Developer account signs passes (docs/V1_LAUNCH_CHECKLIST.md). Until then the button
-    /// would only show an error, which App Review rejects (2.1), so the card hides it.
-    static let canIssuePasses = false
+    /// The web signs passes with the Pass Type ID certificate (Vercel, APPLE_PASS_* variables, 17. 10. 2026).
+    /// Set to false again if signing ever stops: a button that only shows an error is rejected (App Review 2.1).
+    static let canIssuePasses = true
 
     private override init() {
         super.init()
