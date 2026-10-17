@@ -46,14 +46,15 @@ export async function GET(request: NextRequest) {
     // Fetch user profile & invite code
     const { data: profile } = await supabase
       .from('profiles')
-      .select('id, name, invite_code, club, card_theme')
+      .select('id, name, invite_code, club, card_theme, dancer_code')
       .eq('id', user.id)
       .single()
 
     const userName = profile?.name || user.user_metadata?.full_name || 'Tanečník'
     const userClub = profile?.club || user.user_metadata?.club || 'Encore Dance Club'
     const inviteCode = profile?.invite_code || user.id.substring(0, 8).toUpperCase()
-    const domain = process.env.NEXT_PUBLIC_APP_DOMAIN || 'www.encore-sk.com'
+    // The pass lives for years: always the real domain (the app's universal links), never an env leftover.
+    const domain = 'www.encore-sk.com'
     const qrInviteUrl = `https://${domain}/add/${inviteCode}`
 
     const passCertB64 = process.env.APPLE_PASS_CERT_BASE64
@@ -115,8 +116,8 @@ export async function GET(request: NextRequest) {
       {
         passTypeIdentifier,
         teamIdentifier,
-        organizationName: 'Encore Dance',
-        description: 'Encore Ballroom & Latin Member Pass',
+        organizationName: 'Encore',
+        description: 'Členská karta Encore',
         serialNumber: `ENC-${inviteCode}`,
         // The card theme chosen in the app (Profil → Vzhľad); Karmín when there is none.
         foregroundColor: rgbOr(profile?.card_theme?.foreground_color, 'rgb(255, 230, 153)'),
@@ -126,54 +127,38 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    pass.type = 'generic'
+    // Store card: a strip image across the card carries the app's leather and gold emblem
+    // (rendered from the app, one per theme); the name sits on the strip like on the card in Encore.
+    pass.type = 'storeCard'
 
-    // QR Barcode (Scannable with native iOS Camera)
     pass.setBarcodes({
       format: 'PKBarcodeFormatQR',
       message: qrInviteUrl,
       messageEncoding: 'iso-8859-1',
-      altText: `POZVÁNKA KÓD: ${inviteCode}`
+      altText: 'Naskenuj a prepoj sa v Encore'
     })
 
-    // Primary field: Dancer name
-    pass.primaryFields.push({
-      key: 'member',
-      label: 'TANEČNÍK',
-      value: userName
-    })
+    pass.primaryFields.push({ key: 'member', label: 'TANEČNÍK', value: userName })
+    pass.secondaryFields.push({ key: 'club', label: 'TANEČNÝ KLUB', value: userClub })
+    pass.auxiliaryFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: profile?.dancer_code || inviteCode })
 
-    // Secondary field: Dance Club
-    pass.secondaryFields.push({
-      key: 'club',
-      label: 'TANEČNÝ KLUB',
-      value: userClub
-    })
-
-    // Auxiliary field: Invite code
-    pass.auxiliaryFields.push({
-      key: 'inviteCode',
-      label: 'KÓD POZVÁNKY',
-      value: inviteCode
-    })
-
-    // Back fields: App info & website
     pass.backFields.push(
       {
         key: 'about',
-        label: 'O aplikácii Encore',
-        value: 'Encore je prémiový tréningový nástroj a komunita pre štandardné a latinskoamerické tance.'
+        label: 'Encore',
+        value: 'Tréningový denník pre tanečníkov a páry štandardných a latinskoamerických tancov.'
       },
       {
-        key: 'invite_url',
-        label: 'Odkaz na priateľstvo',
-        value: qrInviteUrl
+        key: 'connect',
+        label: 'Prepojenie',
+        value: `Partner naskenuje QR kód a pošle ti žiadosť o prepojenie: ${qrInviteUrl}`
       },
       {
-        key: 'website',
-        label: 'Webstránka',
-        value: `https://${domain}`
-      }
+        key: 'theme',
+        label: 'Vzhľad karty',
+        value: 'Motív zmeníš v Encore v Profil → Vzhľad. Potom kartu pridaj do Peňaženky znova.'
+      },
+      { key: 'website', label: 'Web', value: `https://${domain}` }
     )
 
     // Load icon and logo images from public folder
@@ -191,6 +176,13 @@ export async function GET(request: NextRequest) {
       const iconBuf = fs.readFileSync(iconPath)
       pass.addBuffer('icon.png', iconBuf)
       pass.addBuffer('icon@2x.png', iconBuf)
+    }
+
+    // The strip of the chosen theme (public/wallet/strip-<theme>.png, made from the app's card leather).
+    const themeId = STRIP_THEMES.includes(profile?.card_theme?.theme_id) ? profile?.card_theme?.theme_id : 'carmine'
+    for (const scale of ['', '@2x', '@3x']) {
+      const stripPath = path.join(publicDir, 'wallet', `strip-${themeId}${scale}.png`)
+      if (fs.existsSync(stripPath)) pass.addBuffer(`strip${scale}.png`, fs.readFileSync(stripPath))
     }
 
     // Generate signed .pkpass binary buffer
@@ -212,6 +204,9 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+/** Themes that have strip images in public/wallet (Profil → Vzhľad in the app). */
+const STRIP_THEMES = ['carmine', 'obsidian', 'midnight', 'emerald', 'mahogany']
 
 /** The PEM text from an env value that holds either base64 of the .pem file or the text itself. */
 function pemFrom(value: string, header: RegExp): string | null {
