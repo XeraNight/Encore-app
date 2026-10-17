@@ -75,7 +75,7 @@ struct HomeCaptureWorkspace: View {
         .sensoryFeedback(.success, trigger: savedCounter)
         .sensoryFeedback(.selection, trigger: mode)
         .onChange(of: quickActions.pending, initial: true) { _, action in
-            guard let action, action != .ksis else { return }
+            guard let action, [.video, .voice, .text].contains(action) else { return }
             quickActions.pending = nil
             open(action)
         }
@@ -97,7 +97,7 @@ struct HomeCaptureWorkspace: View {
                 try? await Task.sleep(for: .milliseconds(400))
                 isTextFocused = true
             }
-        case .ksis:
+        case .ksis, .results:
             break
         }
     }

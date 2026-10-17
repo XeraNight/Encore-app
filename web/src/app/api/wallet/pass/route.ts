@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { PKPass } from 'passkit-generator'
+import { PKPass, PassType } from 'passkit-generator'
 import fs from 'fs'
 import path from 'path'
 
@@ -127,10 +127,6 @@ export async function GET(request: NextRequest) {
       }
     )
 
-    // Store card: a strip image across the card carries the app's leather and gold emblem
-    // (rendered from the app, one per theme). Wallet allows only a solid colour for the rest of the card.
-    pass.type = 'storeCard'
-
     pass.setBarcodes({
       format: 'PKBarcodeFormatQR',
       message: qrInviteUrl,
@@ -138,15 +134,8 @@ export async function GET(request: NextRequest) {
       altText: 'Naskenuj a prepoj sa v Encore'
     })
 
-    // No primary field: Wallet would print it large across the strip, over the emblem. The strip stays
-    // clean leather, the ID sits next to the logo and name and club below the strip.
-    pass.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: profile?.dancer_code || inviteCode })
-    pass.secondaryFields.push(
-      { key: 'member', label: 'TANEČNÍK', value: userName },
-      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
-    )
-
-    pass.backFields.push(
+    const dancerId = profile?.dancer_code || inviteCode
+    const backFields = [
       {
         key: 'about',
         label: 'Encore',
@@ -163,7 +152,37 @@ export async function GET(request: NextRequest) {
         value: 'Motív zmeníš v Encore v Profil → Vzhľad. Potom kartu pridaj do Peňaženky znova.'
       },
       { key: 'website', label: 'Web', value: `https://${domain}` }
+    ]
+
+    // iOS 27+: Poster Generic, the card's leather and emblem across the whole pass (background image).
+    // The first primary field has no label, so Wallet shows the name as the bold title.
+    const poster = new PassType('posterGeneric')
+    poster.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
+    poster.primaryFields.push(
+      { key: 'member', value: userName },
+      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
     )
+    poster.footerFields.push({ key: 'kind', value: 'Členská karta' })
+    poster.backFields.push(...backFields)
+
+    // iOS 26 and earlier: store card with the leather strip. No primary field there: Wallet would print it
+    // large across the strip, over the emblem.
+    const storeCard = new PassType('storeCard')
+    storeCard.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
+    storeCard.secondaryFields.push(
+      { key: 'member', label: 'TANEČNÍK', value: userName },
+      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
+    )
+    storeCard.backFields.push(...backFields)
+
+    // Wallet prefers posterGeneric where it knows it and falls back to the store card elsewhere.
+    pass.types.push(poster, storeCard)
+
+    // iOS 27: two actions under the pass, opening Encore (universal links, /quick/... in the app).
+    pass.featuredActions = [
+      { identifier: 'competitions', type: 'viewSchedule', url: `https://${domain}/quick/ksis` },
+      { identifier: 'results', type: 'membershipBenefits', url: `https://${domain}/quick/results` }
+    ]
 
     // Load icon and logo images from public folder
     const publicDir = path.join(process.cwd(), 'public')
@@ -182,11 +201,22 @@ export async function GET(request: NextRequest) {
       pass.addBuffer('icon@2x.png', iconBuf)
     }
 
-    // The strip of the chosen theme (public/wallet/strip-<theme>.png, made from the app's card leather).
+    // Art of the chosen theme, rendered from the app's card leather (public/wallet): the poster
+    // background (iOS 27) and the strip (older iOS). @2x and @3x only, which every current iPhone uses.
     const themeId = STRIP_THEMES.includes(profile?.card_theme?.theme_id) ? profile?.card_theme?.theme_id : 'carmine'
+    const art: [string, string][] = [
+      [`background-${themeId}`, 'background'],
+      [`strip-${themeId}`, 'strip'],
+    ]
+    for (const [source, name] of art) {
+      for (const scale of ['@2x', '@3x']) {
+        const artPath = path.join(publicDir, 'wallet', `${source}${scale}.png`)
+        if (fs.existsSync(artPath)) pass.addBuffer(`${name}${scale}.png`, fs.readFileSync(artPath))
+      }
+    }
     for (const scale of ['', '@2x', '@3x']) {
-      const stripPath = path.join(publicDir, 'wallet', `strip-${themeId}${scale}.png`)
-      if (fs.existsSync(stripPath)) pass.addBuffer(`strip${scale}.png`, fs.readFileSync(stripPath))
+      const logoArt = path.join(publicDir, 'wallet', `primaryLogo${scale}.png`)
+      if (fs.existsSync(logoArt)) pass.addBuffer(`primaryLogo${scale}.png`, fs.readFileSync(logoArt))
     }
 
     // Generate signed .pkpass binary buffer

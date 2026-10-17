@@ -10,6 +10,7 @@ struct MainTabView: View {
     @ObservedObject private var plannerRouter = PlannerRouter.shared
     @ObservedObject private var quickActions = QuickActionRouter.shared
     @State private var ksisBrowser: KSISBrowserTarget?
+    @State private var showResults = false
     @State private var offerBiometricLogin = false
 
     var body: some View {
@@ -46,14 +47,19 @@ struct MainTabView: View {
         // A Lock Screen button: camera, voice and text open on Home (it handles them), KSIS opens here.
         .onChange(of: quickActions.pending, initial: true) { _, action in
             guard let action else { return }
-            guard action == .ksis else {
+            switch action {
+            case .ksis:
+                quickActions.pending = nil
+                if let url = QuickAction.ksisCalendarURL { ksisBrowser = KSISBrowserTarget(url: url) }
+            case .results:
+                quickActions.pending = nil
+                showResults = true
+            case .video, .voice, .text:
                 selectedTab = 0
-                return
             }
-            quickActions.pending = nil
-            if let url = QuickAction.ksisCalendarURL { ksisBrowser = KSISBrowserTarget(url: url) }
         }
         .fullScreenCover(item: $ksisBrowser) { KSISBrowserView(startURL: $0.url) }
+        .sheet(isPresented: $showResults) { NavigationStack { CompetitionTrackerView() } }
         .task {
             // Once per account, a moment after the first sign-in on this iPhone.
             try? await Task.sleep(for: .seconds(1.5))

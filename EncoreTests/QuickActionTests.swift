@@ -14,6 +14,7 @@ struct QuickActionTests {
         #expect(action("https://www.encore-sk.com/quick/voice") == .voice)
         #expect(action("https://www.encore-sk.com/quick/text") == .text)
         #expect(action("https://www.encore-sk.com/quick/ksis") == .ksis)
+        #expect(action("https://www.encore-sk.com/quick/results") == .results)
         #expect(action("encore://quick/voice") == .voice)
     }
 

@@ -6,7 +6,8 @@ import Foundation
 /// `https://www.encore-sk.com/quick/<action>`: Apple supports only universal links for opening an app from a
 /// control. `encore://quick/<action>` works too. Without Encore installed the web sends the link to the download page.
 enum QuickAction: String, CaseIterable {
-    case video, voice, text, ksis
+    /// `results` is the Apple Wallet card's "membership benefits" action: Súťaže a body.
+    case video, voice, text, ksis, results
 
     init?(url: URL) {
         let parts = url.pathComponents.filter { $0 != "/" }
