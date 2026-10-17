@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
     )
 
     // Store card: a strip image across the card carries the app's leather and gold emblem
-    // (rendered from the app, one per theme); the name sits on the strip like on the card in Encore.
+    // (rendered from the app, one per theme). Wallet allows only a solid colour for the rest of the card.
     pass.type = 'storeCard'
 
     pass.setBarcodes({
@@ -138,9 +138,13 @@ export async function GET(request: NextRequest) {
       altText: 'Naskenuj a prepoj sa v Encore'
     })
 
-    pass.primaryFields.push({ key: 'member', label: 'TANEČNÍK', value: userName })
-    pass.secondaryFields.push({ key: 'club', label: 'TANEČNÝ KLUB', value: userClub })
-    pass.auxiliaryFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: profile?.dancer_code || inviteCode })
+    // No primary field: Wallet would print it large across the strip, over the emblem. The strip stays
+    // clean leather, the ID sits next to the logo and name and club below the strip.
+    pass.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: profile?.dancer_code || inviteCode })
+    pass.secondaryFields.push(
+      { key: 'member', label: 'TANEČNÍK', value: userName },
+      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
+    )
 
     pass.backFields.push(
       {
