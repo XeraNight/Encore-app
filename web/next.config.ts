@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
   // The Apple Wallet pass reads its icon and logo from public/ at runtime; without this the
   // serverless function on Vercel may not have the files and the pass fails.
   outputFileTracingIncludes: {
-    '/api/wallet/pass': ['./public/logo.png', './public/encore_logo.png', './public/wallet/**'],
+    '/api/wallet/pass': ['./public/logo.png', './public/wallet/**'],
   },
 
   // Lock Screen buttons of the app open /quick/…; without Encore installed they land on the download page.

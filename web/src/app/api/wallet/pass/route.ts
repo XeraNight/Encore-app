@@ -51,7 +51,8 @@ export async function GET(request: NextRequest) {
       .single()
 
     const userName = profile?.name || user.user_metadata?.full_name || 'Tanečník'
-    const userClub = profile?.club || user.user_metadata?.club || 'Encore Dance Club'
+    // No made-up club: without one the pass simply says it is a member card.
+    const userClub: string | null = profile?.club || user.user_metadata?.club || null
     const inviteCode = profile?.invite_code || user.id.substring(0, 8).toUpperCase()
     // The pass lives for years: always the real domain (the app's universal links), never an env leftover.
     const domain = 'www.encore-sk.com'
@@ -122,8 +123,7 @@ export async function GET(request: NextRequest) {
         // The card theme chosen in the app (Profil → Vzhľad); Karmín when there is none.
         foregroundColor: rgbOr(profile?.card_theme?.foreground_color, 'rgb(255, 230, 153)'),
         backgroundColor: rgbOr(profile?.card_theme?.background_color, 'rgb(102, 3, 18)'),
-        labelColor: rgbOr(profile?.card_theme?.label_color, 'rgb(212, 175, 55)'),
-        logoText: 'ENCORE'
+        labelColor: rgbOr(profile?.card_theme?.label_color, 'rgb(212, 175, 55)')
       }
     )
 
@@ -154,25 +154,21 @@ export async function GET(request: NextRequest) {
       { key: 'website', label: 'Web', value: `https://${domain}` }
     ]
 
-    // iOS 27+: Poster Generic, the card's leather and emblem across the whole pass (background image).
-    // The first primary field has no label, so Wallet shows the name as the bold title.
+    // iOS 27+: Poster Generic, the card's leather with the emblem in a gold sunburst above the QR code
+    // (background image). Only the name as the bold title (a primary field without a label) and the club
+    // in the footer, so the leather stays visible.
     const poster = new PassType('posterGeneric')
     poster.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
-    poster.primaryFields.push(
-      { key: 'member', value: userName },
-      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
-    )
-    poster.footerFields.push({ key: 'kind', value: 'Členská karta' })
+    poster.primaryFields.push({ key: 'member', value: userName })
+    poster.footerFields.push({ key: 'club', value: userClub ?? 'Členská karta' })
     poster.backFields.push(...backFields)
 
     // iOS 26 and earlier: store card with the leather strip. No primary field there: Wallet would print it
     // large across the strip, over the emblem.
     const storeCard = new PassType('storeCard')
     storeCard.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
-    storeCard.secondaryFields.push(
-      { key: 'member', label: 'TANEČNÍK', value: userName },
-      { key: 'club', label: 'TANEČNÝ KLUB', value: userClub }
-    )
+    storeCard.secondaryFields.push({ key: 'member', label: 'TANEČNÍK', value: userName })
+    if (userClub) storeCard.secondaryFields.push({ key: 'club', label: 'TANEČNÝ KLUB', value: userClub })
     storeCard.backFields.push(...backFields)
 
     // Wallet prefers posterGeneric where it knows it and falls back to the store card elsewhere.
@@ -184,16 +180,10 @@ export async function GET(request: NextRequest) {
       { identifier: 'results', type: 'membershipBenefits', url: `https://${domain}/quick/results` }
     ]
 
-    // Load icon and logo images from public folder
+    // Icon from the public folder; the logo is the emblem with the ENCORE wordmark (public/wallet), the
+    // same picture as the poster's primary logo, so no logo text is needed next to it.
     const publicDir = path.join(process.cwd(), 'public')
-    const logoPath = path.join(publicDir, 'encore_logo.png')
     const iconPath = path.join(publicDir, 'logo.png')
-
-    if (fs.existsSync(logoPath)) {
-      const logoBuf = fs.readFileSync(logoPath)
-      pass.addBuffer('logo.png', logoBuf)
-      pass.addBuffer('logo@2x.png', logoBuf)
-    }
 
     if (fs.existsSync(iconPath)) {
       const iconBuf = fs.readFileSync(iconPath)
@@ -216,7 +206,10 @@ export async function GET(request: NextRequest) {
     }
     for (const scale of ['', '@2x', '@3x']) {
       const logoArt = path.join(publicDir, 'wallet', `primaryLogo${scale}.png`)
-      if (fs.existsSync(logoArt)) pass.addBuffer(`primaryLogo${scale}.png`, fs.readFileSync(logoArt))
+      if (!fs.existsSync(logoArt)) continue
+      const logoBuf = fs.readFileSync(logoArt)
+      pass.addBuffer(`primaryLogo${scale}.png`, logoBuf)
+      pass.addBuffer(`logo${scale}.png`, logoBuf)
     }
 
     // Generate signed .pkpass binary buffer
