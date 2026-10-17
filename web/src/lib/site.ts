@@ -61,6 +61,7 @@ export const PLANS: Plan[] = [
       'Súťažný deň: tance v poradí a pri každom tvoje Top 3',
       'Vývoj tréningov za mesiace a sezónu',
       'Strih hodinovej lekcie na jednotlivé figúry',
+      'Vzhľad: ikony appky, motívy karty a rámiky profilovky',
     ],
   },
   {

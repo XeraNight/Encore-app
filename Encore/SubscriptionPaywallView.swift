@@ -43,6 +43,8 @@ public struct SubscriptionPaywallView: View {
                         detail: "Hodiny po týždňoch, mesiace sezóny, tance, ktoré riešiš najviac, a zvládnuté priority."),
                 Feature(icon: "list.number", title: "Súťažný deň",
                         detail: "Tance v poradí a pri každom tvoje Top 3 od trénera. Pred kolom si ich prečítaš za 10 sekúnd."),
+                Feature(icon: "paintpalette.fill", title: "Vzhľad",
+                        detail: "Ikony appky, motívy karty v Encore aj v Apple Peňaženke a rámiky profilovky."),
                 Feature(icon: "scissors", title: "Strih lekcie na figúry",
                         detail: "Hodinové video z lekcie rozdelíš na figúry a uložíš ich k zostave."),
                 coach ? Feature(icon: "key.fill", title: "Kľúče pre hosťujúcich trénerov",

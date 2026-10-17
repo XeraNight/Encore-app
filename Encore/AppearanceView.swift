@@ -18,10 +18,11 @@ struct AppearanceView: View {
             EllegancePageBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    if AppIconChoice.available.count > 1 { iconSection }
                     themeSection
                     frameSection
                     if !hasPlus {
-                        Text("Karmín a profilovka bez rámika sú zadarmo, ostatné motívy a rámiky sú v Plus.")
+                        Text("Karmín a profilovka bez rámika sú zadarmo, ostatné ikony, motívy a rámiky sú v Plus.")
                             .font(.footnote)
                             .foregroundColor(.white.opacity(0.6))
                             .fixedSize(horizontal: false, vertical: true)
@@ -37,8 +38,56 @@ struct AppearanceView: View {
         .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         .sensoryFeedback(.selection, trigger: appearance.chosenTheme)
         .sensoryFeedback(.selection, trigger: appearance.chosenFrame)
-        // Without Plus the server gets the free look back, so Apple Wallet matches what Encore shows.
-        .onAppear { if !hasPlus { appearance.syncToServer() } }
+        .sensoryFeedback(.success, trigger: appearance.appIcon)
+        // Without Plus the free look comes back everywhere, also in Apple Wallet and on the Home Screen.
+        .onAppear { appearance.applyFreeLookIfNeeded() }
+    }
+
+    // MARK: App icon
+    private var iconSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "IKONA APPKY", systemImage: "app.fill")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(AppIconChoice.available) { icon in
+                        iconTile(icon)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .scrollClipDisabled()
+        }
+    }
+
+    private func iconTile(_ icon: AppIconChoice) -> some View {
+        let isOn = appearance.appIcon == icon
+        let locked = !hasPlus && !icon.isFree
+        return Button {
+            if locked { showPaywall = true } else { Task { await appearance.select(icon) } }
+        } label: {
+            VStack(spacing: 8) {
+                if let preview = icon.preview {
+                    Image(uiImage: preview)
+                        .resizable()
+                        .frame(width: 64, height: 64)
+                        .clipShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 15, style: .continuous)
+                                .stroke(isOn ? Color.gold400 : Color.white.opacity(0.12), lineWidth: isOn ? 2.5 : 1)
+                        }
+                        .scaleEffect(isOn ? 1.06 : 1)
+                        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isOn)
+                }
+                HStack(spacing: 3) {
+                    if locked { Image(systemName: "lock.fill").font(.caption2) }
+                    Text(icon.title).font(.caption.weight(isOn ? .bold : .medium))
+                }
+                .foregroundColor(isOn ? Color.gold300 : .white.opacity(0.75))
+            }
+        }
+        .buttonStyle(.pressable(scale: 0.92))
+        .accessibilityLabel("Ikona \(icon.title)")
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
     // MARK: Card

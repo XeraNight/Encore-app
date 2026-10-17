@@ -44,7 +44,7 @@ struct ProfileView: View {
                             .buttonStyle(.pressable(scale: 0.98))
                             HomeRowDivider()
                             NavigationLink { AppearanceView() } label: {
-                                HomeRow(icon: "paintpalette.fill", title: "Vzhľad", subtitle: "Motív karty a rámik profilovky",
+                                HomeRow(icon: "paintpalette.fill", title: "Vzhľad", subtitle: "Ikona appky, motív karty a rámik profilovky",
                                         badge: subscriptionManager.currentTier >= .plus ? nil : "PLUS")
                             }
                             .buttonStyle(.pressable(scale: 0.98))

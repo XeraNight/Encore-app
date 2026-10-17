@@ -17,6 +17,7 @@ KSIS údaje ostávajú zadarmo; platí sa za analýzu a pohodlie, nie za údaje 
 | Zrkadlo, metronóm | ✓ | ✓ | ✓ |
 | Strih lekcie na figúry ✅ 16. 10. (prerobený) | – | ✓ (presun z Free) | ✓ |
 | Natočiť s duchom, duel vedľa seba | ✓ | ✓ | ✓ |
+| Vzhľad: ikony appky, motívy karty (aj Apple Peňaženka), rámiky profilovky ✅ 17. 10. | Karmín | ✓ | ✓ |
 | Porovnanie so vzorom, čiary, korekcie | – | – | ✓ |
 | **Časová os figúry** ✅ 16. 10. | – | – | ✓ |
 

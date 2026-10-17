@@ -67,6 +67,42 @@ enum AvatarFrame: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+/// The app icon. Karmín is the original icon; the others are alternate icon sets in the asset catalog
+/// (they ship only with Build Settings → "Include All App Icon Assets" = Yes on the Encore target).
+enum AppIconChoice: String, CaseIterable, Identifiable {
+    case carmine, obsidian, gold, champagne, midnight
+
+    var id: String { rawValue }
+    var isFree: Bool { self == .carmine }
+
+    var title: String {
+        switch self {
+        case .carmine: return "Karmín"
+        case .obsidian: return "Obsidián"
+        case .gold: return "Zlato"
+        case .champagne: return "Šampanské"
+        case .midnight: return "Polnoc"
+        }
+    }
+
+    /// Nil for the primary icon.
+    var assetName: String? {
+        switch self {
+        case .carmine: return nil
+        case .obsidian: return "AppIcon-Obsidian"
+        case .gold: return "AppIcon-Gold"
+        case .champagne: return "AppIcon-Champagne"
+        case .midnight: return "AppIcon-Midnight"
+        }
+    }
+
+    /// The small icon the system built from the asset catalog; nil when this icon is not in the build.
+    var preview: UIImage? { UIImage(named: "\(assetName ?? "AppIcon")60x60") }
+
+    /// Icons this build really has, so the picker never offers one that cannot be set.
+    static var available: [AppIconChoice] { allCases.filter { $0.preview != nil } }
+}
+
 /// The chosen look. A choice is kept when Plus ends, but the free look is shown until Plus is back.
 @MainActor
 final class AppearanceStore: ObservableObject {
@@ -74,6 +110,7 @@ final class AppearanceStore: ObservableObject {
 
     @Published private(set) var chosenTheme: CardTheme
     @Published private(set) var chosenFrame: AvatarFrame
+    @Published private(set) var appIcon: AppIconChoice
 
     private static let themeKey = "appearance.cardTheme"
     private static let frameKey = "appearance.avatarFrame"
@@ -82,6 +119,26 @@ final class AppearanceStore: ObservableObject {
         let defaults = UserDefaults.standard
         chosenTheme = defaults.string(forKey: Self.themeKey).flatMap(CardTheme.init(rawValue:)) ?? .carmine
         chosenFrame = defaults.string(forKey: Self.frameKey).flatMap(AvatarFrame.init(rawValue:)) ?? .none
+        let current = UIApplication.shared.alternateIconName
+        appIcon = AppIconChoice.allCases.first { $0.assetName == current } ?? .carmine
+    }
+
+    /// iOS confirms the change with its own short message.
+    func select(_ icon: AppIconChoice) async {
+        guard UIApplication.shared.supportsAlternateIcons, icon != appIcon else { return }
+        do {
+            try await UIApplication.shared.setAlternateIconName(icon.assetName)
+            appIcon = icon
+        } catch {
+            Logger.general.error("App icon change failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// Without Plus the original icon comes back; the card and frame fall back on their own (`theme`, `frame`).
+    func applyFreeLookIfNeeded() {
+        guard !hasPlus else { return }
+        syncToServer()
+        if !appIcon.isFree { Task { await select(.carmine) } }
     }
 
     private var hasPlus: Bool { SubscriptionManager.shared.currentTier >= .plus }
