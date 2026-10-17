@@ -67,61 +67,70 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
             guard let url = AppWebsite.url("/api/wallet/pass") else {
                 throw URLError(.badURL)
             }
-            
+
             var request = URLRequest(url: url)
-            request.timeoutInterval = 12.0
-            
-            // Attach Supabase access token for secure user verification
+            request.timeoutInterval = 20.0
+            // The server signs the pass only for the signed-in dancer.
             if let session = try? await SupabaseConfig.client.auth.session {
                 request.setValue("Bearer \(session.accessToken)", forHTTPHeaderField: "Authorization")
             }
-            
+
             let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.badServerResponse)
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            guard status == 200 else {
+                // The server says why (JSON "error" and "message"); show it instead of a generic text.
+                let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+                let code = json?["error"] as? String ?? "http_\(status)"
+                Logger.general.error("Wallet pass refused: \(status, privacy: .public) \(code, privacy: .public)")
+                showProblem(Self.message(for: status, code: code, serverMessage: json?["message"] as? String))
+                isLoadingPass = false
+                return
             }
-            
-            if httpResponse.statusCode == 200 {
+
+            do {
                 let pass = try PKPass(data: data)
                 presentPassViewController(pass: pass)
-            } else if httpResponse.statusCode == 503 {
-                // Certificates not uploaded to Vercel yet
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                   let serverMsg = json["message"] as? String {
-                    self.alertTitle = "Apple Peňaženka – Nastavenie Certifikátov"
-                    self.alertMessage = serverMsg
-                } else {
-                    self.alertTitle = "Apple Peňaženka – Certifikát"
-                    self.alertMessage = "Apple PassKit certifikáty zatiaľ nie sú nahrané na Vercel serveri."
-                }
-                self.showErrorAlert = true
-                HapticFeedback.warning()
-            } else {
-                throw URLError(.badServerResponse)
+            } catch {
+                Logger.general.error("Wallet pass rejected by iOS: \(error.localizedDescription, privacy: .public)")
+                showProblem("Server kartu vytvoril, ale iOS ju neprijal (podpis alebo obrázky karty). Chyba: \(error.localizedDescription)")
             }
         } catch {
             Logger.general.error("Wallet pass fetch failed: \(error.localizedDescription, privacy: .public)")
-            self.errorMessage = "Digitálny lístok vyžaduje Apple PassKit podpisový certifikát."
-            self.alertTitle = "Apple Peňaženka – Stav Nastavenia"
-            self.alertMessage = "Pridanie preukazu do systémovej Apple Peňaženky vyžaduje podpísaný .pkpass súbor s Apple Developer certifikátom. Tvoja Encore karta funguje s plnou platnosťou priamo v aplikácii cez osobný QR kód."
-            self.showErrorAlert = true
-            HapticFeedback.warning()
+            showProblem("Kartu sa nepodarilo stiahnuť. Skontroluj pripojenie a skús to znova.")
         }
-        
+
         isLoadingPass = false
     }
     
+    private func showProblem(_ message: String) {
+        alertTitle = "Kartu sa nepodarilo pridať"
+        alertMessage = message
+        errorMessage = message
+        showErrorAlert = true
+        HapticFeedback.warning()
+    }
+
+    /// Readable reasons for what the pass endpoint answers.
+    static func message(for status: Int, code: String, serverMessage: String?) -> String {
+        switch (status, code) {
+        case (401, _):
+            return "Server ťa neoveril (\(code)). Odhlás sa a prihlás znova, potom to skús ešte raz."
+        case (503, _):
+            return "Na serveri ešte nie sú certifikáty pre Apple Peňaženku."
+        default:
+            let reason = serverMessage.map { " \($0)" } ?? ""
+            return "Server kartu nevytvoril (\(status), \(code)).\(reason)"
+        }
+    }
+
+    /// Shown over whatever is on top (the card screen can sit in a sheet or a navigation stack).
     private func presentPassViewController(pass: PKPass) {
-        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let rootVC = windowScene.windows.first?.rootViewController else {
+        guard let top = UIViewController.topMost(), let passVC = PKAddPassesViewController(pass: pass) else {
+            showProblem("Apple Peňaženku sa nepodarilo otvoriť.")
             return
         }
-        
-        let passVC = PKAddPassesViewController(pass: pass)
-        passVC?.delegate = self
-        if let passVC = passVC {
-            rootVC.present(passVC, animated: true)
-        }
+        passVC.delegate = self
+        top.present(passVC, animated: true)
     }
 }
 
