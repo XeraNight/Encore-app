@@ -16,43 +16,23 @@ public struct LuxuryTheme {
     public static let syncEmerald   = Color(red: 16/255, green: 185/255, blue: 129/255)  // #10B981
 }
 
-// MARK: - 0. Encore Stage Spotlight Background (Red Velvet Ballroom Spotlight)
+// MARK: - 0. Encore Velvet Background
+/// Crimson velvet with grain and a soft stage light above the middle. The light and the dark edges are in
+/// the picture itself (scripts/velvet_background.py), so nothing on top dulls the colour.
 public struct EllegancePageBackground: View {
     public init() {}
-    
+
     public var body: some View {
         GeometryReader { proxy in
             ZStack {
-                // Base Deep Burgundy / Crimson fallback
+                // Shown until the picture is decoded.
                 Color(red: 0.16, green: 0.02, blue: 0.04)
-                
-                // The Rich Red Velvet Stage Backdrop with Spotlight
-                Image("EncoreStageBackground")
+
+                Image("EncoreVelvetBackground")
                     .resizable()
                     .aspectRatio(contentMode: .fill)
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .clipped()
-                
-                // Ambient radial + linear vignette to maintain flawless contrast (WCAG AA)
-                RadialGradient(
-                    colors: [
-                        Color.clear,
-                        Color.black.opacity(0.30)
-                    ],
-                    center: .center,
-                    startRadius: 160,
-                    endRadius: 500
-                )
-                
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.20),
-                        Color.clear,
-                        Color.black.opacity(0.40)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
             }
         }
         .ignoresSafeArea()
