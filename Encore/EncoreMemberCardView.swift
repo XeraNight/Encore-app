@@ -183,18 +183,11 @@ struct EncoreMemberCardView: View {
         .sheet(isPresented: $friendManager.showInviteSheet) {
             FriendInviteModalSheet()
         }
-        // Apple Wallet Informative Alert Dialog
-        .alert(isPresented: $walletManager.showErrorAlert) {
-            Alert(
-                title: Text(walletManager.alertTitle),
-                message: Text(walletManager.alertMessage),
-                primaryButton: .default(Text("Otvoriť webovú kartu")) {
-                    if let url = walletManager.fallbackURL {
-                        UIApplication.shared.open(url)
-                    }
-                },
-                secondaryButton: .cancel(Text("Rozumiem"))
-            )
+        // Why the card could not go to Apple Wallet; the card itself only ever lives in Wallet and here.
+        .alert(walletManager.alertTitle, isPresented: $walletManager.showErrorAlert) {
+            Button("Rozumiem", role: .cancel) {}
+        } message: {
+            Text(walletManager.alertMessage)
         }
         .task(id: targetQRString) {
             let link = targetQRString

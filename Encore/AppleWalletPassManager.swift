@@ -18,7 +18,6 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
     @Published var showErrorAlert = false
     @Published var alertTitle = "Apple Peňaženka"
     @Published var alertMessage = ""
-    @Published var fallbackURL: URL? = nil
     
     private let passTypeIdentifier = "pass.com.jakub.encore"
 
@@ -61,7 +60,6 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
         
         isLoadingPass = true
         errorMessage = nil
-        fallbackURL = URL(string: FriendManager.shared.buildMemberCardURL())
         
         do {
             guard let url = AppWebsite.url("/api/wallet/pass") else {
