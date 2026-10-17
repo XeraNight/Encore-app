@@ -82,10 +82,25 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Decode PEM certificates
-    const signerCert = Buffer.from(passCertB64, 'base64').toString('utf-8')
-    const signerKey = Buffer.from(passKeyB64, 'base64').toString('utf-8')
-    const wwdr = Buffer.from(wwdrCertB64, 'base64').toString('utf-8')
+    // Certificates and key: base64 of the .pem file, or the .pem text itself. A wrong value is named
+    // (never shown), so it can be fixed in Vercel.
+    const signerCert = pemFrom(passCertB64, /-----BEGIN CERTIFICATE-----/)
+    const signerKey = pemFrom(passKeyB64, /-----BEGIN (RSA |ENCRYPTED )?PRIVATE KEY-----/)
+    const wwdr = pemFrom(wwdrCertB64, /-----BEGIN CERTIFICATE-----/)
+    const invalid = [
+      signerCert ? null : 'APPLE_PASS_CERT_BASE64',
+      signerKey ? null : 'APPLE_PASS_KEY_BASE64',
+      wwdr ? null : 'APPLE_WWDR_CERT_BASE64',
+    ].filter(Boolean)
+    if (!signerCert || !signerKey || !wwdr) {
+      return NextResponse.json(
+        {
+          error: 'pass_config_invalid',
+          message: `Vo Verceli nie je platná hodnota: ${invalid.join(', ')}. Vlož výstup príkazu base64 -i <súbor.pem> | pbcopy.`,
+        },
+        { status: 500 }
+      )
+    }
     const signerKeyPassphrase = process.env.APPLE_PASS_PASSPHRASE || undefined
 
     // Instantiate PKPass generator
@@ -196,6 +211,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+/** The PEM text from an env value that holds either base64 of the .pem file or the text itself. */
+function pemFrom(value: string, header: RegExp): string | null {
+  const text = value.includes('-----BEGIN')
+    ? value.replace(/\\n/g, '\n')
+    : Buffer.from(value.replace(/\s/g, ''), 'base64').toString('utf-8')
+  return header.test(text) ? text : null
 }
 
 /** Only a plain "rgb(r, g, b)" from the profile reaches the pass; anything else falls back. */
