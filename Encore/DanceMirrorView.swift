@@ -86,10 +86,7 @@ public struct DanceMirrorView: View {
                         .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
                 Spacer()
-                if isLightOn && showsLightPanel {
-                    lightPanel
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
-                } else if showsHint && cameraManager.isCameraAvailable {
+                if showsHint && cameraManager.isCameraAvailable {
                     Text("Ťukni pre zaostrenie · roztiahni prsty alebo ťukni dvakrát pre priblíženie")
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(.white)
@@ -98,8 +95,12 @@ public struct DanceMirrorView: View {
                         .padding(.vertical, 8)
                         .glassEffect(.regular, in: .capsule)
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 28)
                         .transition(.opacity)
+                }
+                lightControls
+                if isLightOn && showsLightPanel {
+                    lightPanel
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
         }
@@ -133,17 +134,19 @@ public struct DanceMirrorView: View {
 
     // MARK: Top bar
     private var topBar: some View {
-        HStack(spacing: 10) {
+        HStack {
             LiquidGlassCircleButton(icon: "xmark", label: "Zavrieť") { dismiss() }
             Spacer()
-            if isLightOn {
-                LiquidGlassCircleButton(
-                    icon: "slider.horizontal.3",
-                    label: showsLightPanel ? "Skryť nastavenie svetla" : "Nastaviť svetlo",
-                    isActive: showsLightPanel
-                ) { showsLightPanel.toggle() }
-                .transition(.scale(scale: 0.6).combined(with: .opacity))
-            }
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+    }
+
+    // MARK: Light controls
+    /// At the bottom, in reach of the thumb. They rise above the light settings while those are open and
+    /// drop back when they close (the VStack moves them, animated by `showsLightPanel`).
+    private var lightControls: some View {
+        HStack(spacing: 14) {
             LiquidGlassCircleButton(
                 icon: isLightOn ? "sun.max.fill" : "sun.max",
                 label: isLightOn ? "Vypnúť svetlo" : "Zapnúť svetlo",
@@ -152,9 +155,16 @@ public struct DanceMirrorView: View {
                 setLight(!isLightOn)
                 showsLightPanel = isLightOn
             }
+            if isLightOn {
+                LiquidGlassCircleButton(
+                    icon: "slider.horizontal.3",
+                    label: showsLightPanel ? "Skryť nastavenie svetla" : "Nastaviť svetlo",
+                    isActive: showsLightPanel
+                ) { showsLightPanel.toggle() }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
+        .padding(.bottom, isLightOn && showsLightPanel ? 0 : 28)
     }
 
     // MARK: Light settings
