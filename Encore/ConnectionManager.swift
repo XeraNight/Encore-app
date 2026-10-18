@@ -14,6 +14,8 @@ public final class ConnectionManager: ObservableObject {
     @Published public var activeCoaches: [DancerConnection] = []
     @Published public var incomingRequests: [DancerConnection] = []
     @Published public var outgoingRequests: [DancerConnection] = []
+    /// Dancers I blocked (App Review 1.2), shown with "Odblokovať".
+    @Published public private(set) var blockedDancers: [DancerSearchResult] = []
     
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
@@ -44,6 +46,7 @@ public final class ConnectionManager: ObservableObject {
         activeCoaches = []
         incomingRequests = []
         outgoingRequests = []
+        blockedDancers = []
         errorMessage = nil
     }
     
@@ -74,42 +77,18 @@ public final class ConnectionManager: ObservableObject {
                 .execute()
                 .value
             
-            // Gather all other user IDs to batch fetch their profiles
-            var otherUserIds = Set<UUID>()
-            for row in rawList {
-                let other = row.user_a_id == myId ? row.user_b_id : row.user_a_id
-                otherUserIds.insert(other)
+            // Names and photos of the people in these rows and of blocked dancers. Profiles are private, so a
+            // server function returns just these people (related_profiles).
+            let related: [DancerSearchResult] = try await client.rpc("related_profiles").execute().value
+            let profilesDict = Dictionary(related.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            struct BlockRow: Decodable { let blocked_id: UUID }
+            let blocks: [BlockRow] = try await client.from("user_blocks").select("blocked_id").execute().value
+            self.blockedDancers = blocks.map {
+                profilesDict[$0.blocked_id]
+                    ?? DancerSearchResult(id: $0.blocked_id, dancerCode: "", fullName: "Tanečník", club: "", avatarUrl: nil)
             }
-            
-            // Fetch profiles for other users
-            var profilesDict: [UUID: DancerSearchResult] = [:]
-            if !otherUserIds.isEmpty {
-                struct ProfileDTO: Decodable {
-                    let id: UUID
-                    let dancer_code: String?
-                    let full_name: String?
-                    let club: String?
-                    let avatar_url: String?
-                }
-                
-                let profiles: [ProfileDTO] = try await client
-                    .from("profiles")
-                    .select("id, dancer_code, full_name, club, avatar_url")
-                    .in("id", values: Array(otherUserIds))
-                    .execute()
-                    .value
-                
-                for p in profiles {
-                    profilesDict[p.id] = DancerSearchResult(
-                        id: p.id,
-                        dancerCode: p.dancer_code ?? "DNC-0000",
-                        fullName: p.full_name ?? "Tanečník",
-                        club: p.club ?? "",
-                        avatarUrl: p.avatar_url
-                    )
-                }
-            }
-            
+
             let iso = ISO8601DateFormatter()
             iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
@@ -235,10 +214,15 @@ public final class ConnectionManager: ObservableObject {
             initiated_by: myId
         )
         
-        try await client
-            .from("connections")
-            .upsert(payload)
-            .execute()
+        do {
+            try await client
+                .from("connections")
+                .upsert(payload)
+                .execute()
+        } catch let error as PostgrestError where error.code == "42501" {
+            // Refused on the server (for example a block either way); the reason is not revealed.
+            throw NSError(domain: "Encore", code: 403, userInfo: [NSLocalizedDescriptionKey: "Žiadosť sa nedá poslať."])
+        }
         
         await fetchAllConnections()
     }
@@ -328,6 +312,47 @@ public final class ConnectionManager: ObservableObject {
         await fetchAllConnections()
     }
     
+    // MARK: - Block (App Review 1.2)
+    /// Ends every connection and request with the dancer, refuses new ones either way and hides both from
+    /// each other's search (user_blocks, enforced on the server). The other dancer is not told.
+    public func block(_ dancerId: UUID) async throws {
+        guard let myId = AuthManager.shared.currentUser?.id else { return }
+        let client = SupabaseConfig.client
+
+        struct BlockDTO: Encodable {
+            let blocker_id: UUID
+            let blocked_id: UUID
+        }
+        try await client
+            .from("user_blocks")
+            .upsert(BlockDTO(blocker_id: myId, blocked_id: dancerId), onConflict: "blocker_id,blocked_id", ignoreDuplicates: true)
+            .execute()
+
+        struct UpdateDTO: Encodable {
+            let status: String
+            let updated_at: String
+        }
+        try await client
+            .from("connections")
+            .update(UpdateDTO(status: ConnectionStatus.revoked.rawValue, updated_at: ISO8601DateFormatter().string(from: Date())))
+            .in("status", values: [ConnectionStatus.pending.rawValue, ConnectionStatus.accepted.rawValue])
+            .or("and(user_a_id.eq.\(myId),user_b_id.eq.\(dancerId)),and(user_a_id.eq.\(dancerId),user_b_id.eq.\(myId))")
+            .execute()
+
+        await fetchAllConnections()
+    }
+
+    public func unblock(_ dancerId: UUID) async throws {
+        guard let myId = AuthManager.shared.currentUser?.id else { return }
+        try await SupabaseConfig.client
+            .from("user_blocks")
+            .delete()
+            .eq("blocker_id", value: myId)
+            .eq("blocked_id", value: dancerId)
+            .execute()
+        await fetchAllConnections()
+    }
+
     // MARK: - Search Dancers (RPC search_dancers)
     public func searchDancers(query: String) async -> [DancerSearchResult] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -349,40 +374,8 @@ public final class ConnectionManager: ObservableObject {
             let myId = AuthManager.shared.currentUser?.id
             return res.filter { $0.id != myId }
         } catch {
-            Logger.general.notice("search_dancers RPC fallback: \(error.localizedDescription, privacy: .public)")
-            
-            // Direct query fallback if RPC function is not yet deployed
-            do {
-                struct SearchFallbackDTO: Decodable {
-                    let id: UUID
-                    let dancer_code: String?
-                    let full_name: String?
-                    let club: String?
-                    let avatar_url: String?
-                }
-                
-                let res: [SearchFallbackDTO] = try await client
-                    .from("profiles")
-                    .select("id, dancer_code, full_name, club, avatar_url")
-                    .or("dancer_code.ilike.%\(trimmed)%,full_name.ilike.%\(trimmed)%")
-                    .limit(10)
-                    .execute()
-                    .value
-                
-                let myId = AuthManager.shared.currentUser?.id
-                return res.compactMap {
-                    guard $0.id != myId else { return nil }
-                    return DancerSearchResult(
-                        id: $0.id,
-                        dancerCode: $0.dancer_code ?? "DNC-0000",
-                        fullName: $0.full_name ?? "Tanečník",
-                        club: $0.club ?? "",
-                        avatarUrl: $0.avatar_url
-                    )
-                }
-            } catch {
-                return []
-            }
+            Logger.general.notice("search_dancers failed: \(error.localizedDescription, privacy: .public)")
+            return []
         }
     }
 }

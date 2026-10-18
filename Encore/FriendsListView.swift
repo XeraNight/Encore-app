@@ -35,6 +35,8 @@ struct FriendsListView: View {
     @State private var connectionToRevoke: DancerConnection? = nil
     @State private var showRevokeConfirmation = false
     @State private var showReportFallback = false
+    /// The dancer about to be blocked (App Review 1.2), from a connection or a request.
+    @State private var blockTarget: DancerConnection?
     @State private var actionCount = 0
     @Environment(\.openURL) private var openURL
 
@@ -98,6 +100,22 @@ struct FriendsListView: View {
             }
         } message: {
             Text("Stratí prístup k vašim spoločným zostavám a poznámkam. Prepojiť sa môžete kedykoľvek znova.")
+        }
+        .confirmationDialog(
+            "Zablokovať?",
+            isPresented: Binding(get: { blockTarget != nil }, set: { if !$0 { blockTarget = nil } }),
+            titleVisibility: .visible,
+            presenting: blockTarget
+        ) { conn in
+            Button("Zablokovať \(conn.otherUserName)", role: .destructive) {
+                Task {
+                    try? await connectionManager.block(conn.otherUserId)
+                    actionCount += 1
+                }
+            }
+            Button("Zrušiť", role: .cancel) {}
+        } message: { _ in
+            Text("Prepojenie sa zruší, nebude ti môcť poslať žiadosť a nenájdete sa vo vyhľadávaní. Nedozvie sa to. Odblokovať môžeš v časti Žiadosti.")
         }
         .alert("Nahlásenie používateľa", isPresented: $showReportFallback) {
             Button("Rozumiem", role: .cancel) {}
@@ -346,6 +364,46 @@ struct FriendsListView: View {
                 actionTitle: "Pridať prepojenie"
             )
         }
+
+        if !connectionManager.blockedDancers.isEmpty {
+            HomeSectionHeader(title: "ZABLOKOVANÍ", count: connectionManager.blockedDancers.count)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
+            ForEach(connectionManager.blockedDancers) { dancer in
+                blockedRow(dancer)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+    }
+
+    private func blockedRow(_ dancer: DancerSearchResult) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(dancer.fullName)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                if !dancer.dancerCode.isEmpty {
+                    Text(dancer.dancerCode)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            Spacer()
+            Button("Odblokovať") {
+                Task {
+                    try? await connectionManager.unblock(dancer.id)
+                    actionCount += 1
+                }
+            }
+            .font(.footnote.weight(.semibold))
+            .foregroundColor(.white.opacity(0.8))
+            .padding(.horizontal, 12)
+            .frame(minHeight: 34)
+            .background(Color.white.opacity(0.08), in: Capsule())
+            .buttonStyle(.pressable)
+        }
+        .padding(12)
+        .homeCard(cornerRadius: 14)
     }
 
     // MARK: Rows
@@ -390,6 +448,11 @@ struct FriendsListView: View {
                 } label: {
                     Label("Nahlásiť používateľa", systemImage: "flag")
                 }
+                Button(role: .destructive) {
+                    blockTarget = conn
+                } label: {
+                    Label("Zablokovať", systemImage: "hand.raised")
+                }
             } label: {
                 GlassCircleLabel(icon: "ellipsis", size: 36)
             }
@@ -415,6 +478,22 @@ struct FriendsListView: View {
                         .font(.caption)
                         .foregroundColor(Color.gold300)
                 }
+                Spacer(minLength: 4)
+                Menu {
+                    Button {
+                        report(req)
+                    } label: {
+                        Label("Nahlásiť používateľa", systemImage: "flag")
+                    }
+                    Button(role: .destructive) {
+                        blockTarget = req
+                    } label: {
+                        Label("Zablokovať", systemImage: "hand.raised")
+                    }
+                } label: {
+                    GlassCircleLabel(icon: "ellipsis", size: 36)
+                }
+                .accessibilityLabel("Možnosti pre \(req.otherUserName)")
             }
 
             HStack(spacing: 10) {

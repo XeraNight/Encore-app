@@ -148,6 +148,16 @@ public struct DancerSearchResult: Identifiable, Codable, Sendable, Equatable {
         self.club = club
         self.avatarUrl = avatarUrl
     }
+
+    /// A dancer without a club or code yet (null on the server) must not drop the whole list.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        dancerCode = try container.decodeIfPresent(String.self, forKey: .dancerCode) ?? ""
+        fullName = try container.decodeIfPresent(String.self, forKey: .fullName) ?? "Tanečník"
+        club = try container.decodeIfPresent(String.self, forKey: .club) ?? ""
+        avatarUrl = try container.decodeIfPresent(String.self, forKey: .avatarUrl)
+    }
 }
 
 // MARK: - Connection Invite Payload (pre QR kód a Deep link)
