@@ -180,8 +180,8 @@ export async function GET(request: NextRequest) {
       { identifier: 'results', type: 'membershipBenefits', url: `https://${domain}/quick/results` }
     ]
 
-    // Icon from the public folder; the logo is the emblem with the ENCORE wordmark (public/wallet), the
-    // same picture as the poster's primary logo, so no logo text is needed next to it.
+    // Icon from the public folder. No logo: the older store card stays clean at the top left (the emblem is
+    // in its strip) and the poster shows its own primary logo.
     const publicDir = path.join(process.cwd(), 'public')
     const iconPath = path.join(publicDir, 'logo.png')
 
@@ -206,10 +206,7 @@ export async function GET(request: NextRequest) {
     }
     for (const scale of ['', '@2x', '@3x']) {
       const logoArt = path.join(publicDir, 'wallet', `primaryLogo${scale}.png`)
-      if (!fs.existsSync(logoArt)) continue
-      const logoBuf = fs.readFileSync(logoArt)
-      pass.addBuffer(`primaryLogo${scale}.png`, logoBuf)
-      pass.addBuffer(`logo${scale}.png`, logoBuf)
+      if (fs.existsSync(logoArt)) pass.addBuffer(`primaryLogo${scale}.png`, fs.readFileSync(logoArt))
     }
 
     // Generate signed .pkpass binary buffer
