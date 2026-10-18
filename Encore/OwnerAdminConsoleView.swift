@@ -2,590 +2,396 @@ import SwiftUI
 import Supabase
 import OSLog
 
-// MARK: - Owner Admin Console (God-Mode Management for App Owner)
+// MARK: - Owner Admin Console
+/// Gift a plan, find a dancer and ban or unban an account. Only the owner sees it (server `is_app_owner()`),
+/// and every action is checked again on the server (RLS and owner functions), so the screen grants nothing
+/// by itself. Moderation tool for App Review 1.2; described in the review notes (2.5.19).
 struct OwnerAdminConsoleView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @ObservedObject private var authManager = AuthManager.shared
-    
-    enum AdminMode: String, CaseIterable {
-        case directEmail = "Podľa e-mailu"
-        case searchProfile = "Vyhľadať profil"
-    }
-    
-    @State private var adminMode: AdminMode = .directEmail
-    @State private var directEmail: String = ""
-    @State private var searchQuery: String = ""
-    @State private var isSearching: Bool = false
+
+    enum Mode: Hashable { case search, email }
+
+    @State private var mode: Mode = .search
+    @State private var directEmail = ""
+    @State private var searchQuery = ""
+    @State private var isSearching = false
+    @State private var hasSearched = false
+    @State private var searchFailed = false
     @State private var searchResults: [AdminUserSearchItem] = []
-    @State private var selectedUser: AdminUserSearchItem? = nil
-    
-    // Grant Form States
+    @State private var selectedUserId: UUID?
+
     @State private var grantTier: SubscriptionTier = .premium
-    @State private var grantDurationMonths: Int = 0 // 0 = Doživotne (Lifetime)
-    @State private var grantNote: String = "VIP Darovanie od majiteľa"
-    @State private var isActionInProgress: Bool = false
-    @State private var statusAlertMessage: String? = nil
-    @State private var showStatusAlert: Bool = false
-    
-    // Ban Form States
-    @State private var showBanDialog: Bool = false
-    @State private var banReasonText: String = "Porušenie pravidiel komunity"
-    
+    @State private var grantDurationMonths = 0   // 0 = navždy
+    @State private var grantNote = "Darované od majiteľa"
+    @State private var isActionInProgress = false
+    @State private var statusMessage: String?
+    @State private var successCount = 0
+
+    @State private var banReasonText = "Porušenie pravidiel komunity"
+    @State private var userToBan: AdminUserSearchItem?
+
+    private var selectedUser: AdminUserSearchItem? {
+        searchResults.first { $0.id == selectedUserId }
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
-                Color.obsidian900.ignoresSafeArea()
-                
+                EllegancePageBackground()
                 ScrollView {
-                    VStack(spacing: 20) {
-                        // 1. Owner Status Card
-                        ownerHeaderCard
-                        
-                        // 2. Mode Switcher
-                        Picker("Režim administrácie", selection: $adminMode) {
-                            ForEach(AdminMode.allCases, id: \.self) { mode in
-                                Text(mode.rawValue).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        
-                        // 3. Mode Content
-                        if adminMode == .directEmail {
-                            directEmailGrantSection
-                        } else {
-                            userSearchSection
-                            
+                    VStack(alignment: .leading, spacing: 20) {
+                        ownerHeader
+                        PlannerChoice(options: [(Mode.search, "Hľadať človeka"), (Mode.email, "Podľa e-mailu")],
+                                      selection: $mode)
+                        if mode == .search {
+                            searchSection
                             if let user = selectedUser {
-                                userManagementCard(for: user)
+                                userCard(user)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
+                        } else {
+                            emailGrantSection
+                                .transition(.opacity)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 16)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 40)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: mode)
+                    .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedUserId)
                 }
+                .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Majiteľská konzola")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Zavrieť") {
-                        dismiss()
-                    }
-                    .foregroundColor(Color.gold400)
+                    Button("Zavrieť") { dismiss() }
                 }
             }
-            .alert("Admin Oznam", isPresented: $showStatusAlert) {
+            .alert("Konzola", isPresented: Binding(get: { statusMessage != nil }, set: { if !$0 { statusMessage = nil } })) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text(statusAlertMessage ?? "")
+                Text(statusMessage ?? "")
             }
+            .confirmationDialog(
+                "Zablokovať účet?",
+                isPresented: Binding(get: { userToBan != nil }, set: { if !$0 { userToBan = nil } }),
+                titleVisibility: .visible,
+                presenting: userToBan
+            ) { user in
+                Button("Zablokovať \(user.name)", role: .destructive) { setBan(true, for: user) }
+                Button("Zrušiť", role: .cancel) {}
+            } message: { _ in
+                Text("Odhlási sa na všetkých zariadeniach a už sa neprihlási. Dá sa to vrátiť tlačidlom Odblokovať.")
+            }
+            .task(id: searchQuery) {
+                // Searches as you type, after a short pause (a new letter cancels the previous search).
+                try? await Task.sleep(for: .milliseconds(350))
+                guard !Task.isCancelled else { return }
+                await search()
+            }
+            .sensoryFeedback(.success, trigger: successCount)
+            .sensoryFeedback(.selection, trigger: selectedUserId)
         }
+        .preferredColorScheme(.dark)
     }
-    
-    // MARK: - Owner Header Card
-    private var ownerHeaderCard: some View {
+
+    // MARK: Header
+    private var ownerHeader: some View {
         HStack(spacing: 14) {
-            ZStack {
-                Circle()
-                    .fill(Color.gold500.opacity(0.18))
-                    .frame(width: 48, height: 48)
-                
-                Image(systemName: "crown.fill")
-                    .font(.system(size: 22))
-                    .foregroundColor(Color.gold400)
-            }
-            
+            Image(systemName: "crown.fill")
+                .font(.title3)
+                .foregroundColor(Color.gold400)
+                .frame(width: 48, height: 48)
+                .background(Color.gold500.opacity(0.16), in: Circle())
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text("SuperAdmin Prístup")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text("MAJITEĽ")
-                        .font(.system(size: 10, weight: .black))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.gold400)
-                        .foregroundColor(.black)
-                        .cornerRadius(6)
-                }
-                
+                Text("MAJITEĽ")
+                    .font(.system(.caption, design: .rounded).weight(.black))
+                    .tracking(1.4)
+                    .foregroundColor(Color.gold400)
                 Text(authManager.userEmail)
-                    .font(.system(size: 12))
-                    .foregroundColor(.white.opacity(0.6))
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.7))
+                    .lineLimit(1)
             }
-            
             Spacer()
         }
         .padding(16)
-        .background(Color.white.opacity(0.06))
-        .cornerRadius(18)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.gold500.opacity(0.3), lineWidth: 1))
+        .homeCard(cornerRadius: 20)
     }
-    
-    // MARK: - Direct Email Grant Section
-    private var directEmailGrantSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 8) {
-                Image(systemName: "envelope.badge.shield.half.filled")
-                    .foregroundColor(Color.gold400)
-                    .font(.system(size: 16, weight: .bold))
-                Text("Priame VIP udelenie cez E-mail")
-                    .font(.system(size: 15, weight: .bold, design: .rounded))
-                    .foregroundColor(.white)
-            }
-            
-            Text("Zadaj e-mail kamaráta, partnerky alebo trénera. Po potvrdení sa mu okamžite odomkne zvolený plán bez platenia.")
-                .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.65))
-                .lineSpacing(2)
 
-            VStack(alignment: .leading, spacing: 6) {
-                Text("E-mail používateľa v Encore")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color.gold400)
-                
-                TextField("napr. meno@domena.sk", text: $directEmail)
-                    .font(.system(size: 14))
-                    .foregroundColor(.white)
-                    .padding(12)
-                    .background(Color.white.opacity(0.08))
-                    .cornerRadius(10)
-                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.15), lineWidth: 1))
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .keyboardType(.emailAddress)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Úroveň predplatného")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color.gold400)
-                
-                Picker("Plán", selection: $grantTier) {
-                    Text("Premium (VIP)").tag(SubscriptionTier.premium)
-                    Text("Plus").tag(SubscriptionTier.plus)
-                    Text("Free (Zrušiť VIP)").tag(SubscriptionTier.free)
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Trvanie prístupu")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color.gold400)
-                
-                Picker("Trvanie", selection: $grantDurationMonths) {
-                    Text("Doživotne").tag(0)
-                    Text("1 Rok").tag(12)
-                    Text("6 Mesiacov").tag(6)
-                    Text("1 Mesiac").tag(1)
-                }
-                .pickerStyle(.segmented)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Interná poznámka")
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundColor(Color.gold400)
-                
-                TextField("Poznámka (napr. Skúšobný účet / VIP kamarát)", text: $grantNote)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white)
-                    .padding(10)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(8)
-            }
-
-            Button {
-                executeDirectEmailGrant()
-            } label: {
-                HStack(spacing: 8) {
-                    if isActionInProgress {
-                        ProgressView().tint(Color.black)
-                    } else {
-                        Image(systemName: "crown.fill")
-                        Text("Udeliť VIP Prístup")
-                    }
-                }
-                .font(.system(size: 14, weight: .bold, design: .rounded))
-                .foregroundColor(Color.black)
-                .frame(maxWidth: .infinity)
-                .frame(height: 46)
-                .background(
-                    LinearGradient(
-                        colors: [Color.gold400, Color.gold500],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .cornerRadius(12)
-            }
-            .disabled(isActionInProgress || directEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            .opacity(directEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? 0.6 : 1.0)
-        }
-        .padding(16)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(18)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.gold500.opacity(0.25), lineWidth: 1))
-    }
-    
-    // MARK: - User Search Section
-    private var userSearchSection: some View {
+    // MARK: Search
+    private var searchSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Vyhľadať používateľa")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundColor(.white.opacity(0.9))
-            
-            HStack(spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.white.opacity(0.5))
-                
-                TextField("Meno, ID tanečníka alebo e-mail", text: $searchQuery)
-                    .foregroundColor(.white)
-                    .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
-                    .onSubmit {
-                        performSearch()
-                    }
-                
-                if isSearching {
-                    ProgressView()
-                        .tint(Color.gold400)
-                } else if !searchQuery.isEmpty {
-                    Button {
-                        searchQuery = ""
-                        searchResults = []
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.white.opacity(0.5))
-                    }
+            HomeSectionHeader(title: "POUŽÍVATELIA", systemImage: "magnifyingglass")
+            PlannerTextField(placeholder: "Meno, ID tanečníka, klub alebo e-mail", text: $searchQuery,
+                             systemImage: "magnifyingglass")
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            if isSearching {
+                ProgressView()
+                    .tint(Color.gold400)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            } else if searchFailed {
+                hint("Vyhľadávanie zlyhalo. Skontroluj pripojenie.")
+            } else if hasSearched && searchResults.isEmpty {
+                hint("Nikto sa nenašiel.")
+            }
+            ForEach(searchResults) { item in
+                resultRow(item)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+    }
+
+    private func resultRow(_ item: AdminUserSearchItem) -> some View {
+        let isOn = item.id == selectedUserId
+        return Button {
+            selectedUserId = isOn ? nil : item.id
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(item.name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                    Text([item.dancerCode, item.club, item.email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                if item.isBanned {
+                    badge("ZABLOKOVANÝ", color: Color.latinRed)
+                } else if item.tier != .free {
+                    badge(item.tier.title.uppercased(), color: Color.gold400)
                 }
             }
             .padding(12)
-            .background(Color.white.opacity(0.08))
-            .cornerRadius(12)
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.white.opacity(0.15), lineWidth: 1))
-            
-            // Search Results List
-            if !searchResults.isEmpty {
-                VStack(spacing: 8) {
-                    ForEach(searchResults) { item in
-                        Button {
-                            withAnimation(.spring(response: 0.3)) {
-                                selectedUser = item
-                            }
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.name)
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundColor(.white)
-                                    
-                                    HStack(spacing: 6) {
-                                        if let code = item.dancerCode {
-                                            Text(code)
-                                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                                .foregroundColor(Color.amberGold)
-                                        }
-                                        if let club = item.club, !club.isEmpty {
-                                            Text("• \(club)")
-                                                .font(.system(size: 11))
-                                                .foregroundColor(.white.opacity(0.6))
-                                        }
-                                    }
-                                }
-                                
-                                Spacer()
-                                
-                                if item.accountStatus == "banned" {
-                                    Text("ZABLOKOVANÝ")
-                                        .font(.system(size: 10, weight: .black))
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                        .background(Color.red.opacity(0.2))
-                                        .foregroundColor(.red)
-                                        .cornerRadius(6)
-                                } else {
-                                    Text(selectedUser?.id == item.id ? "Vybraný" : "Zvoliť")
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundColor(Color.gold400)
-                                }
-                            }
-                            .padding(12)
-                            .background(selectedUser?.id == item.id ? Color.gold400.opacity(0.15) : Color.white.opacity(0.04))
-                            .cornerRadius(10)
-                        }
-                    }
-                }
-                .padding(.top, 4)
-            }
+            .homeCard(cornerRadius: 16)
+            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(isOn ? Color.gold400.opacity(0.55) : .clear, lineWidth: 1))
         }
-        .padding(16)
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(18)
+        .buttonStyle(.pressable(scale: 0.98))
+        .accessibilityAddTraits(isOn ? .isSelected : [])
     }
-    
-    // MARK: - Selected User Management Card
-    private func userManagementCard(for user: AdminUserSearchItem) -> some View {
+
+    // MARK: Selected user
+    private func userCard(_ user: AdminUserSearchItem) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(user.name)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
-                    
-                    Text("ID: \(user.id.uuidString)")
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.white.opacity(0.5))
-                }
-                
-                Spacer()
-                
-                Button {
-                    selectedUser = nil
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.white.opacity(0.6))
-                }
+            VStack(alignment: .leading, spacing: 4) {
+                Text(user.name)
+                    .font(.title3.weight(.bold))
+                    .foregroundColor(.white)
+                Text(user.planText)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                Text(user.id.uuidString)
+                    .font(.caption2.monospaced())
+                    .foregroundColor(.white.opacity(0.45))
+                    .textSelection(.enabled)
             }
-            
-            Divider().background(Color.white.opacity(0.15))
-            
-            // Tier Grant Controls
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Udeliť prémiový prístup (Comped VIP)", systemImage: "gift.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Color.gold400)
-                
-                // Tier Picker
-                Picker("Plán", selection: $grantTier) {
-                    Text("Premium (€14.99)").tag(SubscriptionTier.premium)
-                    Text("Plus (€5.99)").tag(SubscriptionTier.plus)
-                    Text("Free (Zrušiť VIP)").tag(SubscriptionTier.free)
+
+            HomeSectionHeader(title: "DAROVAŤ PLÁN", systemImage: "gift.fill")
+            grantForm(actionTitle: "Udeliť \(user.name)") { grant(to: user) }
+
+            HomeSectionHeader(title: "MODERÁCIA", systemImage: "shield.lefthalf.filled")
+            if user.isBanned {
+                Button { setBan(false, for: user) } label: {
+                    Label("Odblokovať účet", systemImage: "lock.open.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .pickerStyle(.segmented)
-                
-                // Duration Picker
-                Picker("Trvanie", selection: $grantDurationMonths) {
-                    Text("Doživotne").tag(0)
-                    Text("1 Rok").tag(12)
-                    Text("6 Mesiacov").tag(6)
-                    Text("1 Mesiac").tag(1)
-                }
-                .pickerStyle(.segmented)
-                
-                // Notes
-                TextField("Poznámka (napr. Partnerka, Tréner)", text: $grantNote)
-                    .font(.system(size: 13))
-                    .padding(10)
-                    .background(Color.white.opacity(0.06))
-                    .cornerRadius(8)
-                
-                // Grant Button
-                Button {
-                    executeGrantEntitlement(for: user)
-                } label: {
-                    HStack {
-                        if isActionInProgress {
-                            ProgressView().tint(.black)
-                        } else {
-                            Image(systemName: "checkmark.seal.fill")
-                            Text("Potvrdiť a udeliť prístup")
-                        }
-                    }
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(Color.gold400)
-                    .cornerRadius(12)
-                }
+                .buttonStyle(.pressable(scale: 0.97))
                 .disabled(isActionInProgress)
-            }
-            
-            Divider().background(Color.white.opacity(0.15))
-            
-            // Ban / Moderation Controls
-            VStack(alignment: .leading, spacing: 10) {
-                Label("Bezpečnosť a Moderovanie účtu", systemImage: "shield.lefthalf.filled")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.red.opacity(0.9))
-                
-                if user.accountStatus == "banned" {
-                    Button {
-                        executeUnban(for: user)
-                    } label: {
-                        HStack {
-                            Image(systemName: "lock.open.fill")
-                            Text("Odblokovať používateľa (Zrušiť BAN)")
-                        }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Color.green.opacity(0.3))
-                        .cornerRadius(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.green.opacity(0.6), lineWidth: 1))
-                    }
-                } else {
-                    TextField("Dôvod zablokovania...", text: $banReasonText)
-                        .font(.system(size: 13))
-                        .padding(10)
-                        .background(Color.white.opacity(0.06))
-                        .cornerRadius(8)
-                    
-                    Button {
-                        executeBan(for: user)
-                    } label: {
-                        HStack {
-                            Image(systemName: "slash.circle.fill")
-                            Text("Zablokovať účet (BAN)")
-                        }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 44)
-                        .background(Color.red.opacity(0.15))
-                        .cornerRadius(12)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.red.opacity(0.4), lineWidth: 1))
-                    }
+            } else {
+                PlannerTextField(placeholder: "Dôvod zablokovania", text: $banReasonText, systemImage: "text.bubble")
+                Button { userToBan = user } label: {
+                    Label("Zablokovať účet", systemImage: "slash.circle.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Color.latinRed)
+                        .frame(maxWidth: .infinity, minHeight: 48)
+                        .background(Color.latinRed.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.latinRed.opacity(0.35), lineWidth: 1))
                 }
+                .buttonStyle(.pressable(scale: 0.97))
+                .disabled(isActionInProgress || user.id == authManager.currentUser?.id)
             }
         }
         .padding(16)
-        .background(Color.white.opacity(0.08))
-        .cornerRadius(18)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.gold500.opacity(0.4), lineWidth: 1))
+        .homeCard(cornerRadius: 20)
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Color.gold400.opacity(0.35), lineWidth: 1))
     }
-    
-    // MARK: - Search Execution
-    private func performSearch() {
-        guard !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        isSearching = true
-        
-        Task {
-            defer { isSearching = false }
-            let client = SupabaseConfig.client
-            
-            do {
-                struct SearchDTO: Decodable {
-                    let id: UUID
-                    let full_name: String?
-                    let club: String?
-                    let dancer_code: String?
-                    let account_status: String?
-                }
-                
-                let q = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
-                let res: [SearchDTO] = try await client
-                    .from("profiles")
-                    .select("id, full_name, club, dancer_code, account_status")
-                    .or("full_name.ilike.%\(q)%,dancer_code.ilike.%\(q)%,club.ilike.%\(q)%")
-                    .limit(10)
-                    .execute()
-                    .value
-                
-                self.searchResults = res.map {
-                    AdminUserSearchItem(
-                        id: $0.id,
-                        name: $0.full_name ?? "Tanečník",
-                        club: $0.club,
-                        dancerCode: $0.dancer_code,
-                        accountStatus: $0.account_status ?? "active"
-                    )
-                }
-            } catch {
-                Logger.general.error("Admin search failed: \(error.localizedDescription, privacy: .public)")
-            }
+
+    // MARK: E-mail
+    private var emailGrantSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "DAROVAŤ PODĽA E-MAILU", systemImage: "envelope.fill")
+            Text("Pre kamaráta, partnerku alebo trénera, ktorí už majú účet v Encore. Plán sa im odomkne hneď, bez platby.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+            PlannerTextField(placeholder: "meno@domena.sk", text: $directEmail, systemImage: "envelope")
+                .keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            grantForm(actionTitle: "Udeliť plán",
+                      isEnabled: !directEmail.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) { grantByEmail() }
         }
     }
-    
+
+    // MARK: Grant form (shared)
+    private func grantForm(actionTitle: String, isEnabled: Bool = true, action: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            PlannerChoice(options: [(SubscriptionTier.premium, "Premium"), (.plus, "Plus"), (.free, "Zrušiť")],
+                          selection: $grantTier)
+            if grantTier != .free {
+                PlannerChoice(options: [(0, "Navždy"), (12, "1 rok"), (6, "6 mes."), (1, "1 mes.")],
+                              selection: $grantDurationMonths)
+                    .transition(.opacity)
+            }
+            PlannerTextField(placeholder: "Poznámka (napr. partnerka, tréner)", text: $grantNote, systemImage: "note.text")
+            PrimarySheetButton(title: grantTier == .free ? "Zrušiť darovaný plán" : actionTitle,
+                               isLoading: isActionInProgress, isEnabled: isEnabled && !isActionInProgress, action: action)
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: grantTier)
+    }
+
+    private func hint(_ text: String) -> some View {
+        Text(text)
+            .font(.footnote)
+            .foregroundColor(.white.opacity(0.65))
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+    }
+
+    private func badge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.system(.caption2, design: .rounded).weight(.black))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(color.opacity(0.14), in: Capsule())
+    }
+
+    // MARK: - Search
+    /// Name (both name columns), dancer ID, club or e-mail; the owner may read every profile (RLS).
+    private func search() async {
+        // Characters that would change the PostgREST filter instead of being searched for.
+        let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+            .filter { !",()*%\\\"".contains($0) }
+        guard query.count >= 2 else {
+            searchResults = []
+            hasSearched = false
+            searchFailed = false
+            return
+        }
+        isSearching = true
+        defer { isSearching = false }
+        let client = SupabaseConfig.client
+
+        struct ProfileDTO: Decodable {
+            let id: UUID
+            let name: String?
+            let full_name: String?
+            let club: String?
+            let dancer_code: String?
+            let email: String?
+            let account_status: String?
+        }
+        struct EntitlementDTO: Decodable {
+            let user_id: UUID
+            let tier: String
+            let expires_at: Date?
+        }
+
+        do {
+            let profiles: [ProfileDTO] = try await client
+                .from("profiles")
+                .select("id, name, full_name, club, dancer_code, email, account_status")
+                .or(["name", "full_name", "dancer_code", "club", "email"].map { "\($0).ilike.%\(query)%" }.joined(separator: ","))
+                .limit(20)
+                .execute()
+                .value
+            let entitlements: [EntitlementDTO] = profiles.isEmpty ? [] : try await client
+                .from("user_entitlements")
+                .select("user_id, tier, expires_at")
+                .in("user_id", values: profiles.map(\.id))
+                .execute()
+                .value
+            let plans = Dictionary(entitlements.map { ($0.user_id, $0) }, uniquingKeysWith: { first, _ in first })
+
+            guard !Task.isCancelled else { return }
+            searchResults = profiles.map { profile in
+                let plan = plans[profile.id]
+                let expired = plan?.expires_at.map { $0 < Date() } ?? false
+                return AdminUserSearchItem(
+                    id: profile.id,
+                    name: profile.name ?? profile.full_name ?? "Tanečník",
+                    club: profile.club,
+                    dancerCode: profile.dancer_code,
+                    email: profile.email,
+                    isBanned: profile.account_status == "banned",
+                    tier: expired ? .free : plan.flatMap { SubscriptionTier(serverValue: $0.tier) } ?? .free,
+                    expiresAt: expired ? nil : plan?.expires_at
+                )
+            }
+            hasSearched = true
+            searchFailed = false
+        } catch {
+            guard !Task.isCancelled else { return }
+            Logger.general.error("Admin search failed: \(error.localizedDescription, privacy: .public)")
+            searchFailed = true
+        }
+    }
+
     // MARK: - Actions
-    private func executeDirectEmailGrant() {
+    private func grantByEmail() {
         let email = directEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !email.isEmpty else { return }
-        isActionInProgress = true
-        
-        Task {
-            defer { isActionInProgress = false }
-            do {
-                let months = grantDurationMonths == 0 ? nil : grantDurationMonths
-                let msg = try await subscriptionManager.grantEntitlementByEmailAsOwner(
-                    targetEmail: email,
-                    tier: grantTier,
-                    durationMonths: months,
-                    notes: grantNote
-                )
-                statusAlertMessage = msg
-                showStatusAlert = true
-                directEmail = ""
-            } catch {
-                statusAlertMessage = "Chyba: \(error.localizedDescription)"
-                showStatusAlert = true
-            }
+        perform {
+            let message = try await subscriptionManager.grantEntitlementByEmailAsOwner(
+                targetEmail: email, tier: grantTier,
+                durationMonths: grantDurationMonths == 0 ? nil : grantDurationMonths, notes: grantNote)
+            directEmail = ""
+            return message
         }
     }
-    
-    private func executeGrantEntitlement(for user: AdminUserSearchItem) {
-        isActionInProgress = true
-        Task {
-            defer { isActionInProgress = false }
-            do {
-                let months = grantDurationMonths == 0 ? nil : grantDurationMonths
-                try await subscriptionManager.grantEntitlementAsOwner(
-                    targetUserId: user.id,
-                    tier: grantTier,
-                    durationMonths: months,
-                    notes: grantNote
-                )
-                statusAlertMessage = "Úspešne udelený plán \(grantTier.rawValue) pre \(user.name)!"
-                showStatusAlert = true
-            } catch {
-                statusAlertMessage = "Chyba pri udeľovaní prístupu: \(error.localizedDescription)"
-                showStatusAlert = true
-            }
+
+    private func grant(to user: AdminUserSearchItem) {
+        perform {
+            try await subscriptionManager.grantEntitlementAsOwner(
+                targetUserId: user.id, tier: grantTier,
+                durationMonths: grantDurationMonths == 0 ? nil : grantDurationMonths, notes: grantNote)
+            return grantTier == .free ? "\(user.name) už nemá darovaný plán." : "\(user.name) má teraz \(grantTier.title)."
         }
     }
-    
-    private func executeBan(for user: AdminUserSearchItem) {
-        isActionInProgress = true
-        Task {
-            defer { isActionInProgress = false }
-            do {
-                try await subscriptionManager.setAccountBanStatusAsOwner(
-                    targetUserId: user.id,
-                    isBanned: true,
-                    reason: banReasonText
-                )
-                statusAlertMessage = "Účet používateľa \(user.name) bol úspešne ZABLOKOVANÝ."
-                showStatusAlert = true
-                performSearch()
-            } catch {
-                statusAlertMessage = "Chyba pri blokovaní účtu: \(error.localizedDescription)"
-                showStatusAlert = true
-            }
+
+    private func setBan(_ banned: Bool, for user: AdminUserSearchItem) {
+        perform {
+            try await subscriptionManager.setAccountBanStatusAsOwner(
+                targetUserId: user.id, isBanned: banned, reason: banned ? banReasonText : "")
+            return banned ? "Účet \(user.name) je zablokovaný." : "Účet \(user.name) je odblokovaný."
         }
     }
-    
-    private func executeUnban(for user: AdminUserSearchItem) {
+
+    /// Runs one owner action, shows its result and reloads the list, so the card shows the new state.
+    private func perform(_ action: @escaping () async throws -> String) {
         isActionInProgress = true
         Task {
             defer { isActionInProgress = false }
             do {
-                try await subscriptionManager.setAccountBanStatusAsOwner(
-                    targetUserId: user.id,
-                    isBanned: false,
-                    reason: ""
-                )
-                statusAlertMessage = "Účet používateľa \(user.name) bol ODBLOKOVANÝ."
-                showStatusAlert = true
-                performSearch()
+                statusMessage = try await action()
+                successCount += 1
+                await search()
             } catch {
-                statusAlertMessage = "Chyba: \(error.localizedDescription)"
-                showStatusAlert = true
+                statusMessage = "Nepodarilo sa: \(error.localizedDescription)"
             }
         }
     }
@@ -597,5 +403,15 @@ struct AdminUserSearchItem: Identifiable, Equatable {
     let name: String
     let club: String?
     let dancerCode: String?
-    var accountStatus: String
+    let email: String?
+    let isBanned: Bool
+    /// The plan from `user_entitlements` (gift or App Store record); Free when none or expired.
+    let tier: SubscriptionTier
+    let expiresAt: Date?
+
+    var planText: String {
+        guard tier != .free else { return "Plán: Free" }
+        guard let expiresAt else { return "Plán: \(tier.title), navždy" }
+        return "Plán: \(tier.title) do \(expiresAt.formatted(.dateTime.day().month().year().locale(Locale(identifier: "sk"))))"
+    }
 }

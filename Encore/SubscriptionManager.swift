@@ -457,6 +457,7 @@ final class SubscriptionManager: ObservableObject {
             let expires_at: String?
             let granted_by: UUID?
             let notes: String
+            let updated_at: String
         }
         
         let payload = UpsertPayload(
@@ -465,7 +466,8 @@ final class SubscriptionManager: ObservableObject {
             source: EntitlementSource.ownerGrant.rawValue,
             expires_at: expiresAtString,
             granted_by: AuthManager.shared.currentUser?.id,
-            notes: notes
+            notes: notes,
+            updated_at: ISO8601DateFormatter().string(from: Date())
         )
         
         try await client
