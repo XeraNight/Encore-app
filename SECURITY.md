@@ -76,74 +76,35 @@ Všetky databázové tabuľky majú striktne zapnuté **Row Level Security (RLS)
 ### Prečo NIE certifikáty v aplikácii:
 Apple Wallet vyžaduje, aby každý digitálny preukaz (`.pkpass`) bol podpísaný certifikátom vydaným autoritou Apple.
 - **Klientsky kód v iOS aplikácii NESMIE obsahovať privátne kľúče ani certifikáty**. Ak by boli v aplikácii, ktokoľvek by ich mohol reverzným inžinierstvom získať a podpisovať falošné lístky v tvojom mene.
-- Preto sa `.pkpass` generuje **výhradne na serveri** (v Supabase Edge Function `generate-wallet-pass`).
+- Preto sa `.pkpass` generuje **výhradne na serveri**: web na Verceli, `web/src/app/api/wallet/pass/route.ts`.
 - Server najprv overí identitu prihláseného používateľa cez Supabase Auth JWT token. Používateľ si môže vygenerovať lístok **len pre svoj vlastný profil**.
-
-### Apple Pass Web Service (Automatické push aktualizácie):
-Preukaz v Apple Peňaženke podporuje automatické aktualizácie podľa oficiálnej špecifikácie Apple PassKit Web Service:
-- Keď si používateľ pridá preukaz do Peňaženky, iOS zariadenie zaregistruje svoj `pushToken` cez endpoint:
-  `POST /functions/v1/wallet-pass-service/v1/devices/{deviceId}/registrations/{passTypeId}/{serialNumber}`
-- Pri zmene údajov v profile (klub, tanečné kategórie, nové KSIS ID) server odošle tichý APNs push a Apple Wallet na pozadí stiahne aktualizovanú kartu bez toho, aby musel používateľ čokoľvek robiť.
+- Lístok nemá web service ani push aktualizácie. Keď sa údaje zmenia, kartu treba v Peňaženke vymazať a pridať znova.
 
 ---
 
-## 3. Návod: Čo stiahnuť z Apple Portálu a ako nastaviť Supabase
+## 3. Návod: certifikát pre Apple Peňaženku
 
-Keď budeš pripravený nasadiť podpisovanie pre Apple Peňaženku, postupuj podľa týchto krokov:
+### Krok 1: Pass Type ID
+V [developer.apple.com/account](https://developer.apple.com/account) → **Certificates, Identifiers & Profiles** → **Identifiers** → **(+)** → **Pass Type IDs**, identifikátor `pass.com.jakub.encore`.
 
-### Krok 1: Vytvorenie Pass Type ID v Apple Developer Portáli
-1. Prihlás sa na [developer.apple.com/account](https://developer.apple.com/account).
-2. Choď do **Certificates, Identifiers & Profiles** -> **Identifiers**.
-3. Klikni na modré tlačidlo **(+)** a vyber **Pass Type IDs**.
-4. Zadaj:
-   - **Description**: `Encore Member Card`
-   - **Identifier**: `pass.com.jakub.encore` (alebo `pass.com.encore.dance`)
-5. Potvrď kliknutím na **Register**.
+### Krok 2: Certifikát
+1. Pri Pass Type ID klikni na **Create Certificate** a nahraj žiadosť (CSR) vytvorenú cez OpenSSL alebo Kľúčenku.
+2. Stiahnutý certifikát a kľúč preveď do PEM. Pomôže `scripts/setup-apple-pass-certs.sh` (z `pass.p12`).
+3. Apple WWDR G4 je v `scripts/AppleWWDRCAG4.pem`.
+4. Certifikát má dátum platnosti (vidno ho v Apple Developer → Certificates). Mesiac pred koncom vytvor nový, inak sa nové karty nevytvoria.
 
-### Krok 2: Vytvorenie a export podpisového certifikátu
-1. V zozname Identifiers klikni na novovytvorené **Pass Type ID**.
-2. Klikni na **Create Certificate**.
-3. Na svojom Macu otvor aplikáciu **Keychain Access (Kľúčenka)**:
-   - V menu: *Keychain Access -> Certificate Assistant -> Request a Certificate from a Certificate Authority...*
-   - Zadaj svoj e-mail a zvoľ **Saved to disk**. Vznikne súbor `CertificateSigningRequest.certSigningRequest`.
-4. Nahraj tento súbor do Apple portálu a stiahni vygenerovaný `pass.cer`.
-5. Dvakrát klikni na stiahnutý `pass.cer`, čím sa naimportuje do Kľúčenky.
-6. V Kľúčenke nájdi certifikát `Pass Type ID: pass.com.jakub.encore`, klikni naň pravým tlačidlom a zvoľ **Exportovať**:
-   - Formát: **Personal Information Exchange (.p12)**
-   - Nastav bezpečné heslo (alebo nechaj prázdne) a ulož ako `pass.p12`.
+### Krok 3: Premenné na Verceli
+V projekte webu → **Settings** → **Environment Variables** (base64 celého `.pem` súboru alebo text PEM):
 
-### Krok 3: Stiahnutie Apple WWDR CA certifikátu
-1. Otvor [Apple PKI](https://www.apple.com/certificateauthority/).
-2. Stiahni certifikát **Worldwide Developer Relations - G4 (alebo G6)**:
-   - Súbor: `AppleWWDRCAG4.cer`.
+| Premenná | Obsah |
+| :--- | :--- |
+| `APPLE_PASS_CERT_BASE64` | certifikát Pass Type ID |
+| `APPLE_PASS_KEY_BASE64` | jeho súkromný kľúč (nikdy nie v gite ani v aplikácii) |
+| `APPLE_WWDR_CERT_BASE64` | Apple WWDR G4 |
+| `APPLE_PASS_TYPE_IDENTIFIER` | `pass.com.jakub.encore` |
+| `APPLE_TEAM_IDENTIFIER` | Team ID |
 
-### Krok 4: Konverzia do formátu PEM cez Terminál
-V priečinku, kde máš stiahnuté súbory, spusti v Termináli tieto príkazy:
-
-```bash
-# 1. Konverzia certifikátu z .p12 do cert.pem
-openssl pkcs12 -in pass.p12 -clcerts -nokeys -out pass_cert.pem
-
-# 2. Konverzia privátneho kľúča z .p12 do key.pem
-openssl pkcs12 -in pass.p12 -nocerts -nodes -out pass_key.pem
-
-# 3. Konverzia Apple WWDR z .cer do wwdr.pem
-openssl x509 -inform der -in AppleWWDRCAG4.cer -out wwdr.pem
-```
-
-### Krok 5: Nahratie certifikátov do Supabase Secrets
-Spusti nasledujúce príkazy cez Supabase CLI (alebo zadaj do webového rozhrania Supabase v *Project Settings -> Secrets*):
-
-```bash
-# Nahratie identifikátorov
-supabase secrets set APPLE_PASS_TYPE_ID="pass.com.jakub.encore"
-supabase secrets set APPLE_TEAM_ID="2MD5BS4DLM"
-
-# Nahratie certifikátov
-supabase secrets set APPLE_PASS_CERT="$(cat pass_cert.pem)"
-supabase secrets set APPLE_PASS_KEY="$(cat pass_key.pem)"
-supabase secrets set APPLE_WWDR_CERT="$(cat wwdr.pem)"
-```
+Zlá hodnota vráti chybu `pass_config_invalid` s názvom premennej (nikdy nie jej obsahom).
 
 ---
 
@@ -177,5 +138,5 @@ Pre správne fungovanie prepojení dotykom telefónov a skenovaním QR kódov:
 | **Mazanie zostáv trénermi** | Tréner má povolený len SELECT a UPDATE, DELETE striktne blokovaný | 🟢 100% ochrana pred nechceným zmazaním choreografie |
 | **Súkromie používateľov** | Zobrazuje sa len verejné KSIS ID / Dancer ID, nikdy nie interné UUID ani e-mail | 🟢 GDPA / Apple App Store Privacy Compliant |
 | **QR kódy a pozvánky** | Opaque Token s vysokou entropiou, 7-dňovou platnosťou a možnosťou okamžitej obnovy | 🟢 Ochrana proti brute-force a spamu |
-| **Apple Wallet podpisovanie** | Kryptografické podpisovanie prebieha výhradne na serveri v Edge Function | 🟢 Kľúče nie sú prítomné v klientskom kóde |
+| **Apple Wallet podpisovanie** | Kryptografické podpisovanie prebieha výhradne na serveri (Vercel) | 🟢 Kľúče nie sú prítomné v klientskom kóde |
 | **Dotyk telefónov** | Natívny iOS 17 Proximity AirDrop gesture cez systémový Share Sheet | 🟢 Žiadne rušivé povolenia na lokálnu sieť ani sledovanie |
