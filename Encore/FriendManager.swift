@@ -64,6 +64,8 @@ final class FriendManager: ObservableObject {
             self.activeInviteToken = token
             defaults.set(token, forKey: tokenKey)
             defaults.set(Date().addingTimeInterval(7 * 24 * 60 * 60).timeIntervalSince1970, forKey: expiryKey)
+            // The old token no longer works, so the card in Apple Wallet gets the new QR code too.
+            await AppleWalletPassManager.shared.updatePassInWallet()
         } catch {
             // No made-up token: the server would not know it. The card falls back to the dancer code link.
             Logger.general.notice("Invite token generation failed: \(error.localizedDescription, privacy: .public)")

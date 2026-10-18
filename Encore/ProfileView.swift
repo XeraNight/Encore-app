@@ -349,7 +349,6 @@ struct MemberCardScreen: View {
                 EncoreMemberCardView(
                     name: profileStore.currentName,
                     club: profileStore.currentClub,
-                    userId: profileStore.activeUserId,
                     allowInteractiveTilt: true,
                     showActionButtons: true
                 )

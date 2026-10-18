@@ -10,6 +10,10 @@
 	<array>
 		<string>applinks:www.encore-sk.com</string>
 	</array>
+	<key>com.apple.developer.pass-type-identifiers</key>
+	<array>
+		<string>$(TeamIdentifierPrefix)pass.com.jakub.encore</string>
+	</array>
 	<key>com.apple.security.network.client</key>
 	<true/>
 </dict>

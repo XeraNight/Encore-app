@@ -920,6 +920,7 @@ final class AuthManager: ObservableObject {
         if GIDSignIn.sharedInstance.hasPreviousSignIn() {
             try? await GIDSignIn.sharedInstance.disconnect()
         }
+        AppleWalletPassManager.shared.removePassFromWallet()
         userAvatarURL = ""
         googleSubId = ""
         try? await client.auth.signOut(scope: .local)

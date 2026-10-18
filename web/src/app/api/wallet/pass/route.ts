@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 
 // MARK: - Apple Wallet Native .pkpass Generator Endpoint
 // Generates a cryptographically signed Apple Wallet pass bundle (.pkpass)
-// barcode = https://www.encore-sk.com/add/[invite_code]
+// barcode = https://www.encore-sk.com/add?t=[the dancer's current invite token], the same QR as in the app
 export async function GET(request: NextRequest) {
   try {
     const authHeader = request.headers.get('Authorization')
@@ -56,7 +56,21 @@ export async function GET(request: NextRequest) {
     const inviteCode = profile?.invite_code || user.id.substring(0, 8).toUpperCase()
     // The pass lives for years: always the real domain (the app's universal links), never an env leftover.
     const domain = 'www.encore-sk.com'
-    const qrInviteUrl = `https://${domain}/add/${inviteCode}`
+    // The QR code is the dancer's current invite token, the same one the card in Encore shows (random,
+    // 7 days, revoked by "Nový QR"). The app makes sure one exists before it asks and swaps the Wallet card
+    // when it changes. Without a token: the dancer code link, as in the app.
+    const { data: activeToken } = await supabase
+      .from('invite_tokens')
+      .select('token')
+      .eq('user_id', user.id)
+      .is('revoked_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const qrInviteUrl = activeToken?.token
+      ? `https://${domain}/add?t=${activeToken.token}`
+      : `https://${domain}/add${profile?.dancer_code ? `/${profile.dancer_code}` : ''}`
 
     const passCertB64 = process.env.APPLE_PASS_CERT_BASE64
     const passKeyB64 = process.env.APPLE_PASS_KEY_BASE64
@@ -149,7 +163,7 @@ export async function GET(request: NextRequest) {
       {
         key: 'theme',
         label: 'Vzhľad karty',
-        value: 'Motív zmeníš v Encore v Profil → Vzhľad. Potom kartu pridaj do Peňaženky znova.'
+        value: 'Motív zmeníš v Encore v Profil → Vzhľad. Potom pri karte v Encore ťukni na ↻ a karta v Peňaženke sa aktualizuje.'
       },
       { key: 'website', label: 'Web', value: `https://${domain}` }
     ]

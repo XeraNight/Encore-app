@@ -7,19 +7,21 @@ import Auth
 import OSLog
 
 // MARK: - Apple Wallet Pass Manager & PassKit Bridge
+/// The member card in Apple Wallet. The app sees its own card thanks to the pass type in
+/// Encore.entitlements, so it knows when the card is added or removed, opens it in Wallet and swaps it
+/// for a fresh copy when the QR code changes (`replacePass`, no dialog).
 @MainActor
 final class AppleWalletPassManager: NSObject, ObservableObject {
     static let shared = AppleWalletPassManager()
-    
+
     @Published var isLoadingPass = false
-    @Published var errorMessage: String? = nil
-    @Published var passAddedSuccessfully = false
-    @Published var isPassInWallet = false
+    @Published private(set) var isPassInWallet = false
     @Published var showErrorAlert = false
     @Published var alertTitle = "Apple Peňaženka"
     @Published var alertMessage = ""
-    
+
     private let passTypeIdentifier = "pass.com.jakub.encore"
+    private var cancellables = Set<AnyCancellable>()
 
     /// The web signs passes with the Pass Type ID certificate (Vercel, APPLE_PASS_* variables, 17. 10. 2026).
     /// Set to false again if signing ever stops: a button that only shows an error is rejected (App Review 2.1).
@@ -28,39 +30,76 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
     private override init() {
         super.init()
         checkWalletStatus()
+        // Removing the card in Wallet shows "Pridať" again, also when it happened while Encore was closed.
+        NotificationCenter.default.publisher(for: Notification.Name(PKPassLibraryNotificationName.PKPassLibraryDidChange.rawValue))
+            .merge(with: NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.checkWalletStatus() }
+            .store(in: &cancellables)
     }
-    
+
     var isPassLibraryAvailable: Bool {
         PKPassLibrary.isPassLibraryAvailable()
     }
-    
-    func checkWalletStatus() {
-        guard isPassLibraryAvailable else {
-            isPassInWallet = false
-            return
-        }
-        
-        let library = PKPassLibrary()
-        let matchingPasses = library.passes().filter {
-            $0.passTypeIdentifier == self.passTypeIdentifier || $0.passTypeIdentifier.contains("encore")
-        }
-        self.isPassInWallet = !matchingPasses.isEmpty
+
+    /// Encore's card in Wallet, if the dancer has it.
+    private var walletPass: PKPass? {
+        guard isPassLibraryAvailable else { return nil }
+        return PKPassLibrary().passes().first { $0.passTypeIdentifier == passTypeIdentifier }
     }
-    
+
+    func checkWalletStatus() {
+        isPassInWallet = walletPass != nil
+    }
+
     /// Requests the .pkpass bundle from the Encore server endpoint and presents the native iOS Apple Wallet dialog
-    func addCardToAppleWallet(userId: String, name: String, club: String) async {
+    func addCardToAppleWallet() async {
         guard isPassLibraryAvailable else {
-            self.errorMessage = "Apple Peňaženka nie je na tomto zariadení dostupná."
-            self.alertTitle = "Apple Peňaženka nie je dostupná"
-            self.alertMessage = "Tvoje zariadenie nepodporuje Apple Wallet."
-            self.showErrorAlert = true
+            alertTitle = "Apple Peňaženka nie je dostupná"
+            alertMessage = "Tvoje zariadenie nepodporuje Apple Wallet."
+            showErrorAlert = true
             HapticFeedback.error()
             return
         }
-        
+        guard let pass = await downloadPass(reportProblems: true) else { return }
+        presentPassViewController(pass: pass)
+    }
+
+    /// Shows the card in the Wallet app.
+    func openInWallet() {
+        guard let url = walletPass?.passURL else { return }
+        UIApplication.shared.open(url)
+    }
+
+    /// Puts a fresh copy of the card into Wallet without a dialog (the same card with a new QR code or look).
+    /// Quiet when the app does it on its own after a new invite token; the dancer's own tap shows problems.
+    func updatePassInWallet(userInitiated: Bool = false) async {
+        guard isPassInWallet, !isLoadingPass else { return }
+        guard let pass = await downloadPass(reportProblems: userInitiated) else { return }
+        if PKPassLibrary().replacePass(with: pass) {
+            if userInitiated { HapticFeedback.success() }
+        } else {
+            Logger.general.error("Wallet pass replace refused")
+            if userInitiated {
+                showProblem("Kartu v Peňaženke sa nepodarilo aktualizovať. Vymaž ju v Peňaženke a pridaj znova.")
+            }
+        }
+    }
+
+    /// A deleted account's card must not stay in Wallet with a QR code that leads nowhere.
+    func removePassFromWallet() {
+        guard let pass = walletPass else { return }
+        PKPassLibrary().removePass(pass)
+        isPassInWallet = false
+    }
+
+    /// The signed card for the signed-in dancer, or nil (with a message when `reportProblems`).
+    private func downloadPass(reportProblems: Bool) async -> PKPass? {
         isLoadingPass = true
-        errorMessage = nil
-        
+        defer { isLoadingPass = false }
+        // The card's QR code is the current invite token, the same as on the card in Encore.
+        await FriendManager.shared.fetchOrGenerateInviteToken()
+
         do {
             guard let url = AppWebsite.url("/api/wallet/pass") else {
                 throw URLError(.badURL)
@@ -80,30 +119,33 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
                 let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
                 let code = json?["error"] as? String ?? "http_\(status)"
                 Logger.general.error("Wallet pass refused: \(status, privacy: .public) \(code, privacy: .public)")
-                showProblem(Self.message(for: status, code: code, serverMessage: json?["message"] as? String))
-                isLoadingPass = false
-                return
+                if reportProblems {
+                    showProblem(Self.message(for: status, code: code, serverMessage: json?["message"] as? String))
+                }
+                return nil
             }
 
             do {
-                let pass = try PKPass(data: data)
-                presentPassViewController(pass: pass)
+                return try PKPass(data: data)
             } catch {
                 Logger.general.error("Wallet pass rejected by iOS: \(error.localizedDescription, privacy: .public)")
-                showProblem("Server kartu vytvoril, ale iOS ju neprijal (podpis alebo obrázky karty). Chyba: \(error.localizedDescription)")
+                if reportProblems {
+                    showProblem("Server kartu vytvoril, ale iOS ju neprijal (podpis alebo obrázky karty). Chyba: \(error.localizedDescription)")
+                }
+                return nil
             }
         } catch {
             Logger.general.error("Wallet pass fetch failed: \(error.localizedDescription, privacy: .public)")
-            showProblem("Kartu sa nepodarilo stiahnuť. Skontroluj pripojenie a skús to znova.")
+            if reportProblems {
+                showProblem("Kartu sa nepodarilo stiahnuť. Skontroluj pripojenie a skús to znova.")
+            }
+            return nil
         }
-
-        isLoadingPass = false
     }
-    
+
     private func showProblem(_ message: String) {
         alertTitle = "Kartu sa nepodarilo pridať"
         alertMessage = message
-        errorMessage = message
         showErrorAlert = true
         HapticFeedback.warning()
     }
@@ -137,38 +179,9 @@ extension AppleWalletPassManager: PKAddPassesViewControllerDelegate {
     nonisolated func addPassesViewControllerDidFinish(_ controller: PKAddPassesViewController) {
         Task { @MainActor in
             controller.dismiss(animated: true) {
-                self.passAddedSuccessfully = true
                 self.checkWalletStatus()
-                HapticFeedback.success()
+                if self.isPassInWallet { HapticFeedback.success() }
             }
-        }
-    }
-}
-
-// MARK: - Native PKAddPassButton SwiftUI Wrapper
-struct AddToAppleWalletButton: UIViewRepresentable {
-    var style: PKAddPassButtonStyle = .black
-    var action: () -> Void
-    
-    func makeUIView(context: Context) -> PKAddPassButton {
-        let button = PKAddPassButton(addPassButtonStyle: style)
-        button.addTarget(context.coordinator, action: #selector(Coordinator.buttonTapped), for: .touchUpInside)
-        return button
-    }
-    
-    func updateUIView(_ uiView: PKAddPassButton, context: Context) {}
-    
-    func makeCoordinator() -> Coordinator {
-        Coordinator(action: action)
-    }
-    
-    class Coordinator: NSObject {
-        let action: () -> Void
-        init(action: @escaping () -> Void) {
-            self.action = action
-        }
-        @objc func buttonTapped() {
-            action()
         }
     }
 }

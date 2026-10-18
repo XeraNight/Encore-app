@@ -44,7 +44,6 @@ struct FriendInviteSheetView: View {
                     EncoreMemberCardView(
                         name: invite.name,
                         club: invite.club,
-                        userId: invite.userId,
                         allowInteractiveTilt: true,
                         showActionButtons: false
                     )

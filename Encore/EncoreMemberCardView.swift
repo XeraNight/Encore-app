@@ -6,7 +6,6 @@ struct EncoreMemberCardView: View {
     @ObservedObject private var appearance = AppearanceStore.shared
     var name: String
     var club: String
-    var userId: String
     var qrURL: String? = nil
     var allowInteractiveTilt: Bool = true
     var showActionButtons: Bool = true
@@ -107,33 +106,52 @@ struct EncoreMemberCardView: View {
             // MARK: - Action Buttons Below Card
             if showActionButtons {
                 VStack(spacing: 12) {
-                    // Apple Wallet Button or Already in Wallet Status
+                    // In Wallet: open it there or refresh it (new look); otherwise add it.
                     if walletManager.isPassInWallet {
                         HStack(spacing: 8) {
-                            Image(systemName: "checkmark.seal.fill")
-                                .foregroundColor(Color.gold400)
-                            Text("Karta je v Apple Peňaženke")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                            Button {
+                                HapticFeedback.light()
+                                walletManager.openInWallet()
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "wallet.pass.fill")
+                                        .foregroundColor(Color.gold400)
+                                    Text("Otvoriť v Peňaženke")
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(walletControlShape.fill(Color.obsidian800))
+                                .overlay(walletControlShape.stroke(Color.gold500.opacity(0.4), lineWidth: 1))
+                            }
+                            .buttonStyle(.pressable(scale: 0.97))
+
+                            Button {
+                                Task { await walletManager.updatePassInWallet(userInitiated: true) }
+                            } label: {
+                                Group {
+                                    if walletManager.isLoadingPass {
+                                        ProgressView().tint(Color.gold400)
+                                    } else {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(Color.gold400)
+                                    }
+                                }
+                                .frame(width: 50, height: 48)
+                                .background(walletControlShape.fill(Color.obsidian800))
+                                .overlay(walletControlShape.stroke(Color.gold500.opacity(0.4), lineWidth: 1))
+                            }
+                            .buttonStyle(.pressable(scale: 0.92))
+                            .disabled(walletManager.isLoadingPass)
+                            .accessibilityLabel("Aktualizovať kartu v Peňaženke")
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(Color.obsidian800)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .stroke(Color.gold500.opacity(0.4), lineWidth: 1)
-                        )
+                        .transition(.scale(scale: 0.96).combined(with: .opacity))
                     } else if AppleWalletPassManager.canIssuePasses {
                         Button {
                             HapticFeedback.medium()
-                            Task {
-                                await walletManager.addCardToAppleWallet(
-                                    userId: userId,
-                                    name: name,
-                                    club: club
-                                )
-                            }
+                            Task { await walletManager.addCardToAppleWallet() }
                         } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: "wallet.pass.fill")
@@ -170,7 +188,7 @@ struct EncoreMemberCardView: View {
                         }
                     }
 
-                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 7 dní, nový zneplatní ten starý.")
+                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 7 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a karta v Peňaženke ho dostane sama" : "").")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -195,6 +213,8 @@ struct EncoreMemberCardView: View {
         }
     }
     
+    private var walletControlShape: RoundedRectangle { RoundedRectangle(cornerRadius: 14, style: .continuous) }
+
     private func cardAction(_ title: String, icon: String, isBusy: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 5) {
@@ -482,7 +502,8 @@ struct EncoreMemberCardView: View {
                     
                     Spacer()
                     
-                    if walletManager.isPassInWallet {
+                    // Only on the dancer's own card (an invite shows someone else's).
+                    if showActionButtons && walletManager.isPassInWallet {
                         HStack(spacing: 5) {
                             Circle().fill(Color(red: 0.95, green: 0.82, blue: 0.45)).frame(width: 5, height: 5)
                             Text("V APPLE PEŇAŽENKE")
