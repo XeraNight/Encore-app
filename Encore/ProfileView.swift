@@ -232,8 +232,8 @@ struct ProfileView: View {
                     icon: "wrench.and.screwdriver.fill",
                     title: "Nástroje",
                     subtitle: profileStore.isCoach
-                        ? "Zverenci, zrkadlo, metronóm a hudba pomalšie"
-                        : "Zrkadlo, metronóm a hudba pomalšie"
+                        ? "Zverenci, zrkadlo, metronóm a strih lekcie"
+                        : "Zrkadlo, metronóm a strih lekcie"
                 )
             }
             .buttonStyle(.pressable(scale: 0.98))
