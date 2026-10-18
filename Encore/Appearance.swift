@@ -143,14 +143,21 @@ final class AppearanceStore: ObservableObject {
         }
     }
 
-    /// Without Plus the original icon comes back; the card and frame fall back on their own (`theme`, `frame`).
+    /// Without Plus the original icon comes back and the Wallet card gets the free look; the card and frame
+    /// in the app fall back on their own (`theme`, `frame`). Runs after every plan check, never before one.
     func applyFreeLookIfNeeded() {
-        guard !hasPlus else { return }
-        syncToServer()
+        guard planIsKnown, !hasPlus else { return }
+        if chosenTheme != theme || chosenFrame != frame { syncToServer() }
         if !appIcon.isFree { Task { await select(.carmine) } }
     }
 
     private var hasPlus: Bool { SubscriptionManager.shared.currentTier >= .plus }
+
+    /// The plan of the signed-in dancer has been checked (until then the tier reads Free).
+    private var planIsKnown: Bool {
+        guard let userId = AuthManager.shared.currentUser?.id else { return false }
+        return SubscriptionManager.shared.checkedUserId == userId
+    }
 
     var theme: CardTheme { hasPlus || chosenTheme.isFree ? chosenTheme : .carmine }
     var frame: AvatarFrame { hasPlus || chosenFrame.isFree ? chosenFrame : .none }

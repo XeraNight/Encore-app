@@ -21,6 +21,9 @@ final class SubscriptionManager: ObservableObject {
     /// Comes only from the server (`is_app_owner()`), so nobody can become the owner by changing the app
     /// and the owner's e-mail is not stored in the app.
     @Published private(set) var isAppOwner: Bool = false
+    /// The dancer whose plan is known (set when a check finishes). At launch the tier reads Free for a
+    /// moment, so nothing bought is taken away before this matches the signed-in dancer.
+    @Published private(set) var checkedUserId: UUID?
     
     // Product IDs for Apple App Store (StoreKit 2)
     public enum ProductID {
@@ -129,7 +132,15 @@ final class SubscriptionManager: ObservableObject {
     // MARK: - Entitlements Refresh & Verification
     public func refreshEntitlements() async {
         isCheckingEntitlements = true
-        defer { isCheckingEntitlements = false }
+        let checkedFor = AuthManager.shared.currentUser?.id
+        defer {
+            isCheckingEntitlements = false
+            // A check that started for another dancer (account switch) says nothing about this one.
+            if let checkedFor, checkedFor == AuthManager.shared.currentUser?.id {
+                checkedUserId = checkedFor
+                AppearanceStore.shared.applyFreeLookIfNeeded()
+            }
+        }
         
         // 1. Priorita: Majiteľ aplikácie (overené na serveri)
         await refreshOwnerStatus()
