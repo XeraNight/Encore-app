@@ -443,49 +443,12 @@ struct CanvasNodeCardView: View {
     private var accentColor: Color { isTranslucent ? Color.gold400 : Color.themeAccent }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: isFarOut ? 6 : 8) {
-            HStack(spacing: 6) {
-                Text("\(number ?? node.orderIndex + 1)")
-                    .font(.system(size: isFarOut ? 20 : 13, weight: .black, design: .rounded))
-                    .foregroundColor(Color.obsidian900)
-                    .frame(width: isFarOut ? 34 : 24, height: isFarOut ? 34 : 24)
-                    .background(
-                        LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: Circle()
-                    )
-                Spacer(minLength: 0)
-
-                if let lockedBy = lockedByUserName {
-                    HStack(spacing: 3) {
-                        Image(systemName: "lock.fill").font(.system(size: 8, weight: .bold))
-                        Text(lockedBy).font(.system(size: 9, weight: .bold)).lineLimit(1)
-                    }
-                    .foregroundColor(.obsidian900)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Color.gold400, in: Capsule())
-                } else if !isFarOut {
-                    statusIcons
-                }
-            }
-
-            Text(node.figureName)
-                .font(.system(size: isFarOut ? 19 : 15, weight: .bold, design: .rounded))
-                .foregroundColor(inkColor)
-                .lineLimit(isFarOut ? 3 : 2)
-                .minimumScaleFactor(0.8)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            Spacer(minLength: 0)
-
-            if !isFarOut, !node.rhythm.isEmpty {
-                BeatsTimelineView(rhythm: node.rhythm, tint: accentColor)
-            }
+        Group {
+            if isFarOut { farOutContent } else { previewContent }
         }
-        .padding(12)
         .frame(width: 140, height: 132)
         .background(cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .scaleEffect(cardScale, anchor: .center)
         .frame(width: 140 * cardScale, height: 132 * cardScale)
         .overlay(
@@ -572,13 +535,106 @@ struct CanvasNodeCardView: View {
 }
 
 extension CanvasNodeCardView {
-    /// Small markers: video, own notes, a remark from the coach.
+    /// The figure's video on top with the number on it, the name and the rhythm below (glass card).
+    fileprivate var previewContent: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                Group {
+                    if let video = node.displayVideoPath {
+                        MediaThumbnailView(path: video, cornerRadius: 0)
+                    } else {
+                        Color.white.opacity(0.05)
+                            .overlay {
+                                Image(systemName: "video.badge.plus")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.35))
+                            }
+                    }
+                }
+                .frame(width: 140, height: 58)
+                .clipped()
+
+                HStack(spacing: 6) {
+                    numberBadge(size: 22, font: 12)
+                    Spacer(minLength: 0)
+                    if let lockedBy = lockedByUserName {
+                        lockBadge(lockedBy)
+                    } else if hasStatusIcons {
+                        statusIcons
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.45), in: Capsule())
+                    }
+                }
+                .padding(7)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(node.figureName)
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(inkColor)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer(minLength: 0)
+                if !node.rhythm.isEmpty {
+                    BeatsTimelineView(rhythm: node.rhythm, tint: accentColor)
+                }
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+        }
+    }
+
+    /// Zoomed far out only the number and the name are readable, so only they stay, bigger.
+    fileprivate var farOutContent: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                numberBadge(size: 34, font: 20)
+                Spacer(minLength: 0)
+                if let lockedBy = lockedByUserName { lockBadge(lockedBy) }
+            }
+            Text(node.figureName)
+                .font(.system(size: 19, weight: .bold, design: .rounded))
+                .foregroundColor(inkColor)
+                .lineLimit(3)
+                .minimumScaleFactor(0.8)
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+    }
+
+    fileprivate func numberBadge(size: CGFloat, font: CGFloat) -> some View {
+        Text("\(number ?? node.orderIndex + 1)")
+            .font(.system(size: font, weight: .black, design: .rounded))
+            .foregroundColor(Color.obsidian900)
+            .frame(width: size, height: size)
+            .background(Color.gold400, in: Circle())
+    }
+
+    fileprivate func lockBadge(_ name: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: "lock.fill").font(.system(size: 8, weight: .bold))
+            Text(name).font(.system(size: 9, weight: .bold)).lineLimit(1)
+        }
+        .foregroundColor(.obsidian900)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .background(Color.gold400, in: Capsule())
+    }
+
+    /// Own notes or a remark from the coach (the video shows itself in the preview).
+    fileprivate var hasStatusIcons: Bool {
+        !node.notes.isEmpty || !(node.coachNotes ?? "").isEmpty
+    }
+
+    /// Small markers: own notes, a remark from the coach.
     @ViewBuilder
     fileprivate var statusIcons: some View {
         HStack(spacing: 5) {
-            if node.displayVideoPath != nil {
-                Image(systemName: "video.fill")
-            }
             if !node.notes.isEmpty {
                 Image(systemName: "doc.text.fill")
             }
@@ -607,10 +663,12 @@ extension CanvasNodeCardView {
                     )
                     .shadow(color: Color.black.opacity(0.35), radius: 10, y: 5)
             } else {
+                // Dark glass with a gold hairline, readable on any floor.
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.themeCard)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.themeDark.opacity(0.12), lineWidth: 1))
-                    .shadow(color: Color.black.opacity(0.22), radius: 8, y: 4)
+                    .fill(.ultraThinMaterial)
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.obsidian900.opacity(0.62)))
+                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.gold400.opacity(0.28), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(0.28), radius: 8, y: 4)
             }
         }
     }
