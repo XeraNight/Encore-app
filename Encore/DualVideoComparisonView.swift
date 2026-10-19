@@ -77,6 +77,8 @@ struct DualVideoComparisonView: View {
     @State private var currentTime = 0.0
     @State private var duration = 1.0
     @State private var isScrubbing = false
+    /// A drift correction is under way (the follower video is being put back on the leader's time).
+    @State private var isResyncing = false
     @State private var playbackRate: Float = 1.0
     @State private var isLooping = true
     /// How far the model video is ahead of mine once "Zarovnať" found the same moment in both.
@@ -595,7 +597,16 @@ struct DualVideoComparisonView: View {
                             seekPlayers(to: newTime)
                         }),
                         in: 0...max(duration, 0.1),
-                        onEditingChanged: { isScrubbing = $0 }
+                        onEditingChanged: { editing in
+                            // Both stand still while dragging and start together again on release.
+                            isScrubbing = editing
+                            if editing {
+                                playerA?.pause()
+                                playerB?.pause()
+                            } else if isPlaying {
+                                Task { await playTogether(from: currentTime) }
+                            }
+                        }
                     )
                     .tint(Color.gold400)
                     .accessibilityLabel("Čas")
@@ -958,6 +969,7 @@ struct DualVideoComparisonView: View {
                 if let total = leader.currentItem?.duration.seconds, total.isFinite, total > 0 {
                     duration = total
                 }
+                correctDrift(leader: leader, at: time.seconds)
             }
         }
         timeObserverPlayer = leader
@@ -970,7 +982,12 @@ struct DualVideoComparisonView: View {
     private func makeMedia(path: String?, url: URL?) -> (AVPlayer?, UIImage?) {
         guard let path else { return (nil, nil) }
         if MediaResolver.isImagePath(path: path) { return (nil, MediaResolver.resolveImage(path: path)) }
-        if let url { return (AVPlayer(playerItem: AVPlayerItem(url: url)), nil) }
+        if let url {
+            let player = AVPlayer(playerItem: AVPlayerItem(url: url))
+            // Needed for starting both at one clock time (setRate(_:time:atHostTime:)).
+            player.automaticallyWaitsToMinimizeStalling = false
+            return (player, nil)
+        }
         return (nil, MediaResolver.resolveImage(path: path))
     }
 
@@ -979,11 +996,42 @@ struct DualVideoComparisonView: View {
             isPlaying = false
             return
         }
-        seekPlayers(to: 0)
-        playerA?.play()
-        playerB?.play()
-        playerA?.rate = playbackRate
-        playerB?.rate = playbackRate
+        Task { await playTogether(from: 0) }
+    }
+
+    /// Both videos start at the same instant of the iPhone clock, after both have finished seeking.
+    /// Two separate play() calls start a few frames apart, and the comparison is then not frame-true.
+    private func playTogether(from time: Double) async {
+        playerA?.pause()
+        playerB?.pause()
+        await seek(playerA, to: time)
+        await seek(playerB, to: time + offsetB)
+        guard isPlaying, !isScrubbing else { return }
+        let start = CMTimeAdd(CMClockGetTime(CMClockGetHostTimeClock()), CMTime(value: 1, timescale: 20))
+        playerA?.setRate(playbackRate, time: .invalid, atHostTime: start)
+        playerB?.setRate(playbackRate, time: .invalid, atHostTime: start)
+    }
+
+    private func seek(_ player: AVPlayer?, to seconds: Double) async {
+        guard let player else { return }
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            player.seek(to: CMTime(seconds: max(0, seconds), preferredTimescale: 600),
+                        toleranceBefore: .zero, toleranceAfter: .zero) { _ in done.resume() }
+        }
+    }
+
+    /// The model video follows mine; when it is off by more than about three frames (long videos, a
+    /// stall) both start together again from where mine is.
+    private func correctDrift(leader: AVPlayer, at time: Double) {
+        guard isPlaying, !isResyncing, leader === playerA, let follower = playerB else { return }
+        let expected = time + offsetB
+        guard expected > 0.2, expected < durationB - 0.2,
+              abs(follower.currentTime().seconds - expected) > 0.12 else { return }
+        isResyncing = true
+        Task {
+            await playTogether(from: time)
+            isResyncing = false
+        }
     }
 
     private func tearDownPlayers() {
@@ -1018,26 +1066,24 @@ struct DualVideoComparisonView: View {
         } else {
             Task { @MainActor in
                 try? await AudioSessionCoordinator.shared.activate(.player)
-                seekPlayers(to: currentTime)
-                playerA?.play()
-                playerA?.rate = playbackRate
-                playerB?.play()
-                playerB?.rate = playbackRate
                 isPlaying = true
+                await playTogether(from: currentTime)
             }
         }
     }
 
     private func setRate(_ rate: Float) {
         playbackRate = rate
-        if isPlaying {
-            playerA?.rate = rate
-            playerB?.rate = rate
-        }
+        if isPlaying { Task { await playTogether(from: currentTime) } }
         toolTaps += 1
     }
 
+    /// While playing, a jump restarts both together; standing still (or dragging the slider) it only seeks.
     private func seekPlayers(to time: Double) {
+        if isPlaying && !isScrubbing {
+            Task { await playTogether(from: time) }
+            return
+        }
         playerA?.seek(to: CMTime(seconds: max(0, time), preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
         seekB(to: time + offsetB)
     }
