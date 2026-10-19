@@ -1,11 +1,13 @@
 import SwiftUI
 
 /// Formatting bar shown at the bottom while a note is being written: highlight / underline, font,
-/// colour, alignment and size. Every button applies to the selected words (or to what is typed next
-/// when nothing is selected).
+/// colour, alignment, size and a voice note where the cursor is. Every format button applies to the
+/// selected words (or to what is typed next when nothing is selected).
 struct NoteFormatBar: View {
-    @Binding var text: AttributedString
-    @Binding var selection: AttributedTextSelection
+    /// Applies one formatting change through the editor.
+    let onFormat: ((inout AttributeContainer) -> Void) -> Void
+    let isRecording: Bool
+    let onVoice: () -> Void
     let onDone: () -> Void
 
     @State private var size: CGFloat = NoteStyle.defaultSize
@@ -39,6 +41,7 @@ struct NoteFormatBar: View {
                 colorMenu
                 alignmentButton
                 sizeMenu
+                voiceButton
                 Button(action: onDone) { icon("keyboard.chevron.compact.down") }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Skryť klávesnicu")
@@ -148,6 +151,22 @@ struct NoteFormatBar: View {
         } label: { icon("textformat.size") }
     }
 
+    // MARK: Voice note
+    /// Records a voice note into the text, exactly where the cursor is; tapped again it stops.
+    private var voiceButton: some View {
+        Button(action: onVoice) {
+            Image(systemName: isRecording ? "stop.fill" : "mic.fill")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(isRecording ? .white : Color.obsidian900)
+                .frame(width: 38, height: 38)
+                .background(isRecording ? Color.latinRed : Color.gold400, in: Circle())
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.pressable(scale: 0.88))
+        .sensoryFeedback(.impact(weight: .medium), trigger: isRecording)
+        .accessibilityLabel(isRecording ? "Zastaviť hlasovku" : "Nahrať hlasovku do textu")
+    }
+
     // MARK: Helpers
     private func icon(_ systemName: String) -> some View {
         Image(systemName: systemName)
@@ -162,8 +181,6 @@ struct NoteFormatBar: View {
     }
 
     private func apply(_ change: (inout AttributeContainer) -> Void) {
-        text.transformAttributes(in: &selection) { attributes in
-            change(&attributes)
-        }
+        onFormat(change)
     }
 }

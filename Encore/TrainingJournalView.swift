@@ -426,7 +426,7 @@ private struct JournalNoteCard: View {
                     ForEach(Array(note.text.split(separator: " ").enumerated()), id: \.offset) { _, word in
                         Text(String(word)).font(.body).foregroundColor(.white)
                     }
-                    VoiceToken(fileName: file, duration: note.audioDuration ?? 0, player: player)
+                    InlineVoiceToken(ref: VoiceNoteRef(fileName: file, duration: note.audioDuration ?? 0), player: player)
                 }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(note.text + ", hlasovka " + voiceTimeString(note.audioDuration ?? 0))
@@ -519,46 +519,7 @@ private struct JournalNoteCard: View {
     }
 }
 
-// MARK: - Voice in the text
-/// A short voice note inside the sentence: play, its waveform filling up, the time left.
-private struct VoiceToken: View {
-    let fileName: String
-    let duration: TimeInterval
-    @ObservedObject var player: VoiceNotePlayer
-
-    private var isMine: Bool { player.fileName == fileName }
-    private var isPlaying: Bool { isMine && player.isPlaying }
-    private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
-
-    var body: some View {
-        Button {
-            if isPlaying { player.pause() } else { player.play(fileName: fileName) }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 9, weight: .black))
-                    .foregroundColor(Color.obsidian900)
-                    .frame(width: 20, height: 20)
-                    .background(Color.gold400, in: Circle())
-                    .contentTransition(.symbolEffect(.replace))
-                VoiceWaveform(fileName: fileName, progress: progress, bars: 10, maxHeight: 14)
-                    .frame(width: 42)
-                Text(voiceTimeString(isMine ? max(0, duration - player.currentTime) : duration))
-                    .font(.caption2.weight(.semibold))
-                    .monospacedDigit()
-                    .foregroundColor(Color.gold300)
-            }
-            .padding(.leading, 4)
-            .padding(.trailing, 10)
-            .frame(height: 30)
-            .background(Color.gold500.opacity(isPlaying ? 0.32 : 0.18), in: Capsule())
-            .scaleEffect(isPlaying ? 1.05 : 1)
-            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPlaying)
-        }
-        .buttonStyle(.pressable(scale: 0.92))
-    }
-}
-
+// MARK: - Voice row
 /// A longer voice note on its own row: play, seek on the waveform, speed.
 private struct VoiceRow: View {
     let fileName: String

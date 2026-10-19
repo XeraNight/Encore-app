@@ -25,11 +25,13 @@ struct FigureDetailCard: View {
 
     // Notes
     @State private var text = AttributedString()
-    @State private var selection = AttributedTextSelection()
     @State private var didLoadNotes = false
     @State private var saveTask: Task<Void, Never>? = nil
     @State private var sweepTrigger = 0
-    @FocusState private var isWriting: Bool
+    @State private var isWriting = false
+    @StateObject private var noteEditor = NoteEditorController()
+    /// Voice notes the text had when the figure opened; one deleted from the text is removed on close.
+    @State private var loadedVoiceFiles: Set<String> = []
 
     // Video
     @ObservedObject private var playback = FigureVideoPlayback.shared
@@ -99,7 +101,8 @@ struct FigureDetailCard: View {
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) {
                 if isWriting {
-                    NoteFormatBar(text: $text, selection: $selection) { isWriting = false }
+                    NoteFormatBar(onFormat: { noteEditor.apply($0) }, isRecording: noteEditor.isRecording,
+                                  onVoice: { noteEditor.toggleRecording() }) { isWriting = false }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
@@ -110,12 +113,16 @@ struct FigureDetailCard: View {
         .onAppear {
             if !didLoadNotes {
                 text = RichNote.attributed(for: node)
+                loadedVoiceFiles = Set(RichNote.voiceNotes(in: text).map(\.fileName))
                 didLoadNotes = true
             }
             setupPlayer(for: node.displayVideoPath)
         }
         .onDisappear {
+            noteEditor.stopRecording()
+            noteEditor.player.stop()
             persistNotes()
+            removeDeletedVoiceNotes()
             playerGeneration += 1
             // With the sound on, the video plays on in the mini player above the tab bar.
             playback.cardDidClose(nodeId: node.id)
@@ -128,7 +135,7 @@ struct FigureDetailCard: View {
             if fresh != text { text = fresh }
         }
         .onChange(of: isWriting) { _, writing in
-            if writing { sweepTrigger += 1 } else { persistNotes() }
+            if writing { sweepTrigger += 1 } else { noteEditor.stopRecording(); persistNotes() }
             onWritingChange?(writing)
         }
         .onChange(of: node.displayVideoPath) { _, newValue in
@@ -545,16 +552,10 @@ struct FigureDetailCard: View {
     }
 
     // MARK: - Notes
+    /// The notes like a notebook page: text with voice notes right where they were recorded.
     private var notesSheet: some View {
         ZStack(alignment: .topLeading) {
-            // An invisible copy of the text sets the height, so the page scrolls and the editor grows.
-            Text(text + AttributedString("\n"))
-                .font(.system(size: NoteStyle.defaultSize))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .opacity(0)
-                .accessibilityHidden(true)
+            FigureNotesEditor(text: $text, isEditing: $isWriting, controller: noteEditor)
 
             if text.characters.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
@@ -569,13 +570,15 @@ struct FigureDetailCard: View {
                 .allowsHitTesting(false)
             }
 
-            TextEditor(text: $text, selection: $selection)
-                .focused($isWriting)
-                .scrollContentBackground(.hidden)
-                .scrollDisabled(true)
-                .font(.system(size: NoteStyle.defaultSize))
-                .foregroundStyle(NoteStyle.ink)
-                .tint(Color.gold400)
+        }
+        .overlay(alignment: .bottomLeading) {
+            if let error = noteEditor.errorMessage {
+                Text(error)
+                    .font(.footnote)
+                    .foregroundColor(Color.latinRed)
+                    .padding(.horizontal, 5)
+                    .transition(.opacity)
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
         .padding(14)
@@ -625,6 +628,14 @@ struct FigureDetailCard: View {
             try? await Task.sleep(for: .milliseconds(700))
             guard !Task.isCancelled else { return }
             persistNotes()
+        }
+    }
+
+    /// Recordings deleted from the text leave the phone when the figure closes (undo works until then).
+    private func removeDeletedVoiceNotes() {
+        let kept = Set(RichNote.voiceNotes(in: text).map(\.fileName))
+        for file in loadedVoiceFiles.union(noteEditor.recordedFiles).subtracting(kept) {
+            MediaStorageManager.removeFile(named: file)
         }
     }
 
