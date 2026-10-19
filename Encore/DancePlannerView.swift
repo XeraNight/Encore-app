@@ -31,6 +31,8 @@ struct DancePlannerView: View {
     @Query(sort: \TrainingLogEntry.day, order: .reverse) private var logs: [TrainingLogEntry]
     @Query(sort: \PlannedCompetition.date) private var competitions: [PlannedCompetition]
     @Query(sort: \PlannedSession.start) private var sessions: [PlannedSession]
+    @Query private var priorities: [LessonPriority]
+    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
 
     @State private var section: Section = .today
     @Namespace private var sectionNamespace
@@ -41,12 +43,22 @@ struct DancePlannerView: View {
     @State private var today = PlannerCalendar.startOfDay(Date())
 
     /// Changes whenever something that affects notifications changes.
+    /// The reminder before a training with the open Top 3 is part of Plus.
+    private var remindsFocus: Bool { subscriptionManager.currentTier >= .plus }
+
+    private func reschedule() async {
+        await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions,
+                                              priorities: priorities, remindsFocus: remindsFocus)
+    }
+
     private var planSignature: String {
         let c = cadences.map { "\($0.id)\($0.weekday)\($0.startMinutes)\($0.durationMinutes)\($0.isEnabled)" }
         let l = logs.filter { $0.status == .skipped }.map { "\($0.id)" }
         let k = competitions.map { "\($0.id)\($0.date.timeIntervalSince1970)\($0.entryDeadline?.timeIntervalSince1970 ?? 0)\($0.intentRaw)" }
         let s = sessions.map { "\($0.id)\($0.start.timeIntervalSince1970)\($0.durationMinutes)\($0.goal)" }
-        return (c + l + k + s).joined(separator: "|")
+        // Open Top 3 and Plus change what the reminder before a training says.
+        let p = priorities.filter(\.isOpen).map { "\($0.id)\($0.text)" } + ["\(remindsFocus)"]
+        return (c + l + k + s + p).joined(separator: "|")
     }
 
     var body: some View {
@@ -95,15 +107,13 @@ struct DancePlannerView: View {
             .toolbar(.hidden, for: .navigationBar)
             .environment(\.locale, Locale(identifier: "sk"))
         }
-        .task(id: planSignature) {
-            await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions)
-        }
+        .task(id: planSignature) { await reschedule() }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             refreshDay()
             Task {
                 await NotificationManager.shared.checkAuthorizationStatus()
-                await PlannerNotifications.reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions)
+                await reschedule()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in

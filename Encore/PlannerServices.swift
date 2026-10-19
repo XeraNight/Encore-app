@@ -70,7 +70,9 @@ enum PlannerNotifications {
         cadences: [TrainingCadence],
         logs: [TrainingLogEntry],
         competitions: [PlannedCompetition],
-        sessions: [PlannedSession]
+        sessions: [PlannedSession],
+        priorities: [LessonPriority] = [],
+        remindsFocus: Bool = false
     ) async {
         await cancelAll()
         let center = UNUserNotificationCenter.current()
@@ -90,6 +92,12 @@ enum PlannerNotifications {
 
             for cadence in cadences where cadence.isEnabled && cadence.weekday == weekday {
                 if skipped.contains(key(cadence: cadence.id, day: day)) { continue }
+                if remindsFocus {
+                    addFocus(id: "\(prefix)focus.\(cadence.id.uuidString).\(offset)",
+                             title: cadence.title.isEmpty ? "Tréning" : cadence.title,
+                             start: PlannerCalendar.date(on: day, minutes: cadence.startMinutes),
+                             category: cadence.danceCategory, priorities: priorities, now: now, center: center)
+                }
                 // Ask for the reflection 5 minutes after the session ends.
                 let fire = PlannerCalendar.date(on: day, minutes: cadence.endMinutes + 5)
                 guard fire > now else { continue }
@@ -107,6 +115,10 @@ enum PlannerNotifications {
         let skippedSessions = Set(settled.compactMap(\.sessionId))
         let horizon = cal.date(byAdding: .day, value: horizonDays, to: today) ?? today
         for session in sessions where !skippedSessions.contains(session.id) && session.start < horizon {
+            if remindsFocus {
+                addFocus(id: "\(prefix)focus.\(session.id.uuidString)", title: session.displayTitle, start: session.start,
+                         category: session.danceCategory, priorities: priorities, now: now, center: center)
+            }
             let fire = session.end.addingTimeInterval(5 * 60)
             guard fire > now else { continue }
             // "Lekcia" and an own name have their own gender, so the title stays neutral.
@@ -152,6 +164,34 @@ enum PlannerNotifications {
                     )
                 }
             }
+        }
+    }
+
+    /// An hour before a training (Plus): what to focus on, the open Top 3 of the dances trained that day.
+    /// Without open priorities there is nothing to remind, so no notification.
+    private static func addFocus(id: String, title: String, start: Date, category: String,
+                                 priorities: [LessonPriority], now: Date, center: UNUserNotificationCenter) {
+        let fire = start.addingTimeInterval(-60 * 60)
+        guard fire > now else { return }
+        let focus = priorities
+            .filter { $0.isOpen && matches(dance: $0.danceName, category: category) }
+            .sorted { ($0.createdAt, -$0.rank) > ($1.createdAt, -$1.rank) }
+            .prefix(3)
+            .map(\.text)
+        guard !focus.isEmpty else { return }
+        add(id: id,
+            title: "Dnes \(start.formatted(date: .omitted, time: .shortened)) · \(title)",
+            body: "Zameraj sa na: " + focus.joined(separator: " · "),
+            at: fire, center: center)
+    }
+
+    /// "Standard" and "Latin" trainings remind only their dances; a mixed one all of them.
+    private static func matches(dance: String, category: String) -> Bool {
+        let isStandard = DanceNames.rank(dance) < 5
+        switch category {
+        case "Standard": return isStandard
+        case "Latin": return !isStandard
+        default: return true
         }
     }
 
