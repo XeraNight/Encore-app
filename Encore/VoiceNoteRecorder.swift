@@ -139,22 +139,43 @@ final class VoiceNoteRecorder: NSObject, ObservableObject, AVAudioRecorderDelega
     }
 }
 
-/// Plays one saved voice note: play / pause and a slider to jump around.
+/// Plays saved voice notes: play / pause, a slider to jump around and the speed. The journal plays one
+/// note after another (`onFinish`) with the same player, so only one note ever sounds.
 @MainActor
 final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     @Published private(set) var isPlaying = false
     @Published private(set) var currentTime: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
+    /// The loaded voice note.
+    @Published private(set) var fileName: String?
+    /// 1×, 1,5× or 2×.
+    @Published var rate: Float = 1 {
+        didSet { player?.rate = rate }
+    }
+    /// Called when a note played to its end; the audio session stays active for the next one, so the
+    /// caller stops the player when nothing follows.
+    var onFinish: (() -> Void)?
 
     private var player: AVAudioPlayer?
     private var timer: Timer?
 
     func load(fileName: String) {
-        guard player == nil, MediaStorageManager.fileExists(fileName) else { return }
+        guard self.fileName != fileName, MediaStorageManager.fileExists(fileName) else { return }
+        halt()
         player = try? AVAudioPlayer(contentsOf: MediaStorageManager.url(for: fileName))
         player?.delegate = self
+        player?.enableRate = true
+        player?.rate = rate
         player?.prepareToPlay()
+        self.fileName = fileName
         duration = player?.duration ?? 0
+        currentTime = 0
+    }
+
+    /// Loads the note when it is another one and plays it.
+    func play(fileName: String) {
+        load(fileName: fileName)
+        if !isPlaying { toggle() }
     }
 
     func toggle() {
@@ -179,11 +200,16 @@ final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     }
 
     func pause() {
+        halt()
+        Task { await AudioSessionCoordinator.shared.deactivate(.voiceNote) }
+    }
+
+    /// Stops the sound and the clock but keeps the audio session for the next note.
+    private func halt() {
         player?.pause()
         isPlaying = false
         timer?.invalidate()
         timer = nil
-        Task { await AudioSessionCoordinator.shared.deactivate(.voiceNote) }
     }
 
     func stop() {
@@ -194,9 +220,16 @@ final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor in
-            self.pause()
-            self.player?.currentTime = 0
-            self.currentTime = 0
+            if let onFinish = self.onFinish {
+                self.halt()
+                self.player?.currentTime = 0
+                self.currentTime = 0
+                onFinish()
+            } else {
+                self.pause()
+                self.player?.currentTime = 0
+                self.currentTime = 0
+            }
         }
     }
 }

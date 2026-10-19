@@ -161,7 +161,7 @@ struct ContentView: View {
                 .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showNotesInbox) {
-                NotesInboxSheet()
+                TrainingJournalView()
             }
             .sheet(item: $noteToEdit) { note in
                 NoteDetailSheet(note: note)
