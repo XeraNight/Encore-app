@@ -1,11 +1,13 @@
+import AVFoundation
 import Combine
 import SwiftUI
 import UIKit
 
 // MARK: - Figure notes editor
-/// The notes of a figure, editable, with voice notes inside the text: the mic in the format bar records
-/// exactly where the cursor is. A voice note keeps an empty space in the text (an attachment) and a live
-/// SwiftUI view lies exactly over it, which SwiftUI's TextEditor cannot do. TextKit 1 on purpose: TextKit 2
+/// The notes of a figure, editable, with voice notes and videos inside the text: the mic in the format bar
+/// records exactly where the cursor is, a video from Denník is a block between paragraphs. Each keeps an empty
+/// space in the text (an attachment) and a live SwiftUI view lies exactly over it, which SwiftUI's TextEditor
+/// cannot do. TextKit 1 on purpose: TextKit 2
 /// silently falls back to it with attachments, drew a blank file icon and reset the text while typing.
 /// The note itself stays the SwiftUI AttributedString it always was (`RichNote`); this view only shows and
 /// edits it, so old notes open unchanged.
@@ -101,11 +103,19 @@ struct FigureNotesEditor: UIViewRepresentable {
     }
 }
 
-/// Lays the live voice views over the spaces their attachments keep in the text. A tap on a voice note plays
-/// it; it must not also move the cursor and open the keyboard.
+/// An attachment that keeps a clear space in the text; the text view lays its live SwiftUI view over it.
+protocol LiveTextAttachment: NSTextAttachment {
+    /// Where the space starts against the baseline (`bounds.minY`, negative below it).
+    var baselineOffset: CGFloat { get }
+    func makeHost() -> UIViewController
+}
+
+/// Lays the live views (voice notes, videos) over the spaces their attachments keep in the text. A tap on one
+/// plays it; it must not also move the cursor and open the keyboard.
 final class NotesTextView: UITextView {
     static let voiceTokenIdentifier = "encore.voiceToken"
-    private var tokenHosts: [ObjectIdentifier: UIHostingController<AttachmentVoiceToken>] = [:]
+    static let videoBlockIdentifier = "encore.videoBlock"
+    private var hosts: [ObjectIdentifier: UIViewController] = [:]
     /// The text view holds only the container; the storage must stay alive with it.
     private var ownedStorage: NSTextStorage?
 
@@ -125,49 +135,50 @@ final class NotesTextView: UITextView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        layoutVoiceTokens()
+        layoutLiveViews()
     }
 
-    private func layoutVoiceTokens() {
+    private func layoutLiveViews() {
         layoutManager.ensureLayout(for: textContainer)
         var present = Set<ObjectIdentifier>()
         textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
-            guard let attachment = value as? VoiceTextAttachment else { return }
+            guard let attachment = value as? any LiveTextAttachment else { return }
             let id = ObjectIdentifier(attachment)
             present.insert(id)
-            let host = tokenHosts[id] ?? makeHost(for: attachment, id: id)
-            host.view.frame = frame(ofCharacterAt: range.location, bounds: attachment.bounds)
+            let host = hosts[id] ?? makeHost(for: attachment, id: id)
+            host.view.frame = frame(ofCharacterAt: range.location, baselineOffset: attachment.baselineOffset)
         }
-        for (id, host) in tokenHosts where !present.contains(id) {
+        for (id, host) in hosts where !present.contains(id) {
             host.view.removeFromSuperview()
-            tokenHosts[id] = nil
+            hosts[id] = nil
         }
     }
 
-    private func makeHost(for attachment: VoiceTextAttachment, id: ObjectIdentifier) -> UIHostingController<AttachmentVoiceToken> {
-        let host = UIHostingController(rootView: AttachmentVoiceToken(
-            token: attachment.token, player: attachment.player, onStopRecording: attachment.onStopRecording))
+    private func makeHost(for attachment: any LiveTextAttachment, id: ObjectIdentifier) -> UIViewController {
+        let host = attachment.makeHost()
         host.view.backgroundColor = .clear
-        host.view.accessibilityIdentifier = Self.voiceTokenIdentifier
         addSubview(host.view)
-        tokenHosts[id] = host
+        hosts[id] = host
         return host
     }
 
-    /// Where the attachment sits: its line, its place on the baseline and its own bounds (y up from the baseline).
-    private func frame(ofCharacterAt index: Int, bounds: CGRect) -> CGRect {
+    /// Where the attachment sits: its line, its place on the baseline and the size the layout gave it.
+    private func frame(ofCharacterAt index: Int, baselineOffset: CGFloat) -> CGRect {
         let glyph = layoutManager.glyphIndexForCharacter(at: index)
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
         let baseline = layoutManager.location(forGlyphAt: glyph)
+        let size = layoutManager.attachmentSize(forGlyphAt: glyph)
         return CGRect(x: textContainerInset.left + line.minX + baseline.x,
-                      y: textContainerInset.top + line.minY + baseline.y - bounds.maxY,
-                      width: bounds.width, height: bounds.height)
+                      y: textContainerInset.top + line.minY + baseline.y - size.height - baselineOffset,
+                      width: size.width, height: size.height)
     }
 
     override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         var view = hitTest(recognizer.location(in: self), with: nil)
         while let current = view, current !== self {
-            if current.accessibilityIdentifier == Self.voiceTokenIdentifier { return false }
+            if let id = current.accessibilityIdentifier, [Self.voiceTokenIdentifier, Self.videoBlockIdentifier].contains(id) {
+                return false
+            }
             view = current.superview
         }
         return super.gestureRecognizerShouldBegin(recognizer)
@@ -181,6 +192,9 @@ final class NoteEditorController: ObservableObject {
     @Published private(set) var isRecording = false
     @Published var errorMessage: String?
     let player = VoiceNotePlayer()
+    let video = NoteVideoPlayer()
+    /// A video in the text becomes the figure's video (false) or its model (true).
+    var onUseVideo: ((_ path: String, _ asModel: Bool) -> Void)?
     /// Every recording made or placed here (the figure's own copies), so the ones deleted from the text can be
     /// removed from the phone.
     private(set) var recordedFiles: Set<String> = []
@@ -216,7 +230,10 @@ final class NoteEditorController: ObservableObject {
     /// The text view changed: the note follows.
     func edited() {
         guard let textView else { return }
-        onEdit?(NoteTextBridge.model(from: textView.attributedText))
+        let model = NoteTextBridge.model(from: textView.attributedText)
+        // A video deleted from the text stops playing.
+        if let playing = video.playingPath, !model.runs.contains(where: { $0.videoNote?.path == playing }) { video.stop() }
+        onEdit?(model)
     }
 
     /// Formatting from the bar, for the selected words or for what is typed next.
@@ -296,6 +313,60 @@ final class NoteEditorController: ObservableObject {
         edited()
     }
 
+    /// Where a video dropped at this point (window coordinates) would go: the nearer edge of the paragraph
+    /// under it, and the line across the text there.
+    func blockInsertionPoint(nearGlobal point: CGPoint) -> (index: Int, line: CGRect)? {
+        guard let textView, let (index, _) = insertionPoint(nearGlobal: point) else { return nil }
+        let string = textView.textStorage.string as NSString
+        let paragraph = string.paragraphRange(for: NSRange(location: min(index, string.length), length: 0))
+        let local = textView.convert(point, from: nil)
+        let edges = [paragraph.location, paragraph.upperBound].map { edge in (edge, lineY(before: edge, in: textView)) }
+        guard let nearest = edges.min(by: { abs($0.1 - local.y) < abs($1.1 - local.y) }) else { return nil }
+        let inset = textView.textContainerInset.left + textView.textContainer.lineFragmentPadding
+        let line = CGRect(x: inset, y: nearest.1 - 1.5, width: textView.bounds.width - 2 * inset, height: 3)
+        return (nearest.0, textView.convert(line, to: nil))
+    }
+
+    /// Height in the text view where a block put at this index would start.
+    private func lineY(before index: Int, in textView: UITextView) -> CGFloat {
+        guard let position = textView.position(from: textView.beginningOfDocument, offset: index) else { return 0 }
+        let caret = textView.caretRect(for: position)
+        let string = textView.textStorage.string
+        let afterLastLine = index == (string as NSString).length && !string.isEmpty && !string.hasSuffix("\n")
+        return afterLastLine ? caret.maxY + 4 : caret.minY - 2
+    }
+
+    /// A video from Denník as a block of its own between paragraphs, with the note's text after it.
+    func insertVideo(_ ref: VideoNoteRef, followedBy text: String?, at index: Int) {
+        guard let textView else { return }
+        let storage = textView.textStorage
+        let location = min(max(0, index), storage.length)
+        let string = storage.string as NSString
+        let newline = NSAttributedString(string: "\n", attributes: textView.typingAttributes)
+        let piece = NSMutableAttributedString()
+        if location > 0, string.character(at: location - 1) != 10 { piece.append(newline) }
+        piece.append(NSAttributedString(attachment: VideoTextAttachment(ref: ref, controller: self)))
+        piece.append(newline)
+        if let text, !text.isEmpty {
+            piece.append(NSAttributedString(string: text, attributes: textView.typingAttributes))
+            if location < storage.length, string.character(at: location) != 10 { piece.append(newline) }
+        }
+        storage.insert(piece, at: location)
+        textView.selectedRange = NSRange(location: location + piece.length, length: 0)
+        textView.setNeedsLayout()
+        if let text, !text.isEmpty {
+            flash(NSRange(location: location + piece.length - (text as NSString).length, length: (text as NSString).length))
+        }
+        edited()
+    }
+
+    /// "Odstrániť z poznámok" on a video; the video itself stays where it was (Denník, Fotky).
+    fileprivate func removeVideo(_ attachment: VideoTextAttachment) {
+        if video.playingPath == attachment.ref.path { video.stop() }
+        remove(attachment)
+        edited()
+    }
+
     /// A short gold glow on what was just put in; drawn only, never saved with the note.
     private func flash(_ range: NSRange) {
         guard let textView else { return }
@@ -363,7 +434,7 @@ final class NoteEditorController: ObservableObject {
         edited()
     }
 
-    private func remove(_ attachment: VoiceTextAttachment) {
+    private func remove(_ attachment: NSTextAttachment) {
         guard let storage = textView?.textStorage else { return }
         var found: NSRange?
         storage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: storage.length)) { value, range, stop in
@@ -390,26 +461,37 @@ final class VoiceTokenModel: ObservableObject {
     init(ref: VoiceNoteRef?) { self.ref = ref }
 }
 
+private extension UIImage {
+    /// What an attachment draws: nothing (without an image TextKit draws a file icon).
+    static let clearSpace = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { _ in }
+}
+
 /// One voice note inside the text: it keeps a clear space of the token's size; the text view lays the live
 /// SwiftUI view (`InlineVoiceToken`) over it.
-final class VoiceTextAttachment: NSTextAttachment {
+final class VoiceTextAttachment: NSTextAttachment, LiveTextAttachment {
     let token: VoiceTokenModel
     let player: VoiceNotePlayer
     let onStopRecording: () -> Void
-
-    private static let clearImage = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { _ in }
 
     init(token: VoiceTokenModel, player: VoiceNotePlayer, onStopRecording: @escaping () -> Void) {
         self.token = token
         self.player = player
         self.onStopRecording = onStopRecording
         super.init(data: nil, ofType: nil)
-        image = Self.clearImage
+        image = .clearSpace
         // Sits on the line like a word: a little below the baseline, centred on the text.
         bounds = CGRect(x: 0, y: -10, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
     }
 
     required init?(coder: NSCoder) { nil }
+
+    var baselineOffset: CGFloat { bounds.minY }
+
+    func makeHost() -> UIViewController {
+        let host = UIHostingController(rootView: AttachmentVoiceToken(token: token, player: player, onStopRecording: onStopRecording))
+        host.view.accessibilityIdentifier = NotesTextView.voiceTokenIdentifier
+        return host
+    }
 }
 
 private struct AttachmentVoiceToken: View {
@@ -421,6 +503,184 @@ private struct AttachmentVoiceToken: View {
         InlineVoiceToken(ref: token.ref, player: player, liveLevels: token.liveLevels,
                          elapsed: token.elapsed, onStopRecording: onStopRecording)
             .environment(\.colorScheme, .dark)
+    }
+}
+
+// MARK: - Video in the text
+/// One video inside the text: a block across the text (narrow and tall when filmed upright) keeping a clear
+/// space; the text view lays the live view (`AttachmentVideoBlock`) over it.
+final class VideoTextAttachment: NSTextAttachment, LiveTextAttachment {
+    nonisolated let ref: VideoNoteRef
+    private let video: NoteVideoPlayer
+    private weak var controller: NoteEditorController?
+
+    nonisolated static let maxHeight: CGFloat = 260
+    /// Air above and below the video inside its block.
+    nonisolated static let gap: CGFloat = 6
+
+    init(ref: VideoNoteRef, controller: NoteEditorController) {
+        self.ref = ref
+        self.video = controller.video
+        self.controller = controller
+        super.init(data: nil, ofType: nil)
+        image = .clearSpace
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    /// The whole width of the text, so the block always has a line of its own.
+    nonisolated override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect,
+                                               glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
+        let width = max(60, lineFrag.width - 2 * (textContainer?.lineFragmentPadding ?? 0))
+        return CGRect(x: 0, y: 0, width: width, height: Self.videoSize(isPortrait: ref.isPortrait, width: width).height + 2 * Self.gap)
+    }
+
+    /// Landscape fills the width (at most 260 high); upright is 260 high and about half the width.
+    nonisolated static func videoSize(isPortrait: Bool, width: CGFloat) -> CGSize {
+        if isPortrait { return CGSize(width: min(width, maxHeight * 9 / 16), height: maxHeight) }
+        let height = min(maxHeight, width * 9 / 16)
+        return CGSize(width: height * 16 / 9, height: height)
+    }
+
+    var baselineOffset: CGFloat { 0 }
+
+    func makeHost() -> UIViewController {
+        let host = UIHostingController(rootView: AttachmentVideoBlock(
+            ref: ref, video: video,
+            onUse: { [weak self] asModel in
+                guard let self else { return }
+                self.controller?.onUseVideo?(self.ref.path, asModel)
+            },
+            onRemove: { [weak self] in
+                guard let self else { return }
+                self.controller?.removeVideo(self)
+            }))
+        host.view.accessibilityIdentifier = NotesTextView.videoBlockIdentifier
+        return host
+    }
+}
+
+/// A video inside the text: its first frame with a play button. A tap plays it in place, silent and looping;
+/// a long press makes it the figure's video or the model, or takes it out of the notes.
+private struct AttachmentVideoBlock: View {
+    let ref: VideoNoteRef
+    @ObservedObject var video: NoteVideoPlayer
+    let onUse: (_ asModel: Bool) -> Void
+    let onRemove: () -> Void
+
+    @State private var appeared = false
+
+    private var isPlaying: Bool { video.playingPath == ref.path }
+
+    var body: some View {
+        GeometryReader { geo in
+            let size = VideoTextAttachment.videoSize(isPortrait: ref.isPortrait, width: geo.size.width)
+            block
+                .frame(width: size.width, height: size.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+        .scaleEffect(appeared ? 1 : 0.92, anchor: .leading)
+        .opacity(appeared ? 1 : 0)
+        .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { appeared = true } }
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var block: some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        return ZStack {
+            if isPlaying, let player = video.player {
+                CustomAVPlayerRepresentable(player: player, gravity: .resizeAspectFill)
+                    .transition(.opacity)
+            } else {
+                MediaThumbnailView(path: ref.path, cornerRadius: 0)
+                if video.missingPath == ref.path {
+                    Label("Video sa nenašlo", systemImage: "video.slash.fill")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.8))
+                        .padding(8)
+                        .background(Color.black.opacity(0.55), in: Capsule())
+                } else {
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color.obsidian900)
+                        .frame(width: 44, height: 44)
+                        .background(Color.gold400, in: Circle())
+                        .shadow(color: .black.opacity(0.4), radius: 8, y: 3)
+                }
+            }
+        }
+        .clipShape(shape)
+        .overlay(shape.stroke(Color.gold400.opacity(isPlaying ? 0.7 : 0.3), lineWidth: 1))
+        .overlay(alignment: .topLeading) {
+            Text("VIDEO")
+                .font(.system(.caption2, design: .rounded).weight(.black))
+                .tracking(1.2)
+                .foregroundColor(Color.gold400)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.black.opacity(0.45), in: Capsule())
+                .padding(8)
+        }
+        .animation(.easeInOut(duration: 0.25), value: isPlaying)
+        .contentShape(shape)
+        .onTapGesture { video.toggle(ref.path) }
+        .contextMenu {
+            Button { onUse(false) } label: { Label("Ako moje video", systemImage: "person.fill") }
+            Button { onUse(true) } label: { Label("Ako vzor", systemImage: "star.fill") }
+            Divider()
+            Button(role: .destructive, action: onRemove) { Label("Odstrániť z poznámok", systemImage: "trash") }
+        }
+        .sensoryFeedback(.selection, trigger: isPlaying)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Video v poznámkach")
+        .accessibilityHint(isPlaying ? "Ťuknutím zastavíš" : "Ťuknutím prehráš")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction(named: "Ako moje video") { onUse(false) }
+        .accessibilityAction(named: "Ako vzor") { onUse(true) }
+        .accessibilityAction(named: "Odstrániť z poznámok", onRemove)
+    }
+}
+
+/// The one video playing inside the notes: silent and looping. It takes the audio session only when nothing
+/// else holds it, so music in the hall plays on and a figure video with sound keeps its sound.
+@MainActor
+final class NoteVideoPlayer: ObservableObject {
+    @Published private(set) var playingPath: String?
+    @Published private(set) var missingPath: String?
+    private(set) var player: AVQueuePlayer?
+    private var looper: AVPlayerLooper?
+    private var request = 0
+
+    func toggle(_ path: String) {
+        let wasPlaying = playingPath == path
+        stop()
+        guard !wasPlaying else { return }
+        let current = request
+        Task {
+            guard let url = await MediaResolver.videoURL(path: path) else {
+                if current == request { missingPath = path }
+                return
+            }
+            if await AudioSessionCoordinator.shared.currentClient == nil {
+                try? await AudioSessionCoordinator.shared.activate(.mutedVideo)
+            }
+            guard current == request else { return }
+            let queue = AVQueuePlayer()
+            queue.isMuted = true
+            looper = AVPlayerLooper(player: queue, templateItem: AVPlayerItem(url: url))
+            player = queue
+            missingPath = nil
+            playingPath = path
+            queue.play()
+        }
+    }
+
+    func stop() {
+        request += 1
+        player?.pause()
+        looper = nil
+        player = nil
+        playingPath = nil
     }
 }
 
@@ -470,6 +730,8 @@ enum NoteTextBridge {
             if let ref = run.voiceNote {
                 result.append(NSAttributedString(attachment: VoiceTextAttachment(
                     token: VoiceTokenModel(ref: ref), player: controller.player, onStopRecording: {})))
+            } else if let ref = run.videoNote {
+                result.append(NSAttributedString(attachment: VideoTextAttachment(ref: ref, controller: controller)))
             } else {
                 result.append(NSAttributedString(string: String(model[run.range].characters), attributes: uikit(run.attributes)))
             }
@@ -484,9 +746,9 @@ enum NoteTextBridge {
         text.enumerateAttributes(in: NSRange(location: 0, length: text.length)) { attributes, range, _ in
             if let voice = attributes[.attachment] as? VoiceTextAttachment {
                 guard let ref = voice.token.ref else { return }
-                var piece = AttributedString(RichNote.voiceCharacter)
-                piece.voiceNote = ref
-                result.append(piece)
+                result.append(NoteMedia.voice(ref).piece)
+            } else if let video = attributes[.attachment] as? VideoTextAttachment {
+                result.append(NoteMedia.video(video.ref).piece)
             } else {
                 let container = (attributes[.encoreRun] as? RunAttributes)?.value ?? AttributeContainer()
                 result.append(AttributedString(string.substring(with: range), attributes: container))

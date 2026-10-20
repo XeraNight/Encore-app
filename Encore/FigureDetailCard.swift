@@ -47,12 +47,12 @@ struct FigureDetailCard: View {
     @State private var isDuel = false
     @State private var showModelPicker = false
     @State private var showJournal = false
-    /// A voice note from Denník being dragged to its place in the text.
-    @State private var placingVoice: PendingVoice?
+    /// A voice note or video from Denník being dragged to its place in the text.
+    @State private var placing: PendingMedia?
     @State private var notesFrame: CGRect = .zero
 
-    private struct PendingVoice: Equatable {
-        let ref: VoiceNoteRef
+    private struct PendingMedia: Equatable {
+        let media: NoteMedia
         let text: String?
         let noteId: UUID
     }
@@ -125,18 +125,18 @@ struct FigureDetailCard: View {
                 .scrollDismissesKeyboard(.interactively)
             }
             .overlay {
-                if let pending = placingVoice {
-                    VoicePlacementOverlay(
-                        ref: pending.ref,
+                if let pending = placing {
+                    MediaPlacementOverlay(
+                        media: pending.media,
                         startPoint: CGPoint(x: notesFrame.midX, y: notesFrame.midY + 36),
                         controller: noteEditor,
-                        onCancel: cancelVoicePlacement,
-                        onPlace: { index in placeVoice(pending, at: index) }
+                        onCancel: cancelPlacement,
+                        onPlace: { index in place(pending, at: index) }
                     )
                     .transition(.opacity)
                 }
             }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: placingVoice)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: placing)
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) {
                 if isWriting {
@@ -155,11 +155,13 @@ struct FigureDetailCard: View {
                 loadedVoiceFiles = Set(RichNote.voiceNotes(in: text).map(\.fileName))
                 didLoadNotes = true
             }
+            noteEditor.onUseVideo = { path, asModel in useVideo(path, asModel: asModel) }
             setupPlayer(for: node.displayVideoPath)
         }
         .onDisappear {
             noteEditor.stopRecording()
             noteEditor.player.stop()
+            noteEditor.video.stop()
             persistNotes()
             removeDeletedVoiceNotes()
             playerGeneration += 1
@@ -691,22 +693,30 @@ struct FigureDetailCard: View {
     }
 
     // MARK: - From Denník
-    /// Text goes where the cursor is; a voice note (the figure's own copy) is dragged to its place first.
+    /// Text goes where the cursor is; a voice note (the figure's own copy) or a video is dragged to its place
+    /// first. The video is not copied: Denník keeps it and the text points to it.
     private func insertFromJournal(_ note: InstantNote) {
-        if let audio = note.audioPath {
+        let text = note.hasText ? note.text : nil
+        if let video = note.videoPath {
+            Task {
+                let portrait = await VideoStill.isPortrait(await MediaResolver.videoURL(path: video)) ?? false
+                // After the sheet has gone, so the notes are visible.
+                try? await Task.sleep(for: .milliseconds(350))
+                placing = PendingMedia(media: .video(VideoNoteRef(path: video, isPortrait: portrait)), text: text, noteId: note.id)
+            }
+        } else if let audio = note.audioPath {
             let source = MediaStorageManager.url(for: audio)
             let name = "voice_\(UUID().uuidString).m4a"
             let target = MediaStorageManager.url(for: name)
-            let pending = PendingVoice(ref: VoiceNoteRef(fileName: name, duration: note.audioDuration ?? 0),
-                                       text: note.hasText ? note.text : nil, noteId: note.id)
+            let pending = PendingMedia(media: .voice(VoiceNoteRef(fileName: name, duration: note.audioDuration ?? 0)),
+                                       text: text, noteId: note.id)
             Task {
                 let copied = await Task.detached(priority: .userInitiated) {
                     (try? FileManager.default.copyItem(at: source, to: target)) != nil
                 }.value
                 guard copied else { return }
-                // After the sheet has gone, so the notes are visible.
                 try? await Task.sleep(for: .milliseconds(350))
-                placingVoice = pending
+                placing = pending
             }
         } else {
             noteEditor.insertText(note.text.trimmingCharacters(in: .whitespacesAndNewlines))
@@ -714,30 +724,37 @@ struct FigureDetailCard: View {
         }
     }
 
-    private func placeVoice(_ pending: PendingVoice, at index: Int) {
-        noteEditor.insertVoice(pending.ref, followedBy: pending.text, at: index)
+    private func place(_ pending: PendingMedia, at index: Int) {
+        switch pending.media {
+        case .voice(let ref): noteEditor.insertVoice(ref, followedBy: pending.text, at: index)
+        case .video(let ref): noteEditor.insertVideo(ref, followedBy: pending.text, at: index)
+        }
         markInFigure(pending.noteId)
-        placingVoice = nil
+        placing = nil
         successCount += 1
     }
 
-    /// The copy was made for this figure; not placed, it goes again.
-    private func cancelVoicePlacement() {
-        if let pending = placingVoice { MediaStorageManager.removeFile(named: pending.ref.fileName) }
-        placingVoice = nil
+    /// A voice copy was made for this figure; not placed, it goes again.
+    private func cancelPlacement() {
+        if case .voice(let ref) = placing?.media { MediaStorageManager.removeFile(named: ref.fileName) }
+        placing = nil
     }
 
-    /// A video from Denník becomes my video or the model (then the duel shows both).
     private func useJournalVideo(_ note: InstantNote, asModel: Bool) {
         guard let video = note.videoPath else { return }
+        useVideo(video, asModel: asModel)
+        markInFigure(note.id)
+    }
+
+    /// A video (from Denník or from the notes) becomes my video or the model (then the duel shows both).
+    private func useVideo(_ path: String, asModel: Bool) {
         if asModel {
-            node.activeTargetVideoPath = video
+            node.activeTargetVideoPath = path
             if !isDuel { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isDuel = true } }
         } else {
-            replaceVideo(with: video)
+            replaceVideo(with: path)
         }
         routineDidChange()
-        markInFigure(note.id)
     }
 
     /// Denník shows the note as already in a figure.

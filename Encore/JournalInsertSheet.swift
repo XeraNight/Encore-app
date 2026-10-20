@@ -3,7 +3,8 @@ import SwiftUI
 
 // MARK: - From Denník into a figure's notes
 /// Denník from inside a figure (BRAND_GUIDELINES §1A): the small notes, newest first. Text goes where the
-/// cursor is, a voice note is dragged to its place in the text, a video becomes the figure's video or model.
+/// cursor is, a voice note or a video is dragged to its place in the text; a video can also become the
+/// figure's video or model.
 struct JournalInsertSheet: View {
     let onInsert: (InstantNote) -> Void
     let onUseVideo: (InstantNote, _ asModel: Bool) -> Void
@@ -104,6 +105,10 @@ struct JournalInsertSheet: View {
     private func actions(for note: InstantNote) -> some View {
         if note.videoPath != nil {
             Menu {
+                Button {
+                    dismiss()
+                    onInsert(note)
+                } label: { Label("Vložiť do poznámok", systemImage: "text.insert") }
                 Button { use(note, asModel: false) } label: { Label("Ako moje video", systemImage: "person.fill") }
                 Button { use(note, asModel: true) } label: { Label("Ako vzor", systemImage: "star.fill") }
             } label: {
@@ -135,18 +140,33 @@ struct JournalInsertSheet: View {
     }
 }
 
-// MARK: - Placing a voice note in the text
-/// The voice note floats over the notes; drag it (or anywhere) and a gold line shows where it goes in the
-/// text. "Vložiť sem" puts it there.
-struct VoicePlacementOverlay: View {
-    let ref: VoiceNoteRef
+// MARK: - Placing a voice note or a video in the text
+/// The voice note or video floats over the notes; drag it (or anywhere) and a gold line shows where it goes:
+/// a cursor in the text for a voice note, a line between paragraphs for a video. "Vložiť sem" puts it there.
+struct MediaPlacementOverlay: View {
+    let media: NoteMedia
     let startPoint: CGPoint
     let controller: NoteEditorController
     let onCancel: () -> Void
     let onPlace: (Int) -> Void
 
     @State private var point: CGPoint?
-    @State private var target: (index: Int, caret: CGRect)?
+    @State private var target: (index: Int, mark: CGRect)?
+
+    private var isVideo: Bool {
+        if case .video = media { return true }
+        return false
+    }
+
+    private var previewSize: CGSize {
+        switch media {
+        case .voice: return InlineVoiceToken.size
+        case .video(let ref): return ref.isPortrait ? CGSize(width: 63, height: 112) : CGSize(width: 144, height: 81)
+        }
+    }
+
+    /// The preview floats this far above the finger, so the finger never hides the spot.
+    private var lift: CGFloat { previewSize.height / 2 + 20 }
 
     var body: some View {
         GeometryReader { geo in
@@ -158,22 +178,23 @@ struct VoicePlacementOverlay: View {
                     .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
                         .onChanged { value in move(to: value.location) })
 
-                if let caret = target?.caret {
+                if let mark = target?.mark {
                     Capsule()
                         .fill(Color.gold400)
-                        .frame(width: 3, height: caret.height + 8)
-                        .position(x: caret.midX - origin.x, y: caret.midY - origin.y)
+                        .frame(width: isVideo ? mark.width : 3, height: isVideo ? 3 : mark.height + 8)
+                        .shadow(color: Color.gold400.opacity(0.6), radius: 6)
+                        .position(x: mark.midX - origin.x, y: mark.midY - origin.y)
                         .animation(.spring(response: 0.2, dampingFraction: 0.8), value: target?.index)
                 }
 
-                InlineVoiceToken(ref: ref, player: controller.player)
+                preview
                     .scaleEffect(1.1)
                     .shadow(color: .black.opacity(0.5), radius: 10, y: 6)
-                    .position(x: current.x - origin.x, y: current.y - origin.y - 36)
+                    .position(x: current.x - origin.x, y: current.y - origin.y - lift)
                     .allowsHitTesting(false)
 
                 VStack(spacing: 12) {
-                    Text("Potiahni hlasovku na miesto v texte")
+                    Text(isVideo ? "Potiahni video medzi odseky" : "Potiahni hlasovku na miesto v texte")
                         .font(.subheadline.weight(.semibold))
                         .foregroundColor(.white)
                         .padding(.horizontal, 14)
@@ -204,9 +225,28 @@ struct VoicePlacementOverlay: View {
         .onAppear { move(to: startPoint) }
     }
 
+    @ViewBuilder
+    private var preview: some View {
+        switch media {
+        case .voice(let ref):
+            InlineVoiceToken(ref: ref, player: controller.player)
+        case .video(let ref):
+            MediaThumbnailView(path: ref.path, cornerRadius: 12)
+                .frame(width: previewSize.width, height: previewSize.height)
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.gold400.opacity(0.6), lineWidth: 1))
+        }
+    }
+
     private func move(to location: CGPoint) {
         point = location
-        // The note goes where the token's middle points, a little above the finger.
-        target = controller.insertionPoint(nearGlobal: CGPoint(x: location.x - InlineVoiceToken.size.width / 2, y: location.y - 36))
+        // A voice note goes where the token starts, a video to the paragraph edge nearest its middle.
+        switch media {
+        case .voice:
+            target = controller.insertionPoint(nearGlobal: CGPoint(x: location.x - previewSize.width / 2, y: location.y - lift))
+                .map { ($0.index, $0.caret) }
+        case .video:
+            target = controller.blockInsertionPoint(nearGlobal: CGPoint(x: location.x, y: location.y - lift))
+                .map { ($0.index, $0.line) }
+        }
     }
 }

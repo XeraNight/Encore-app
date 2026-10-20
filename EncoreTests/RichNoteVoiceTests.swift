@@ -4,8 +4,8 @@ import SwiftUI
 import SwiftData
 @testable import Encore
 
-/// Voice notes inside a figure's notes: the partner reads a marker in the synced text, the recording comes
-/// back when the notes are opened again, and survives the partner editing the text around it.
+/// Voice notes and videos inside a figure's notes: the partner reads a marker in the synced text, the recording
+/// or video comes back when the notes are opened again, and survives the partner editing the text around it.
 @MainActor
 struct RichNoteVoiceTests {
     private func makeNode(notes: String) throws -> (ModelContainer, CanvasNode) {
@@ -18,7 +18,7 @@ struct RichNoteVoiceTests {
 
     private func note(before: String, voice: VoiceNoteRef, after: String) -> AttributedString {
         var text = AttributedString(before)
-        var piece = AttributedString(RichNote.voiceCharacter)
+        var piece = AttributedString(RichNote.attachmentCharacter)
         piece.voiceNote = voice
         text.append(piece)
         text.append(AttributedString(after))
@@ -64,7 +64,7 @@ struct RichNoteVoiceTests {
         marked.backgroundColor = Color.yellow.opacity(0.35)
         marked.underlineStyle = .single
         text.append(marked)
-        var voice = AttributedString(RichNote.voiceCharacter)
+        var voice = AttributedString(RichNote.attachmentCharacter)
         voice.voiceNote = VoiceNoteRef(fileName: "voice_d.m4a", duration: 5)
         text.append(voice)
         text.append(AttributedString(" celý čas."))
@@ -76,7 +76,7 @@ struct RichNoteVoiceTests {
 
     @Test func voiceNoteIsALiveViewRightAfterItsWords() throws {
         var text = AttributedString("Hlava vľavo ")
-        var voice = AttributedString(RichNote.voiceCharacter)
+        var voice = AttributedString(RichNote.attachmentCharacter)
         voice.voiceNote = VoiceNoteRef(fileName: "voice_e.m4a", duration: 9)
         text.append(voice)
         text.append(AttributedString(" celý čas."))
@@ -102,5 +102,62 @@ struct RichNoteVoiceTests {
         let decoded = try #require(RichNote.decode(data))
         #expect(RichNote.plain(decoded) == "Rám drž hore")
         #expect(decoded.runs.first?.font == .system(size: 22, weight: .bold))
+    }
+
+    // MARK: Videos
+
+    private func layoutBlock(isPortrait: Bool) throws -> CGRect {
+        var text = AttributedString("Rám hore\n")
+        text.append(NoteMedia.video(VideoNoteRef(path: "clip.mov", isPortrait: isPortrait)).piece)
+        text.append(AttributedString("\nPotom zdvih."))
+        let view = NotesTextView.make()
+        view.frame = CGRect(x: 0, y: 0, width: 360, height: 600)
+        view.attributedText = NoteTextBridge.attributed(text, controller: NoteEditorController())
+        view.layoutIfNeeded()
+        #expect(view.textLayoutManager == nil)
+        let block = try #require(view.subviews.first { $0.accessibilityIdentifier == NotesTextView.videoBlockIdentifier })
+        return block.frame
+    }
+
+    @Test func videoAndVoiceComeBackAfterThePartnerEdits() throws {
+        let voice = VoiceNoteRef(fileName: "voice_f.m4a", duration: 3)
+        let video = VideoNoteRef(path: "journal_clip.mov", isPortrait: true)
+        var text = AttributedString("Hlava ")
+        text.append(NoteMedia.voice(voice).piece)
+        text.append(AttributedString("\n"))
+        text.append(NoteMedia.video(video).piece)
+        text.append(AttributedString("\nZdvih."))
+        #expect(RichNote.plain(text) == "Hlava [hlasovka 0:03]\n[video]\nZdvih.")
+
+        let (container, node) = try makeNode(notes: RichNote.plain(text))
+        _ = container
+        node.notesRichData = RichNote.encode(text)
+        node.notes = "Pozor! Hlava [hlasovka 0:03]\n[video]\nZdvih až na 3."
+        let reopened = RichNote.attributed(for: node)
+        #expect(RichNote.media(in: reopened) == [.voice(voice), .video(video)])
+        #expect(RichNote.plain(reopened) == node.notes)
+    }
+
+    @Test func editorKeepsVideosUnchanged() {
+        var text = AttributedString("Rám\n")
+        text.append(NoteMedia.video(VideoNoteRef(path: "clip.mov", isPortrait: false)).piece)
+        text.append(AttributedString("\nhore"))
+        let shown = NoteTextBridge.attributed(text, controller: NoteEditorController())
+        #expect(NoteTextBridge.model(from: shown) == text)
+    }
+
+    @Test func landscapeVideoIsABlockAcrossTheText() throws {
+        let frame = try layoutBlock(isPortrait: false)
+        let width: CGFloat = 360 - 2 * 5   // minus the line padding on both sides
+        #expect(abs(frame.width - width) < 1)
+        #expect(abs(frame.height - (width * 9 / 16 + 2 * VideoTextAttachment.gap)) < 1)
+        #expect(frame.minY > 20)   // below "Rám hore", on a line of its own
+    }
+
+    @Test func uprightVideoIsTallAndNarrow() throws {
+        let frame = try layoutBlock(isPortrait: true)
+        #expect(abs(frame.height - (VideoTextAttachment.maxHeight + 2 * VideoTextAttachment.gap)) < 1)
+        let video = VideoTextAttachment.videoSize(isPortrait: true, width: frame.width)
+        #expect(video.width < frame.width / 2)
     }
 }
