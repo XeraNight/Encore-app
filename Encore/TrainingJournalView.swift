@@ -3,8 +3,8 @@ import SwiftData
 import SwiftUI
 
 // MARK: - Denník (all notes)
-/// Every note by day, like a training journal (BRAND_GUIDELINES §1A): a strip of days, the day's notes as
-/// glass cards with a short voice note right inside the sentence, "Počúvať" plays the day's voice notes one
+/// Every note by day, like a training journal (BRAND_GUIDELINES §1A): a strip of days, the training's
+/// reflection on top, the day's notes as glass cards with a short voice note right inside the sentence, "Počúvať" plays the day's voice notes one
 /// after another, and Hlas | Text writes a new note in a card that comes up while the rest blurs.
 struct TrainingJournalView: View {
     @Environment(\.modelContext) private var modelContext
@@ -26,6 +26,7 @@ struct TrainingJournalView: View {
     @State private var noteForFigure: InstantNote?
     @State private var noteToDelete: InstantNote?
     @State private var figureNames: [UUID: String] = [:]
+    @State private var debriefEntry: TrainingLogEntry?
     @State private var toast: String?
     @State private var savedTick = 0
     @Namespace private var dayNamespace
@@ -34,10 +35,20 @@ struct TrainingJournalView: View {
 
     private var calendar: Calendar { PlannerCalendar.calendar }
 
-    /// Days that have notes, oldest first (the strip reads left to right like a calendar).
+    /// Reflections written after trainings (Kalendár); they open the day's page.
+    private var reflections: [TrainingLogEntry] {
+        logs.filter { !$0.reflectionNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    }
+
+    /// Days that have notes or a reflection, oldest first (the strip reads left to right like a calendar).
     private var days: [Date] {
-        var seen = Set<Date>()
-        return notes.map { calendar.startOfDay(for: $0.createdAt) }.filter { seen.insert($0).inserted }
+        let all = notes.map { calendar.startOfDay(for: $0.createdAt) } + reflections.map { calendar.startOfDay(for: $0.day) }
+        return Set(all).sorted()
+    }
+
+    private var dayReflections: [TrainingLogEntry] {
+        guard let day else { return [] }
+        return reflections.filter { calendar.isDate($0.day, inSameDayAs: day) }
     }
 
     private var day: Date? { selectedDay ?? days.last }
@@ -90,6 +101,7 @@ struct TrainingJournalView: View {
                 ToolbarItem(placement: .confirmationAction) { Button("Hotovo") { dismiss() } }
             }
             .sheet(item: $noteToEdit) { NoteDetailSheet(note: $0) }
+            .sheet(item: $debriefEntry) { DebriefSheet(entry: $0).presentationDetents([.large]) }
             .sheet(item: $noteForFigure) { note in
                 FigurePickerSheet(note: note) { showToast("Pridané k figúre") }
             }
@@ -115,7 +127,7 @@ struct TrainingJournalView: View {
     // MARK: Content
     @ViewBuilder
     private var content: some View {
-        if notes.isEmpty {
+        if days.isEmpty {
             emptyState
         } else {
             ScrollView {
@@ -126,6 +138,7 @@ struct TrainingJournalView: View {
                     } else {
                         dayStrip
                         dayHeader
+                        ForEach(dayReflections) { reflectionCard($0) }
                         ForEach(dayNotes) { card(for: $0, showsDate: false) }
                     }
                 }
@@ -206,10 +219,12 @@ struct TrainingJournalView: View {
         VStack(alignment: .leading, spacing: 6) {
             HomeSectionHeader(title: trainingTitle, systemImage: "figure.dance",
                               count: nil) {
-                Text(slovakCount(dayNotes.count, one: "poznámka", few: "poznámky", many: "poznámok"))
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(.white.opacity(0.6))
-                    .contentTransition(.numericText())
+                if !dayNotes.isEmpty {
+                    Text(slovakCount(dayNotes.count, one: "poznámka", few: "poznámky", many: "poznámok"))
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.white.opacity(0.6))
+                        .contentTransition(.numericText())
+                }
             }
             if let day {
                 Text(day, format: .dateTime.weekday(.wide).day().month(.abbreviated))
@@ -235,15 +250,49 @@ struct TrainingJournalView: View {
 
     /// "TRÉNING 18:00" when the Kalendár has a training that day (the one closest to the notes).
     private var trainingTitle: String {
-        guard let day, let first = dayNotes.first else { return "POZNÁMKY" }
+        guard let day, let firstTime = dayNotes.first?.createdAt ?? dayReflections.first?.day else { return "POZNÁMKY" }
         let trainings = TrainingOccurrence.on(day, cadences: cadences, sessions: sessions, logs: logs, wholePast: true)
-        guard let training = trainings.min(by: { abs($0.start.timeIntervalSince(first.createdAt)) < abs($1.start.timeIntervalSince(first.createdAt)) })
+        guard let training = trainings.min(by: { abs($0.start.timeIntervalSince(firstTime)) < abs($1.start.timeIntervalSince(firstTime)) })
         else { return "POZNÁMKY" }
         let time = training.hasTime ? " " + training.start.formatted(date: .omitted, time: .shortened) : ""
         return training.title.uppercased() + time
     }
 
     // MARK: Cards
+    /// The reflection written after the day's training; tapped, it opens for editing.
+    private func reflectionCard(_ entry: TrainingLogEntry) -> some View {
+        Button { debriefEntry = entry } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Text("REFLEXIA")
+                        .font(.system(.caption, design: .rounded).weight(.black))
+                        .tracking(1.4)
+                        .foregroundColor(Color.gold400)
+                    if let feeling = entry.feeling {
+                        Text("\(feeling.emoji) \(feeling.title)")
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.7))
+                    }
+                    Spacer(minLength: 6)
+                    Text(entry.title.isEmpty ? "Tréning" : entry.title)
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+                Text(entry.reflectionNote)
+                    .font(.body)
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(14)
+            .homeCard(cornerRadius: 18)
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.gold400.opacity(0.25), lineWidth: 1))
+        }
+        .buttonStyle(.pressable(scale: 0.98))
+        .accessibilityHint("Otvorí reflexiu na úpravu")
+    }
+
     private func card(for note: InstantNote, showsDate: Bool) -> some View {
         JournalNoteCard(
             note: note,
