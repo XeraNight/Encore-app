@@ -43,6 +43,10 @@ struct FigureDetailCard: View {
     @State private var showCamera = false
     @State private var showMediaPicker = false
     @State private var showDuelComparison = false
+    /// Duel: my video and the model's side by side instead of one video.
+    @State private var isDuel = false
+    @State private var showModelPicker = false
+    @State private var showJournal = false
     @State private var showTimeline = false
     @State private var showPremiumPaywall = false
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
@@ -75,7 +79,20 @@ struct FigureDetailCard: View {
 
                 ScrollView {
                     VStack(spacing: 14) {
-                        videoSection(width: geo.size.width - 32, screenHeight: geo.size.height)
+                        if isDuel {
+                            FigureDuelSlots(
+                                myPath: node.displayVideoPath,
+                                modelPath: node.activeTargetVideoPath,
+                                height: min((geo.size.width - 32) * 0.8, geo.size.height * 0.45),
+                                onAddMine: { showMediaPicker = true },
+                                onAddModel: { showModelPicker = true },
+                                onCompare: { showDuelComparison = true }
+                            )
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                        } else {
+                            videoSection(width: geo.size.width - 32, screenHeight: geo.size.height)
+                                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                        }
                         HomeSectionHeader(title: "POZNÁMKY", systemImage: "note.text")
                             .padding(.horizontal, 4)
                             .padding(.top, 4)
@@ -165,6 +182,22 @@ struct FigureDetailCard: View {
                 },
                 onClearMedia: {}
             )
+        }
+        .sheet(isPresented: $showModelPicker) {
+            UniversalMediaPickerSheet(
+                slotTitle: "Vzor figúry",
+                currentPath: node.activeTargetVideoPath,
+                onSelectMedia: { path in
+                    node.activeTargetVideoPath = path
+                    routineDidChange()
+                },
+                onClearMedia: {}
+            )
+        }
+        .sheet(isPresented: $showJournal) { TrainingJournalView() }
+        .onChange(of: isDuel) { _, duel in
+            // One player at a time: the duel plays its own two.
+            if duel { stopPlayer() } else { setupPlayer(for: node.displayVideoPath) }
         }
         .sheet(isPresented: $showDuelComparison) {
             DualVideoComparisonView(
@@ -282,15 +315,12 @@ struct FigureDetailCard: View {
 
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
-                    LiquidGlassCircleButton(icon: "rotate.right", label: "Otočiť video") {
-                        node.videoRotation = (rotation + 90) % 360
-                        videoHeightOverride = nil
-                        try? node.modelContext?.save()
-                    }
-                    .disabled(node.displayVideoPath == nil)
-                    .opacity(node.displayVideoPath == nil ? 0.45 : 1)
+                    LiquidGlassCircleButton(icon: "book.pages", label: "Denník") { showJournal = true }
 
-                    LiquidGlassCircleButton(icon: "rectangle.split.2x1", label: "Porovnanie") { showDuelComparison = true }
+                    LiquidGlassCircleButton(icon: "rectangle.split.2x1", label: isDuel ? "Jedno video" : "Duel: ja a vzor",
+                                            isActive: isDuel) {
+                        withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) { isDuel.toggle() }
+                    }
                 }
             }
         }
@@ -425,6 +455,11 @@ struct FigureDetailCard: View {
 
     private var videoMenu: some View {
         Menu {
+            Button {
+                node.videoRotation = (rotation + 90) % 360
+                videoHeightOverride = nil
+                try? node.modelContext?.save()
+            } label: { Label("Otočiť video", systemImage: "rotate.right") }
             if node.videoPath != nil {
                 Button { showCamera = true } label: { Label("Natočiť znova", systemImage: "arrow.triangle.2.circlepath") }
                 if node.sharedVideoPath == nil {
@@ -581,9 +616,8 @@ struct FigureDetailCard: View {
             }
         }
         .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
-        .padding(14)
-        .homeCard(cornerRadius: 22)
-        .overlay { FieldEdgeSweep(trigger: sweepTrigger).padding(14) }
+        .padding(.horizontal, 4)
+        .overlay { FieldEdgeSweep(trigger: sweepTrigger) }
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onTapGesture { isWriting = true }
     }

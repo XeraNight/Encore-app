@@ -13,7 +13,7 @@ struct InlineVoiceToken: View {
     var elapsed: TimeInterval = 0
     var onStopRecording: (() -> Void)? = nil
 
-    static let size = CGSize(width: 112, height: 28)
+    static let size = CGSize(width: 136, height: 32)
 
     @State private var levels: [CGFloat] = []
 
@@ -23,21 +23,24 @@ struct InlineVoiceToken: View {
     private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
 
     var body: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 7) {
             icon
             CarouselWave(levels: isRecording ? liveLevels : levels, progress: progress,
                          mode: isRecording ? .recording : (isMine && progress > 0 ? .playing : .overview))
                 .frame(width: 52, height: 18)
             Text(voiceTimeString(timeShown))
-                .font(.caption2.weight(.semibold))
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .monospacedDigit()
                 .foregroundColor(isRecording ? .white : Color.gold300)
-                .frame(width: 30, alignment: .trailing)
+                .lineLimit(1)
+                .fixedSize()
+            Spacer(minLength: 0)
         }
-        .padding(.leading, 4)
-        .padding(.trailing, 7)
+        .padding(.leading, 5)
+        .padding(.trailing, 10)
         .frame(width: Self.size.width, height: Self.size.height)
         .background(background, in: Capsule())
+        .overlay(Capsule().stroke(isRecording ? Color.latinRed.opacity(0.5) : Color.gold400.opacity(0.35), lineWidth: 1))
         .scaleEffect(isPlaying ? 1.05 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPlaying)
         .contentShape(Capsule())
@@ -64,16 +67,16 @@ struct InlineVoiceToken: View {
     private var icon: some View {
         if isRecording {
             Image(systemName: "stop.fill")
-                .font(.system(size: 8, weight: .black))
+                .font(.system(size: 9, weight: .black))
                 .foregroundColor(.white)
-                .frame(width: 20, height: 20)
+                .frame(width: 22, height: 22)
                 .background(Color.latinRed, in: Circle())
                 .phaseAnimator([1.0, 0.45]) { dot, phase in dot.opacity(phase) } animation: { _ in .easeInOut(duration: 0.6) }
         } else {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: 9, weight: .black))
+                .font(.system(size: 10, weight: .black))
                 .foregroundColor(Color.obsidian900)
-                .frame(width: 20, height: 20)
+                .frame(width: 22, height: 22)
                 .background(Color.gold400, in: Circle())
                 .contentTransition(.symbolEffect(.replace))
         }

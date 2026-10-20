@@ -330,7 +330,8 @@ final class VoiceTextAttachment: NSTextAttachment {
         self.onStopRecording = onStopRecording
         super.init(data: nil, ofType: nil)
         image = Self.clearImage
-        bounds = CGRect(x: 0, y: -8, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
+        // Sits on the line like a word: a little below the baseline, centred on the text.
+        bounds = CGRect(x: 0, y: -10, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
     }
 
     required init?(coder: NSCoder) { nil }
