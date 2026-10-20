@@ -74,6 +74,26 @@ struct RichNoteVoiceTests {
         #expect(NoteTextBridge.model(from: shown) == text)
     }
 
+    @Test func voiceNoteIsALiveViewRightAfterItsWords() throws {
+        var text = AttributedString("Hlava vľavo ")
+        var voice = AttributedString(RichNote.voiceCharacter)
+        voice.voiceNote = VoiceNoteRef(fileName: "voice_e.m4a", duration: 9)
+        text.append(voice)
+        text.append(AttributedString(" celý čas."))
+
+        let view = NotesTextView.make()
+        view.frame = CGRect(x: 0, y: 0, width: 360, height: 300)
+        view.attributedText = NoteTextBridge.attributed(text, controller: NoteEditorController())
+        view.layoutIfNeeded()
+
+        // TextKit 1 throughout (TextKit 2 fell back with attachments and drew a blank file icon).
+        #expect(view.textLayoutManager == nil)
+        let token = try #require(view.subviews.first { $0.accessibilityIdentifier == NotesTextView.voiceTokenIdentifier })
+        #expect(token.frame.size == InlineVoiceToken.size)
+        #expect(token.frame.minX > 60)   // after "Hlava vľavo ", on the first line
+        #expect(token.frame.minY < 30)
+    }
+
     @Test func notesWrittenBeforeVoiceNotesStillOpen() throws {
         // Data saved by the old editor (SwiftUI attributes only) decodes with the new scope.
         var old = AttributedString("Rám drž hore")

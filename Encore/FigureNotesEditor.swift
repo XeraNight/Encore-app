@@ -4,9 +4,11 @@ import UIKit
 
 // MARK: - Figure notes editor
 /// The notes of a figure, editable, with voice notes inside the text: the mic in the format bar records
-/// exactly where the cursor is. UIKit's text view (TextKit 2) can hold a live view inside the text, which
-/// SwiftUI's TextEditor cannot. The note itself stays the SwiftUI AttributedString it always was
-/// (`RichNote`); this view only shows and edits it, so old notes open unchanged.
+/// exactly where the cursor is. A voice note keeps an empty space in the text (an attachment) and a live
+/// SwiftUI view lies exactly over it, which SwiftUI's TextEditor cannot do. TextKit 1 on purpose: TextKit 2
+/// silently falls back to it with attachments, drew a blank file icon and reset the text while typing.
+/// The note itself stays the SwiftUI AttributedString it always was (`RichNote`); this view only shows and
+/// edits it, so old notes open unchanged.
 struct FigureNotesEditor: UIViewRepresentable {
     @Binding var text: AttributedString
     @Binding var isEditing: Bool
@@ -15,7 +17,7 @@ struct FigureNotesEditor: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     func makeUIView(context: Context) -> NotesTextView {
-        let view = NotesTextView(usingTextLayoutManager: true)
+        let view = NotesTextView.make()
         view.backgroundColor = .clear
         view.isScrollEnabled = false
         view.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
@@ -38,6 +40,7 @@ struct FigureNotesEditor: UIViewRepresentable {
         if text != context.coordinator.lastModel, !view.isFirstResponder {
             view.attributedText = NoteTextBridge.attributed(text, controller: controller)
             context.coordinator.lastModel = text
+            view.setNeedsLayout()
         }
         if isEditing, !view.isFirstResponder {
             DispatchQueue.main.async { view.becomeFirstResponder() }
@@ -63,7 +66,29 @@ struct FigureNotesEditor: UIViewRepresentable {
             if parent.text != model { parent.text = model }
         }
 
-        func textViewDidChange(_ textView: UITextView) { parent.controller.edited() }
+        func textViewDidChange(_ textView: UITextView) {
+            parent.controller.edited()
+            textView.setNeedsLayout()
+            reveal(textView)
+        }
+
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard textView.isFirstResponder else { return }
+            reveal(textView)
+        }
+
+        /// The text view does not scroll itself, so the page scrolls to keep the cursor above the keyboard,
+        /// once the new height has been laid out.
+        private func reveal(_ textView: UITextView) {
+            DispatchQueue.main.async {
+                guard let end = textView.selectedTextRange?.end else { return }
+                var ancestor = textView.superview
+                while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+                guard let page = ancestor as? UIScrollView else { return }
+                let caret = textView.caretRect(for: end).insetBy(dx: 0, dy: -28)
+                page.scrollRectToVisible(textView.convert(caret, to: page), animated: true)
+            }
+        }
 
         func textViewDidBeginEditing(_ textView: UITextView) {
             if !parent.isEditing { parent.isEditing = true }
@@ -75,9 +100,68 @@ struct FigureNotesEditor: UIViewRepresentable {
     }
 }
 
-/// A tap on a voice note plays it; it must not also move the cursor and open the keyboard.
+/// Lays the live voice views over the spaces their attachments keep in the text. A tap on a voice note plays
+/// it; it must not also move the cursor and open the keyboard.
 final class NotesTextView: UITextView {
     static let voiceTokenIdentifier = "encore.voiceToken"
+    private var tokenHosts: [ObjectIdentifier: UIHostingController<AttachmentVoiceToken>] = [:]
+    /// The text view holds only the container; the storage must stay alive with it.
+    private var ownedStorage: NSTextStorage?
+
+    /// TextKit 1 built by hand through the designated initializer. `UITextView(usingTextLayoutManager:)` is a
+    /// factory that skips this subclass's own properties, and the first layout then crashed.
+    static func make() -> NotesTextView {
+        let storage = NSTextStorage()
+        let layout = NSLayoutManager()
+        storage.addLayoutManager(layout)
+        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layout.addTextContainer(container)
+        let view = NotesTextView(frame: .zero, textContainer: container)
+        view.ownedStorage = storage
+        return view
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        layoutVoiceTokens()
+    }
+
+    private func layoutVoiceTokens() {
+        layoutManager.ensureLayout(for: textContainer)
+        var present = Set<ObjectIdentifier>()
+        textStorage.enumerateAttribute(.attachment, in: NSRange(location: 0, length: textStorage.length)) { value, range, _ in
+            guard let attachment = value as? VoiceTextAttachment else { return }
+            let id = ObjectIdentifier(attachment)
+            present.insert(id)
+            let host = tokenHosts[id] ?? makeHost(for: attachment, id: id)
+            host.view.frame = frame(ofCharacterAt: range.location, bounds: attachment.bounds)
+        }
+        for (id, host) in tokenHosts where !present.contains(id) {
+            host.view.removeFromSuperview()
+            tokenHosts[id] = nil
+        }
+    }
+
+    private func makeHost(for attachment: VoiceTextAttachment, id: ObjectIdentifier) -> UIHostingController<AttachmentVoiceToken> {
+        let host = UIHostingController(rootView: AttachmentVoiceToken(
+            token: attachment.token, player: attachment.player, onStopRecording: attachment.onStopRecording))
+        host.view.backgroundColor = .clear
+        host.view.accessibilityIdentifier = Self.voiceTokenIdentifier
+        addSubview(host.view)
+        tokenHosts[id] = host
+        return host
+    }
+
+    /// Where the attachment sits: its line, its place on the baseline and its own bounds (y up from the baseline).
+    private func frame(ofCharacterAt index: Int, bounds: CGRect) -> CGRect {
+        let glyph = layoutManager.glyphIndexForCharacter(at: index)
+        let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+        let baseline = layoutManager.location(forGlyphAt: glyph)
+        return CGRect(x: textContainerInset.left + line.minX + baseline.x,
+                      y: textContainerInset.top + line.minY + baseline.y - bounds.maxY,
+                      width: bounds.width, height: bounds.height)
+    }
 
     override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         var view = hitTest(recognizer.location(in: self), with: nil)
@@ -157,6 +241,7 @@ final class NoteEditorController: ObservableObject {
         }
         storage.endEditing()
         textView.selectedRange = range
+        textView.setNeedsLayout()
         edited()
     }
 
@@ -184,6 +269,7 @@ final class NoteEditorController: ObservableObject {
         textView.textStorage.insert(NSAttributedString(attachment: attachment), at: location)
         textView.selectedRange = NSRange(location: location + 1, length: 0)
         textView.typingAttributes = typing
+        textView.setNeedsLayout()
         isRecording = true
     }
 
@@ -211,7 +297,10 @@ final class NoteEditorController: ObservableObject {
                 stop.pointee = true
             }
         }
-        if let found { storage.deleteCharacters(in: found) }
+        if let found {
+            storage.deleteCharacters(in: found)
+            textView?.setNeedsLayout()
+        }
     }
 }
 
@@ -226,51 +315,25 @@ final class VoiceTokenModel: ObservableObject {
     init(ref: VoiceNoteRef?) { self.ref = ref }
 }
 
-/// One voice note inside the text, drawn by a live SwiftUI view (`InlineVoiceToken`).
-nonisolated final class VoiceTextAttachment: NSTextAttachment {
+/// One voice note inside the text: it keeps a clear space of the token's size; the text view lays the live
+/// SwiftUI view (`InlineVoiceToken`) over it.
+final class VoiceTextAttachment: NSTextAttachment {
     let token: VoiceTokenModel
     let player: VoiceNotePlayer
     let onStopRecording: () -> Void
+
+    private static let clearImage = UIGraphicsImageRenderer(size: CGSize(width: 1, height: 1)).image { _ in }
 
     init(token: VoiceTokenModel, player: VoiceNotePlayer, onStopRecording: @escaping () -> Void) {
         self.token = token
         self.player = player
         self.onStopRecording = onStopRecording
         super.init(data: nil, ofType: nil)
-        allowsTextAttachmentView = true
+        image = Self.clearImage
+        bounds = CGRect(x: 0, y: -8, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
     }
 
     required init?(coder: NSCoder) { nil }
-
-    override func viewProvider(for parentView: UIView?, location: any NSTextLocation,
-                               textContainer: NSTextContainer?) -> NSTextAttachmentViewProvider? {
-        let provider = VoiceAttachmentViewProvider(textAttachment: self, parentView: parentView,
-                                                   textLayoutManager: textContainer?.textLayoutManager, location: location)
-        provider.tracksTextAttachmentViewBounds = true
-        return provider
-    }
-
-    override func attachmentBounds(for attributes: [NSAttributedString.Key: Any], location: any NSTextLocation,
-                                   textContainer: NSTextContainer?, proposedLineFragment: CGRect,
-                                   position: CGPoint) -> CGRect {
-        CGRect(x: 0, y: -8, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
-    }
-}
-
-nonisolated private final class VoiceAttachmentViewProvider: NSTextAttachmentViewProvider {
-    private var host: UIViewController?
-
-    override func loadView() {
-        guard let attachment = textAttachment as? VoiceTextAttachment else { return }
-        MainActor.assumeIsolated {
-            let controller = UIHostingController(rootView: AttachmentVoiceToken(
-                token: attachment.token, player: attachment.player, onStopRecording: attachment.onStopRecording))
-            controller.view.backgroundColor = .clear
-            controller.view.accessibilityIdentifier = NotesTextView.voiceTokenIdentifier
-            host = controller
-            view = controller.view
-        }
-    }
 }
 
 private struct AttachmentVoiceToken: View {
