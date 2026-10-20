@@ -74,6 +74,7 @@ struct FigureNotesEditor: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             guard textView.isFirstResponder else { return }
+            parent.controller.hasCaret = true
             reveal(textView)
         }
 
@@ -180,8 +181,11 @@ final class NoteEditorController: ObservableObject {
     @Published private(set) var isRecording = false
     @Published var errorMessage: String?
     let player = VoiceNotePlayer()
-    /// Every recording made here, so the ones deleted from the text can be removed from the phone.
+    /// Every recording made or placed here (the figure's own copies), so the ones deleted from the text can be
+    /// removed from the phone.
     private(set) var recordedFiles: Set<String> = []
+    /// The dancer has put the cursor somewhere; otherwise text from Denník goes at the end.
+    fileprivate(set) var hasCaret = false
 
     private let recorder = VoiceNoteRecorder()
     private weak var textView: NotesTextView?
@@ -243,6 +247,77 @@ final class NoteEditorController: ObservableObject {
         textView.selectedRange = range
         textView.setNeedsLayout()
         edited()
+    }
+
+    // MARK: From Denník
+    /// Text from Denník where the cursor is (at the end on its own line when it never was in the text). It
+    /// lights up gold for a moment, so it is clear where it landed.
+    func insertText(_ text: String) {
+        guard let textView, !text.isEmpty else { return }
+        let storage = textView.textStorage
+        let selection = textView.selectedRange
+        let location = hasCaret ? min(selection.location + selection.length, storage.length) : storage.length
+        var string = text
+        if !hasCaret, storage.length > 0, !storage.string.hasSuffix("\n") { string = "\n" + string }
+        storage.insert(NSAttributedString(string: string, attributes: textView.typingAttributes), at: location)
+        let inserted = NSRange(location: location, length: (string as NSString).length)
+        textView.selectedRange = NSRange(location: inserted.upperBound, length: 0)
+        textView.setNeedsLayout()
+        flash(inserted)
+        edited()
+    }
+
+    /// Where a voice note dropped at this point (window coordinates) would go, and the cursor line there.
+    func insertionPoint(nearGlobal point: CGPoint) -> (index: Int, caret: CGRect)? {
+        guard let textView else { return nil }
+        let local = textView.convert(point, from: nil)
+        guard textView.bounds.insetBy(dx: -40, dy: -60).contains(local),
+              let position = textView.closestPosition(to: local) else { return nil }
+        let index = textView.offset(from: textView.beginningOfDocument, to: position)
+        return (index, textView.convert(textView.caretRect(for: position), to: nil))
+    }
+
+    /// A voice note from Denník (the figure's own copy of the recording), with the note's text after it.
+    func insertVoice(_ ref: VoiceNoteRef, followedBy text: String?, at index: Int) {
+        guard let textView else { return }
+        let storage = textView.textStorage
+        let location = min(max(0, index), storage.length)
+        let piece = NSMutableAttributedString(attachment: VoiceTextAttachment(
+            token: VoiceTokenModel(ref: ref), player: player, onStopRecording: {}))
+        if let text, !text.isEmpty {
+            piece.append(NSAttributedString(string: " " + text, attributes: textView.typingAttributes))
+        }
+        storage.insert(piece, at: location)
+        recordedFiles.insert(ref.fileName)
+        let inserted = NSRange(location: location, length: piece.length)
+        textView.selectedRange = NSRange(location: inserted.upperBound, length: 0)
+        textView.setNeedsLayout()
+        flash(inserted)
+        edited()
+    }
+
+    /// A short gold glow on what was just put in; drawn only, never saved with the note.
+    private func flash(_ range: NSRange) {
+        guard let textView else { return }
+        let glow = UIColor(Color.gold400).withAlphaComponent(0.35)
+        textView.textStorage.addAttribute(.backgroundColor, value: glow, range: range)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak textView] in
+            guard let textView else { return }
+            let safe = NSIntersectionRange(range, NSRange(location: 0, length: textView.textStorage.length))
+            guard safe.length > 0 else { return }
+            UIView.transition(with: textView, duration: 0.6, options: .transitionCrossDissolve) {
+                // Back to how the note itself looks (a highlight chosen by the dancer stays).
+                let storage = textView.textStorage
+                storage.enumerateAttributes(in: safe) { attributes, part, _ in
+                    guard attributes[.attachment] == nil else {
+                        storage.removeAttribute(.backgroundColor, range: part)
+                        return
+                    }
+                    let container = (attributes[.encoreRun] as? RunAttributes)?.value ?? AttributeContainer()
+                    storage.setAttributes(NoteTextBridge.uikit(container), range: part)
+                }
+            }
+        }
     }
 
     // MARK: Recording

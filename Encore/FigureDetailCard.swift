@@ -47,6 +47,15 @@ struct FigureDetailCard: View {
     @State private var isDuel = false
     @State private var showModelPicker = false
     @State private var showJournal = false
+    /// A voice note from Denník being dragged to its place in the text.
+    @State private var placingVoice: PendingVoice?
+    @State private var notesFrame: CGRect = .zero
+
+    private struct PendingVoice: Equatable {
+        let ref: VoiceNoteRef
+        let text: String?
+        let noteId: UUID
+    }
     @State private var showTimeline = false
     @State private var showPremiumPaywall = false
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
@@ -115,6 +124,19 @@ struct FigureDetailCard: View {
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
+            .overlay {
+                if let pending = placingVoice {
+                    VoicePlacementOverlay(
+                        ref: pending.ref,
+                        startPoint: CGPoint(x: notesFrame.midX, y: notesFrame.midY + 36),
+                        controller: noteEditor,
+                        onCancel: cancelVoicePlacement,
+                        onPlace: { index in placeVoice(pending, at: index) }
+                    )
+                    .transition(.opacity)
+                }
+            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: placingVoice)
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) {
                 if isWriting {
@@ -194,7 +216,9 @@ struct FigureDetailCard: View {
                 onClearMedia: {}
             )
         }
-        .sheet(isPresented: $showJournal) { TrainingJournalView() }
+        .sheet(isPresented: $showJournal) {
+            JournalInsertSheet(onInsert: insertFromJournal, onUseVideo: useJournalVideo)
+        }
         .onChange(of: isDuel) { _, duel in
             // One player at a time: the duel plays its own two.
             if duel { stopPlayer() } else { setupPlayer(for: node.displayVideoPath) }
@@ -618,6 +642,7 @@ struct FigureDetailCard: View {
         .frame(maxWidth: .infinity, minHeight: 200, alignment: .topLeading)
         .padding(.horizontal, 4)
         .overlay { FieldEdgeSweep(trigger: sweepTrigger) }
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { notesFrame = $0 }
         .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onTapGesture { isWriting = true }
     }
@@ -663,6 +688,66 @@ struct FigureDetailCard: View {
             guard !Task.isCancelled else { return }
             persistNotes()
         }
+    }
+
+    // MARK: - From Denník
+    /// Text goes where the cursor is; a voice note (the figure's own copy) is dragged to its place first.
+    private func insertFromJournal(_ note: InstantNote) {
+        if let audio = note.audioPath {
+            let source = MediaStorageManager.url(for: audio)
+            let name = "voice_\(UUID().uuidString).m4a"
+            let target = MediaStorageManager.url(for: name)
+            let pending = PendingVoice(ref: VoiceNoteRef(fileName: name, duration: note.audioDuration ?? 0),
+                                       text: note.hasText ? note.text : nil, noteId: note.id)
+            Task {
+                let copied = await Task.detached(priority: .userInitiated) {
+                    (try? FileManager.default.copyItem(at: source, to: target)) != nil
+                }.value
+                guard copied else { return }
+                // After the sheet has gone, so the notes are visible.
+                try? await Task.sleep(for: .milliseconds(350))
+                placingVoice = pending
+            }
+        } else {
+            noteEditor.insertText(note.text.trimmingCharacters(in: .whitespacesAndNewlines))
+            markInFigure(note.id)
+        }
+    }
+
+    private func placeVoice(_ pending: PendingVoice, at index: Int) {
+        noteEditor.insertVoice(pending.ref, followedBy: pending.text, at: index)
+        markInFigure(pending.noteId)
+        placingVoice = nil
+        successCount += 1
+    }
+
+    /// The copy was made for this figure; not placed, it goes again.
+    private func cancelVoicePlacement() {
+        if let pending = placingVoice { MediaStorageManager.removeFile(named: pending.ref.fileName) }
+        placingVoice = nil
+    }
+
+    /// A video from Denník becomes my video or the model (then the duel shows both).
+    private func useJournalVideo(_ note: InstantNote, asModel: Bool) {
+        guard let video = note.videoPath else { return }
+        if asModel {
+            node.activeTargetVideoPath = video
+            if !isDuel { withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { isDuel = true } }
+        } else {
+            replaceVideo(with: video)
+        }
+        routineDidChange()
+        markInFigure(note.id)
+    }
+
+    /// Denník shows the note as already in a figure.
+    private func markInFigure(_ noteId: UUID) {
+        let descriptor = FetchDescriptor<InstantNote>(predicate: #Predicate { $0.id == noteId })
+        guard let note = try? modelContext.fetch(descriptor).first else { return }
+        note.importedAt = Date()
+        note.linkedFigureId = node.id
+        note.linkedRoutineId = node.routine?.id
+        try? modelContext.save()
     }
 
     /// Recordings deleted from the text leave the phone when the figure closes (undo works until then).
