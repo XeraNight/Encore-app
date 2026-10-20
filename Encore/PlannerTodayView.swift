@@ -2,163 +2,35 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 
-/// "Dnes" part of the planner: today's sessions with one-tap check-in, next competition, recent reflections.
+/// Under the calendar, what matters now: reminders that are off, the next competition (with Súťažný deň the
+/// day before and on the day) and the open Top 3. Today's trainings are in the calendar's day.
 struct PlannerTodayView: View {
-    let cadences: [TrainingCadence]
-    let logs: [TrainingLogEntry]
     let competitions: [PlannedCompetition]
-    let sessions: [PlannedSession]
-    let onOpenRoutine: () -> Void
+    /// Something is planned, so reminders matter.
+    let hasPlan: Bool
 
-    @Environment(\.modelContext) private var modelContext
     @ObservedObject private var notifications = NotificationManager.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @State private var competitionDay: PlannedCompetition?
     @State private var showPaywall = false
-    @State private var debriefEntry: TrainingLogEntry?
-    @State private var editingCadence: TrainingCadence?
-    @State private var editingSession: PlannedSession?
-    @State private var changeTick = 0
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
 
-    private var todaysTrainings: [TrainingOccurrence] {
-        TrainingOccurrence.on(today, cadences: cadences, sessions: sessions, logs: logs)
-    }
-
-    /// The next training after today that is not cancelled, weekly or one-off, within two weeks.
-    private var nextTraining: TrainingOccurrence? {
-        let cal = PlannerCalendar.calendar
-        for offset in 1...14 {
-            guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
-            if let next = TrainingOccurrence.on(day, cadences: cadences, sessions: sessions, logs: logs)
-                .first(where: { $0.hasTime && $0.entry(in: logs)?.status != .skipped }) {
-                return next
-            }
-        }
-        return nil
-    }
-
-    private func nextTrainingText(_ next: TrainingOccurrence) -> String {
-        let cal = PlannerCalendar.calendar
-        let day = cal.isDateInTomorrow(next.day)
-            ? "Zajtra"
-            : PlannerCalendar.weekdayName(iso: PlannerCalendar.isoWeekday(of: next.day))
-        return "Najbližší tréning: \(day) \(next.start.formatted(date: .omitted, time: .shortened)), \(next.title)"
-    }
-
     /// Reminders need the system permission; a dancer who switched them off inside Encore is left alone.
-    private var remindersBlocked: Bool {
-        !notifications.isAuthorized && !(cadences.isEmpty && sessions.isEmpty && competitions.isEmpty)
-    }
+    private var remindersBlocked: Bool { !notifications.isAuthorized && hasPlan }
 
     private var nextCompetition: PlannedCompetition? {
         competitions.first { $0.intent != .declined && PlannerCalendar.startOfDay($0.date) >= today }
     }
 
-    private var recentReflections: [TrainingLogEntry] {
-        Array(logs.filter { !$0.reflectionNote.isEmpty }.prefix(3))
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(Date.now, format: .dateTime.weekday(.wide).day().month(.wide))
-                .textCase(.uppercase)
-                .font(.system(.title2, design: .rounded).weight(.bold))
-                .foregroundColor(.white)
-
-            LessonPrioritiesSection()
-
             if remindersBlocked { remindersCard }
-
-            trainingsSection
-
-            if let comp = nextCompetition {
-                competitionCard(comp)
-            }
-
-            PlannerWeekSummary(cadences: cadences, sessions: sessions, logs: logs)
-
-            if !recentReflections.isEmpty {
-                VStack(alignment: .leading, spacing: 10) {
-                    plannerSectionTitle("POSLEDNÉ REFLEXIE")
-                    ForEach(recentReflections) { entry in
-                        reflectionRow(entry)
-                    }
-                }
-            }
+            if let comp = nextCompetition { competitionCard(comp) }
+            LessonPrioritiesSection()
         }
-        .sensoryFeedback(.selection, trigger: changeTick)
-        .sheet(item: $debriefEntry) { entry in
-            DebriefSheet(entry: entry)
-                .presentationDetents([.large])
-        }
-        .sheet(item: $editingCadence) { CadenceEditorSheet(cadence: $0) }
-        .sheet(item: $editingSession) { SessionEditorSheet(session: $0) }
         .fullScreenCover(item: $competitionDay) { CompetitionDayView(competition: $0) }
         .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
-    }
-
-    // MARK: Trainings
-    @ViewBuilder
-    private var trainingsSection: some View {
-        if cadences.isEmpty && sessions.isEmpty && todaysTrainings.isEmpty {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Nastav si týždenný režim")
-                    .font(.callout.weight(.bold))
-                    .foregroundColor(.white)
-                Text("Raz zadáš, kedy trénuješ. Potom ti stačí v daný deň ťuknúť Idem alebo Nejdem a po tréningu zapísať, čo nové sa ti podarilo.")
-                    .font(.footnote)
-                    .foregroundColor(Color.white.opacity(0.6))
-                Button(action: onOpenRoutine) {
-                    Text("Nastaviť režim")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 10)
-                        .background(Color.gold400, in: Capsule())
-                }
-                .buttonStyle(.pressable)
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .plannerCard()
-        } else if todaysTrainings.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Dnes máš voľno")
-                    .font(.callout.weight(.bold))
-                    .foregroundColor(.white)
-                if let next = nextTraining {
-                    Text(nextTrainingText(next))
-                        .font(.footnote)
-                        .foregroundColor(Color.white.opacity(0.6))
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .plannerCard()
-        } else {
-            ForEach(todaysTrainings) { occurrence in
-                TrainingOccurrenceCard(
-                    occurrence: occurrence,
-                    entry: occurrence.entry(in: logs),
-                    onSetStatus: { setStatus($0, for: occurrence) },
-                    onDebrief: { debriefEntry = occurrence.entryCreatingIfNeeded(in: logs, context: modelContext) },
-                    onEdit: {
-                        switch occurrence.source {
-                        case .weekly(let cadence): editingCadence = cadence
-                        case .session(let session): editingSession = session
-                        case .recorded(let entry): debriefEntry = entry
-                        }
-                    }
-                )
-            }
-        }
-    }
-
-    private func setStatus(_ status: TrainingStatus, for occurrence: TrainingOccurrence) {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            occurrence.setStatus(status, logs: logs, context: modelContext)
-        }
-        changeTick += 1
     }
 
     // MARK: Reminders off
@@ -171,7 +43,7 @@ struct PlannerTodayView: View {
                 Text("Pripomienky sú vypnuté")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(.white)
-                Text("Nepríde ti výzva na reflexiu po tréningu ani pripomienka uzávierky prihlášok.")
+                Text("Nepríde ti pripomienka pred tréningom, výzva na reflexiu ani uzávierka prihlášok.")
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.6))
                     .fixedSize(horizontal: false, vertical: true)
@@ -264,32 +136,12 @@ struct PlannerTodayView: View {
         .buttonStyle(.pressable)
         .padding(.top, 4)
     }
-
-    private func reflectionRow(_ entry: TrainingLogEntry) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(entry.feeling?.emoji ?? "📝")
-                Text(entry.title.isEmpty ? "Tréning" : entry.title)
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(.white)
-                Spacer()
-                Text(entry.day, format: .dateTime.day().month(.abbreviated))
-                    .font(.caption2)
-                    .foregroundColor(Color.white.opacity(0.4))
-            }
-            Text(entry.reflectionNote)
-                .font(.footnote)
-                .foregroundColor(Color.white.opacity(0.75))
-                .lineLimit(3)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .plannerCard(cornerRadius: 14)
-    }
 }
 
 // MARK: - This week
-/// Hours trained this week against the plan, how much of it was samotréning, and the dance worked on most
-/// (from the reflections). A training counts once it has ended and was not cancelled.
+/// This week: trainings behind you against the plan, how many of them have a reflection, and the dance
+/// worked on most (from the reflections). A training counts once it has ended and was not cancelled; the bar
+/// shows the hours.
 struct PlannerWeekSummary: View {
     let cadences: [TrainingCadence]
     let sessions: [PlannedSession]
@@ -302,7 +154,9 @@ struct PlannerWeekSummary: View {
     private struct Totals: Equatable {
         var doneMinutes = 0
         var plannedMinutes = 0
-        var soloMinutes = 0
+        var done = 0
+        var planned = 0
+        var reflected = 0
         var topDance: String?
     }
 
@@ -320,10 +174,14 @@ struct PlannerWeekSummary: View {
                 guard entry?.status != .skipped else { continue }
                 let minutes = Int(occurrence.end.timeIntervalSince(occurrence.start) / 60)
                 totals.plannedMinutes += minutes
+                totals.planned += 1
                 guard occurrence.end <= now else { continue }
                 totals.doneMinutes += minutes
-                if occurrence.isSolo { totals.soloMinutes += minutes }
-                if let entry { entryIds.insert(entry.id) }
+                totals.done += 1
+                if let entry {
+                    entryIds.insert(entry.id)
+                    if !entry.reflectionNote.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { totals.reflected += 1 }
+                }
             }
         }
         let dances = logs.filter { entryIds.contains($0.id) }.compactMap(\.danceName)
@@ -338,8 +196,8 @@ struct PlannerWeekSummary: View {
                 HomeSectionHeader(title: "TENTO TÝŽDEŇ", systemImage: "chart.bar.fill")
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(spacing: 10) {
-                        tile(hours(totals.doneMinutes), "z \(hours(totals.plannedMinutes)) odtrénované")
-                        tile(hours(totals.soloMinutes), "samotréning")
+                        tile("\(totals.done)", "z \(slovakCount(totals.planned, one: "tréningu", few: "tréningov", many: "tréningov"))")
+                        tile("\(totals.reflected)", "s reflexiou")
                         tile(totals.topDance.map(DanceNames.display) ?? "–", "najviac riešené")
                     }
                     progressBar(done: totals.doneMinutes, planned: totals.plannedMinutes)

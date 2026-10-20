@@ -19,10 +19,10 @@ func plannerSectionTitle(_ text: String) -> some View {
 }
 
 // MARK: - Kalendár tab
-/// Third dock tab: today's training, the month with everything in it and the permanent weekly rhythm.
+/// Third dock tab: the month with the chosen day (today first) and what matters now, and the weekly rhythm.
 struct DancePlannerView: View {
     enum Section: String, CaseIterable, Identifiable {
-        case today = "Dnes", calendar = "Mesiac", routine = "Režim"
+        case calendar = "Kalendár", routine = "Režim"
         var id: String { rawValue }
     }
 
@@ -34,7 +34,7 @@ struct DancePlannerView: View {
     @Query private var priorities: [LessonPriority]
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
 
-    @State private var section: Section = .today
+    @State private var section: Section = .calendar
     @Namespace private var sectionNamespace
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var router = PlannerRouter.shared
@@ -73,22 +73,20 @@ struct DancePlannerView: View {
                     ScrollView(.vertical, showsIndicators: false) {
                         Group {
                             switch section {
-                            case .today:
-                                PlannerTodayView(
-                                    cadences: cadences,
-                                    logs: logs,
-                                    competitions: competitions,
-                                    sessions: sessions,
-                                    onOpenRoutine: { section = .routine }
-                                )
                             case .calendar:
                                 VStack(alignment: .leading, spacing: 24) {
                                     PlannerCalendarView(
                                         cadences: cadences,
                                         logs: logs,
                                         competitions: competitions,
-                                        sessions: sessions
+                                        sessions: sessions,
+                                        onOpenRoutine: { section = .routine }
                                     )
+                                    PlannerTodayView(
+                                        competitions: competitions,
+                                        hasPlan: !(cadences.isEmpty && sessions.isEmpty && competitions.isEmpty)
+                                    )
+                                    PlannerWeekSummary(cadences: cadences, sessions: sessions, logs: logs)
                                     PlannerCompetitionsView(competitions: competitions)
                                 }
                             case .routine:

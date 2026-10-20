@@ -164,8 +164,8 @@ struct TrainingOccurrence: Identifiable {
 }
 
 // MARK: - Training card
-/// Time, title and place; Idem / Nejdem before the end, the reflection after it. A cancelled training is
-/// crossed out and can be restored.
+/// Time, title and place; Nejdem before the end, the reflection after it. A cancelled training is crossed
+/// out and can be restored.
 struct TrainingOccurrenceCard: View {
     let occurrence: TrainingOccurrence
     let entry: TrainingLogEntry?
@@ -229,25 +229,16 @@ struct TrainingOccurrenceCard: View {
     private var actions: some View {
         switch status {
         case .planned, .going:
+            // A training counts unless cancelled, so there is nothing to confirm before it: only "Nejdem".
             if hasEnded {
                 HStack(spacing: 10) {
                     pill("Zapísať reflexiu", icon: "square.and.pencil", filled: true, action: onDebrief)
-                    if status == .planned {
-                        pill("Vynechať", icon: "xmark", filled: false) { onSetStatus(.skipped) }
-                    }
-                }
-            } else if status == .going {
-                HStack {
-                    Label("Ideš", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.syncEmerald)
-                    Spacer()
-                    smallButton("Nejdem", color: .white.opacity(0.6)) { onSetStatus(.skipped) }
+                    pill("Vynechať", icon: "xmark", filled: false) { onSetStatus(.skipped) }
                 }
             } else {
-                HStack(spacing: 10) {
-                    pill("Idem", icon: "checkmark", filled: true) { onSetStatus(.going) }
-                    pill("Nejdem", icon: "xmark", filled: false) { onSetStatus(.skipped) }
+                HStack {
+                    Spacer()
+                    smallButton("Nejdem", color: .white.opacity(0.7)) { onSetStatus(.skipped) }
                 }
             }
         case .skipped:
@@ -317,6 +308,7 @@ struct PlannerCalendarView: View {
     let logs: [TrainingLogEntry]
     let competitions: [PlannedCompetition]
     let sessions: [PlannedSession]
+    var onOpenRoutine: () -> Void = {}
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var results = CompetitionManager.shared
@@ -455,7 +447,78 @@ struct PlannerCalendarView: View {
         .accessibilityIdentifier("plan.calendar.add")
     }
 
+    @ViewBuilder
     private func emptyDay(_ day: Date) -> some View {
+        if Self.calendar.isDateInToday(day) {
+            emptyToday
+        } else {
+            emptyOtherDay(day)
+        }
+    }
+
+    /// Nothing planned at all: set the weekly rhythm once. Otherwise a free day and when the next training is.
+    @ViewBuilder
+    private var emptyToday: some View {
+        if cadences.isEmpty && sessions.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Nastav si týždenný režim")
+                    .font(.callout.weight(.bold))
+                    .foregroundColor(.white)
+                Text("Raz zadáš, kedy trénuješ. Ak v daný deň nejdeš, ťukneš Nejdem, a po tréningu zapíšeš, čo nové sa ti podarilo.")
+                    .font(.footnote)
+                    .foregroundColor(Color.white.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: onOpenRoutine) {
+                    Text("Nastaviť režim")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .background(Color.gold400, in: Capsule())
+                }
+                .buttonStyle(.pressable)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .homeCard(cornerRadius: 20)
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Dnes máš voľno")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                if let next = nextTraining {
+                    Text(nextTrainingText(next))
+                        .font(.footnote)
+                        .foregroundColor(.white.opacity(0.6))
+                }
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .homeCard(cornerRadius: 20)
+        }
+    }
+
+    /// The next training after today that is not cancelled, weekly or one-off, within two weeks.
+    private var nextTraining: TrainingOccurrence? {
+        let today = PlannerCalendar.startOfDay(Date())
+        for offset in 1...14 {
+            guard let day = Self.calendar.date(byAdding: .day, value: offset, to: today) else { continue }
+            if let next = TrainingOccurrence.on(day, cadences: cadences, sessions: sessions, logs: logs)
+                .first(where: { $0.hasTime && $0.entry(in: logs)?.status != .skipped }) {
+                return next
+            }
+        }
+        return nil
+    }
+
+    private func nextTrainingText(_ next: TrainingOccurrence) -> String {
+        let day = Self.calendar.isDateInTomorrow(next.day)
+            ? "Zajtra"
+            : PlannerCalendar.weekdayName(iso: PlannerCalendar.isoWeekday(of: next.day))
+        return "Najbližší tréning: \(day) \(next.start.formatted(date: .omitted, time: .shortened)), \(next.title)"
+    }
+
+    private func emptyOtherDay(_ day: Date) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(day < PlannerCalendar.startOfDay(Date()) ? "V tento deň nič nie je zapísané" : "Voľný deň")
                 .font(.subheadline.weight(.bold))
