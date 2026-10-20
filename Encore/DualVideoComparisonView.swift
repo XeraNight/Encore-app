@@ -664,13 +664,13 @@ struct DualVideoComparisonView: View {
         HStack(spacing: 8) {
             if hasVideo {
                 Menu {
-                    ForEach([0.25, 0.5, 0.75, 1.0], id: \.self) { rate in
-                        Button(rateText(Float(rate))) { setRate(Float(rate)) }
+                    ForEach(Self.rates, id: \.self) { rate in
+                        Button(Self.rateText(rate)) { setRate(rate) }
                     }
                 } label: {
-                    toolChip(rateText(playbackRate), icon: "tortoise.fill", isOn: playbackRate < 1)
+                    toolChip(Self.rateText(playbackRate), icon: "tortoise.fill", isOn: playbackRate < 1)
                 }
-                .accessibilityLabel("Rýchlosť \(rateText(playbackRate))")
+                .accessibilityLabel("Rýchlosť \(Self.rateText(playbackRate))")
             }
 
             if hasVideo && canCompareBoth {
@@ -1111,7 +1111,10 @@ struct DualVideoComparisonView: View {
         offsetB = 0
     }
 
-    private func rateText(_ rate: Float) -> String {
+    /// Slow motion steps, shared with the duel on the figure screen.
+    static let rates: [Float] = [0.25, 0.5, 0.75, 1]
+
+    static func rateText(_ rate: Float) -> String {
         Double(rate).formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "sk_SK"))) + "×"
     }
 
