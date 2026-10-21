@@ -145,6 +145,13 @@ final class Routine {
     }
 }
 
+extension Routine {
+    var isLatin: Bool {
+        let category = danceCategory.lowercased()
+        return category == "latin" || category == "latina"
+    }
+}
+
 @Model
 final class CanvasNode {
     @Attribute(.unique) var id: UUID

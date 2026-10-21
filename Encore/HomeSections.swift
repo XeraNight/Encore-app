@@ -246,10 +246,6 @@ struct RoutineCard: View {
         routine.canvasNodes.sorted { $0.orderIndex < $1.orderIndex }
     }
 
-    private var isLatin: Bool {
-        let category = routine.danceCategory.lowercased()
-        return category == "latin" || category == "latina"
-    }
 
     var body: some View {
         Button(action: onOpen) {
@@ -287,11 +283,11 @@ struct RoutineCard: View {
 
     private var titleRow: some View {
         HStack(spacing: 12) {
-            Image(systemName: isLatin ? "flame.fill" : "drop.fill")
+            Image(systemName: routine.isLatin ? "flame.fill" : "drop.fill")
                 .font(.callout.weight(.bold))
                 .foregroundColor(.white)
                 .frame(width: 40, height: 40)
-                .background((isLatin ? Color.latinCrimson : Color.standardBlue).opacity(0.85), in: Circle())
+                .background((routine.isLatin ? Color.latinCrimson : Color.standardBlue).opacity(0.85), in: Circle())
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {

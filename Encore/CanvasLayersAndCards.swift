@@ -435,242 +435,165 @@ struct CanvasNodeCardView: View {
     private var isLockedByPartner: Bool {
         lockedByUserName != nil
     }
-    
-    /// Zoomed far out the small details cannot be read anyway, so only the number and the name stay, bigger.
-    private var isFarOut: Bool { scale < 0.5 }
 
-    private var inkColor: Color { isTranslucent ? .white : Color.themeDark }
-    private var accentColor: Color { isTranslucent ? Color.gold400 : Color.themeAccent }
+    /// The figure's circle on screen. The pin keeps this size at any zoom, like a place on a map, so the
+    /// name is always readable and the floor stays visible.
+    private var circleSize: CGFloat { 38 * cardScale }
+    /// Undoes the canvas zoom for the pin.
+    private var inverseScale: CGFloat { 1 / max(scale, 0.05) }
+    /// On the right half of the floor the name goes to the left of the circle, so it stays on the floor.
+    private var labelOnLeft: Bool { node.x > Double(BallroomFloorConfig.centerPoint.x) }
+    private var labelWidth: CGFloat { 150 * cardScale }
 
     var body: some View {
-        Group {
-            if isFarOut { farOutContent } else { previewContent }
-        }
-        .frame(width: 140, height: 132)
-        .background(cardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .scaleEffect(cardScale, anchor: .center)
-        .frame(width: 140 * cardScale, height: 132 * cardScale)
-        .overlay(
-            Group {
-                if isLockedByPartner {
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.gold400, lineWidth: 2)
-                        .shadow(color: Color.gold500.opacity(0.5), radius: 8)
+        pin
+            .scaleEffect(inverseScale)
+            .scaleEffect(isDragging ? 1.12 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
+            .onTapGesture(perform: onTap)
+            .contextMenu {
+                Button(action: onTap) { Label("Otvoriť figúru", systemImage: "arrow.up.right.square") }
+                if !isLockedByPartner {
+                    Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Vymazať figúru", systemImage: "trash") }
                 }
             }
-        )
-        .contentShape(Rectangle())
-        .onTapGesture(perform: onTap)
-        .contextMenu {
-            Button(action: onTap) { Label("Otvoriť figúru", systemImage: "arrow.up.right.square") }
-            if !isLockedByPartner {
-                Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Vymazať figúru", systemImage: "trash") }
-            }
-        }
-        .highPriorityGesture(
-            DragGesture(minimumDistance: 4, coordinateSpace: .global)
-                .onChanged { value in
-                    guard !isLockedByPartner else { return }
-                    if !isDragging {
-                        isDragging = true
-                        onDragStart?()
+            .highPriorityGesture(
+                DragGesture(minimumDistance: 4, coordinateSpace: .global)
+                    .onChanged { value in
+                        guard !isLockedByPartner else { return }
+                        if !isDragging {
+                            isDragging = true
+                            onDragStart?()
+                        }
+                        let live = clampedPosition(for: value.translation)
+                        dragOffset = CGSize(width: live.x - node.x, height: live.y - node.y)
+                        onDrag?(live.x, live.y)
                     }
-                    
-                    let bounds = BallroomFloorConfig.safeCardBounds(
-                        cardWidth: 140 * cardScale,
-                        cardHeight: 132 * cardScale,
-                        wallMargin: 16
-                    )
-                    
-                    let canvasDeltaX = value.translation.width / scale
-                    let canvasDeltaY = value.translation.height / scale
-                    
-                    let rawLiveX = node.x + canvasDeltaX
-                    let rawLiveY = node.y + canvasDeltaY
-                    
-                    let clampedLiveX = min(max(rawLiveX, bounds.minX), bounds.maxX)
-                    let clampedLiveY = min(max(rawLiveY, bounds.minY), bounds.maxY)
-                    
-                    dragOffset = CGSize(width: clampedLiveX - node.x, height: clampedLiveY - node.y)
-                    onDrag?(clampedLiveX, clampedLiveY)
-                }
-                .onEnded { value in
-                    guard !isLockedByPartner else { return }
-                    
-                    let bounds = BallroomFloorConfig.safeCardBounds(
-                        cardWidth: 140 * cardScale,
-                        cardHeight: 132 * cardScale,
-                        wallMargin: 16
-                    )
-                    
-                    let canvasDeltaX = value.translation.width / scale
-                    let canvasDeltaY = value.translation.height / scale
-                    
-                    let rawX = node.x + canvasDeltaX
-                    let rawY = node.y + canvasDeltaY
-                    
-                    let clampedX = min(max(rawX, bounds.minX), bounds.maxX)
-                    let clampedY = min(max(rawY, bounds.minY), bounds.maxY)
-                    
-                    // Magnetic Snap to 20pt ballroom grid strictly within boundaries
-                    let snappedX = min(max((clampedX / 20.0).rounded() * 20.0, bounds.minX), bounds.maxX)
-                    let snappedY = min(max((clampedY / 20.0).rounded() * 20.0, bounds.minY), bounds.maxY)
-                    
-                    node.x = snappedX
-                    node.y = snappedY
-                    dragOffset = .zero
-                    isDragging = false
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    // The canvas saves, syncs and tells the partner (once).
-                    onDragEnd?(snappedX, snappedY)
-                }
-        )
-        .position(x: node.x + dragOffset.width, y: node.y + dragOffset.height)
-        .confirmationDialog("Vymazať túto figúru zo zostavy?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-            Button("Vymazať", role: .destructive) { onDelete() }
-            Button("Zrušiť", role: .cancel) {}
-        }
+                    .onEnded { value in
+                        guard !isLockedByPartner else { return }
+                        let bounds = pinBounds
+                        let final = clampedPosition(for: value.translation)
+                        // Magnetic snap to the 20 pt floor grid, never past the walls.
+                        let snappedX = min(max((final.x / 20.0).rounded() * 20.0, bounds.minX), bounds.maxX)
+                        let snappedY = min(max((final.y / 20.0).rounded() * 20.0, bounds.minY), bounds.maxY)
+                        node.x = snappedX
+                        node.y = snappedY
+                        dragOffset = .zero
+                        isDragging = false
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        // The canvas saves, syncs and tells the partner (once).
+                        onDragEnd?(snappedX, snappedY)
+                    }
+            )
+            .position(x: node.x + dragOffset.width, y: node.y + dragOffset.height)
+            .confirmationDialog("Vymazať túto figúru zo zostavy?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
+                Button("Vymazať", role: .destructive) { onDelete() }
+                Button("Zrušiť", role: .cancel) {}
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityText)
+            .accessibilityHint("Otvorí figúru")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// The circle stays inside the walls (in floor points, whatever the zoom).
+    private var pinBounds: (minX: Double, maxX: Double, minY: Double, maxY: Double) {
+        let size = circleSize * inverseScale
+        return BallroomFloorConfig.safeCardBounds(cardWidth: size, cardHeight: size, wallMargin: 8)
+    }
+
+    private func clampedPosition(for translation: CGSize) -> (x: Double, y: Double) {
+        let bounds = pinBounds
+        let x = node.x + translation.width / scale
+        let y = node.y + translation.height / scale
+        return (min(max(x, bounds.minX), bounds.maxX), min(max(y, bounds.minY), bounds.maxY))
+    }
+
+    private var accessibilityText: String {
+        var parts = ["Figúra \(number ?? node.orderIndex + 1)", node.figureName]
+        if let bars = node.bars { parts.append(RoutineTiming.barsText(bars)) }
+        if let lockedBy = lockedByUserName { parts.append("práve ju posúva \(lockedBy)") }
+        return parts.joined(separator: ", ")
     }
 }
 
 extension CanvasNodeCardView {
-    /// The figure's video on top with the number on it, the name and the rhythm below (glass card).
-    fileprivate var previewContent: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ZStack(alignment: .topLeading) {
-                Group {
-                    if let video = node.displayVideoPath {
-                        MediaThumbnailView(path: video, cornerRadius: 0)
-                    } else {
-                        Color.white.opacity(0.05)
-                            .overlay {
-                                Image(systemName: "video.badge.plus")
-                                    .font(.system(size: 18, weight: .semibold))
-                                    .foregroundColor(.white.opacity(0.35))
-                            }
-                    }
-                }
-                .frame(width: 140, height: 58)
-                .clipped()
-
-                HStack(spacing: 6) {
-                    numberBadge(size: 22, font: 12)
-                    Spacer(minLength: 0)
-                    if let lockedBy = lockedByUserName {
-                        lockBadge(lockedBy)
-                    } else if hasStatusIcons {
-                        statusIcons
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 4)
-                            .background(Color.black.opacity(0.45), in: Capsule())
-                    }
-                }
-                .padding(7)
+    /// The circle exactly on the figure's spot, its name in a pill beside it.
+    fileprivate var pin: some View {
+        circle
+            .overlay(alignment: labelOnLeft ? .trailing : .leading) {
+                label
+                    .frame(width: labelWidth, alignment: labelOnLeft ? .trailing : .leading)
+                    .offset(x: labelOnLeft ? -(circleSize + 6) : circleSize + 6)
             }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(node.figureName)
-                    .font(.system(size: 14, weight: .bold, design: .rounded))
-                    .foregroundColor(inkColor)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.8)
-                    .multilineTextAlignment(.leading)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Spacer(minLength: 0)
-                if !node.rhythm.isEmpty {
-                    BeatsTimelineView(rhythm: node.rhythm, tint: accentColor)
-                }
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 7)
-        }
     }
 
-    /// Zoomed far out only the number and the name are readable, so only they stay, bigger.
-    fileprivate var farOutContent: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                numberBadge(size: 34, font: 20)
-                Spacer(minLength: 0)
-                if let lockedBy = lockedByUserName { lockBadge(lockedBy) }
-            }
-            Text(node.figureName)
-                .font(.system(size: 19, weight: .bold, design: .rounded))
-                .foregroundColor(inkColor)
-                .lineLimit(3)
-                .minimumScaleFactor(0.8)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
-        }
-        .padding(12)
-    }
-
-    fileprivate func numberBadge(size: CGFloat, font: CGFloat) -> some View {
-        Text("\(number ?? node.orderIndex + 1)")
-            .font(.system(size: font, weight: .black, design: .rounded))
-            .foregroundColor(Color.obsidian900)
-            .frame(width: size, height: size)
-            .background(Color.gold400, in: Circle())
-    }
-
-    fileprivate func lockBadge(_ name: String) -> some View {
-        HStack(spacing: 3) {
-            Image(systemName: "lock.fill").font(.system(size: 8, weight: .bold))
-            Text(name).font(.system(size: 9, weight: .bold)).lineLimit(1)
-        }
-        .foregroundColor(.obsidian900)
-        .padding(.horizontal, 6)
-        .padding(.vertical, 3)
-        .background(Color.gold400, in: Capsule())
-    }
-
-    /// Own notes or a remark from the coach (the video shows itself in the preview).
-    fileprivate var hasStatusIcons: Bool {
-        !node.notes.isEmpty || !(node.coachNotes ?? "").isEmpty
-    }
-
-    /// Small markers: own notes, a remark from the coach.
-    @ViewBuilder
-    fileprivate var statusIcons: some View {
-        HStack(spacing: 5) {
-            if !node.notes.isEmpty {
-                Image(systemName: "doc.text.fill")
-            }
-            if let remark = node.coachNotes, !remark.isEmpty {
-                Image(systemName: "person.badge.shield.checkmark.fill")
-            }
-        }
-        .font(.system(size: 10, weight: .semibold))
-        .foregroundColor(accentColor.opacity(0.9))
-    }
-
-    fileprivate var cardBackground: some View {
-        Group {
-            if isTranslucent {
-                // Frosted glass: the parquet grain shows through.
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.obsidian900.opacity(0.42)))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(
-                                LinearGradient(colors: [Color.gold300.opacity(0.65), Color.gold500.opacity(0.25)],
-                                               startPoint: .topLeading, endPoint: .bottomTrailing),
-                                lineWidth: 1
-                            )
-                    )
-                    .shadow(color: Color.black.opacity(0.35), radius: 10, y: 5)
+    /// A frame of the figure's video, or the dance's colour with the figure's initials; gold ring, number on top.
+    fileprivate var circle: some View {
+        ZStack {
+            if let video = node.displayVideoPath {
+                MediaThumbnailView(path: video, cornerRadius: 0, showsFormatBadge: false)
             } else {
-                // Dark glass with a gold hairline, readable on any floor.
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Color.obsidian900.opacity(0.62)))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.gold400.opacity(0.28), lineWidth: 1))
-                    .shadow(color: Color.black.opacity(0.28), radius: 8, y: 4)
+                danceColor
+                    .overlay {
+                        Text(initials)
+                            .font(.system(size: 13 * cardScale, weight: .heavy, design: .rounded))
+                            .foregroundStyle(.white)
+                    }
             }
         }
+        .frame(width: circleSize, height: circleSize)
+        .clipShape(Circle())
+        .overlay(Circle().stroke(isLockedByPartner ? Color.white : Color.gold400, lineWidth: 2))
+        .shadow(color: Color.black.opacity(0.45), radius: 6, y: 3)
+        .overlay(alignment: .topTrailing) {
+            Text("\(number ?? node.orderIndex + 1)")
+                .font(.system(size: 10 * cardScale, weight: .black, design: .rounded))
+                .foregroundColor(Color.obsidian900)
+                .frame(minWidth: 18 * cardScale, minHeight: 18 * cardScale)
+                .background(Color.gold400, in: Capsule())
+                .offset(x: 6 * cardScale, y: -6 * cardScale)
+        }
+    }
+
+    fileprivate var label: some View {
+        HStack(spacing: 4) {
+            if let lockedBy = lockedByUserName {
+                Image(systemName: "lock.fill").foregroundStyle(Color.gold400)
+                Text(lockedBy).foregroundStyle(Color.gold300)
+            } else {
+                Text(node.figureName).foregroundStyle(.white)
+                if let bars = node.bars {
+                    Text("· \(bars) t.").foregroundStyle(Color.gold300)
+                }
+                if let remark = node.coachNotes, !remark.isEmpty {
+                    Image(systemName: "person.badge.shield.checkmark.fill").foregroundStyle(Color.gold400)
+                }
+            }
+        }
+        .font(.system(size: 12 * cardScale, weight: .bold, design: .rounded))
+        .lineLimit(1)
+        .padding(.horizontal, 9 * cardScale)
+        .padding(.vertical, 5 * cardScale)
+        .background(labelBackground, in: Capsule())
+        .overlay(Capsule().stroke(Color.gold400.opacity(0.25), lineWidth: 0.5))
+        .shadow(color: Color.black.opacity(0.3), radius: 4, y: 2)
+    }
+
+    /// Frosted glass shows the parquet through; the dark pill reads on any floor.
+    fileprivate var labelBackground: AnyShapeStyle {
+        isTranslucent ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.obsidian900.opacity(0.85))
+    }
+
+    fileprivate var danceColor: Color {
+        (node.routine?.isLatin ?? false) ? Color.latinCrimson : Color.standardBlue
+    }
+
+    /// "NT" for Natural Turn, "Wh" for Whisk.
+    fileprivate var initials: String {
+        let words = node.figureName.split(separator: " ")
+        if words.count >= 2 { return words.prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
+        return String(node.figureName.prefix(2))
     }
 }
 

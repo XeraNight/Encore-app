@@ -142,19 +142,23 @@ public struct MediaThumbnailView: View {
     public let path: String?
     public var placeholderIcon: String
     public var cornerRadius: CGFloat
+    /// The small video / photo mark in the corner; off where the picture is too small for it.
+    public var showsFormatBadge: Bool
     
     @State private var thumbnail: UIImage? = nil
     
-    public init(path: String?, placeholderIcon: String = "film", cornerRadius: CGFloat = 10) {
+    public init(path: String?, placeholderIcon: String = "film", cornerRadius: CGFloat = 10, showsFormatBadge: Bool = true) {
         self.path = path
         self.placeholderIcon = placeholderIcon
         self.cornerRadius = cornerRadius
+        self.showsFormatBadge = showsFormatBadge
     }
     
     public init(filePath: String?, placeholderIcon: String = "film", cornerRadius: CGFloat = 10) {
         self.path = filePath
         self.placeholderIcon = placeholderIcon
         self.cornerRadius = cornerRadius
+        self.showsFormatBadge = true
     }
     
     public var body: some View {
@@ -174,7 +178,7 @@ public struct MediaThumbnailView: View {
             }
             .overlay(alignment: .bottomTrailing) {
                 // Format icon indicator (Video vs Photo)
-                if let path = path, !path.isEmpty {
+                if showsFormatBadge, let path = path, !path.isEmpty {
                     Image(systemName: MediaResolver.isImagePath(path: path) ? "photo.fill" : "play.fill")
                         .font(.system(size: 8, weight: .bold))
                         .foregroundColor(.white)

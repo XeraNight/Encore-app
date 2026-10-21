@@ -868,7 +868,7 @@ struct RoutineCanvasView: View {
                 }
             }
             Toggle(isOn: $isFiguresTranslucent) {
-                Label("Priesvitné karty", systemImage: "square.2.layers.3d")
+                Label("Priesvitné mená figúr", systemImage: "square.2.layers.3d")
             }
         } label: {
             GlassCircleLabel(icon: "slider.horizontal.3")
