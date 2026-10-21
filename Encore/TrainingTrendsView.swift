@@ -191,13 +191,13 @@ struct TrainingTrendsContent: View {
                 .chartYAxis {
                     AxisMarks { value in
                         AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
-                        AxisValueLabel { Text("\(value.as(Double.self).map { Int($0) } ?? 0) h").foregroundStyle(Color.white.opacity(0.5)) }
+                        AxisValueLabel { Text("\(value.as(Double.self).map { Int($0) } ?? 0) h").foregroundStyle(Color.textSecondary) }
                     }
                 }
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                         AxisValueLabel(format: .dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk")))
-                            .foregroundStyle(Color.white.opacity(0.5))
+                            .foregroundStyle(Color.textSecondary)
                     }
                 }
                 .frame(height: 190)
@@ -230,7 +230,7 @@ struct TrainingTrendsContent: View {
                             .frame(height: 6)
                             Text(monthDetail(month))
                                 .font(.caption2)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundColor(Color.textSecondary)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -266,7 +266,7 @@ struct TrainingTrendsContent: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Najviac riešené tance")
                             .font(.caption.weight(.bold))
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                         ForEach(trends.dances.prefix(5)) { dance in
                             HStack {
                                 Text(DanceNames.display(dance.dance))
@@ -291,7 +291,7 @@ struct TrainingTrendsContent: View {
                                     .foregroundColor(.white)
                                 Text(feeling.title)
                                     .font(.caption2)
-                                    .foregroundColor(.white.opacity(0.55))
+                                    .foregroundColor(Color.textSecondary)
                                     .multilineTextAlignment(.center)
                             }
                             .frame(maxWidth: .infinity)

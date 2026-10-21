@@ -133,11 +133,11 @@ struct PasswordField: View {
         HStack(spacing: 8) {
             Group {
                 if isRevealed {
-                    TextField("", text: $text, prompt: Text(prompt).foregroundColor(.white.opacity(0.5)))
+                    TextField("", text: $text, prompt: Text(prompt).foregroundColor(Color.textPlaceholder))
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } else {
-                    SecureField("", text: $text, prompt: Text(prompt).foregroundColor(.white.opacity(0.5)))
+                    SecureField("", text: $text, prompt: Text(prompt).foregroundColor(Color.textPlaceholder))
                 }
             }
             .textContentType(contentType)
@@ -151,7 +151,7 @@ struct PasswordField: View {
             } label: {
                 Image(systemName: isRevealed ? "eye.slash" : "eye")
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .contentTransition(.symbolEffect(.replace))
                     .frame(width: 44, height: 28)
                     .contentShape(Rectangle())
@@ -459,7 +459,7 @@ struct ForgotPasswordSheet: View {
         ) {
             switch step {
             case .email:
-                TextField("", text: $email, prompt: Text("E-mailová adresa").foregroundColor(.white.opacity(0.5)))
+                TextField("", text: $email, prompt: Text("E-mailová adresa").foregroundColor(Color.textPlaceholder))
                     .textContentType(.username)
                     .keyboardType(.emailAddress)
                     .textInputAutocapitalization(.never)

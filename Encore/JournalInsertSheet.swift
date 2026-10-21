@@ -67,7 +67,7 @@ struct JournalInsertSheet: View {
                 Text(note.createdAt, format: .dateTime.hour().minute())
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                 if let dance = note.danceName {
                     Text(DanceNames.display(dance))
                         .font(.caption)

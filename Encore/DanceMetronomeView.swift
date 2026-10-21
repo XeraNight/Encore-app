@@ -75,7 +75,7 @@ public struct DanceMetronomeView: View {
                     .shadow(color: engine.isPlaying && engine.isPulse ? Color.gold400.opacity(0.45) : .clear, radius: 16)
                 Text("BPM")
                     .font(.headline.weight(.bold))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             .scaleEffect(engine.isPlaying && engine.isPulse && !reduceMotion ? 1.03 : 1)
             .animation(.spring(response: 0.12, dampingFraction: 0.6), value: engine.isPulse)
@@ -157,7 +157,7 @@ public struct DanceMetronomeView: View {
                         .contentTransition(.numericText())
                     Text("základného tempa")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .frame(maxWidth: .infinity)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: engine.tempoMultiplier)
@@ -229,7 +229,7 @@ public struct DanceMetronomeView: View {
                         .foregroundColor(.white)
                     Text("Hrá aj v tichom režime a cez hudbu v sále.")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             .padding(.vertical, 12)
@@ -241,7 +241,7 @@ public struct DanceMetronomeView: View {
                         .foregroundColor(.white)
                     Text("Rytmus cítiš v ruke aj bez zvuku.")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             .padding(.vertical, 12)

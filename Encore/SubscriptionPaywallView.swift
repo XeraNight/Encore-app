@@ -99,7 +99,7 @@ public struct SubscriptionPaywallView: View {
                     Button { dismiss() } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.title3)
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(Color.textSecondary)
                     }
                     .accessibilityLabel("Zavrieť")
                 }
@@ -191,7 +191,7 @@ public struct SubscriptionPaywallView: View {
                     .contentTransition(.numericText())
                 Text(isAnnual ? (monthlyEquivalent(for: tier).map { "ročne · \($0) mesačne" } ?? "ročne") : "mesačne")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -285,7 +285,7 @@ public struct SubscriptionPaywallView: View {
 
             Text("Predplatné sa obnovuje automaticky, kým ho nezrušíš aspoň 24 hodín pred koncom obdobia. Spravuješ ho v Nastaveniach iPhonu pod svojím Apple ID.")
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(Color.textSecondary)
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 16) {

@@ -84,8 +84,8 @@ struct FiguresDrawerSheet: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.6))
-            TextField("", text: $query, prompt: Text("Hľadať figúru").foregroundColor(.white.opacity(0.5)))
+                .foregroundColor(Color.textSecondary)
+            TextField("", text: $query, prompt: Text("Hľadať figúru").foregroundColor(Color.textPlaceholder))
                 .foregroundColor(.white)
                 .autocorrectionDisabled()
         }
@@ -168,7 +168,7 @@ struct TransitionEditSheet: View {
                                 if notesText.isEmpty {
                                     Text("Ako sa dostaneš z jednej figúry do druhej…")
                                         .font(.callout)
-                                        .foregroundColor(.white.opacity(0.5))
+                                        .foregroundColor(Color.textPlaceholder)
                                         .padding(.top, 8)
                                         .padding(.leading, 5)
                                         .allowsHitTesting(false)
@@ -603,7 +603,7 @@ struct FigureOrderSheet: View {
                     } footer: {
                         Text("Podrž figúru za úchyt vpravo a presuň ju na miesto. Poradie uvidí aj partner.")
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                     }
                 }
                 .scrollContentBackground(.hidden)

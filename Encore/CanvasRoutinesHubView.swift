@@ -185,7 +185,7 @@ public struct CanvasRoutinesHubView: View {
                 .foregroundColor(Color.gold400)
                 .accessibilityHidden(true)
 
-            TextField("", text: $searchText, prompt: Text("Hľadať zostavu alebo tanec").foregroundColor(Color.white.opacity(0.5)))
+            TextField("", text: $searchText, prompt: Text("Hľadať zostavu alebo tanec").foregroundColor(Color.textPlaceholder))
                 .font(.subheadline)
                 .foregroundColor(.white)
                 .focused($isSearching)
@@ -197,7 +197,7 @@ public struct CanvasRoutinesHubView: View {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { searchText = "" }
                 } label: {
                     Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(Color.white.opacity(0.55))
+                        .foregroundColor(Color.textSecondary)
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.pressable)
@@ -255,7 +255,7 @@ public struct CanvasRoutinesHubView: View {
             if !routines.isEmpty {
                 Text(statsText)
                     .font(.caption.weight(.medium))
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .contentTransition(.numericText())
             }
         }

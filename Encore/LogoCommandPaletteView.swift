@@ -91,7 +91,7 @@ struct LogoCommandPaletteView: View {
                                             onSelectCompare()
                                         }
                                         
-                                        commandRow(icon: "square.grid.2x2.fill", title: "Tanečný Canvas", subtitle: "Zobraziť všetky zostavy", color: Color.latinPink) {
+                                        commandRow(icon: "square.grid.2x2.fill", title: "Zostavy", subtitle: "Zobraziť všetky zostavy", color: Color.latinPink) {
                                             isPresented = false
                                             onSelectCanvas()
                                         }
@@ -133,7 +133,7 @@ struct LogoCommandPaletteView: View {
                                                             .foregroundColor(.white)
                                                         Text("\(routine.danceName) • \(routine.canvasNodes.count) figúr")
                                                             .font(.system(size: 11))
-                                                            .foregroundColor(Color.white.opacity(0.5))
+                                                            .foregroundColor(Color.textSecondary)
                                                     }
                                                     Spacer()
                                                     Image(systemName: "chevron.right")
@@ -213,7 +213,7 @@ struct LogoCommandPaletteView: View {
                     
                     Text(subtitle)
                         .font(.system(size: 11))
-                        .foregroundColor(Color.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                 }
                 
                 Spacer()

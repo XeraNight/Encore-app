@@ -209,13 +209,13 @@ struct FriendsListView: View {
     private var searchBar: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.6))
-            TextField("", text: $searchText, prompt: Text("Meno, klub alebo ID tanečníka").foregroundColor(.white.opacity(0.5)))
+                .foregroundColor(Color.textSecondary)
+            TextField("", text: $searchText, prompt: Text("Meno, klub alebo ID tanečníka").foregroundColor(Color.textPlaceholder))
                 .foregroundColor(.white)
                 .autocorrectionDisabled()
             if !searchText.isEmpty {
                 Button { searchText = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.white.opacity(0.5))
+                    Image(systemName: "xmark.circle.fill").foregroundColor(Color.textSecondary)
                 }
                 .accessibilityLabel("Vymazať hľadanie")
             }
@@ -385,7 +385,7 @@ struct FriendsListView: View {
                 if !dancer.dancerCode.isEmpty {
                     Text(dancer.dancerCode)
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             Spacer()
@@ -536,7 +536,7 @@ struct FriendsListView: View {
                     .foregroundColor(.white)
                 Text(req.relationshipType.title)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             Spacer()
             Button("Zrušiť žiadosť") {

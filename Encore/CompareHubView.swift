@@ -42,7 +42,7 @@ struct CompareHubView: View {
                         if !hasAny {
                             Text("Vyber aspoň jedno video.")
                                 .font(.footnote)
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                         }
                     }
                 }
@@ -127,7 +127,7 @@ struct CompareHubView: View {
                     Button(action: onClear) {
                         Image(systemName: "xmark")
                             .font(.footnote.weight(.bold))
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                             .frame(width: 32, height: 32)
                     }
                     .accessibilityLabel("Odobrať z porovnania")

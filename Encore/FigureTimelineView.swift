@@ -83,7 +83,7 @@ struct FigureTimelineView: View {
                         if takes.count >= 2 {
                             Text("Vyber dva zábery a porovnaj ich vedľa seba.")
                                 .font(.footnote)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundColor(Color.textSecondary)
                         }
                     }
                     .padding(.horizontal, 20)
@@ -160,7 +160,7 @@ struct FigureTimelineView: View {
                     if let date = take.date {
                         Text(PlannerCalendar.daysText(until: date))
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                     }
                 }
                 Spacer()

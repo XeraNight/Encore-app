@@ -267,7 +267,7 @@ struct VoiceNotePlayerView: View {
                     Text(voiceTimeString(player.duration))
                 }
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .foregroundColor(Color.white.opacity(0.55))
+                .foregroundColor(Color.textSecondary)
             }
         }
         .onAppear { player.load(fileName: fileName) }

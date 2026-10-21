@@ -137,7 +137,7 @@ struct StudentRoutineDetailView: View {
                 VStack(alignment: .trailing, spacing: 2) {
                     Text("Zverenec")
                         .font(.caption2.weight(.semibold))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                     Text(studentName)
                         .font(.footnote.weight(.bold))
                         .foregroundColor(.white)
@@ -159,7 +159,7 @@ struct StudentRoutineDetailView: View {
                     } else {
                         Text("Pôvodná verzia zverenca")
                             .font(.caption2.weight(.medium))
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                     }
                 }
                 
@@ -167,7 +167,7 @@ struct StudentRoutineDetailView: View {
                 
                 Text(routine.updated_at, style: .date)
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
             }
         }
         .padding(16)
@@ -316,7 +316,7 @@ struct StudentRoutineDetailView: View {
             
             Text("Trénerský režim: úpravy sa hneď zobrazia zverencovi. Zostavu zmazať nemôžeš.")
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.60))
+                .foregroundColor(Color.textSecondary)
         }
         .padding(12)
         .frame(maxWidth: .infinity)

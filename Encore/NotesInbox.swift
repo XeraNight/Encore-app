@@ -29,7 +29,7 @@ struct NotesInboxStrip: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: "POZNÁMKY", systemImage: "tray.full.fill", count: notes.count) {
+            HomeSectionHeader(title: "DENNÍK", systemImage: "book.pages", count: notes.count) {
                 Button(action: onOpenAll) {
                     HStack(spacing: 4) {
                         Text("Všetky")
@@ -41,13 +41,13 @@ struct NotesInboxStrip: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.pressable)
-                .accessibilityLabel("Všetky poznámky")
+                .accessibilityLabel("Celý denník")
             }
 
             if notes.isEmpty {
-                Text("Tvoje rýchle poznámky sa objavia tu. Neskôr ich jedným ťuknutím pridáš k figúre.")
+                Text("Čo zapíšeš alebo nahráš, uloží sa do Denníka. Neskôr to jedným ťuknutím pridáš k figúre.")
                     .font(.caption)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.white.opacity(0.78))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, 6)
             } else if notes.count == 1, let note = notes.first {
@@ -114,7 +114,7 @@ private struct NoteCard: View {
                 Spacer(minLength: 0)
                 Text(note.createdAt, format: .relative(presentation: .numeric, unitsStyle: .abbreviated))
                     .font(.caption2.weight(.medium))
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
 
             Text(note.previewText)
@@ -250,7 +250,7 @@ struct NoteDetailSheet: View {
             if note.text.isEmpty {
                 Text(note.audioPath != nil ? "Napíš, čo si z nahrávky chceš zapamätať…" : "Napíš poznámku…")
                     .font(.callout)
-                    .foregroundColor(Color.white.opacity(0.5))
+                    .foregroundColor(Color.textPlaceholder)
                     .padding(.top, 8)
                     .padding(.leading, 5)
                     .allowsHitTesting(false)
@@ -289,7 +289,7 @@ struct NoteDetailSheet: View {
             if !hasText {
                 Text("Najprv napíš text, ktorý chceš k figúre pridať.")
                     .font(.caption)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .transition(.opacity)
             }
 

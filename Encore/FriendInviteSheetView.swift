@@ -117,7 +117,7 @@ struct FriendInviteSheetView: View {
                         } label: {
                             Text("Neskôr")
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                                 .padding(.vertical, 10)
                         }
                         .buttonStyle(.plain)

@@ -123,7 +123,7 @@ struct FigureCorrectionSheet: View {
                          ? "Korekcia sa pridá do poznámok figúry. Uvidia ju aj partner a tréner, s ktorými máš zostavu zdieľanú."
                          : "Korekcia sa pridá do poznámok figúry. Uvidí ju aj partner, s ktorým máš zostavu zdieľanú.")
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                     }
                     .padding(.horizontal, 20)
                     .padding(.top, 8)

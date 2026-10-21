@@ -89,7 +89,7 @@ struct KSISResultDetailView: View {
                     .foregroundColor(.white)
                 Text([KSISBrowserView.displayDate(result.date), result.disciplineTitle].compactMap { $0 }.joined(separator: " · "))
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             HStack(spacing: 10) {
                 tile(result.placeLine, caption: "miesto")
@@ -101,7 +101,7 @@ struct KSISResultDetailView: View {
             if let start = result.startNumber, !start.isEmpty {
                 Text("Štartové číslo \(start)")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(Color.textSecondary)
             }
         }
     }
@@ -115,7 +115,7 @@ struct KSISResultDetailView: View {
                 .minimumScaleFactor(0.7)
             Text(caption)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(Color.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
@@ -165,7 +165,7 @@ struct KSISResultDetailView: View {
                 .foregroundColor(.white)
             Text(caption)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(Color.textSecondary)
         }
     }
 
@@ -180,7 +180,7 @@ struct KSISResultDetailView: View {
                     Text("\(crosses) z \(dance.marks.count)")
                         .font(.caption.weight(.semibold))
                         .monospacedDigit()
-                        .foregroundColor(.white.opacity(0.55))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             HStack(spacing: 6) {
@@ -197,7 +197,7 @@ struct KSISResultDetailView: View {
         return VStack(spacing: 2) {
             Text(mark.letter ?? "?")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(Color.textSecondary)
             Text(isFinal ? mark.mark : (isCross ? "✕" : "·"))
                 .font(.system(.subheadline, design: .rounded).weight(.heavy))
                 .foregroundColor(highlighted ? Color.obsidian900 : .white.opacity(0.5))

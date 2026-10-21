@@ -45,7 +45,7 @@ struct PlannerTodayView: View {
                     .foregroundColor(.white)
                 Text("Nepríde ti pripomienka pred tréningom, výzva na reflexiu ani uzávierka prihlášok.")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Zapnúť pripomienky", action: enableReminders)
                     .font(.footnote.weight(.bold))
@@ -91,7 +91,7 @@ struct PlannerTodayView: View {
             if !comp.city.isEmpty {
                 Text(comp.city)
                     .font(.footnote)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             if let deadline = comp.entryDeadline,
                PlannerCalendar.startOfDay(deadline) >= today,
@@ -250,7 +250,7 @@ struct PlannerWeekSummary: View {
                 .contentTransition(.numericText())
             Text(caption)
                 .font(.caption2.weight(.semibold))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)

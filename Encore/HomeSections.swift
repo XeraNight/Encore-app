@@ -266,7 +266,7 @@ struct RoutineCard: View {
                 if orderedNodes.isEmpty {
                     Text("Zatiaľ bez figúr – otvor plátno a pridaj prvú.")
                         .font(.caption)
-                        .foregroundColor(Color.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 } else {
                     figurePills
                 }
@@ -360,7 +360,7 @@ struct HomeRecentRoutineCard: View {
             HomeSectionHeader(title: "NAPOSLEDY UPRAVOVANÉ") {
                 Text(routine.updatedAt, format: .relative(presentation: .named))
                     .font(.caption.weight(.medium))
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             RoutineCard(routine: routine, onOpen: onOpen)
         }

@@ -282,7 +282,7 @@ struct NewRoutineSheet: View {
                 EllegancePageBackground()
                 VStack(alignment: .leading, spacing: 16) {
                     HomeSectionHeader(title: "NÁZOV ZOSTAVY")
-                    TextField("", text: $name, prompt: Text("napr. Súťažná 2026").foregroundColor(.white.opacity(0.5)))
+                    TextField("", text: $name, prompt: Text("napr. Súťažná 2026").foregroundColor(Color.textPlaceholder))
                         .focused($isFocused)
                         .submitLabel(.done)
                         .onSubmit { if !trimmed.isEmpty { onCreate(trimmed) } }

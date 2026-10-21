@@ -108,14 +108,14 @@ struct ProfileFiguresListView: View {
     private var searchField: some View {
         HStack(spacing: 8) {
             Image(systemName: "magnifyingglass")
-                .foregroundColor(.white.opacity(0.6))
-            TextField("", text: $query, prompt: Text("Hľadať figúru").foregroundColor(.white.opacity(0.5)))
+                .foregroundColor(Color.textSecondary)
+            TextField("", text: $query, prompt: Text("Hľadať figúru").foregroundColor(Color.textPlaceholder))
                 .foregroundColor(.white)
                 .submitLabel(.search)
                 .autocorrectionDisabled()
             if !query.isEmpty {
                 Button { query = "" } label: {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.white.opacity(0.5))
+                    Image(systemName: "xmark.circle.fill").foregroundColor(Color.textSecondary)
                 }
                 .accessibilityLabel("Vymazať hľadanie")
             }

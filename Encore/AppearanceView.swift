@@ -24,7 +24,7 @@ struct AppearanceView: View {
                     if !hasPlus {
                         Text("Karmín a profilovka bez rámika sú zadarmo, ostatné ikony, motívy a rámiky sú v Plus.")
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
@@ -96,7 +96,7 @@ struct AppearanceView: View {
             HomeSectionHeader(title: "MOTÍV KARTY", systemImage: "wallet.pass.fill")
             Text("Platí pre kartu v Encore aj v Apple Peňaženke.")
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(CardTheme.allCases) { theme in
                     themeTile(theme)

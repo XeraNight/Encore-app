@@ -62,7 +62,7 @@ struct VideoTrimView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("ZAČIATOK")
                                 .font(.system(size: 10, weight: .black))
-                                .foregroundColor(Color.white.opacity(0.5))
+                                .foregroundColor(Color.textSecondary)
                             Text(formatTime(startTime))
                                 .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                 .foregroundColor(Color.gold400)
@@ -73,7 +73,7 @@ struct VideoTrimView: View {
                         VStack(spacing: 2) {
                             Text("DĹŽKA VÝBERU")
                                 .font(.system(size: 10, weight: .black))
-                                .foregroundColor(Color.white.opacity(0.5))
+                                .foregroundColor(Color.textSecondary)
                             Text(formatTime(max(0, endTime - startTime)))
                                 .font(.system(size: 14, weight: .black, design: .monospaced))
                                 .foregroundColor(.white)
@@ -84,7 +84,7 @@ struct VideoTrimView: View {
                         VStack(alignment: .trailing, spacing: 2) {
                             Text("KONIEC")
                                 .font(.system(size: 10, weight: .black))
-                                .foregroundColor(Color.white.opacity(0.5))
+                                .foregroundColor(Color.textSecondary)
                             Text(formatTime(endTime))
                                 .font(.system(size: 14, weight: .heavy, design: .monospaced))
                                 .foregroundColor(Color.gold400)

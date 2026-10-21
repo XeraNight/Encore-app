@@ -23,7 +23,7 @@ struct MainTabView: View {
                     ContentView()
                 }
 
-                Tab("Canvas", systemImage: "square.grid.2x2.fill", value: 1) {
+                Tab("Zostavy", systemImage: "square.grid.2x2.fill", value: 1) {
                     CanvasRoutinesHubView()
                 }
 

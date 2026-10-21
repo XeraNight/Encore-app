@@ -23,7 +23,7 @@ struct EditDanceSheet: View {
                     VStack(alignment: .leading, spacing: 22) {
                         VStack(alignment: .leading, spacing: 8) {
                             HomeSectionHeader(title: "TEMPO")
-                            TextField("", text: $tempoText, prompt: Text("napr. 28–30 taktov za minútu").foregroundColor(.white.opacity(0.5)))
+                            TextField("", text: $tempoText, prompt: Text("napr. 28–30 taktov za minútu").foregroundColor(Color.textPlaceholder))
                                 .authFieldChrome()
                         }
 

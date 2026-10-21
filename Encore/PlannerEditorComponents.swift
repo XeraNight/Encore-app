@@ -99,7 +99,7 @@ struct PlannerEditorScaffold<Content: View>: View {
             if !canSave, let disabledHint {
                 Text(disabledHint)
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .transition(.opacity)
             }
         }
@@ -161,7 +161,7 @@ struct PlannerTextField: View {
                     .frame(width: 22)
                     .accessibilityHidden(true)
             }
-            TextField("", text: $text, prompt: Text(placeholder).foregroundColor(.white.opacity(0.5)))
+            TextField("", text: $text, prompt: Text(placeholder).foregroundColor(Color.textPlaceholder))
                 .focused($isFocused)
                 .font(.body)
                 .foregroundColor(.white)
@@ -249,7 +249,7 @@ struct PlannerToggleRow: View {
                     if let subtitle {
                         Text(subtitle)
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }

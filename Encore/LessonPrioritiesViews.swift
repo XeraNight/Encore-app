@@ -259,7 +259,7 @@ struct LessonPrioritiesSheet: View {
                             if danceName == nil {
                                 Text("Najprv vyber tanec.")
                                     .font(.footnote)
-                                    .foregroundColor(.white.opacity(0.55))
+                                    .foregroundColor(Color.textSecondary)
                             }
                         }
                     }

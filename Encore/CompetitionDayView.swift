@@ -36,7 +36,7 @@ struct CompetitionDayView: View {
                             if !plan.otherDances.isEmpty {
                                 Text("Bez priorít: \(plan.otherDances.map(DanceNames.display).joined(separator: ", ")).")
                                     .font(.footnote)
-                                    .foregroundColor(.white.opacity(0.5))
+                                    .foregroundColor(Color.textSecondary)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
                         }

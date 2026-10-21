@@ -429,7 +429,7 @@ struct DualVideoComparisonView: View {
                     .foregroundColor(.white)
                 Text("Z knižnice, z Fotiek alebo natoč nové")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -618,7 +618,7 @@ struct DualVideoComparisonView: View {
                         Text(formatTime(duration))
                     }
                     .font(.caption.monospacedDigit())
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                 }
 
                 HStack(spacing: 28) {

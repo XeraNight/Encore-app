@@ -71,7 +71,7 @@ struct AppSplashView: View {
                     if authManager.isAuthenticated, !userName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, userName != "Tanečník" {
                         Text("Vítaj späť")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color.white.opacity(0.50))
+                            .foregroundColor(Color.textSecondary)
 
                         Text(userName)
                             .font(.system(size: 32, weight: .bold))
@@ -86,7 +86,7 @@ struct AppSplashView: View {
                     } else {
                         Text("Vítaj v")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color.white.opacity(0.50))
+                            .foregroundColor(Color.textSecondary)
 
                         Text("Encore")
                             .font(.system(size: 34, weight: .bold))

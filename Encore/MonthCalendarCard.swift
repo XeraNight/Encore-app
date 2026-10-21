@@ -212,7 +212,7 @@ struct MonthCalendarCard: View {
                     legendSymbol(item.mark)
                     Text(item.title)
                         .font(.caption2.weight(.semibold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             Spacer(minLength: 0)

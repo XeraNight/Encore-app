@@ -40,7 +40,7 @@ struct PlannerRoutineView: View {
             if sorted.isEmpty {
                 Text("Zatiaľ tu nič nie je. Pridaj tréningy, ktoré máš každý týždeň, a appka ti v daný deň ponúkne Idem / Nejdem a po tréningu reflexiu.")
                     .font(.footnote)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .plannerCard()
             }
@@ -141,7 +141,7 @@ struct PlannerRoutineView: View {
             if let calendarMessage {
                 Text(calendarMessage)
                     .font(.caption)
-                    .foregroundColor(Color.white.opacity(0.55))
+                    .foregroundColor(Color.textSecondary)
             }
         }
         .padding(.top, 4)
@@ -190,7 +190,7 @@ struct PlannerRoutineView: View {
                     if !cadence.location.isEmpty {
                         Label(cadence.location, systemImage: "mappin.and.ellipse")
                             .font(.caption)
-                            .foregroundColor(Color.white.opacity(0.55))
+                            .foregroundColor(Color.textSecondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)

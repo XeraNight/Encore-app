@@ -325,7 +325,7 @@ public struct LuxuryFigureCardView: View {
                     
                     Text(String(format: "#%02d", stepNumber))
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
-                        .foregroundColor(Color.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
@@ -463,10 +463,10 @@ public struct LuxuryFigureCardView: View {
         HStack(spacing: 4) {
             Image(systemName: icon)
                 .font(.system(size: 9))
-                .foregroundColor(Color.white.opacity(0.5))
+                .foregroundColor(Color.textSecondary)
             Text("\(title):")
                 .font(.system(size: 10, weight: .bold))
-                .foregroundColor(Color.white.opacity(0.5))
+                .foregroundColor(Color.textSecondary)
             Text(value)
                 .font(.system(size: 10, weight: .heavy, design: .monospaced))
                 .foregroundColor(.white)
@@ -706,7 +706,7 @@ public struct DownloadingLoopIconView: View {
                 VStack(spacing: 12) {
                     Text("Art Deco Dividers")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                     
                     ArtDecoDivider()
                     ArtDecoDivider(accentColor: LuxuryTheme.latinCrimson)

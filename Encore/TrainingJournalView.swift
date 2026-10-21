@@ -222,7 +222,7 @@ struct TrainingJournalView: View {
                 if !dayNotes.isEmpty {
                     Text(slovakCount(dayNotes.count, one: "poznámka", few: "poznámky", many: "poznámok"))
                         .font(.caption.weight(.medium))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .contentTransition(.numericText())
                 }
             }
@@ -276,7 +276,7 @@ struct TrainingJournalView: View {
                     Spacer(minLength: 6)
                     Text(entry.title.isEmpty ? "Tréning" : entry.title)
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .lineLimit(1)
                 }
                 Text(entry.reflectionNote)
@@ -520,7 +520,7 @@ private struct JournalNoteCard: View {
             Text(note.createdAt, format: showsDate ? .dateTime.day().month(.abbreviated).hour().minute() : .dateTime.hour().minute())
                 .font(.caption.weight(.medium))
                 .monospacedDigit()
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
             if let dance = note.danceName {
                 HStack(spacing: 4) {
                     Circle().fill(disciplineColor(dance))
@@ -610,7 +610,7 @@ private struct VoiceRow: View {
                 Text(voiceTimeString(isMine ? max(0, duration - player.currentTime) : duration))
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             if isMine {
                 Button {
@@ -778,7 +778,7 @@ struct JournalComposer: View {
             }
             TextField("", text: $text,
                       prompt: Text(kind == .voice ? "Dopíš k hlasovke (nepovinné)" : "Čo si chceš z tréningu zapamätať?")
-                        .foregroundColor(.white.opacity(0.5)),
+                        .foregroundColor(Color.textSecondary),
                       axis: .vertical)
                 .lineLimit(2...6)
                 .font(.body)

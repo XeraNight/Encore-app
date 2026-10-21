@@ -142,7 +142,7 @@ struct AddConnectionSheetView: View {
                 
                 Text(desc)
                     .font(.system(size: 11, weight: .regular))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .lineLimit(2)
             }
             .padding(12)
@@ -204,7 +204,7 @@ struct AddConnectionSheetView: View {
             if searchResults.isEmpty && searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 && !isSearching {
                 Text("Nikoho s týmto ID tanečníka ani menom sme nenašli.")
                     .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
                     .padding(.vertical, 16)
             } else {
                 ForEach(searchResults) { dancer in

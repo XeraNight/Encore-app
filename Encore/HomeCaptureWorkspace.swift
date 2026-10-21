@@ -136,7 +136,7 @@ struct HomeCaptureWorkspace: View {
                 if draft.isEmpty {
                     Text("Zadaj myšlienku, figúru, technickú pripomienku alebo postreh z tréningu...")
                         .font(.callout)
-                        .foregroundColor(Color.white.opacity(0.55))
+                        .foregroundColor(Color.textPlaceholder)
                         .padding(.top, 8)
                         .padding(.leading, 4)
                         .allowsHitTesting(false)
@@ -160,7 +160,7 @@ struct HomeCaptureWorkspace: View {
                 HStack {
                     Button("Vymazať") { draft = "" }
                         .font(.footnote.weight(.medium))
-                        .foregroundColor(Color.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .frame(minHeight: 44)
 
                     Spacer()
@@ -195,7 +195,7 @@ struct HomeCaptureWorkspace: View {
                             .stroke(Color.gold400.opacity(0.35), lineWidth: 1.2)
                     )
                     .overlay(alignment: .topTrailing) {
-                        // The clip is already saved among the notes; this only hides the preview.
+                        // The clip is already saved in Denník; this only hides the preview.
                         LiquidGlassCircleButton(icon: "xmark", label: "Skryť náhľad", size: 36) {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { capturedVideoPath = nil }
                         }
@@ -213,28 +213,31 @@ struct HomeCaptureWorkspace: View {
                 }
                 .buttonStyle(.pressable)
             } else {
-                Spacer()
+                Spacer(minLength: 0)
 
-                Image(systemName: "video.fill")
-                    .font(.title2)
-                    .foregroundColor(Color.gold400)
-                    .frame(width: 64, height: 64)
-                    .overlay(Circle().stroke(Color.gold400.opacity(0.4), lineWidth: 2))
-                    .background(Color.gold500.opacity(0.12), in: Circle().inset(by: -8))
-                    .accessibilityHidden(true)
+                // Icon beside the title, so the text always has room for both lines.
+                HStack(spacing: 12) {
+                    Image(systemName: "video.fill")
+                        .font(.title3)
+                        .foregroundColor(Color.gold400)
+                        .frame(width: 48, height: 48)
+                        .overlay(Circle().stroke(Color.gold400.opacity(0.4), lineWidth: 1.5))
+                        .background(Color.gold500.opacity(0.12), in: Circle())
+                        .accessibilityHidden(true)
 
-                VStack(spacing: 4) {
-                    Text("Tanečná kamera")
-                        .font(.callout.weight(.bold))
-                        .foregroundColor(.white)
-                    Text("Video sa uloží medzi poznámky. K figúre ho pripojíš neskôr.")
-                        .font(.caption)
-                        .foregroundColor(Color.white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 20)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Tanečná kamera")
+                            .font(.callout.weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Video sa uloží do Denníka, k figúre ho dáš neskôr.")
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .padding(.horizontal, 12)
 
-                Spacer()
+                Spacer(minLength: 0)
 
                 Button { isCameraPresented = true } label: {
                     Label("Otvoriť kameru", systemImage: "record.circle")

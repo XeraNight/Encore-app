@@ -194,7 +194,7 @@ struct TrainingOccurrenceCard: View {
                         if !occurrence.location.isEmpty {
                             Label(occurrence.location, systemImage: "mappin.and.ellipse")
                                 .font(.footnote)
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                         }
                         if let goal = occurrence.goal {
                             Label(goal, systemImage: "target")
@@ -245,7 +245,7 @@ struct TrainingOccurrenceCard: View {
             HStack {
                 Label("Zrušené", systemImage: "calendar.badge.minus")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                 Spacer()
                 smallButton("Vrátiť", color: Color.gold400) { onSetStatus(.planned) }
             }
@@ -466,7 +466,7 @@ struct PlannerCalendarView: View {
                     .foregroundColor(.white)
                 Text("Raz zadáš, kedy trénuješ. Ak v daný deň nejdeš, ťukneš Nejdem, a po tréningu zapíšeš, čo nové sa ti podarilo.")
                     .font(.footnote)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 Button(action: onOpenRoutine) {
                     Text("Nastaviť režim")
@@ -489,7 +489,7 @@ struct PlannerCalendarView: View {
                 if let next = nextTraining {
                     Text(nextTrainingText(next))
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             .padding(14)
@@ -525,7 +525,7 @@ struct PlannerCalendarView: View {
                 .foregroundColor(.white)
             Text("Cez Pridať sem dáš samotréning, lekciu alebo súťaž. Aj spätne, napríklad tréning navyše.")
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(14)
@@ -547,7 +547,7 @@ struct PlannerCalendarView: View {
                     Text([competition.city, competition.targetCategories.joined(separator: " · ")]
                         .filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 Spacer(minLength: 8)
                 if let place = competition.dancedPlaceLine(in: results.results) {
@@ -570,7 +570,7 @@ struct PlannerCalendarView: View {
 
     private func notesList(_ dayNotes: [InstantNote]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: "POZNÁMKY Z TOHTO DŇA", systemImage: "note.text", count: dayNotes.count)
+            HomeSectionHeader(title: "DENNÍK TOHTO DŇA", systemImage: "book.pages", count: dayNotes.count)
             VStack(spacing: 0) {
                 ForEach(dayNotes) { note in
                     Button { openNote = note } label: {
@@ -596,7 +596,7 @@ struct PlannerCalendarView: View {
                             Spacer(minLength: 8)
                             Text(note.createdAt.formatted(date: .omitted, time: .shortened))
                                 .font(.caption2.weight(.medium))
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)

@@ -106,7 +106,7 @@ struct NewFigureSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         labeled("NÁZOV") {
-                            TextField("", text: $name, prompt: Text("napr. Double Reverse Spin").foregroundColor(.white.opacity(0.5)))
+                            TextField("", text: $name, prompt: Text("napr. Double Reverse Spin").foregroundColor(Color.textPlaceholder))
                                 .focused($focus, equals: .name)
                                 .submitLabel(.next)
                                 .onSubmit { focus = .rhythm }
@@ -118,7 +118,7 @@ struct NewFigureSheet: View {
                             }
                         }
                         labeled("RYTMUS") {
-                            TextField("", text: $rhythm, prompt: Text("napr. S Q Q S alebo 1, 2, 3").foregroundColor(.white.opacity(0.5)))
+                            TextField("", text: $rhythm, prompt: Text("napr. S Q Q S alebo 1, 2, 3").foregroundColor(Color.textPlaceholder))
                                 .focused($focus, equals: .rhythm)
                                 .submitLabel(.next)
                                 .onSubmit { focus = .notes }
@@ -137,7 +137,7 @@ struct NewFigureSheet: View {
                             if !canSave {
                                 Text(trimmedName.isEmpty ? "Napíš názov figúry." : "Vyber tanec.")
                                     .font(.footnote)
-                                    .foregroundColor(.white.opacity(0.6))
+                                    .foregroundColor(Color.textSecondary)
                             }
                         }
                         .padding(.top, 4)
@@ -260,12 +260,12 @@ struct LibraryFigureDetailSheet: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 8) {
                 HomeSectionHeader(title: "NÁZOV")
-                TextField("", text: $nameText, prompt: Text("Názov figúry").foregroundColor(.white.opacity(0.5)))
+                TextField("", text: $nameText, prompt: Text("Názov figúry").foregroundColor(Color.textPlaceholder))
                     .authFieldChrome()
             }
             VStack(alignment: .leading, spacing: 8) {
                 HomeSectionHeader(title: "RYTMUS")
-                TextField("", text: $rhythmText, prompt: Text("napr. S Q Q S").foregroundColor(.white.opacity(0.5)))
+                TextField("", text: $rhythmText, prompt: Text("napr. S Q Q S").foregroundColor(Color.textPlaceholder))
                     .authFieldChrome()
             }
         }

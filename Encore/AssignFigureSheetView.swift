@@ -139,7 +139,7 @@ struct AssignFigureSheetView: View {
                 VStack(spacing: 8) {
                     Text("V knižnici pre \(danceName) nie sú žiadne uložené figúry.")
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                     
                     TextField("Vlastný názov figúry", text: $customFigureName)
                         .font(.subheadline)

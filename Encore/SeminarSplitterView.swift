@@ -105,7 +105,7 @@ struct SeminarSplitterView: View {
                         .foregroundColor(.white)
                     Text("Dlhé video môže chvíľu trvať.")
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 } else {
                     Image(systemName: "film.stack.fill")
                         .font(.largeTitle)
@@ -165,7 +165,7 @@ struct SeminarSplitterView: View {
                 Text(Self.time(duration))
                     .font(.system(.footnote, design: .rounded).weight(.medium))
                     .monospacedDigit()
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
 
             // Second steps: the slider finds the place, these find the exact moment.
@@ -243,7 +243,7 @@ struct SeminarSplitterView: View {
                             Spacer()
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.caption.weight(.bold))
-                                .foregroundColor(.white.opacity(0.5))
+                                .foregroundColor(Color.textSecondary)
                         }
                         .padding(.horizontal, 14)
                         .frame(minHeight: 48)
@@ -278,7 +278,7 @@ struct SeminarSplitterView: View {
                     .contentTransition(.numericText())
                 Text("Ťukni = teraz")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
             }
             .frame(maxWidth: .infinity, minHeight: 76)
             .background(color.opacity(0.10), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -307,7 +307,7 @@ struct SeminarSplitterView: View {
                             Text(Self.time(clip.length, tenths: true))
                                 .font(.caption.weight(.medium))
                                 .monospacedDigit()
-                                .foregroundColor(.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                         }
                         Spacer()
                         Image(systemName: "checkmark.circle.fill")
@@ -324,7 +324,7 @@ struct SeminarSplitterView: View {
                  ? "Figúry sú vo Fotkách v albume Encore a pri zostave v jej videách."
                  : "Figúry sú v Encore a pri zostave v jej videách. S prístupom k Fotkám by sa ukladali aj do Fotiek.")
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
                 .padding(.horizontal, 4)
         }
     }

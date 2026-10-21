@@ -32,7 +32,7 @@ struct PlannerCompetitionsView: View {
             if upcoming.isEmpty {
                 Text("Pridaj súťaž a nastav Idem. Appka ti pripomenie uzávierku prihlášok a deň pred súťažou.")
                     .font(.footnote)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .plannerCard()
             }
@@ -107,7 +107,7 @@ struct PlannerCompetitionsView: View {
                     .foregroundColor(.white)
                 Text("\(comp.date.formatted(.dateTime.weekday(.wide).day().month(.wide)))\(comp.city.isEmpty ? "" : " · \(comp.city)")")
                     .font(.caption)
-                    .foregroundColor(Color.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                 if !comp.targetCategories.isEmpty {
                     Text(comp.targetCategories.joined(separator: " · "))
                         .font(.caption2.weight(.medium))
@@ -116,7 +116,7 @@ struct PlannerCompetitionsView: View {
                 if let deadline = comp.entryDeadline {
                     Label("Uzávierka: \(deadline.formatted(.dateTime.day().month()))", systemImage: "clock")
                         .font(.caption2)
-                        .foregroundColor(Color.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

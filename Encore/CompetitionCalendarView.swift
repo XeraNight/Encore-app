@@ -52,7 +52,7 @@ struct CompetitionCalendarView: View {
         HStack(spacing: 6) {
             Text(captionText)
                 .font(.system(.footnote, design: .rounded).weight(.heavy))
-                .foregroundColor(.white.opacity(0.5))
+                .foregroundColor(Color.textSecondary)
                 .contentTransition(.numericText())
             Spacer(minLength: 8)
             if selectedDay != nil {

@@ -299,7 +299,7 @@ struct UniversalMediaPickerSheet: View {
                 .foregroundColor(.white)
             Text("Natoč video alebo vyber fotku či video z Fotiek tlačidlami hore.")
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

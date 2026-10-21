@@ -57,7 +57,7 @@ struct SessionEditorSheet: View {
                 PlannerEditorDelete(
                     buttonTitle: "Zmazať tréning",
                     question: "Zmazať tréning?",
-                    message: "Zmizne z Encore aj z Apple Kalendára. Zapísaná reflexia ostane v kalendári aj v poznámkach.",
+                    message: "Zmizne z Encore aj z Apple Kalendára. Zapísaná reflexia ostane v kalendári aj v Denníku.",
                     actions: [.init(title: "Zmazať") { session.delete(in: modelContext) }]
                 )
             }
@@ -90,7 +90,7 @@ struct SessionEditorSheet: View {
         PlannerFormSection(title: "CIEĽ", systemImage: "target") {
             Text("Nemusíš mať plán. Cieľ môžeš doplniť aj po tréningu a v reflexii napísať, čo ste nakoniec riešili.")
                 .font(.footnote)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             ForEach(openPriorities) { priority in

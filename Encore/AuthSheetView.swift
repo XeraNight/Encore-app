@@ -243,7 +243,7 @@ struct AuthSheetView: View {
             if let submitHint {
                 Text(submitHint)
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .center)
                     .transition(.opacity)
             }
@@ -278,7 +278,7 @@ struct AuthSheetView: View {
     }
 
     private func fieldPrompt(_ text: String) -> Text {
-        Text(text).foregroundColor(.white.opacity(0.5))
+        Text(text).foregroundColor(Color.textSecondary)
     }
 
     // MARK: Messages
@@ -331,7 +331,7 @@ struct AuthSheetView: View {
                     Spacer(minLength: 8)
                     Image(systemName: "chevron.right")
                         .font(.footnote.weight(.bold))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .padding(12)
                 .background(Color.gold500.opacity(0.12), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -369,7 +369,7 @@ struct AuthSheetView: View {
                 Rectangle().fill(Color.white.opacity(0.15)).frame(height: 1)
                 Text("alebo")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                 Rectangle().fill(Color.white.opacity(0.15)).frame(height: 1)
             }
             .accessibilityHidden(true)
@@ -416,7 +416,7 @@ struct AuthSheetView: View {
     private var legalLinks: some View {
         Text("Pokračovaním súhlasíš s [Podmienkami používania](encore-legal://terms) a [Zásadami ochrany súkromia](encore-legal://privacy).")
             .font(.caption)
-            .foregroundColor(.white.opacity(0.6))
+            .foregroundColor(Color.textSecondary)
             .tint(.gold400)
             .multilineTextAlignment(.center)
             .environment(\.openURL, OpenURLAction { url in

@@ -30,7 +30,7 @@ struct ProfileEditSheet: View {
 
                         VStack(alignment: .leading, spacing: 10) {
                             HomeSectionHeader(title: "MENO")
-                            TextField("", text: $name, prompt: Text("Tvoje meno").foregroundColor(Color.white.opacity(0.5)))
+                            TextField("", text: $name, prompt: Text("Tvoje meno").foregroundColor(Color.textPlaceholder))
                                 .textContentType(.name)
                                 .focused($focusedField, equals: .name)
                                 .submitLabel(.next)
@@ -43,7 +43,7 @@ struct ProfileEditSheet: View {
 
                         VStack(alignment: .leading, spacing: 10) {
                             HomeSectionHeader(title: "TANEČNÝ KLUB")
-                            TextField("", text: $club, prompt: Text("Názov klubu").foregroundColor(Color.white.opacity(0.5)))
+                            TextField("", text: $club, prompt: Text("Názov klubu").foregroundColor(Color.textPlaceholder))
                                 .textContentType(.organizationName)
                                 .focused($focusedField, equals: .club)
                                 .submitLabel(.done)
@@ -56,7 +56,7 @@ struct ProfileEditSheet: View {
                                  ? "Meno a klub uvidia tvoji partneri a tréneri a podľa mena ťa nájdu."
                                  : "Meno a klub uvidia tvoji partneri a podľa mena ťa nájdu.")
                                 .font(.caption)
-                                .foregroundColor(Color.white.opacity(0.6))
+                                .foregroundColor(Color.textSecondary)
                         }
                     }
                     .padding(.horizontal, 20)

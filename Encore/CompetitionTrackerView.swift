@@ -140,7 +140,7 @@ struct CompetitionTrackerView: View {
 
                 Text("Číslo páru v KSIS je číslo preukazu partnera. Partnerka nájde pár podľa priezviska.")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(Color.textSecondary)
             }
             .padding(16)
             .homeCard(cornerRadius: 20)
@@ -180,7 +180,7 @@ struct CompetitionTrackerView: View {
                         .foregroundColor(.white)
                     Text([couple.club, couple.ageCategory].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
 
                 HStack(spacing: 10) {
@@ -258,7 +258,7 @@ struct CompetitionTrackerView: View {
             if let change = standing.lastChange.flatMap({ KSISBrowserView.displayDate($0, numeric: true) }) {
                 Text("Zmena \(change)")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .lineLimit(1)
             }
         }
@@ -318,7 +318,7 @@ struct CompetitionTrackerView: View {
                      ? "Výsledky sa nepodarilo načítať. Potiahni obrazovku nadol a skús znova."
                      : "Zatiaľ žiadne. Otvor v KSIS stránku svojho páru a ulož históriu jedným ťuknutím.")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .homeCard(cornerRadius: 20)
@@ -329,7 +329,7 @@ struct CompetitionTrackerView: View {
                 ForEach(sortedYears, id: \.self) { year in
                     Text(year)
                         .font(.system(.footnote, design: .rounded).weight(.heavy))
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                         .padding(.top, 4)
                     VStack(spacing: 0) {
                         ForEach(years[year] ?? []) { result in
@@ -416,7 +416,7 @@ struct CompetitionResultRow: View {
                     .foregroundColor(.white)
                 Text(result.dateValue?.formatted(.dateTime.month(.abbreviated).locale(Locale(identifier: "sk"))) ?? "")
                     .font(.caption2.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
             }
             .frame(width: 40)
 
@@ -426,7 +426,7 @@ struct CompetitionResultRow: View {
                     .foregroundColor(.white)
                 Text(result.eventName)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
                     .lineLimit(1)
             }
 

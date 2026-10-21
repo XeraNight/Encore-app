@@ -194,7 +194,7 @@ struct VideoVaultView: View {
             if activeSlotAPath == nil && activeSlotBPath == nil {
                 Text("Ťukni na video a vyber, či ide do porovnania ako Ja alebo Vzor.")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
         }
         .padding(16)
@@ -218,7 +218,7 @@ struct VideoVaultView: View {
                 Button(action: onClear) {
                     Image(systemName: "xmark")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .frame(width: 28, height: 28)
                 }
                 .accessibilityLabel("Odobrať z porovnania: \(title)")
@@ -358,7 +358,7 @@ struct VideoVaultView: View {
                         .lineLimit(1)
                     Text(entry.createdAt, format: .dateTime.day().month(.abbreviated).hour().minute())
                         .font(.caption2)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .padding(.horizontal, 4)
             }
@@ -436,7 +436,7 @@ struct VideoVaultView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     VStack(alignment: .leading, spacing: 8) {
                         HomeSectionHeader(title: "NÁZOV")
-                        TextField("", text: $editTitle, prompt: Text("napr. Tréning 21. 8.").foregroundColor(.white.opacity(0.5)))
+                        TextField("", text: $editTitle, prompt: Text("napr. Tréning 21. 8.").foregroundColor(Color.textPlaceholder))
                             .authFieldChrome()
                     }
                     VStack(alignment: .leading, spacing: 8) {

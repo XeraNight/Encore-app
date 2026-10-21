@@ -108,7 +108,7 @@ public struct DynamicIslandRecordingView: View {
                     
                     Text(sessionTitle)
                         .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.60))
+                        .foregroundColor(Color.textSecondary)
                         .lineLimit(1)
                 }
                 
@@ -125,7 +125,7 @@ public struct DynamicIslandRecordingView: View {
                 HStack {
                     Text("HALL AMBIENT LEVEL")
                         .font(.system(size: 10, weight: .heavy))
-                        .foregroundColor(Color.white.opacity(0.55))
+                        .foregroundColor(Color.textSecondary)
                         .tracking(0.5)
                     
                     Spacer()

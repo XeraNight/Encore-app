@@ -233,7 +233,7 @@ struct DebriefSheet: View {
                 if let hint = goalHint(session) {
                     Text(hint)
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .transition(.opacity)
                 }
@@ -262,7 +262,7 @@ struct DebriefSheet: View {
                 if danceName == nil {
                     Text("Vyber tanec a zapíš 3 hlavné korekcie. Uvidíš ich na Domove, kým ich nezvládneš.")
                         .font(.caption)
-                        .foregroundColor(Color.white.opacity(0.55))
+                        .foregroundColor(Color.textSecondary)
                 }
             } else {
                 Button {

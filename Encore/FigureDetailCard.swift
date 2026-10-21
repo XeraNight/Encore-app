@@ -331,7 +331,7 @@ struct FigureDetailCard: View {
                         .minimumScaleFactor(0.7)
                     Image(systemName: "pencil")
                         .font(.caption.weight(.bold))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(Color.textSecondary)
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
@@ -625,7 +625,7 @@ struct FigureDetailCard: View {
                     Text("Tu si píš poznámky k figúre…")
                         .font(.system(size: NoteStyle.defaultSize))
                 }
-                .foregroundStyle(Color.white.opacity(0.5))
+                .foregroundStyle(Color.textPlaceholder)
                 .padding(.horizontal, 5)
                 .padding(.vertical, 8)
                 .allowsHitTesting(false)
@@ -1376,7 +1376,7 @@ struct InstantNotesInboxSection: View {
                     Spacer()
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .rotationEffect(.degrees(isExpanded ? 180 : 0))
                 }
                 .padding(14)
@@ -1407,7 +1407,7 @@ struct InstantNotesInboxSection: View {
         VStack(alignment: .leading, spacing: 10) {
             Text(note.createdAt, format: .dateTime.day().month(.abbreviated).hour().minute())
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
 
             if !note.text.isEmpty {
                 Text(note.text)

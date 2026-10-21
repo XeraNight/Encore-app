@@ -67,7 +67,7 @@ struct DanceCategorySelectionSheet: View {
                     .foregroundColor(.white)
                 Text(dance.tempo)
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
             Spacer(minLength: 8)
             if count > 0 {

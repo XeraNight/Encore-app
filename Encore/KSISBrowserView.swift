@@ -74,7 +74,7 @@ struct KSISBrowserView: View {
                     .foregroundColor(.white)
                 Text("Zdroj výsledkov: SZTŠ")
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.55))
+                    .foregroundColor(Color.textSecondary)
             }
             Spacer(minLength: 4)
             if web.isLoading {
@@ -108,7 +108,7 @@ struct KSISBrowserView: View {
                     Spacer()
                     Image(systemName: isPanelExpanded ? "chevron.down" : "chevron.up")
                         .font(.caption.weight(.bold))
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .contentShape(Rectangle())
             }
@@ -202,7 +202,7 @@ struct KSISBrowserView: View {
                             .foregroundColor(.white)
                         Text("\(couple.club) · \(couple.ageCategory) · ŠTT \(couple.sttClass) · LAT \(couple.latClass)")
                             .font(.caption)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                     }
                     Spacer(minLength: 8)
                     if couple.isLinked {
@@ -334,7 +334,7 @@ struct KSISBrowserView: View {
                 .foregroundColor(.white)
             Text([couple.club, couple.ageCategory].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
             HStack(spacing: 8) {
                 standingPill("ŠTT", couple.stt)
                 standingPill("LAT", couple.lat)
@@ -364,7 +364,7 @@ struct KSISBrowserView: View {
                 .foregroundColor(.white)
             Text([competition.eventName, competition.date.flatMap { Self.displayDate($0) }].compactMap { $0 }.joined(separator: " · "))
                 .font(.caption)
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
         }
     }
 
@@ -375,7 +375,7 @@ struct KSISBrowserView: View {
                 .foregroundColor(.white)
             Text(caption)
                 .font(.caption2)
-                .foregroundColor(.white.opacity(0.55))
+                .foregroundColor(Color.textSecondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -550,7 +550,7 @@ struct KSISRoundSummaryRow: View {
             if !round.isFinal {
                 Text(round.dances.map { "\($0.dance.capitalized) \($0.crosses ?? 0)" }.joined(separator: " · "))
                     .font(.caption2)
-                    .foregroundColor(.white.opacity(0.6))
+                    .foregroundColor(Color.textSecondary)
             }
         }
         .padding(10)

@@ -147,7 +147,7 @@ struct GuestCoachKeysSheet: View {
                                 .foregroundColor(.white.opacity(key.isActive ? 1 : 0.5))
                             Text(statusText(key))
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundColor(Color.textSecondary)
                         }
                         Spacer()
                         if key.isActive {
@@ -308,7 +308,7 @@ struct GuestRoutineView: View {
                         .foregroundColor(.white)
                     Text("\(access.danceName) · od \(access.ownerName.isEmpty ? "tanečníka" : access.ownerName) · do \(access.expiresAt.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "sk"))))")
                         .font(.footnote)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                     Text("Tvoje poznámky uvidí len tanečník. Ostanú mu aj po skončení kľúča.")
                         .font(.caption)
                         .foregroundColor(Color.gold300)
@@ -436,7 +436,7 @@ struct GuestRoutinesListView: View {
                     } else if keys.isEmpty {
                         Text("Zatiaľ nič. Naskenuj kľúč tanečníka cez Domov → logo → Skenovať QR.")
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.6))
+                            .foregroundColor(Color.textSecondary)
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .homeCard(cornerRadius: 18)
@@ -495,7 +495,7 @@ struct GuestNotesOnFigure: View {
                             Text([note.key?.guestName, note.createdAt.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk")))]
                                 .compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundColor(Color.textSecondary)
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)

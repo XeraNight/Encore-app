@@ -161,7 +161,7 @@ struct OwnerAdminConsoleView: View {
                         .foregroundColor(.white)
                     Text([item.dancerCode, item.club, item.email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)

@@ -416,7 +416,7 @@ struct RoutineCanvasView: View {
                                         .lineLimit(1)
                                     Image(systemName: "pencil")
                                         .font(.caption2.weight(.bold))
-                                        .foregroundColor(.white.opacity(0.55))
+                                        .foregroundColor(Color.textSecondary)
                                 }
                                 Text(DanceNames.display(routine.danceName).uppercased())
                                     .font(.system(.caption2, design: .rounded).weight(.black))

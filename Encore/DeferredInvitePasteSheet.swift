@@ -119,7 +119,7 @@ struct DeferredInvitePasteSheet: View {
                 } label: {
                     Text("Preskočiť")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Color.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                         .padding(.bottom, 16)
                 }
             }

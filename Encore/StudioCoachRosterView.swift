@@ -126,7 +126,7 @@ struct StudioCoachRosterView: View {
                         .foregroundColor(.white)
                     Text([student.otherUserClub, student.otherUserDancerCode].filter { !$0.isEmpty }.joined(separator: " · "))
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
+                        .foregroundColor(Color.textSecondary)
                 }
                 Spacer()
                 Text(slovakRoutineCount(routines.count))
@@ -139,7 +139,7 @@ struct StudioCoachRosterView: View {
             if routines.isEmpty {
                 Text("Zatiaľ nemá žiadnu zostavu.")
                     .font(.footnote)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
             } else {
                 VStack(spacing: 0) {
                     ForEach(routines, id: \.id) { routine in
@@ -156,7 +156,7 @@ struct StudioCoachRosterView: View {
                                         .foregroundColor(.white)
                                     Text([routine.dance_name, routine.last_modified_by ?? ""].filter { !$0.isEmpty }.joined(separator: " · "))
                                         .font(.caption)
-                                        .foregroundColor(.white.opacity(0.55))
+                                        .foregroundColor(Color.textSecondary)
                                 }
                                 Spacer()
                                 Image(systemName: "chevron.right")
@@ -283,7 +283,7 @@ struct CoachLessonSheet: View {
                                                action: save)
                             Text("Vidíš to len ty, \(student.otherUserName) nie.")
                                 .font(.caption)
-                                .foregroundColor(.white.opacity(0.55))
+                                .foregroundColor(Color.textSecondary)
                         }
                         .padding(16)
                         .homeCard(cornerRadius: 20)

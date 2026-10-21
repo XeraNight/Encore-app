@@ -187,7 +187,7 @@ struct QuickSaveVideoSheet: View {
                                         .foregroundColor(.white)
                                     Text("Odstrániť príchod k partnerke a odchod")
                                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                                        .foregroundColor(.white.opacity(0.60))
+                                        .foregroundColor(Color.textSecondary)
                                 }
                                 
                                 Spacer()

@@ -280,7 +280,7 @@ struct MySeasonContent: View {
                 .contentTransition(.numericText())
             Text(caption)
                 .font(.caption2.weight(.semibold))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(Color.textSecondary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -327,7 +327,7 @@ struct MySeasonContent: View {
                     }
                     Text("Priemerné miesto, na ktoré ťa porotcovia vo finále dali. Menej je lepšie.")
                         .font(.caption)
-                        .foregroundColor(.white.opacity(0.5))
+                        .foregroundColor(Color.textSecondary)
                 }
                 .padding(14)
                 .homeCard(cornerRadius: 20)
@@ -385,13 +385,13 @@ struct MySeasonContent: View {
                 .chartYAxis {
                     AxisMarks(values: [0, 50, 100]) { value in
                         AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
-                        AxisValueLabel { Text("\(value.as(Int.self) ?? 0) %").foregroundStyle(Color.white.opacity(0.5)) }
+                        AxisValueLabel { Text("\(value.as(Int.self) ?? 0) %").foregroundStyle(Color.textSecondary) }
                     }
                 }
                 .chartXAxis {
                     AxisMarks(values: .automatic(desiredCount: 4)) { _ in
                         AxisValueLabel(format: .dateTime.month(.abbreviated).locale(Locale(identifier: "sk")))
-                            .foregroundStyle(Color.white.opacity(0.5))
+                            .foregroundStyle(Color.textSecondary)
                     }
                 }
                 .frame(height: 180)
@@ -399,7 +399,7 @@ struct MySeasonContent: View {
 
                 Text("Podiel krížikov na každej súťaži zo všetkých tancov a kôl.")
                     .font(.caption)
-                    .foregroundColor(.white.opacity(0.5))
+                    .foregroundColor(Color.textSecondary)
             }
             .padding(14)
             .homeCard(cornerRadius: 20)
