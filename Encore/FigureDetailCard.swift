@@ -21,6 +21,9 @@ struct FigureDetailCard: View {
     /// Set when the screen is shown over another one; nil = presented modally and closed with dismiss.
     var onClose: (() -> Void)? = nil
     var onWritingChange: ((Bool) -> Void)? = nil
+    /// Removes the figure from the routine (the canvas offers "Vrátiť"); nil where that is not possible.
+    var onDelete: (() -> Void)? = nil
+    @Query private var dances: [Dance]
     @AppStorage("profileName") private var userName = "Tanečník"
 
     // Notes
@@ -70,8 +73,6 @@ struct FigureDetailCard: View {
     @State private var videoError: String? = nil
     @State private var successCount = 0
     @State private var showEditFigure = false
-    @State private var editName = ""
-    @State private var editRhythm = ""
 
     private var rotation: Int { ((node.videoRotation ?? 0) % 360 + 360) % 360 }
 
@@ -239,24 +240,27 @@ struct FigureDetailCard: View {
             Text(deleteVideoMessage)
         }
         .modifier(sharingDialogs)
-        .alert("Figúra v tejto zostave", isPresented: $showEditFigure) {
-            TextField("Názov figúry", text: $editName)
-            TextField("Rytmus (napr. 1, 2, 3 alebo S, Q, Q)", text: $editRhythm)
-            Button("Uložiť", action: saveFigureEdit)
-            Button("Zrušiť", role: .cancel) {}
-        } message: {
-            Text("Zmena platí len v tejto zostave, knižnica figúr ostane bez zmeny.")
+        .sheet(isPresented: $showEditFigure) {
+            FigureInRoutineSheet(node: node, barsPerMinute: barsPerMinute, onSave: {
+                successCount += 1
+                routineDidChange()
+            }, onDelete: onDelete)
         }
     }
 
-    private func saveFigureEdit() {
-        let name = editName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let rhythm = editRhythm.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, name != node.figureName || rhythm != node.rhythm else { return }
-        node.figureName = String(name.prefix(80))
-        node.rhythm = String(rhythm.prefix(80))
-        successCount += 1
-        routineDidChange()
+    private var barsPerMinute: Double? {
+        node.routine.flatMap { dances.barsPerMinute(for: $0.danceName) }
+    }
+
+    /// "1, 2, 3 · 2 takty · 4 s" under the name, whatever of it is known.
+    private var figureFacts: String? {
+        var parts: [String] = []
+        if !node.rhythm.isEmpty { parts.append(node.rhythm) }
+        if let bars = node.bars {
+            parts.append(RoutineTiming.barsText(bars))
+            if let barsPerMinute { parts.append(RoutineTiming.text(RoutineTiming.seconds(bars: bars, barsPerMinute: barsPerMinute))) }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     // MARK: - Sharing dialogs
@@ -319,25 +323,32 @@ struct FigureDetailCard: View {
 
             // Name and rhythm can differ in this routine (a shortened variation, other counts).
             Button {
-                editName = node.figureName
-                editRhythm = node.rhythm
                 showEditFigure = true
             } label: {
-                HStack(spacing: 5) {
-                    Text(node.figureName)
-                        .font(.system(.headline, design: .rounded).weight(.bold))
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.7)
-                    Image(systemName: "pencil")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(Color.textSecondary)
+                VStack(alignment: .leading, spacing: 1) {
+                    HStack(spacing: 5) {
+                        Text(node.figureName)
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                        Image(systemName: "pencil")
+                            .font(.caption.weight(.bold))
+                            .foregroundStyle(Color.textSecondary)
+                    }
+                    if let figureFacts {
+                        Text(figureFacts)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(Color.gold300)
+                            .lineLimit(1)
+                            .contentTransition(.opacity)
+                    }
                 }
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.pressable(scale: 0.97))
-            .accessibilityHint("Upraviť názov a rytmus figúry v tejto zostave")
+            .accessibilityHint("Upraviť názov, rytmus a takty figúry v tejto zostave")
 
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {

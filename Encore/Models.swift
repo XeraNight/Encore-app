@@ -171,6 +171,9 @@ final class CanvasNode {
     var coachNotesAt: Date? = nil
     /// The copy shared with partner and coach (`canvas_nodes.video_path` on the server).
     var sharedVideoPath: String? = nil
+    /// How many bars the figure is danced in this routine; with the dance's tempo it gives the figure's and the
+    /// routine's length (`RoutineTiming`). Stays on this iPhone until `canvas_nodes.bars` exists on the server.
+    var bars: Int? = nil
 
     /// What the figure shows: the own original first, otherwise the shared copy.
     var displayVideoPath: String? { videoPath ?? sharedVideoPath }

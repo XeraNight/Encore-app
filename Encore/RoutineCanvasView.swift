@@ -558,7 +558,11 @@ struct RoutineCanvasView: View {
                     node: node,
                     realtimeManager: realtimeManager,
                     onClose: { selectedNodeForEdit = nil },
-                    onWritingChange: { figureIsWriting = $0 }
+                    onWritingChange: { figureIsWriting = $0 },
+                    onDelete: {
+                        selectedNodeForEdit = nil
+                        deleteNode(node)
+                    }
                 )
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }

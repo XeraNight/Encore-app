@@ -326,36 +326,55 @@ struct PlannerDateRow: View {
     }
 }
 
-/// "Dĺžka  −  90 min  +" in steps of 15 minutes; the number rolls.
+/// "Dĺžka  −  90 min  +" in steps of 15 minutes.
 struct PlannerDurationStepper: View {
     @Binding var minutes: Int
     var range: ClosedRange<Int> = 15...300
     var step = 15
 
     var body: some View {
+        GoldValueStepper(title: "Dĺžka", systemImage: "timer", value: $minutes, range: range, step: step,
+                         lessLabel: "Kratšie", moreLabel: "Dlhšie",
+                         valueText: { "\($0) min" }, spokenText: { "\($0) minút" })
+    }
+}
+
+/// "Title  −  value  +": the number rolls, a tick on every step, adjustable with VoiceOver.
+struct GoldValueStepper: View {
+    let title: String
+    let systemImage: String
+    @Binding var value: Int
+    let range: ClosedRange<Int>
+    var step = 1
+    var lessLabel = "Menej"
+    var moreLabel = "Viac"
+    let valueText: (Int) -> String
+    var spokenText: ((Int) -> String)? = nil
+
+    var body: some View {
         HStack(spacing: 10) {
-            Image(systemName: "timer")
+            Image(systemName: systemImage)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(Color.gold400)
                 .frame(width: 22)
                 .accessibilityHidden(true)
-            Text("Dĺžka")
+            Text(title)
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.white)
             Spacer(minLength: 8)
-            stepButton("minus", label: "Kratšie", delta: -step)
-            Text("\(minutes) min")
+            stepButton("minus", label: lessLabel, delta: -step)
+            Text(valueText(value))
                 .font(.system(.subheadline, design: .rounded).weight(.heavy))
                 .foregroundColor(Color.gold300)
                 .monospacedDigit()
-                .contentTransition(.numericText(value: Double(minutes)))
+                .contentTransition(.numericText(value: Double(value)))
                 .frame(minWidth: 64)
-            stepButton("plus", label: "Dlhšie", delta: step)
+            stepButton("plus", label: moreLabel, delta: step)
         }
         .frame(minHeight: 44)
-        .sensoryFeedback(.selection, trigger: minutes)
+        .sensoryFeedback(.selection, trigger: value)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Dĺžka \(minutes) minút")
+        .accessibilityLabel("\(title) \((spokenText ?? valueText)(value))")
         .accessibilityAdjustableAction { direction in
             switch direction {
             case .increment: change(by: step)
@@ -381,8 +400,8 @@ struct PlannerDurationStepper: View {
     }
 
     private func change(by delta: Int) {
-        let next = min(range.upperBound, max(range.lowerBound, minutes + delta))
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { minutes = next }
+        let next = min(range.upperBound, max(range.lowerBound, value + delta))
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { value = next }
     }
 }
 
