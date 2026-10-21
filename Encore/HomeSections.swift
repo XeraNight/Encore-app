@@ -234,37 +234,46 @@ func slovakCount(_ n: Int, one: String, few: String, many: String) -> String {
 }
 
 // MARK: - Routine card
-/// One routine: discipline, name, the real path on the floor and its first figures.
-/// The same card is used on Home and in the Canvas tab.
+/// One routine (BRAND_GUIDELINES §1A): name, dance, its length and the figures as a strip in time. Each piece
+/// of the strip is as wide as the figure's bars and gold when the figure has a video, so the length and what is
+/// still missing show at a glance. The same card is used on Home, in Zostavy and in the profile.
 struct RoutineCard: View {
     let routine: Routine
-    /// Shows a QR button in the corner (Canvas tab).
+    /// Shows a QR button in the corner (Zostavy tab).
     var onShareQR: (() -> Void)? = nil
     let onOpen: () -> Void
+
+    @Query private var dances: [Dance]
 
     private var orderedNodes: [CanvasNode] {
         routine.canvasNodes.sorted { $0.orderIndex < $1.orderIndex }
     }
 
+    private var totalBars: Int { routine.barsSummary.bars }
+
+    /// "≈ 1:35" when the figures have bars and the dance has a tempo.
+    private var lengthText: String? {
+        guard totalBars > 0, let barsPerMinute = dances.barsPerMinute(for: routine.danceName) else { return nil }
+        return "≈ " + RoutineTiming.text(RoutineTiming.seconds(bars: totalBars, barsPerMinute: barsPerMinute))
+    }
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 10) {
                 titleRow
-                if orderedNodes.count > 1 {
-                    RoutinePathThumbnail(points: orderedNodes.map { CGPoint(x: $0.x, y: $0.y) })
-                        .frame(height: 72)
-                        .frame(maxWidth: .infinity)
-                        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                        .id(routine.id)
-                        .accessibilityHidden(true)
-                }
                 if orderedNodes.isEmpty {
-                    Text("Zatiaľ bez figúr – otvor plátno a pridaj prvú.")
+                    Text("Zatiaľ bez figúr. Otvor plátno a pridaj prvú.")
                         .font(.caption)
                         .foregroundColor(Color.textSecondary)
                 } else {
-                    figurePills
+                    RoutineFigureStrip(nodes: orderedNodes)
+                        .frame(height: 22)
+                        .id(routine.id)
+                    detailRow
+                    Text(orderedNodes.map(\.figureName).joined(separator: " → "))
+                        .font(.caption.weight(.medium))
+                        .foregroundColor(.white.opacity(0.9))
+                        .lineLimit(1)
                 }
             }
             .padding(14)
@@ -278,6 +287,8 @@ struct RoutineCard: View {
                     .padding(10)
             }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityText)
         .accessibilityHint("Otvorí zostavu na plátne")
     }
 
@@ -287,58 +298,92 @@ struct RoutineCard: View {
                 .font(.callout.weight(.bold))
                 .foregroundColor(.white)
                 .frame(width: 40, height: 40)
-                .background((routine.isLatin ? Color.latinCrimson : Color.standardBlue).opacity(0.85), in: Circle())
-                .accessibilityHidden(true)
+                .background((routine.isLatin ? Color.latinCrimson : Color.standardBlue).opacity(0.85),
+                            in: RoundedRectangle(cornerRadius: 12, style: .continuous))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 2) {
                 Text(routine.name)
-                    .font(.system(.subheadline, design: .rounded).weight(.bold))
+                    .font(.system(.headline, design: .rounded).weight(.bold))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                Text("\(DanceNames.display(routine.danceName)) · \(slovakCount(routine.canvasNodes.count, one: "figúra", few: "figúry", many: "figúr"))")
+                Text("\(DanceNames.display(routine.danceName)) · \(routine.isLatin ? "Latina" : "Štandard")")
                     .font(.caption.weight(.medium))
-                    .foregroundColor(Color.white.opacity(0.7))
+                    .foregroundColor(Color.textSecondary)
             }
 
             Spacer(minLength: 8)
 
-            if onShareQR == nil {
-                Image(systemName: "chevron.right")
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(Color.gold400.opacity(0.8))
-                    .accessibilityHidden(true)
-            } else {
+            if totalBars > 0 {
+                VStack(alignment: .trailing, spacing: 1) {
+                    if let lengthText {
+                        Text(lengthText)
+                            .font(.system(.headline, design: .rounded).weight(.heavy))
+                            .foregroundColor(Color.gold400)
+                            .monospacedDigit()
+                    }
+                    Text(RoutineTiming.barsText(totalBars))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(Color.textSecondary)
+                }
+            }
+
+            if onShareQR != nil {
                 // Room for the QR button that sits on top of the card.
                 Color.clear.frame(width: 40, height: 40)
             }
         }
-        .accessibilityElement(children: .combine)
     }
 
-    private var figurePills: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
-                ForEach(Array(orderedNodes.prefix(4).enumerated()), id: \.element.id) { index, node in
-                    HStack(spacing: 4) {
-                        Text("\(index + 1).")
-                            .foregroundColor(Color.gold400)
-                        Text(node.figureName)
-                            .foregroundColor(.white.opacity(0.9))
-                            .lineLimit(1)
-                    }
-                    .font(.caption2.weight(.semibold))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.white.opacity(0.07), in: Capsule())
-                }
+    private var detailRow: some View {
+        let withVideo = orderedNodes.filter { $0.displayVideoPath != nil }.count
+        return HStack {
+            // "nahraté", not "s videom": beside "23 s" that read as seconds.
+            Text("\(slovakCount(orderedNodes.count, one: "figúra", few: "figúry", many: "figúr")) · \(withVideo) nahraté")
+            Spacer(minLength: 8)
+            Text(routine.updatedAt, format: .relative(presentation: .named))
+        }
+        .font(.caption2.weight(.medium))
+        .foregroundColor(Color.textSecondary)
+    }
 
-                if orderedNodes.count > 4 {
-                    Text("+\(orderedNodes.count - 4)")
-                        .font(.caption2.weight(.bold))
-                        .foregroundColor(Color.gold400)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(Color.gold500.opacity(0.14), in: Capsule())
+    private var accessibilityText: String {
+        var parts = [routine.name, DanceNames.display(routine.danceName),
+                     slovakCount(orderedNodes.count, one: "figúra", few: "figúry", many: "figúr")]
+        if let lengthText { parts.append("dĺžka \(lengthText.replacingOccurrences(of: "≈ ", with: "približne "))") }
+        return parts.joined(separator: ", ")
+    }
+}
+
+/// The routine as a strip in time: one piece per figure, as wide as its bars (figures without bars get the
+/// average), gold with a video and muted without; the number shows where it fits.
+struct RoutineFigureStrip: View {
+    let nodes: [CanvasNode]
+
+    private var widths: [Double] {
+        let known = nodes.compactMap(\.bars)
+        let fallback = known.isEmpty ? 1 : Double(known.reduce(0, +)) / Double(known.count)
+        return nodes.map { $0.bars.map(Double.init) ?? fallback }
+    }
+
+    var body: some View {
+        GeometryReader { geo in
+            let spacing: CGFloat = 3
+            let total = widths.reduce(0, +)
+            let free = max(0, geo.size.width - spacing * CGFloat(nodes.count - 1))
+            HStack(spacing: spacing) {
+                ForEach(Array(zip(nodes, widths).enumerated()), id: \.element.0.id) { index, item in
+                    let width = free * CGFloat(item.1 / max(total, 1))
+                    let hasVideo = item.0.displayVideoPath != nil
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(hasVideo ? Color.gold400 : Color.gold500.opacity(0.22))
+                        .frame(width: width)
+                        .overlay {
+                            if width >= 16 {
+                                Text("\(index + 1)")
+                                    .font(.system(size: 10, weight: .heavy, design: .rounded))
+                                    .foregroundColor(hasVideo ? Color.obsidian900 : Color.gold300)
+                            }
+                        }
                 }
             }
         }
@@ -353,11 +398,7 @@ struct HomeRecentRoutineCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: "NAPOSLEDY UPRAVOVANÉ") {
-                Text(routine.updatedAt, format: .relative(presentation: .named))
-                    .font(.caption.weight(.medium))
-                    .foregroundColor(Color.textSecondary)
-            }
+            HomeSectionHeader(title: "NAPOSLEDY UPRAVOVANÉ")
             RoutineCard(routine: routine, onOpen: onOpen)
         }
     }
