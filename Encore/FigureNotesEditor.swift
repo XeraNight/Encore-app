@@ -729,14 +729,14 @@ private final class RunAttributes: NSObject {
 
 @MainActor
 enum NoteTextBridge {
-    /// UIKit attributes that draw a run like SwiftUI would, plus the SwiftUI formatting itself.
+    /// UIKit attributes that draw a run like SwiftUI would, plus the SwiftUI formatting itself. Sizes follow the
+    /// iPhone's text size setting (only on screen: the note keeps the size the dancer chose).
     static func uikit(_ attributes: AttributeContainer) -> [NSAttributedString.Key: Any] {
         var result: [NSAttributedString.Key: Any] = [.encoreRun: RunAttributes(attributes)]
-        if let font = attributes[AttributeScopes.SwiftUIAttributes.FontAttribute.self] {
-            result[.font] = font.resolve(in: EnvironmentValues().fontResolutionContext).ctFont as UIFont
-        } else {
-            result[.font] = UIFont.systemFont(ofSize: NoteStyle.defaultSize)
-        }
+        let font = attributes[AttributeScopes.SwiftUIAttributes.FontAttribute.self]
+            .map { $0.resolve(in: EnvironmentValues().fontResolutionContext).ctFont as UIFont }
+            ?? UIFont.systemFont(ofSize: NoteStyle.defaultSize)
+        result[.font] = UIFontMetrics.default.scaledFont(for: font, maximumPointSize: 60)
         result[.foregroundColor] = UIColor(attributes[AttributeScopes.SwiftUIAttributes.ForegroundColorAttribute.self] ?? NoteStyle.ink)
         if let background = attributes[AttributeScopes.SwiftUIAttributes.BackgroundColorAttribute.self] {
             result[.backgroundColor] = UIColor(background)

@@ -436,18 +436,19 @@ struct CanvasNodeCardView: View {
         lockedByUserName != nil
     }
 
-    /// The figure's circle on screen. The pin keeps this size at any zoom, like a place on a map, so the
-    /// name is always readable and the floor stays visible.
-    private var circleSize: CGFloat { 38 * cardScale }
-    /// Undoes the canvas zoom for the pin.
-    private var inverseScale: CGFloat { 1 / max(scale, 0.05) }
+    /// The figure's circle on screen at the standard size. The pin keeps its size at any zoom, like a place on
+    /// a map, so the name is always readable and the floor stays visible.
+    private let circleSize: CGFloat = 38
+    private let labelWidth: CGFloat = 150
+    /// Undoes the canvas zoom for the pin and applies the chosen figure size.
+    private var pinScale: CGFloat { cardScale / max(scale, 0.05) }
     /// On the right half of the floor the name goes to the left of the circle, so it stays on the floor.
     private var labelOnLeft: Bool { node.x > Double(BallroomFloorConfig.centerPoint.x) }
-    private var labelWidth: CGFloat { 150 * cardScale }
 
     var body: some View {
         pin
-            .scaleEffect(inverseScale)
+            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+            .scaleEffect(pinScale)
             .scaleEffect(isDragging ? 1.12 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
             .onTapGesture(perform: onTap)
@@ -498,7 +499,7 @@ struct CanvasNodeCardView: View {
 
     /// The circle stays inside the walls (in floor points, whatever the zoom).
     private var pinBounds: (minX: Double, maxX: Double, minY: Double, maxY: Double) {
-        let size = circleSize * inverseScale
+        let size = circleSize * pinScale
         return BallroomFloorConfig.safeCardBounds(cardWidth: size, cardHeight: size, wallMargin: 8)
     }
 
@@ -537,7 +538,7 @@ extension CanvasNodeCardView {
                 danceColor
                     .overlay {
                         Text(initials)
-                            .font(.system(size: 13 * cardScale, weight: .heavy, design: .rounded))
+                            .font(.system(.footnote, design: .rounded).weight(.heavy))
                             .foregroundStyle(.white)
                     }
             }
@@ -548,11 +549,12 @@ extension CanvasNodeCardView {
         .shadow(color: Color.black.opacity(0.45), radius: 6, y: 3)
         .overlay(alignment: .topTrailing) {
             Text("\(number ?? node.orderIndex + 1)")
-                .font(.system(size: 10 * cardScale, weight: .black, design: .rounded))
+                .font(.system(.caption2, design: .rounded).weight(.black))
                 .foregroundColor(Color.obsidian900)
-                .frame(minWidth: 18 * cardScale, minHeight: 18 * cardScale)
+                .padding(.horizontal, 4)
+                .frame(minWidth: 18, minHeight: 18)
                 .background(Color.gold400, in: Capsule())
-                .offset(x: 6 * cardScale, y: -6 * cardScale)
+                .offset(x: 6, y: -6)
         }
     }
 
@@ -571,10 +573,10 @@ extension CanvasNodeCardView {
                 }
             }
         }
-        .font(.system(size: 12 * cardScale, weight: .bold, design: .rounded))
+        .font(.system(.caption, design: .rounded).weight(.bold))
         .lineLimit(1)
-        .padding(.horizontal, 9 * cardScale)
-        .padding(.vertical, 5 * cardScale)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
         .background(labelBackground, in: Capsule())
         .overlay(Capsule().stroke(Color.gold400.opacity(0.25), lineWidth: 0.5))
         .shadow(color: Color.black.opacity(0.3), radius: 4, y: 2)

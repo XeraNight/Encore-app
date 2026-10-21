@@ -35,6 +35,9 @@ struct FigureDetailCard: View {
     @StateObject private var noteEditor = NoteEditorController()
     /// Voice notes the text had when the figure opened; one deleted from the text is removed on close.
     @State private var loadedVoiceFiles: Set<String> = []
+    /// The empty notes' hint grows with the iPhone's text size, like the notes themselves.
+    @ScaledMetric(relativeTo: .title2) private var placeholderTitleSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var placeholderTextSize = NoteStyle.defaultSize
 
     // Video
     @ObservedObject private var playback = FigureVideoPlayback.shared
@@ -632,9 +635,9 @@ struct FigureDetailCard: View {
             if text.characters.isEmpty {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Hlavné slovo")
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: placeholderTitleSize, weight: .bold))
                     Text("Tu si píš poznámky k figúre…")
-                        .font(.system(size: NoteStyle.defaultSize))
+                        .font(.system(size: placeholderTextSize))
                 }
                 .foregroundStyle(Color.textPlaceholder)
                 .padding(.horizontal, 5)
