@@ -90,17 +90,51 @@ public struct AirPlayPickerButton: View {
     }
 }
 
+/// Whether a TV or speaker is in reach for AirPlay, so the button shows only when it can do something.
+/// Detection costs battery, so it runs only while the canvas is open.
+@MainActor
+@Observable
+final class AirPlayRoutes {
+    private(set) var areAvailable = false
+    @ObservationIgnored private let detector = AVRouteDetector()
+    @ObservationIgnored private var observer: (any NSObjectProtocol)?
+
+    func start() {
+        detector.isRouteDetectionEnabled = true
+        observer = NotificationCenter.default.addObserver(
+            forName: .AVRouteDetectorMultipleRoutesDetectedDidChange, object: detector, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.update() }
+        }
+        update()
+    }
+
+    func stop() {
+        detector.isRouteDetectionEnabled = false
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
+    }
+
+    private func update() {
+        areAvailable = detector.multipleRoutesDetected
+    }
+}
+
 // MARK: - Live status
-/// Small pill under the title: live / offline / refreshing. Tapping it reconnects (offline) or
-/// refreshes the routine from the server (live), so a separate refresh button is not needed.
+/// Small pill under the title: live with the partner / offline / refreshing. The canvas shows it only then,
+/// never while you work alone and all is well. Tapping it reconnects (offline) or refreshes the routine from
+/// the server (live), so a separate refresh button is not needed.
 public struct RealtimeStatusPill: View {
     public var isConnected: Bool
     public var isSyncing: Bool = false
+    /// Who else has the routine open right now.
+    public var partnerName: String? = nil
     public var onTap: () -> Void
 
-    public init(isConnected: Bool, isSyncing: Bool = false, onTap: @escaping () -> Void) {
+    public init(isConnected: Bool, isSyncing: Bool = false, partnerName: String? = nil, onTap: @escaping () -> Void) {
         self.isConnected = isConnected
         self.isSyncing = isSyncing
+        self.partnerName = partnerName
         self.onTap = onTap
     }
 
@@ -142,6 +176,7 @@ public struct RealtimeStatusPill: View {
 
     private var statusText: String {
         if isSyncing { return "Obnovujem…" }
-        return isConnected ? "Naživo" : "Offline · ťukni"
+        guard isConnected else { return "Offline · ťukni" }
+        return partnerName.map { "Naživo · \($0)" } ?? "Naživo"
     }
 }

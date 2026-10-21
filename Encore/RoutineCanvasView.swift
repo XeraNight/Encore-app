@@ -121,6 +121,9 @@ struct RoutineCanvasView: View {
     @Query private var libraryItems: [FigureLibraryItem]
     
     @State private var realtimeManager = CanvasRealtimeManager()
+    @State private var airPlayRoutes = AirPlayRoutes()
+    /// Offline for a few seconds, not just the moment of connecting when the canvas opens.
+    @State private var isOfflineForAWhile = false
     @State private var isRefreshing = false
     @State private var sketch: [SketchStroke] = []
     @State private var sketchColor: SketchColor = .red
@@ -329,7 +332,7 @@ struct RoutineCanvasView: View {
 
                     HStack(alignment: .bottom) {
                         VStack(spacing: 12) {
-                            AirPlayPickerButton(size: 44)
+                            airPlayButton
 
                             LiquidGlassCircleButton(
                                 icon: isDrawingMode ? "pencil.line" : "pencil",
@@ -436,13 +439,7 @@ struct RoutineCanvasView: View {
                         .accessibilityIdentifier("canvas.rename")
                     }
 
-                    RealtimeStatusPill(isConnected: realtimeManager.isConnected, isSyncing: isRefreshing) {
-                        if !realtimeManager.isConnected {
-                            realtimeManager.connect(to: routine.id, userName: userName)
-                        }
-                        guard !isRefreshing else { return }
-                        Task { await refreshFromDB(userInitiated: true) }
-                    }
+                    statusPill
 
                     Spacer()
                 }
@@ -608,6 +605,7 @@ struct RoutineCanvasView: View {
         }
         .sensoryFeedback(.impact(weight: .light), trigger: toastCount)
         .onAppear {
+            airPlayRoutes.start()
             AppDelegate.orientationLock = .allButUpsideDown
             UIApplication.shared.isIdleTimerDisabled = true
             sketch = CanvasSketch(data: routine.sketchData).strokes
@@ -710,6 +708,7 @@ struct RoutineCanvasView: View {
             }
         }
         .onDisappear {
+            airPlayRoutes.stop()
             AppDelegate.orientationLock = .portrait
             if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 windowScene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
@@ -796,6 +795,46 @@ struct RoutineCanvasView: View {
     }
 
     // MARK: - Floating controls
+
+    /// The live pill is for the moments it matters: the partner is here, the connection is down, a refresh runs.
+    private var showsStatusPill: Bool {
+        isRefreshing || isOfflineForAWhile || (realtimeManager.isConnected && !realtimeManager.partnerPresences.isEmpty)
+    }
+
+    private var statusPill: some View {
+        ZStack {
+            if showsStatusPill {
+                RealtimeStatusPill(isConnected: realtimeManager.isConnected, isSyncing: isRefreshing,
+                                   partnerName: realtimeManager.partnerPresences.values.first?.userName) {
+                    if !realtimeManager.isConnected {
+                        realtimeManager.connect(to: routine.id, userName: userName)
+                    }
+                    guard !isRefreshing else { return }
+                    Task { await refreshFromDB(userInitiated: true) }
+                }
+                .transition(.scale(scale: 0.9).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsStatusPill)
+        .task(id: realtimeManager.isConnected) {
+            isOfflineForAWhile = false
+            guard !realtimeManager.isConnected else { return }
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled else { return }
+            isOfflineForAWhile = true
+        }
+    }
+
+    /// AirPlay only when a TV or speaker is in reach.
+    private var airPlayButton: some View {
+        ZStack {
+            if airPlayRoutes.areAvailable {
+                AirPlayPickerButton(size: 44)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: airPlayRoutes.areAvailable)
+    }
 
     /// The main action on the canvas, always in reach above the tab bar.
     private var addFigureButton: some View {
