@@ -581,7 +581,7 @@ final class VideoTextAttachment: NSTextAttachment, LiveTextAttachment {
 }
 
 /// A video inside the text: its first frame with a play button. A tap plays it in place, silent and looping;
-/// a long press makes it the figure's video or the model, or takes it out of the notes.
+/// ⋯ (or a long press) makes it the figure's video or the model, or takes it out of the notes.
 private struct AttachmentVideoBlock: View {
     let ref: VideoNoteRef
     @ObservedObject var video: NoteVideoPlayer
@@ -644,11 +644,15 @@ private struct AttachmentVideoBlock: View {
         .animation(.easeInOut(duration: 0.25), value: isPlaying)
         .contentShape(shape)
         .onTapGesture { video.toggle(ref.path) }
-        .contextMenu {
-            Button { onUse(false) } label: { Label("Ako moje video", systemImage: "person.fill") }
-            Button { onUse(true) } label: { Label("Ako vzor", systemImage: "star.fill") }
-            Divider()
-            Button(role: .destructive, action: onRemove) { Label("Odstrániť z poznámok", systemImage: "trash") }
+        .contextMenu { actions }
+        .overlay(alignment: .topTrailing) {
+            Menu { actions } label: {
+                GlassCircleLabel(icon: "ellipsis", size: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel("Možnosti videa")
+            .padding(2)
         }
         .sensoryFeedback(.selection, trigger: isPlaying)
         .accessibilityElement(children: .ignore)
@@ -658,6 +662,14 @@ private struct AttachmentVideoBlock: View {
         .accessibilityAction(named: "Ako moje video") { onUse(false) }
         .accessibilityAction(named: "Ako vzor") { onUse(true) }
         .accessibilityAction(named: "Odstrániť z poznámok", onRemove)
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        Button { onUse(false) } label: { Label("Ako moje video", systemImage: "person.fill") }
+        Button { onUse(true) } label: { Label("Ako vzor", systemImage: "star.fill") }
+        Divider()
+        Button(role: .destructive, action: onRemove) { Label("Odstrániť z poznámok", systemImage: "trash") }
     }
 }
 
