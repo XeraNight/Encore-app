@@ -105,8 +105,8 @@ struct FigureNotesEditor: UIViewRepresentable {
 
 /// An attachment that keeps a clear space in the text; the text view lays its live SwiftUI view over it.
 protocol LiveTextAttachment: NSTextAttachment {
-    /// Where the space starts against the baseline (`bounds.minY`, negative below it).
-    var baselineOffset: CGFloat { get }
+    /// Free space kept around the live view inside the attachment, so it never touches the text.
+    var margins: UIEdgeInsets { get }
     func makeHost() -> UIViewController
 }
 
@@ -146,7 +146,7 @@ final class NotesTextView: UITextView {
             let id = ObjectIdentifier(attachment)
             present.insert(id)
             let host = hosts[id] ?? makeHost(for: attachment, id: id)
-            host.view.frame = frame(ofCharacterAt: range.location, baselineOffset: attachment.baselineOffset)
+            host.view.frame = frame(ofCharacterAt: range.location).inset(by: attachment.margins)
         }
         for (id, host) in hosts where !present.contains(id) {
             host.view.removeFromSuperview()
@@ -162,14 +162,15 @@ final class NotesTextView: UITextView {
         return host
     }
 
-    /// Where the attachment sits: its line, its place on the baseline and the size the layout gave it.
-    private func frame(ofCharacterAt index: Int, baselineOffset: CGFloat) -> CGRect {
+    /// Where the attachment sits: its line, its place in it and the size the layout gave it. For an attachment
+    /// TextKit reports the place of its bottom edge, not the baseline of the text (that put voice notes 10 pt low).
+    private func frame(ofCharacterAt index: Int) -> CGRect {
         let glyph = layoutManager.glyphIndexForCharacter(at: index)
         let line = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
-        let baseline = layoutManager.location(forGlyphAt: glyph)
+        let bottom = layoutManager.location(forGlyphAt: glyph)
         let size = layoutManager.attachmentSize(forGlyphAt: glyph)
-        return CGRect(x: textContainerInset.left + line.minX + baseline.x,
-                      y: textContainerInset.top + line.minY + baseline.y - size.height - baselineOffset,
+        return CGRect(x: textContainerInset.left + line.minX + bottom.x,
+                      y: textContainerInset.top + line.minY + bottom.y - size.height,
                       width: size.width, height: size.height)
     }
 
@@ -479,13 +480,32 @@ final class VoiceTextAttachment: NSTextAttachment, LiveTextAttachment {
         self.onStopRecording = onStopRecording
         super.init(data: nil, ofType: nil)
         image = .clearSpace
-        // Sits on the line like a word: a little below the baseline, centred on the text.
-        bounds = CGRect(x: 0, y: -10, width: InlineVoiceToken.size.width, height: InlineVoiceToken.size.height)
     }
 
     required init?(coder: NSCoder) { nil }
 
-    var baselineOffset: CGFloat { bounds.minY }
+    nonisolated private static let space = UIEdgeInsets(top: 4, left: 4, bottom: 4, right: 4)
+
+    var margins: UIEdgeInsets { Self.space }
+
+    /// Sits on the line like a word, centred on the letters of the text around it (a heading too), with a
+    /// little air all round so it touches neither its neighbours nor the lines above and below.
+    nonisolated override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect,
+                                               glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
+        let font = Self.font(near: charIndex, in: textContainer?.layoutManager?.textStorage)
+        let size = CGSize(width: InlineVoiceToken.size.width + Self.space.left + Self.space.right,
+                          height: InlineVoiceToken.size.height + Self.space.top + Self.space.bottom)
+        return CGRect(x: 0, y: font.capHeight / 2 - size.height / 2, width: size.width, height: size.height)
+    }
+
+    /// The font of the words next to the voice note (the attachment itself has none).
+    nonisolated private static func font(near index: Int, in storage: NSTextStorage?) -> UIFont {
+        guard let storage else { return .systemFont(ofSize: NoteStyle.defaultSize) }
+        for candidate in [index - 1, index + 1] where candidate >= 0 && candidate < storage.length {
+            if let font = storage.attribute(.font, at: candidate, effectiveRange: nil) as? UIFont { return font }
+        }
+        return .systemFont(ofSize: NoteStyle.defaultSize)
+    }
 
     func makeHost() -> UIViewController {
         let host = UIHostingController(rootView: AttachmentVoiceToken(token: token, player: player, onStopRecording: onStopRecording))
@@ -542,7 +562,7 @@ final class VideoTextAttachment: NSTextAttachment, LiveTextAttachment {
         return CGSize(width: height * 16 / 9, height: height)
     }
 
-    var baselineOffset: CGFloat { 0 }
+    var margins: UIEdgeInsets { .zero }
 
     func makeHost() -> UIViewController {
         let host = UIHostingController(rootView: AttachmentVideoBlock(

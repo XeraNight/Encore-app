@@ -94,6 +94,37 @@ struct RichNoteVoiceTests {
         #expect(token.frame.minY < 30)
     }
 
+    @Test func voiceNoteTouchesNoTextAroundIt() throws {
+        var text = AttributedString("Prvý riadok textu\nHlava vľavo ")
+        var voice = AttributedString(RichNote.attachmentCharacter)
+        voice.voiceNote = VoiceNoteRef(fileName: "voice_g.m4a", duration: 7)
+        text.append(voice)
+        text.append(AttributedString(" ďalej\nTretí riadok"))
+
+        let view = NotesTextView.make()
+        view.frame = CGRect(x: 0, y: 0, width: 360, height: 400)
+        view.attributedText = NoteTextBridge.attributed(text, controller: NoteEditorController())
+        view.layoutIfNeeded()
+        let token = try #require(view.subviews.first { $0.accessibilityIdentifier == NotesTextView.voiceTokenIdentifier })
+
+        let layout = view.layoutManager
+        let font = UIFont.systemFont(ofSize: NoteStyle.defaultSize)
+        let string = view.textStorage.string as NSString
+        func baseline(ofCharacterAt index: Int) -> CGFloat {
+            let glyph = layout.glyphIndexForCharacter(at: index)
+            return view.textContainerInset.top + layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil).minY
+                + layout.location(forGlyphAt: glyph).y
+        }
+        let voiceIndex = string.range(of: RichNote.attachmentCharacter).location
+        let lettersAbove = baseline(ofCharacterAt: 0) - font.descender   // lowest point of "Prvý riadok"
+        let lettersBelow = baseline(ofCharacterAt: string.length - 1) - font.capHeight
+        let ownLine = baseline(ofCharacterAt: voiceIndex - 2) - font.capHeight / 2
+
+        #expect(token.frame.minY - lettersAbove >= 6)
+        #expect(lettersBelow - token.frame.maxY >= 6)
+        #expect(abs(token.frame.midY - ownLine) < 1)   // centred on the words beside it
+    }
+
     @Test func notesWrittenBeforeVoiceNotesStillOpen() throws {
         // Data saved by the old editor (SwiftUI attributes only) decodes with the new scope.
         var old = AttributedString("Rám drž hore")
