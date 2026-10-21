@@ -30,6 +30,7 @@ struct CanvasActionMessage: Codable, Sendable {
     let transitionNotes: String
     let senderId: UUID
     let senderName: String
+    var bars: Int? = nil
 }
 
 // MARK: - Presence (Part 3 – partner cursory)
@@ -171,6 +172,7 @@ final class CanvasRealtimeManager {
                             transitionNotes: actionMsg.transitionNotes
                         )
                         node.sharedVideoPath = actionMsg.sharedVideoPath
+                        node.bars = actionMsg.bars
                         self.onNodeAdded?(node, actionMsg.senderName)
                     } else if actionMsg.action == "deleted" {
                         self.onNodeDeleted?(actionMsg.nodeId, actionMsg.figureName, actionMsg.senderName)
@@ -186,6 +188,7 @@ final class CanvasRealtimeManager {
                             transitionNotes: actionMsg.transitionNotes
                         )
                         node.sharedVideoPath = actionMsg.sharedVideoPath
+                        node.bars = actionMsg.bars
                         self.onNodeUpdated?(node, actionMsg.senderName)
                     } else if actionMsg.action == "transition_updated" {
                         self.onTransitionUpdated?(actionMsg.nodeId, actionMsg.transitionNotes, actionMsg.senderName)
@@ -321,7 +324,8 @@ final class CanvasRealtimeManager {
         guard let ch = channel, ch.status == .subscribed else { return }
         let message = CanvasActionMessage(action: "added", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
-            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName)
+            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,
+            bars: node.bars)
         Task { try? await ch.broadcast(event: "canvas_action", message: message) }
     }
 
@@ -337,7 +341,8 @@ final class CanvasRealtimeManager {
         guard let ch = channel, ch.status == .subscribed else { return }
         let message = CanvasActionMessage(action: "updated", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
-            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName)
+            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,
+            bars: node.bars)
         Task { try? await ch.broadcast(event: "canvas_action", message: message) }
     }
 
@@ -345,7 +350,8 @@ final class CanvasRealtimeManager {
         guard let ch = channel, ch.status == .subscribed else { return }
         let message = CanvasActionMessage(action: "transition_updated", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
-            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName)
+            orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,
+            bars: node.bars)
         Task { try? await ch.broadcast(event: "canvas_action", message: message) }
     }
 

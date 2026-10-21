@@ -40,6 +40,27 @@ nonisolated struct DBCanvasNodeRow: Identifiable, Codable, Sendable {
     var coach_notes: String? = nil
     var coach_notes_by_name: String? = nil
     var coach_notes_at: String? = nil
+    var bars: Int? = nil
+
+    /// As synthesized, except that `bars` always goes up, empty as null. The upload names its columns after the
+    /// keys it sends, so bars cleared on every figure would otherwise keep their old values on the server.
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(routine_id, forKey: .routine_id)
+        try container.encode(x, forKey: .x)
+        try container.encode(y, forKey: .y)
+        try container.encode(figure_name, forKey: .figure_name)
+        try container.encode(rhythm, forKey: .rhythm)
+        try container.encode(notes, forKey: .notes)
+        try container.encodeIfPresent(video_path, forKey: .video_path)
+        try container.encode(order_index, forKey: .order_index)
+        try container.encode(transition_notes, forKey: .transition_notes)
+        try container.encodeIfPresent(coach_notes, forKey: .coach_notes)
+        try container.encodeIfPresent(coach_notes_by_name, forKey: .coach_notes_by_name)
+        try container.encodeIfPresent(coach_notes_at, forKey: .coach_notes_at)
+        try container.encode(bars, forKey: .bars)
+    }
 }
 
 /// What a routine upload sends, copied on the main actor so the upload can run elsewhere.
@@ -75,7 +96,8 @@ nonisolated struct RoutineSnapshot: Sendable {
                 // Only a shared copy goes up; the original works on this iPhone only.
                 video_path: SharedVideoStore.serverValue(node.sharedVideoPath),
                 order_index: node.orderIndex,
-                transition_notes: node.transitionNotes
+                transition_notes: node.transitionNotes,
+                bars: node.bars
             )
         }
     }
@@ -101,6 +123,7 @@ extension CanvasNode {
         replaceSharedVideoPath(row.video_path)
         orderIndex = row.order_index
         transitionNotes = row.transition_notes
+        bars = row.bars
         applyCoachNotes(from: row)
         if includingPosition {
             x = row.x

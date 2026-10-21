@@ -653,6 +653,7 @@ struct RoutineCanvasView: View {
             realtimeManager.onNodeUpdated = { updatedNode, senderName in
                 if let node = routine.canvasNodes.first(where: { $0.id == updatedNode.id }) {
                     node.notes = updatedNode.notes
+                    node.bars = updatedNode.bars
                     node.replaceSharedVideoPath(updatedNode.sharedVideoPath)
                     try? modelContext.save()
                     showToastNotification(message: "\(senderName) upravil detaily \(node.figureName)")
