@@ -343,7 +343,7 @@ struct FigureDetailCard: View {
                 HStack(spacing: 8) {
                     LiquidGlassCircleButton(icon: "book.pages", label: "Denník") { showJournal = true }
 
-                    LiquidGlassCircleButton(icon: "rectangle.split.2x1", label: isDuel ? "Jedno video" : "Duel: ja a vzor",
+                    LiquidGlassCircleButton(icon: "person.line.dotted.person", label: isDuel ? "Jedno video" : "Duel: ja a vzor",
                                             isActive: isDuel) {
                         withAnimation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85)) { isDuel.toggle() }
                     }

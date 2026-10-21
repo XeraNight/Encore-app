@@ -32,7 +32,7 @@ public enum RadialHubAction: String, CaseIterable, Identifiable {
         case .newRoutine:    return "plus"
         case .mirror:        return "figure.stand.line.dotted.figure.stand"
         case .metronome:     return "metronome.fill"
-        case .compare:       return "rectangle.split.2x1.fill"
+        case .compare:       return "person.line.dotted.person.fill"
         }
     }
 

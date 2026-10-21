@@ -877,7 +877,7 @@ struct RoutineCanvasView: View {
     private var moreMenu: some View {
         Menu {
             Button { showDuelSheet = true } label: {
-                Label("Duel videí", systemImage: "rectangle.split.2x1.fill")
+                Label("Duel videí", systemImage: "person.line.dotted.person.fill")
             }
             Button { showRoutineVideoVault = true } label: {
                 Label("Videá a fotky zostavy", systemImage: "photo.stack.fill")

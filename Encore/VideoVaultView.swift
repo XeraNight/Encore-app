@@ -182,7 +182,7 @@ struct VideoVaultView: View {
     // MARK: - Comparison
     private var comparisonCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "POROVNANIE", systemImage: "rectangle.split.2x1")
+            HomeSectionHeader(title: "POROVNANIE", systemImage: "person.line.dotted.person")
             HStack(spacing: 10) {
                 slotPill("Ja", path: activeSlotAPath) { activeSlotAPath = nil; saveChanges() }
                 slotPill("Vzor", path: activeSlotBPath) { activeSlotBPath = nil; saveChanges() }
