@@ -168,11 +168,33 @@ struct ProfileFiguresListView: View {
     }
 }
 
-/// Every video and note across routines, figures and dances.
+/// The counts on Profile, from the database without loading the objects. Only what the dancer made counts:
+/// a dance's built-in tips are not their notes, so a dance counts only with its own video.
+struct ProfileLibraryCounts {
+    var figures = 0
+    var media = 0
+
+    init() {}
+
+    @MainActor
+    init(context: ModelContext) {
+        figures = (try? context.fetchCount(FetchDescriptor<FigureLibraryItem>())) ?? 0
+        let nodes = FetchDescriptor<CanvasNode>(predicate: #Predicate { $0.videoPath != nil || $0.notes != "" })
+        let ownFigures = FetchDescriptor<FigureLibraryItem>(predicate: #Predicate { $0.videoPath != nil || $0.techniqueNotes != "" })
+        let dances = FetchDescriptor<Dance>(predicate: #Predicate { $0.videoPath != nil })
+        media = ((try? context.fetchCount(nodes)) ?? 0) + ((try? context.fetchCount(ownFigures)) ?? 0)
+            + ((try? context.fetchCount(dances)) ?? 0)
+    }
+}
+
+/// Every video and note the dancer made across routines, figures and dances (a dance with its own video).
 struct ProfileMediaListView: View {
-    let dances: [Dance]
-    let figures: [FigureLibraryItem]
-    let nodes: [CanvasNode]
+    @Query(filter: #Predicate<CanvasNode> { $0.videoPath != nil || $0.notes != "" }, sort: \CanvasNode.figureName)
+    private var nodes: [CanvasNode]
+    @Query(filter: #Predicate<FigureLibraryItem> { $0.videoPath != nil || $0.techniqueNotes != "" }, sort: \FigureLibraryItem.name)
+    private var figures: [FigureLibraryItem]
+    @Query(filter: #Predicate<Dance> { $0.videoPath != nil }, sort: \Dance.name)
+    private var dances: [Dance]
 
     @State private var selectedNode: CanvasNode?
     @State private var selectedFigure: FigureLibraryItem?
@@ -182,14 +204,13 @@ struct ProfileMediaListView: View {
 
     private var nodesWithMedia: [CanvasNode] { nodes.filter { $0.videoPath != nil || hasText($0.notes) } }
     private var figuresWithMedia: [FigureLibraryItem] { figures.filter { $0.videoPath != nil || hasText($0.techniqueNotes) } }
-    private var dancesWithMedia: [Dance] { dances.filter { $0.videoPath != nil || hasText($0.info) } }
 
     var body: some View {
         ZStack {
             EllegancePageBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    if nodesWithMedia.isEmpty && figuresWithMedia.isEmpty && dancesWithMedia.isEmpty {
+                    if nodesWithMedia.isEmpty && figuresWithMedia.isEmpty && dances.isEmpty {
                         ProfileEmptyState(icon: "tray", text: "Zatiaľ tu nie sú videá ani poznámky.")
                     }
                     if !nodesWithMedia.isEmpty {
@@ -214,9 +235,9 @@ struct ProfileMediaListView: View {
                             }
                         }
                     }
-                    if !dancesWithMedia.isEmpty {
+                    if !dances.isEmpty {
                         HomeRowGroup(title: "TANCE") {
-                            ForEach(Array(dancesWithMedia.enumerated()), id: \.element.id) { index, dance in
+                            ForEach(Array(dances.enumerated()), id: \.element.id) { index, dance in
                                 if index > 0 { HomeRowDivider() }
                                 Button { selectedDance = dance } label: {
                                     mediaRow(dance.name, dance.category == "Standard" ? "Štandard" : "Latina", video: dance.videoPath != nil, note: hasText(dance.info))

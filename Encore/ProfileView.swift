@@ -8,10 +8,10 @@ import StoreKit
 /// library → settings. Each destination is its own screen.
 struct ProfileView: View {
     @ObservedObject private var appearance = AppearanceStore.shared
-    @Query private var routines: [Routine]
-    @Query private var figures: [FigureLibraryItem]
-    @Query private var nodes: [CanvasNode]
-    @Query private var dances: [Dance]
+    @Environment(\.modelContext) private var modelContext
+    @Query(sort: \Routine.updatedAt, order: .reverse) private var routines: [Routine]
+    /// Counted in the database when Profile opens, not by loading every figure and redrawing.
+    @State private var libraryCounts = ProfileLibraryCounts()
 
     @ObservedObject private var profileStore = UserProfileStore.shared
     @ObservedObject private var authManager = AuthManager.shared
@@ -76,7 +76,10 @@ struct ProfileView: View {
                     }
                 }
             }
-            .onAppear { profileStore.refreshForActiveUser() }
+            .onAppear {
+                profileStore.refreshForActiveUser()
+                libraryCounts = ProfileLibraryCounts(context: modelContext)
+            }
             .task(id: copyCount) {
                 guard copyCount > 0 else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { showCopied = true }
@@ -300,17 +303,10 @@ struct ProfileView: View {
     }
 
     // MARK: Library
-    private var mediaCount: Int {
-        func hasText(_ text: String) -> Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        return nodes.filter { $0.videoPath != nil || hasText($0.notes) }.count
-            + figures.filter { $0.videoPath != nil || hasText($0.techniqueNotes) }.count
-            + dances.filter { $0.videoPath != nil || hasText($0.info) }.count
-    }
-
     private var librarySection: some View {
         HomeRowGroup(title: "MOJA KNIŽNICA") {
             NavigationLink {
-                ProfileRoutinesListView(routines: routines.sorted { $0.updatedAt > $1.updatedAt })
+                ProfileRoutinesListView(routines: routines)
             } label: {
                 HomeRow(icon: "figure.dance", title: "Zostavy", detail: "\(routines.count)")
             }
@@ -321,16 +317,16 @@ struct ProfileView: View {
             NavigationLink {
                 ProfileFiguresListView()
             } label: {
-                HomeRow(icon: "book.closed.fill", title: "Knižnica figúr", detail: "\(figures.count)")
+                HomeRow(icon: "book.closed.fill", title: "Knižnica figúr", detail: "\(libraryCounts.figures)")
             }
             .buttonStyle(.pressable(scale: 0.98))
 
             HomeRowDivider()
 
             NavigationLink {
-                ProfileMediaListView(dances: dances, figures: figures, nodes: nodes)
+                ProfileMediaListView()
             } label: {
-                HomeRow(icon: "video.fill", title: "Videá a poznámky", detail: "\(mediaCount)")
+                HomeRow(icon: "video.fill", title: "Videá a poznámky", detail: "\(libraryCounts.media)")
             }
             .buttonStyle(.pressable(scale: 0.98))
         }
