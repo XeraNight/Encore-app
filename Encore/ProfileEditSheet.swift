@@ -184,11 +184,13 @@ struct ProfileEditSheet: View {
         let uid = profileStore.activeUserId
         Task {
             defer { isSavingPhoto = false }
-            guard let data = image.jpegData(compressionQuality: 0.9) else { return }
             do {
-                let filename = try await Task.detached(priority: .userInitiated) {
-                    try MediaStorageManager.store(data: data, prefix: "profile_\(uid)", fileExtension: "jpg")
+                // Compressing a full photo takes a moment: off the main thread, with the write.
+                let filename = try await Task.detached(priority: .userInitiated) { () throws -> String? in
+                    guard let data = image.jpegData(compressionQuality: 0.9) else { return nil }
+                    return try MediaStorageManager.store(data: data, prefix: "profile_\(uid)", fileExtension: "jpg")
                 }.value
+                guard let filename else { return }
                 profileStore.setAvatarPath(filename)
                 MediaStorageManager.removeFile(named: oldPath)
                 savedCount += 1
