@@ -10,6 +10,7 @@ struct AddConnectionSheetView: View {
     @State private var selectedType: ConnectionRelationshipType = .partner
     @State private var searchResults: [DancerSearchResult] = []
     @State private var isSearching: Bool = false
+    @State private var searchTask: Task<Void, Never>?
     @State private var selectedTarget: DancerSearchResult? = nil
     
     @State private var isSending: Bool = false
@@ -296,23 +297,27 @@ struct AddConnectionSheetView: View {
     }
     
     // MARK: - Actions
+    /// One request once typing pauses, not one per letter (each costs a server call and counts toward the
+    /// search limit); an older answer arriving late never replaces a newer one.
     private func triggerSearch(query: String) {
+        searchTask?.cancel()
         let clean = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard clean.count >= 2 else {
             searchResults = []
+            isSearching = false
             return
         }
         isSearching = true
         errorMessage = nil
-        
-        Task {
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
             let res = await connectionManager.searchDancers(query: clean)
-            await MainActor.run {
-                self.searchResults = res
-                self.isSearching = false
-                if let first = res.first, clean.uppercased() == first.dancerCode.uppercased() {
-                    self.selectedTarget = first
-                }
+            guard !Task.isCancelled else { return }
+            searchResults = res
+            isSearching = false
+            if let first = res.first, clean.uppercased() == first.dancerCode.uppercased() {
+                selectedTarget = first
             }
         }
     }
