@@ -108,6 +108,8 @@ final class CanvasRealtimeManager {
 
             // 2. Configure channel with low-latency broadcast & presence key
             let ch = client.realtimeV2.channel(channelId) { config in
+                // Private: the server lets in only the routine's owner and partner (realtime.messages RLS).
+                config.isPrivate = true
                 config.broadcast = BroadcastJoinConfig(acknowledgeBroadcasts: false, receiveOwnBroadcasts: false)
                 config.presence = PresenceJoinConfig(key: self.senderId.uuidString)
             }
