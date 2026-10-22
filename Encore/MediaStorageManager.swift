@@ -91,12 +91,17 @@ enum MediaStorageManager {
         return filename
     }
     
-    nonisolated static func totalSize(for filenames: [String]) -> Int64 {
-        filenames.reduce(0) { total, filename in
-            let fileURL = url(for: filename)
-            let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.int64Value ?? 0
-            return total + size
+    /// Everything Encore keeps in its own folder: videos and photos kept in the app, voice notes, the profile
+    /// photo. Videos in Fotky are not here.
+    nonisolated static func documentsSize() -> Int64 {
+        let keys: [URLResourceKey] = [.isRegularFileKey, .totalFileAllocatedSizeKey, .fileAllocatedSizeKey]
+        guard let files = FileManager.default.enumerator(at: documentsDirectory, includingPropertiesForKeys: keys) else { return 0 }
+        var total: Int64 = 0
+        for case let url as URL in files {
+            guard let values = try? url.resourceValues(forKeys: Set(keys)), values.isRegularFile == true else { continue }
+            total += Int64(values.totalFileAllocatedSize ?? values.fileAllocatedSize ?? 0)
         }
+        return total
     }
 }
 

@@ -6,9 +6,6 @@ import SwiftData
 /// data, help, the owner console and account deletion.
 struct ProfileSettingsView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var figures: [FigureLibraryItem]
-    @Query private var nodes: [CanvasNode]
-    @Query private var dances: [Dance]
 
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var profileStore = UserProfileStore.shared
@@ -23,7 +20,7 @@ struct ProfileSettingsView: View {
     @State private var showLegal = false
     @State private var showOwnerConsole = false
     @State private var confirmResetLibrary = false
-    @State private var pendingMaintenance: MaintenanceAction?
+    @State private var confirmClearVideos = false
     @State private var exportFile: ExportFile?
     @State private var isExporting = false
     @State private var exportError: String?
@@ -74,15 +71,10 @@ struct ProfileSettingsView: View {
         } message: {
             Text("Tvoje vlastné figúry ostanú. Predvolené figúry sa načítajú znova.")
         }
-        .confirmationDialog(
-            pendingMaintenance?.title ?? "",
-            isPresented: Binding(get: { pendingMaintenance != nil }, set: { if !$0 { pendingMaintenance = nil } }),
-            titleVisibility: .visible,
-            presenting: pendingMaintenance
-        ) { action in
-            Button(action.buttonTitle, role: .destructive) { runMaintenance(action) }
-        } message: { action in
-            Text(action.message)
+        .confirmationDialog("Vymazať videá z Encore?", isPresented: $confirmClearVideos, titleVisibility: .visible) {
+            Button("Vymazať videá", role: .destructive, action: clearVideos)
+        } message: {
+            Text("Videá zostáv, figúr a tancov uložené v Encore sa vymažú z tohto iPhonu. Videá vo Fotkách a v Denníku ostanú.")
         }
         .confirmationDialog("Natrvalo zmazať účet?", isPresented: $confirmDeleteAccount, titleVisibility: .visible) {
             Button("Zmazať účet", role: .destructive) { Task { await deleteAccount() } }
@@ -217,7 +209,8 @@ struct ProfileSettingsView: View {
         HomeRowGroup(title: "DÁTA") {
             HomeRow(
                 icon: "internaldrive.fill",
-                title: "Videá a fotky v iPhone",
+                title: "Encore v tomto iPhone",
+                subtitle: "Videá, fotky a hlasovky uložené v appke (bez Fotiek)",
                 detail: storageBytes.map { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) } ?? "…",
                 showsChevron: false
             )
@@ -227,13 +220,8 @@ struct ProfileSettingsView: View {
             }
             .buttonStyle(.pressable(scale: 0.98))
             HomeRowDivider()
-            Button { pendingMaintenance = .clearVideos } label: {
-                HomeRow(icon: "video.slash.fill", title: "Vymazať všetky videá", isDestructive: true, showsChevron: false)
-            }
-            .buttonStyle(.pressable(scale: 0.98))
-            HomeRowDivider()
-            Button { pendingMaintenance = .clearNotes } label: {
-                HomeRow(icon: "text.badge.xmark", title: "Vymazať všetky poznámky", isDestructive: true, showsChevron: false)
+            Button { confirmClearVideos = true } label: {
+                HomeRow(icon: "video.slash.fill", title: "Vymazať videá z Encore", isDestructive: true, showsChevron: false)
             }
             .buttonStyle(.pressable(scale: 0.98))
         }
@@ -325,15 +313,9 @@ struct ProfileSettingsView: View {
         isDeletingAccount = false
     }
 
+    /// Everything Encore keeps in its own folder, read off the main thread.
     private func refreshStorageUsage() async {
-        var paths = nodes.compactMap(\.videoPath)
-            + figures.compactMap(\.videoPath)
-            + figures.compactMap(\.imagePath)
-            + dances.compactMap(\.videoPath)
-            + dances.compactMap(\.imagePath)
-        if let avatar = profileStore.currentAvatarPath, !avatar.isEmpty { paths.append(avatar) }
-        let snapshot = paths
-        let bytes = await Task.detached(priority: .utility) { MediaStorageManager.totalSize(for: snapshot) }.value
+        let bytes = await Task.detached(priority: .utility) { MediaStorageManager.documentsSize() }.value
         withAnimation(.easeOut(duration: 0.2)) { storageBytes = bytes }
     }
 
@@ -348,19 +330,18 @@ struct ProfileSettingsView: View {
         changeCount += 1
     }
 
-    private func runMaintenance(_ action: MaintenanceAction) {
-        switch action {
-        case .clearVideos:
-            for node in nodes { MediaStorageManager.removeFile(named: node.videoPath); node.videoPath = nil }
-            for figure in figures { MediaStorageManager.removeFile(named: figure.videoPath); figure.videoPath = nil }
-            for dance in dances { MediaStorageManager.removeFile(named: dance.videoPath); dance.videoPath = nil }
-        case .clearNotes:
-            for node in nodes { node.notes = ""; node.transitionNotes = "" }
-            for figure in figures { figure.techniqueNotes = "" }
-            for dance in dances { dance.info = "" }
-        }
+    /// Frees space: the figure, library and dance videos kept in Encore. A file Denník still shows stays, and a
+    /// Fotky video is only unlinked (it stays in Fotky).
+    private func clearVideos() {
+        let nodes = (try? modelContext.fetch(FetchDescriptor<CanvasNode>(predicate: #Predicate { $0.videoPath != nil }))) ?? []
+        let figures = (try? modelContext.fetch(FetchDescriptor<FigureLibraryItem>(predicate: #Predicate { $0.videoPath != nil }))) ?? []
+        let dances = (try? modelContext.fetch(FetchDescriptor<Dance>(predicate: #Predicate { $0.videoPath != nil }))) ?? []
+        let paths = nodes.compactMap(\.videoPath) + figures.compactMap(\.videoPath) + dances.compactMap(\.videoPath)
+        nodes.forEach { $0.videoPath = nil }
+        figures.forEach { $0.videoPath = nil }
+        dances.forEach { $0.videoPath = nil }
         try? modelContext.save()
-        pendingMaintenance = nil
+        Set(paths).forEach { MediaStorageManager.removeVideoIfUnused($0, in: modelContext) }
         changeCount += 1
         Task { await refreshStorageUsage() }
     }
@@ -392,34 +373,6 @@ struct ProfileSettingsView: View {
 private struct ExportFile: Identifiable {
     let url: URL
     var id: URL { url }
-}
-
-// MARK: - Bulk clean-up actions
-private enum MaintenanceAction: Identifiable {
-    case clearVideos, clearNotes
-
-    var id: Self { self }
-
-    var title: String {
-        switch self {
-        case .clearVideos: return "Vymazať všetky videá?"
-        case .clearNotes: return "Vymazať všetky poznámky?"
-        }
-    }
-
-    var message: String {
-        switch self {
-        case .clearVideos: return "Videá zo zostáv, tancov a figúr sa odstránia z aplikácie v tomto iPhone."
-        case .clearNotes: return "Poznámky zo zostáv, figúr a tancov sa vymažú v tomto iPhone."
-        }
-    }
-
-    var buttonTitle: String {
-        switch self {
-        case .clearVideos: return "Vymazať videá"
-        case .clearNotes: return "Vymazať poznámky"
-        }
-    }
 }
 
 // MARK: - Share sheet
