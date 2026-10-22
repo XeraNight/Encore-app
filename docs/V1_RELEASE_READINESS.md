@@ -40,12 +40,37 @@ Banking). Bez aktívnej zmluvy **Paid Apps Agreement**, bankového účtu a daň
 8. **Pred odoslaním:** nákup otestovať cez TestFlight s testovacím (sandbox) účtom.
 9. ❓ Rodinné zdieľanie predplatného zapnúť alebo nie.
 
+**Nová dohoda Apple (Developer Program License Agreement, prečítaná 22. 10.):**
+- Hlavná novinka pre nás je **Príloha 14 pre EÚ** (platí od 1. 10. 2026). Pri nákupe cez Apple je v EÚ provízia 26 %, no **so Small Business Programom 15 %** (aj pri predplatnom od 2. roka).
+- Alternatívne obchody, platby mimo Apple a 5 % poplatok za technológiu sa nás netýkajú, kým predávame len cez App Store.
+- Prílohy pre Japonsko, Brazíliu a Čínu, EnergyKit a voliteľné API (vek používateľa, Foundation Models) sa nás netýkajú.
+- 👤 Dohodu treba prijať v účte vývojára, inak nejde publikovať.
+
+**👤 Obchodník podľa DSA (EÚ):** kto v EÚ predáva predplatné, je obchodník. Apple overí a na stránke appky v EÚ
+zverejní **adresu, telefón a e-mail**. Bez vyplnenia nebude appka v EÚ dostupná, teda ani na Slovensku.
+- Ako fyzická osoba by si tam mal verejne domácu adresu a osobné číslo. Obvyklé riešenie: živnosť alebo s.r.o.,
+  virtuálne sídlo ako adresa, samostatné číslo (druhá SIM alebo eSIM) a `support@encore-sk.com`.
+- Príjem od Apple je podnikateľský príjem; daňové riešenie prejdi s účtovníkom (toto nie je právna rada).
+- Rovnaké údaje musia byť v Podmienkach v appke (dnes tam je „Jakub Kalina (fyzická osoba)“).
+- ❌ V Podmienkach stojí, že Encore „sama na KSIS nechodí ani nič neobnovuje na pozadí“. Server však KSIS
+  načítava denne o 5:00 a počas sledovanej súťaže každé 2 minúty. Pred review prepísať.
+
 **Verdikt:** po stránke kódu áno. Review môže zablokovať len to, čo je v App Store Connect (zmluva, produkty,
 testovací účet, odkazy), a test nákupu cez TestFlight.
 
 ---
 
-## 2. Snímky obrazovky
+## 2. iPhone Duo (skladací iPhone, v predaji od 23. 10. 2026)
+- Vonkajší displej 5,4", vnútorný 7,6". Netreba samostatnú appku, je to iPhone.
+- Appka postavená v **Xcode 26.4** (tak ju staviame teraz) pôjde na vnútornom displeji s čiernymi okrajmi.
+  Celý displej využije až po prebudovaní v **Xcode 27.1**. 👤 Nainštaluj Xcode 27.1.
+- Kód je pripravený: nikde nepoužívame pevnú veľkosť obrazovky (`UIScreen.main.bounds`), rozloženie je v SwiftUI.
+- Treba vyskúšať: appka je zamknutá na výšku (okrem plátna), a Apple pri Duo odporúča nerozhodovať podľa
+  orientácie. Otestujeme v simulátore Duo alebo v Device Hub a prípadne zámok odstránime.
+- Na veľkom displeji sa ponúka plátno a detail figúry vedľa seba (nápad na neskôr).
+- Podľa správ budú od apríla 2027 snímky pre iPhone Duo povinné pre nové appky. Over v App Store Connect.
+
+## 3. Snímky obrazovky
 
 ### App Store
 Formát: **6,9" iPhone**, 1320 × 2868 px (prípadne 1290 × 2796), na výšku, 6 až 8 kusov (najviac 10). Menšie
@@ -80,7 +105,7 @@ takže ti len pripravím súbory.
 
 ---
 
-## 3. Audit funkcií podľa typu tanečníka
+## 4. Audit funkcií podľa typu tanečníka
 
 **Typy:**
 - **E–D** – začiatočník, učí sa figúry;
@@ -120,6 +145,9 @@ Známka = reálna hodnota pre daný typ (1–10).
 - **„Mám to v hlave“:** použije hlasovku, plátno a KSIS. Nesmie ho nič nútiť vypĺňať, a to dnes appka spĺňa.
 
 ## Zdroje
+- [Apple unfolds the iPhone Duo (TidBITS)](https://tidbits.com/2026/09/11/apple-unfolds-the-iphone-duo/)
+- [Apple iPhone Duo makes developers think in folds (DevClass)](https://devclass.com/devops/2026/09/16/apple-iphone-duo-makes-developers-think-in-folds/5296425)
+- [Apple iPhone Duo API (InfoQ)](https://infoq.com/news/2026/09/apple-iphone-duo-api)
 - [App Store Connect: Screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/screenshot-specifications)
 - [App Store screenshot sizes 2026 (Adalo)](https://studio.adalo.com/blog/app-store-screenshot-sizes-2026)
 - [App Store Small Business Program (RevenueCat)](https://www.revenuecat.com/blog/engineering/small-business-program)
