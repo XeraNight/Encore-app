@@ -138,6 +138,18 @@ enum RichNote {
         return result
     }
 
+    /// The node's notes with these pieces added at the end, each on a line of its own. Voice notes and videos
+    /// live only in the formatted copy, so it is kept whenever the result is more than plain text.
+    static func appending(_ pieces: [AttributedString], to node: CanvasNode) -> (plain: String, rich: Data?) {
+        var text = attributed(for: node)
+        for piece in pieces {
+            if let last = text.characters.last, last != "\n" { text.append(AttributedString("\n")) }
+            text.append(piece)
+        }
+        let plainText = plain(text)
+        return (plainText, text == AttributedString(plainText) ? nil : encode(text))
+    }
+
     /// Notes used to sit on a white sheet; black ink chosen there would vanish on the dark card,
     /// so very dark text colours fall back to the default light ink.
     static func readableOnDark(_ text: AttributedString) -> AttributedString {

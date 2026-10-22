@@ -313,8 +313,9 @@ struct NoteDetailSheet: View {
 }
 
 // MARK: - Add a note to a figure
-/// Appends the note text (with its date) to a figure on a routine canvas or in the library.
-/// The note stays in the app and is only marked as imported, so it can be restored.
+/// Adds the note to a figure on a routine canvas: its text, voice note and video, each on its own line at the
+/// end, as they are inside a figure (no date or label). Library figures hold only text, so they are offered
+/// only for notes with text. The note stays in Denník and is only marked as imported, so it can be restored.
 struct FigurePickerSheet: View {
     let note: InstantNote
     let onDone: () -> Void
@@ -355,14 +356,14 @@ struct FigurePickerSheet: View {
                                 figureRow(title: node.figureName, subtitle: node.routine?.name ?? "") { add(to: node) }
                             }
                         }
-                        if !matchingLibrary.isEmpty {
+                        if note.hasText, !matchingLibrary.isEmpty {
                             HomeSectionHeader(title: "KNIŽNICA FIGÚR", systemImage: "books.vertical.fill")
                                 .padding(.top, matchingNodes.isEmpty ? 0 : 12)
                             ForEach(matchingLibrary) { item in
                                 figureRow(title: item.name, subtitle: item.danceName) { add(to: item) }
                             }
                         }
-                        if matchingNodes.isEmpty && matchingLibrary.isEmpty {
+                        if matchingNodes.isEmpty && (!note.hasText || matchingLibrary.isEmpty) {
                             ContentUnavailableView.search(text: search)
                                 .padding(.top, 40)
                         }
@@ -407,9 +408,7 @@ struct FigurePickerSheet: View {
         .accessibilityHint("Pridá poznámku k tejto figúre")
     }
 
-    private var stamped: String {
-        "• \(note.createdAt.formatted(date: .numeric, time: .omitted)) — \(note.text.trimmingCharacters(in: .whitespacesAndNewlines))"
-    }
+    private var trimmedText: String { note.text.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private func finish() {
         note.importedAt = Date()
@@ -420,18 +419,33 @@ struct FigurePickerSheet: View {
     }
 
     private func add(to node: CanvasNode) {
-        node.notes = node.notes.isEmpty ? stamped : node.notes + "\n" + stamped
-        note.linkedFigureId = node.id
-        note.linkedRoutineId = node.routine?.id
-        if let routine = node.routine {
-            routine.updatedAt = Date()
-            SupabaseSyncManager.shared.syncRoutineOnBackground(routine)
+        Task {
+            var pieces: [AttributedString] = []
+            if note.hasText { pieces.append(AttributedString(trimmedText)) }
+            // The figure's own copy, so deleting the note in Denník keeps the recording in the figure.
+            if let audio = note.audioPath, let copy = await MediaStorageManager.copyVoiceNote(audio) {
+                pieces.append(NoteMedia.voice(VoiceNoteRef(fileName: copy, duration: note.audioDuration ?? 0)).piece)
+            }
+            if let video = note.videoPath {
+                let portrait = await VideoStill.isPortrait(await MediaResolver.videoURL(path: video)) ?? false
+                pieces.append(NoteMedia.video(VideoNoteRef(path: video, isPortrait: portrait)).piece)
+            }
+            guard !pieces.isEmpty else { return }
+            let updated = RichNote.appending(pieces, to: node)
+            node.notes = updated.plain
+            node.notesRichData = updated.rich
+            note.linkedFigureId = node.id
+            note.linkedRoutineId = node.routine?.id
+            if let routine = node.routine {
+                routine.updatedAt = Date()
+                SupabaseSyncManager.shared.syncRoutineOnBackground(routine)
+            }
+            finish()
         }
-        finish()
     }
 
     private func add(to item: FigureLibraryItem) {
-        item.techniqueNotes = item.techniqueNotes.isEmpty ? stamped : item.techniqueNotes + "\n" + stamped
+        item.techniqueNotes = item.techniqueNotes.isEmpty ? trimmedText : item.techniqueNotes + "\n" + trimmedText
         note.linkedFigureId = item.id
         finish()
     }

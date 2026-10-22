@@ -135,6 +135,33 @@ struct RichNoteVoiceTests {
         #expect(decoded.runs.first?.font == .system(size: 22, weight: .bold))
     }
 
+    // MARK: From Denník outside the figure
+
+    @Test func denníkVoiceNoteArrivesAsAVoiceNoteNotADate() throws {
+        let (container, node) = try makeNode(notes: "Rám hore")
+        _ = container
+        let voice = VoiceNoteRef(fileName: "voice_h.m4a", duration: 7)
+        let updated = RichNote.appending([NoteMedia.voice(voice).piece], to: node)
+        node.notes = updated.plain
+        node.notesRichData = updated.rich
+
+        #expect(node.notes == "Rám hore\n[hlasovka 0:07]")
+        #expect(RichNote.voiceNotes(in: RichNote.attributed(for: node)) == [voice])
+    }
+
+    @Test func eachPartGetsItsOwnLineAndPlainTextStaysPlain() throws {
+        let (container, node) = try makeNode(notes: "")
+        _ = container
+        let onlyText = RichNote.appending([AttributedString("Zdvih až na 3")], to: node)
+        #expect(onlyText.plain == "Zdvih až na 3")
+        #expect(onlyText.rich == nil)
+
+        let video = VideoNoteRef(path: "clip.mov", isPortrait: false)
+        let both = RichNote.appending([AttributedString("Hlava"), NoteMedia.video(video).piece], to: node)
+        #expect(both.plain == "Hlava\n[video]")
+        #expect(both.rich != nil)
+    }
+
     // MARK: Videos
 
     private func layoutBlock(isPortrait: Bool) throws -> CGRect {

@@ -16,6 +16,21 @@ enum MediaStorageManager {
         return FileManager.default.fileExists(atPath: url(for: filename).path)
     }
     
+    /// A figure's own copy of a Denník voice note, so deleting the note in Denník keeps the figure's recording.
+    /// Off the main thread; it stays in the iPhone backup like every voice note.
+    nonisolated static func copyVoiceNote(_ filename: String) async -> String? {
+        await Task.detached(priority: .userInitiated) {
+            let copy = "voice_\(UUID().uuidString).m4a"
+            do {
+                try FileManager.default.copyItem(at: MediaStorageManager.url(for: filename), to: MediaStorageManager.url(for: copy))
+                return copy
+            } catch {
+                Logger.audio.error("Voice note copy failed: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+        }.value
+    }
+
     nonisolated static func removeFile(named filename: String?) {
         guard let filename else { return }
         try? FileManager.default.removeItem(at: url(for: filename))
