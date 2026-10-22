@@ -51,7 +51,7 @@ struct HomeCaptureWorkspace: View {
             DanceMenuCapsule(selection: $selectedDance)
         }
         .fullScreenCover(isPresented: $isCameraPresented) {
-            DanceCameraView(savesToPhotos: true) { localPath in
+            DanceCameraView(savesToPhotos: true, saveTitle: "Uložiť do Denníka") { localPath in
                 capturedVideoPath = localPath
                 // No text: Denník names a clip "Tréningové video" itself, and a stored label landed in figure notes.
                 save(InstantNote(videoPath: localPath, danceName: selectedDance))

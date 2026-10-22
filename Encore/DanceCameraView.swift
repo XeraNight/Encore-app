@@ -58,6 +58,8 @@ struct DanceCameraView: View {
     /// The finished clip goes into Fotky (album "Encore") and the callback gets a `photos:` reference.
     /// Without access to Fotky it stays in the app as before.
     var savesToPhotos = false
+    /// The main button after a take: where the clip goes ("Uložiť do Denníka", "Uložiť k figúre").
+    var saveTitle = "Uložiť video"
     var onRecordComplete: (String) -> Void
     
     // Camera Controller State
@@ -293,16 +295,19 @@ struct DanceCameraView: View {
                 }
             }
         }
-        // Modal for Quick Tag & Trim (Funkcia 8 & 10)
+        // After a take: play, trim, save or discard
         .sheet(isPresented: $showSaveDetailsSheet) {
             if let url = rawRecordedURL {
                 QuickSaveVideoSheet(
                     videoURL: url,
-                    onTrimRequest: {
-                        showTrimmerSheet = true
-                    },
-                    onSaveCompleted: { finalURL in
-                        Task { await storeRecording(at: finalURL) }
+                    saveTitle: saveTitle,
+                    savesToPhotos: savesToPhotos,
+                    onTrimRequest: { showTrimmerSheet = true },
+                    onSave: { await storeRecording(at: url) },
+                    onDiscard: {
+                        try? FileManager.default.removeItem(at: url)
+                        rawRecordedURL = nil
+                        showSaveDetailsSheet = false
                     }
                 )
             }

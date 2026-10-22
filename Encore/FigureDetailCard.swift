@@ -195,7 +195,7 @@ struct FigureDetailCard: View {
             if isShowing { stopPlayer() } else { setupPlayer(for: node.displayVideoPath) }
         }
         .fullScreenCover(isPresented: $showCamera) {
-            DanceCameraView(ghostVideoPath: node.activeTargetVideoPath, savesToPhotos: true) { localPath in
+            DanceCameraView(ghostVideoPath: node.activeTargetVideoPath, savesToPhotos: true, saveTitle: "Uložiť k figúre") { localPath in
                 replaceVideo(with: localPath)
                 showCamera = false
                 routineDidChange()
@@ -1072,7 +1072,8 @@ struct LoopingVideoPlayer: View {
     }
 }
 
-private struct LoopingPlayback: View {
+/// A clip playing on a loop; a tap or the corner button pauses it.
+struct LoopingPlayback: View {
     let videoURL: URL
     let rate: Float
 
