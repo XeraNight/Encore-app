@@ -1,4 +1,0 @@
-/* The App Store name is "Encore"; App Store Connect rejected the same word as the base name under the icon
-   (ITMS-90129, taken by another app). The app runs in Slovak, so every iPhone shows this one. */
-"CFBundleDisplayName" = "Encore";
-"CFBundleName" = "Encore";
