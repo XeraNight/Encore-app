@@ -1,0 +1,2 @@
+/* Same name as the app under its icon (see Encore/sk.lproj/InfoPlist.strings). */
+"CFBundleDisplayName" = "Encore";
