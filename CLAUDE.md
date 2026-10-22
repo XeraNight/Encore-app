@@ -27,6 +27,16 @@ Xcode is not the active developer dir, so prefix with `DEVELOPER_DIR`:
 - Keep iOS and backend contracts aligned; Android may come later.
 - Use `Logger` (Logger+Encore.swift), never `print`. Never log tokens or personal data.
 
+## Engineering principles
+- KISS: the simplest code that works. No abstraction or framework for a single use.
+- YAGNI: build what v1 needs now. No stubs, hooks or settings "for later"; delete what nothing calls.
+- DRY: one place for each rule and value (tokens, helpers, components). Extract on the second real copy, not before.
+- Local-first: a change is saved on the iPhone first and must survive no network, a killed app, airplane mode and hotel Wi-Fi. Unsent changes are kept and retried; a download never overwrites them.
+- Every network call needs a reason: no polling, no Realtime when nobody else listens, batch writes, cache reads. The Supabase free plan is the budget (Realtime: 200 connections, 100 msg/s, 20 presence msg/s).
+- Never trust the client: RLS and server checks are the only security. Realtime messages and QR payloads are hints, never truth.
+- Before "done", think through: offline mid-save, two devices editing the same thing, a partner versus a stranger, 10× the users.
+- Current findings and open items: `docs/ENGINEERING_REVIEW.md`.
+
 ## Security (non-negotiable)
 - No secrets in client code or git. Service-role key only in Edge Functions. Anon key is public, so RLS on every table.
 - Never store passwords. Auth session lives in the Supabase SDK Keychain storage.
@@ -57,5 +67,6 @@ Xcode is not the active developer dir, so prefix with `DEVELOPER_DIR`:
   - `docs/V1_UI_FEATURE_REVIEW.md`: which screens still need the §1A redesign, feature value per screen, work order
   - `docs/V1_PAYWALL_FEATURES_PLAN.md`: paywall features to build, what each does, dependencies, order
   - `MOZNE_CHYBY.md`: edge cases
+  - `docs/ENGINEERING_REVIEW.md`: how sync, Realtime and the cloud really work; offline, scale, cost and security findings with checklists
 - Use `rg` and read file ranges, not whole files. Use an Explore subagent for wide searches.
 - One task per session; `/clear` between unrelated tasks. Default to Sonnet; use plan mode only for multi-file work.
