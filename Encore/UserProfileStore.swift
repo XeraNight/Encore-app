@@ -39,25 +39,24 @@ final class UserProfileStore: ObservableObject {
     }
     
     private var cancellables = Set<AnyCancellable>()
-    
+    /// The last profile download (account and time): a return to the app or to Profile reads the server at
+    /// most every 10 minutes; a new account or a pull to refresh reads it at once.
+    private var lastCloudFetch: (uid: String, at: Date)?
+    private static let cloudFetchInterval: TimeInterval = 600
+
     private init() {
-        refreshForActiveUser()
-        
-        // Listen to AuthManager changes to dynamically switch profile context
+        refreshForActiveUser(force: true)
+
+        // Another account or a sign-in/out (the first, current values are covered by the line above).
         AuthManager.shared.$currentUser
             .map { $0?.id }
             .removeDuplicates()
-            .receive(on: RunLoop.main)
+            .combineLatest(AuthManager.shared.$isAuthenticated.removeDuplicates())
+            .dropFirst()
+            // A sign-in changes both at once: one refresh, not two.
+            .debounce(for: .milliseconds(200), scheduler: RunLoop.main)
             .sink { [weak self] _ in
-                self?.refreshForActiveUser()
-            }
-            .store(in: &cancellables)
-        
-        AuthManager.shared.$isAuthenticated
-            .removeDuplicates()
-            .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
-                self?.refreshForActiveUser()
+                self?.refreshForActiveUser(force: true)
             }
             .store(in: &cancellables)
     }
@@ -78,8 +77,8 @@ final class UserProfileStore: ObservableObject {
         return "guest"
     }
     
-    /// Loads the active account's profile data from user-scoped storage
-    func refreshForActiveUser() {
+    /// Loads the active account's profile from this iPhone, then from the server when it is due (or forced).
+    func refreshForActiveUser(force: Bool = false) {
         let uid = activeUserId
         let defaults = UserDefaults.standard
         
@@ -137,19 +136,22 @@ final class UserProfileStore: ObservableObject {
         let savedTheme = defaults.string(forKey: "profileCardTheme_\(uid)")
         cardTheme = savedTheme ?? "carmine_gold"
         
-        Task {
-            await self.fetchProfileCloudData()
+        if force || lastCloudFetch?.uid != uid || Date().timeIntervalSince(lastCloudFetch?.at ?? .distantPast) > Self.cloudFetchInterval {
+            lastCloudFetch = (uid, Date())
+            Task { await self.fetchProfileCloudData() }
         }
     }
-    
-    /// Fetches name, club, invite code, Dancer ID and KSIS ID from Supabase. The server copy of name
-    /// and club wins, so a new iPhone shows the same profile and friends find the user by name.
+
+    /// Fetches the profile from Supabase in one request. The server copy of name and club wins, so a new iPhone
+    /// shows the same profile and friends find the user by name, unless a change made here has not gone up yet:
+    /// that one goes first and is never overwritten.
     func fetchProfileCloudData() async {
         let uid = activeUserId
         guard uid != "guest", let uuid = UUID(uuidString: uid) else { return }
-        
+        let hasPendingEdit = UserDefaults.standard.bool(forKey: Self.pendingKey(uid))
+        if hasPendingEdit { await uploadProfile(uid: uid, uuid: uuid, name: currentName, club: currentClub) }
+
         do {
-            let client = SupabaseConfig.client
             struct ProfileCloudDTO: Decodable {
                 let name: String?
                 let club: String?
@@ -157,25 +159,28 @@ final class UserProfileStore: ObservableObject {
                 let dancer_code: String?
                 let ksis_id: String?
                 let dancer_groups: [String]?
+                let dance_role: String?
             }
-            let res: ProfileCloudDTO = try await client
+            let res: ProfileCloudDTO = try await SupabaseConfig.client
                 .from("profiles")
-                .select("name, club, invite_code, dancer_code, ksis_id, dancer_groups")
+                .select("name, club, invite_code, dancer_code, ksis_id, dancer_groups, dance_role")
                 .eq("id", value: uuid)
                 .single()
                 .execute()
                 .value
-            
+
             // The user may have switched accounts while the request was running: drop a late answer.
             guard uid == activeUserId else { return }
 
-            if let name = res.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
-                self.currentName = name
-                UserDefaults.standard.set(name, forKey: "profileName_\(uid)")
-            }
-            if let club = res.club {
-                self.currentClub = club
-                UserDefaults.standard.set(club, forKey: "profileClub_\(uid)")
+            if !UserDefaults.standard.bool(forKey: Self.pendingKey(uid)) {
+                if let name = res.name?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty {
+                    self.currentName = name
+                    UserDefaults.standard.set(name, forKey: "profileName_\(uid)")
+                }
+                if let club = res.club {
+                    self.currentClub = club
+                    UserDefaults.standard.set(club, forKey: "profileClub_\(uid)")
+                }
             }
             
             if let code = res.invite_code, !code.isEmpty {
@@ -198,28 +203,28 @@ final class UserProfileStore: ObservableObject {
                 self.dancerCode = dCode
                 UserDefaults.standard.set(dCode, forKey: "profileDancerCode_\(uid)")
             }
-        } catch {
-            Logger.general.notice("fetchProfileCloudData: \(error.localizedDescription, privacy: .public)")
-        }
-        await fetchDanceRole(uid: uid, uuid: uuid)
-    }
-
-    /// Separate request so profiles without the `dance_role` column (migration not run yet) still load.
-    private func fetchDanceRole(uid: String, uuid: UUID) async {
-        struct RoleDTO: Decodable { let dance_role: String? }
-        do {
-            let res: RoleDTO = try await SupabaseConfig.client
-                .from("profiles")
-                .select("dance_role")
-                .eq("id", value: uuid)
-                .single()
-                .execute()
-                .value
-            guard uid == activeUserId else { return }
             danceRole = res.dance_role == "coach" ? "coach" : "dancer"
             UserDefaults.standard.set(danceRole, forKey: "profileDanceRole_\(uid)")
         } catch {
-            Logger.general.notice("fetchDanceRole: \(error.localizedDescription, privacy: .public)")
+            Logger.general.notice("fetchProfileCloudData: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private static func pendingKey(_ uid: String) -> String { "profilePendingUpload_\(uid)" }
+
+    /// Name and club to the server; a failure leaves them marked, so the next download sends them first.
+    private func uploadProfile(uid: String, uuid: UUID, name: String, club: String) async {
+        struct ProfileUpdate: Encodable { let name: String; let club: String }
+        do {
+            // RLS lets users update only their own row; the server trigger keeps role and status untouchable.
+            try await SupabaseConfig.client
+                .from("profiles")
+                .update(ProfileUpdate(name: name, club: club))
+                .eq("id", value: uuid)
+                .execute()
+            UserDefaults.standard.removeObject(forKey: Self.pendingKey(uid))
+        } catch {
+            Logger.general.error("Profile upload failed, kept for later: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -266,19 +271,8 @@ final class UserProfileStore: ObservableObject {
         }
 
         guard let uuid = UUID(uuidString: uid) else { return }
-        Task {
-            // RLS lets users update only their own row; the server trigger keeps role and status untouchable.
-            struct ProfileUpdate: Encodable { let name: String; let club: String }
-            do {
-                try await SupabaseConfig.client
-                    .from("profiles")
-                    .update(ProfileUpdate(name: finalName, club: trimmedClub))
-                    .eq("id", value: uuid)
-                    .execute()
-            } catch {
-                Logger.general.error("saveProfile upload failed: \(error.localizedDescription, privacy: .public)")
-            }
-        }
+        defaults.set(true, forKey: Self.pendingKey(uid))
+        Task { await uploadProfile(uid: uid, uuid: uuid, name: finalName, club: trimmedClub) }
     }
     
     /// Updates or clears avatar image path for the active account

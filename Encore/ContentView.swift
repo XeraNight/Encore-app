@@ -123,7 +123,7 @@ struct ContentView: View {
                         .scrollDismissesKeyboard(.interactively)
                         .refreshable {
                             refreshCount += 1
-                            UserProfileStore.shared.refreshForActiveUser()
+                            UserProfileStore.shared.refreshForActiveUser(force: true)
                             await AuthManager.shared.checkCurrentSession()
                             await SupabaseSyncManager.shared.pullRoutines(into: modelContext)
                         }
