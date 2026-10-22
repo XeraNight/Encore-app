@@ -86,8 +86,10 @@ struct RoutineCanvasView: View {
     /// Room taken by the top bar (title, live status) and by the floating controls with "+ Figúra".
     /// A fitted floor sits between them, so no wall label hides under a button.
     private static let reservedTop: CGFloat = 150
-    private static let reservedBottom: CGFloat = 215
+    private static let reservedBottom: CGFloat = 160
     private static var fitShiftY: CGFloat { (reservedTop - reservedBottom) / 2 }
+    /// The floating controls sit just above the tab bar, not high over it.
+    private static func controlsBottom(_ safeAreaBottom: CGFloat) -> CGFloat { max(safeAreaBottom + 66, 100) }
 
     /// Scale at which the whole floor just fits the screen (used by the "fit" buttons).
     private func fitScale(for viewport: CGSize) -> CGFloat {
@@ -380,7 +382,7 @@ struct RoutineCanvasView: View {
                         }
                     }
                     .padding(.horizontal, 20)
-                    .padding(.bottom, max(geo.safeAreaInsets.bottom + 120, 155))
+                    .padding(.bottom, Self.controlsBottom(geo.safeAreaInsets.bottom))
                     .animation(.spring(response: 0.32, dampingFraction: 0.8), value: isDrawingMode)
                 }
                 .frame(width: viewport.width, height: viewport.height)
@@ -468,7 +470,7 @@ struct RoutineCanvasView: View {
                         }
                         .padding(.horizontal, 18)
                         .glassEffect(.regular, in: .capsule)
-                        .padding(.bottom, max(geo.safeAreaInsets.bottom + 120, 155) + 62)
+                        .padding(.bottom, Self.controlsBottom(geo.safeAreaInsets.bottom) + 62)
                     }
                     .frame(width: viewport.width, height: viewport.height)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
