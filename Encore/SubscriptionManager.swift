@@ -174,8 +174,9 @@ final class SubscriptionManager: ObservableObject {
             effectiveSource = .storeKit
         }
         
-        // Supabase VIP grant (Darovanie od majiteľa)
-        if let grant = supabaseGrant, grant.isValid, grant.tier > .free {
+        // Darovanie od majiteľa. A row marked "storekit" proves nothing (a client could write it); a paid plan is
+        // proven only by StoreKit above, which Apple signs.
+        if let grant = supabaseGrant, grant.isValid, grant.tier > .free, grant.source == .ownerGrant {
             if grant.tier >= effectiveTier {
                 effectiveTier = grant.tier
                 effectiveSource = grant.source
@@ -233,7 +234,6 @@ final class SubscriptionManager: ObservableObject {
                 do {
                     let transaction = try Self.checkVerified(result)
                     if let self = self {
-                        await self.syncStoreKitTransactionToSupabase(transaction: transaction)
                         await self.refreshEntitlements()
                     }
                     await transaction.finish()
@@ -296,7 +296,6 @@ final class SubscriptionManager: ObservableObject {
         switch result {
         case .success(let verification):
             let transaction = try Self.checkVerified(verification)
-            await syncStoreKitTransactionToSupabase(transaction: transaction)
             await transaction.finish()
             await refreshEntitlements()
             return true
@@ -306,42 +305,6 @@ final class SubscriptionManager: ObservableObject {
             return false
         @unknown default:
             return false
-        }
-    }
-    
-    // MARK: - Sync StoreKit Transaction to Supabase Cloud
-    private func syncStoreKitTransactionToSupabase(transaction: StoreKit.Transaction) async {
-        guard AuthManager.shared.currentUser?.id != nil else { return }
-        let client = SupabaseConfig.client
-        let pid = transaction.productID
-        let tier: SubscriptionTier
-        if pid == ProductID.premiumMonthly || pid == ProductID.premiumAnnual {
-            tier = .premium
-        } else if pid == ProductID.plusMonthly || pid == ProductID.plusAnnual {
-            tier = .plus
-        } else {
-            tier = .free
-        }
-        
-        let expIso: String? = transaction.expirationDate.map { ISO8601DateFormatter().string(from: $0) }
-        
-        struct RecordParams: Encodable {
-            let p_tier: String
-            let p_product_id: String
-            let p_expires_at: String?
-        }
-        
-        do {
-            try await client
-                .rpc("record_app_store_transaction", params: RecordParams(
-                    p_tier: tier.serverValue,
-                    p_product_id: pid,
-                    p_expires_at: expIso
-                ))
-                .execute()
-            Logger.auth.info("Synced StoreKit transaction to Supabase successfully.")
-        } catch {
-            Logger.auth.warning("Syncing StoreKit transaction to Supabase notice: \(error.localizedDescription, privacy: .public)")
         }
     }
     
