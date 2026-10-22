@@ -68,5 +68,6 @@ Xcode is not the active developer dir, so prefix with `DEVELOPER_DIR`:
   - `docs/V1_PAYWALL_FEATURES_PLAN.md`: paywall features to build, what each does, dependencies, order
   - `MOZNE_CHYBY.md`: edge cases
   - `docs/ENGINEERING_REVIEW.md`: how sync, Realtime and the cloud really work; offline, scale, cost and security findings with checklists
+  - `docs/V1_RELEASE_READINESS.md`: subscription and App Review checklist, App Store and web screenshots, feature audit by dancer type
 - Use `rg` and read file ranges, not whole files. Use an Explore subagent for wide searches.
 - One task per session; `/clear` between unrelated tasks. Default to Sonnet; use plan mode only for multi-file work.

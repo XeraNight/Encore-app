@@ -1,233 +1,188 @@
-# Encore: ako appka funguje, kde môže zlyhať a čo ešte opraviť (22. 10. 2026)
+# Encore: ako appka funguje, kde môže zlyhať a čo je opravené (aktualizované 22. 10. 2026)
 
-Kontrola kódu aj databázy podľa princípov softvérového inžinierstva (DRY, YAGNI, KISS a ďalších).
-Všetko nižšie je overené v kóde alebo priamo v databáze, nič nie je odhad. Kde sa niečo nedalo
-overiť bez iPhonu, je to tak označené.
+Kontrola kódu aj databázy podľa princípov softvérového inžinierstva (DRY, YAGNI, KISS a ďalších) a audit
+60 nečakaných situácií. Všetko je overené v kóde alebo priamo v databáze. Čo sa dá overiť len na iPhone,
+je označené 🔍.
 
-✅ = v poriadku · ⚠️ = funguje, ale má slabinu · ❌ = treba opraviť
+✅ ošetrené (overené) · 🛠 opravené 22. 10. · ⚠️ funguje, ale má slabinu · ❌ treba opraviť · ❓ rozhodnúť · 🔍 vyskúšať na iPhone
 
 ---
 
 ## 1. Ako appka funguje (jednoducho)
 
-**Telefón je hlavný.** Všetko sa najprv uloží do databázy v iPhone (SwiftData). Appka teda funguje aj
-bez signálu a server je len záloha a cesta k partnerovi.
+**Telefón je hlavný.** Všetko sa najprv uloží do databázy v iPhone (SwiftData). Appka funguje aj bez signálu,
+server je záloha a cesta k partnerovi.
 
 | Čo | Kedy ide na internet | Koľko požiadaviek |
 |---|---|---|
-| **Uloženie zostavy** | 0,7 s po poslednej zmene (rýchle zmeny sa zlúčia do jednej) | 3: zostava, všetky figúry, zmazanie figúr, ktoré v telefóne nie sú |
-| **Stiahnutie zostavy** | pri otvorení plátna, pri návrate do appky s otvoreným plátnom, po opätovnom pripojení živého kanála | 2. **Server vyhrá úplne.** |
-| **Zoznam zostáv** | len keď na Domove potiahneš nadol | 1 |
-| **Živé spojenie (Realtime)** | pri každom otvorení plátna, aj keď na zostave pracuješ sám | 1 trvalé spojenie + správy (pozri §4) |
-| **Pri štarte a návrate do appky** | konfigurácia (najviac raz za interval), prihlásenie (overí sa v telefóne), kontrola schránky | 0 až 1 |
-| **KSIS** | server: denne o 5:00, „naživo“ každé 2 min **len** v deň súťaže, ktorú niekto sleduje; stránky KSIS sa držia 30 dní v cache | 0 z telefónu |
-| **Hlasovky** | nikdy, ostávajú v iPhone (partner vidí „[hlasovka 0:07]“) | 0 |
-| **Videá** | originál vo Fotkách; zdieľaná kópia podľa `docs/VIDEO_STORAGE_AND_SHARING.md` | len pri zdieľaní |
+| **Uloženie zostavy** | Zostava sa hneď označí ako „čaká na odoslanie“ (pamätá si to aj po zatvorení appky); odošle sa 0,7 s po poslednej zmene | 1 až 3: zostava, **len zmenené figúry**, **len figúry zmazané v tomto iPhone** |
+| **Neúspešné odoslanie** | Opakuje sa po 1 s, 5 s, 30 s a potom každých 5 min (náhodne posunuté), pri návrate siete a pri návrate do appky | rovnako |
+| **Stiahnutie zostavy** | Pri otvorení plátna a návrate do appky. **Najprv sa odošle, čo čaká.** Ak sa to nedá, stiahnutie počká, takže nič neprepíše. | 2 |
+| **Zoznam zostáv** | Potiahnutím nadol na Domove (najprv odošle, čo čaká) | 1 |
+| **Živé spojenie** | Len keď máš prijatého partnera, trénera alebo žiaka. Súkromný kanál: pustí len majiteľa zostavy a partnera. | 1 spojenie; ťahanie najviac 10×/s a kurzor 4×/s, a len keď je partner v kanáli |
+| **Pri štarte a návrate** | Konfigurácia (najviac raz za interval), prihlásenie (overí sa v telefóne), odoslanie čakajúcich zmien | 0 až 2 |
+| **KSIS** | Server: denne o 5:00, „naživo“ každé 2 min len v deň sledovanej súťaže, cache 30 dní | 0 z telefónu |
+| **Hlasovky** | Nikdy, ostávajú v iPhone (partner vidí „[hlasovka 0:07]“) | 0 |
+| **Predplatné** | Overuje ho iPhone cez StoreKit (Apple ho podpisuje). Server berie do úvahy len darovanie od majiteľa. | 0 |
 
-Databáza má dnes 18 MB, 2 účty, 8 zostáv a 13 figúr. Všetkých 22 tabuliek má RLS (pravidlá, kto
-smie čo čítať a meniť).
+**Záznamník synchronizácie** (`SyncLedger`) si v iPhone pamätá:
+- ktoré zostavy čakajú na odoslanie;
+- ktoré figúry a zostavy si zmazal;
+- otlačok SHA-256 každej figúry z posledného odoslania alebo stiahnutia.
 
----
-
-## 2. Princípy a čo znamenajú pre náš kód
-
-| Princíp | Čo znamená | Kde ho dodržiavame ✅ | Kde nie ❌ |
-|---|---|---|---|
-| **KISS** (Keep It Simple) | Najjednoduchšie riešenie, ktoré funguje | Telefón je hlavný, server záloha. Zostava sa posiela celá naraz. | „Posielaj celú zostavu a zmaž všetko, čo nemám“ je až príliš jednoduché, viď §3 (B). |
-| **YAGNI** (You Aren't Gonna Need It) | Nestavať nič „na neskôr“ | Odstránená mapka trasy, prázdne `setup()` analytiky | 12 analytických udalostí, ktoré nikto nevolá (napr. `radarCoupleFollowed`, `walletPassSharedProximity`); `SyncStatus` sa nastavuje, ale nikto ho nečíta; `syncRoutineImmediatelyOnBackground` sa nepoužíva |
-| **DRY** (Don't Repeat Yourself) | Každé pravidlo či hodnota na jednom mieste | Farby a texty cez tokeny (`textSecondary`), jeden krokovač, jedna kópia hlasovky, jeden výpočet trvania | Kód nekopírujeme naslepo, ale ani nezlučujeme predčasne: spoločnú časť vytiahneme až pri druhom skutočnom výskyte. |
-| **Local-first** | Zmena nesmie zmiznúť bez internetu | Ukladá sa hneď do iPhonu | Neodoslaná zmena sa neopakuje a server ju pri stiahnutí prepíše, viď §3 (A) |
-| **Idempotencia** | To isté odoslanie viackrát = rovnaký výsledok | `upsert` podľa ID | Odoslanie starej kópie maže cudzie figúry, viď §3 (B) |
-| **Never trust the client** | Bezpečnosť len na serveri | RLS na všetkých tabuľkách, poistka trénera, blokovanie | Správy živého kanála a QR kód appka berie ako pravdu, viď §5 |
-| **Least privilege** | Každý má len prístup, ktorý potrebuje | Service-role kľúč len v Edge Functions, súkromné úložisko | Živý kanál je verejný |
+Posiela sa len to, čo sa v tomto iPhone naozaj zmenilo. Stará kópia preto nemôže prepísať prácu partnera
+a na serveri zmizne len to, čo si naozaj zmazal.
 
 ---
 
-## 3. Nečakané situácie (edge cases)
+## 2. Princípy a kde sme
 
-### (A) ❌ KRITICKÉ: lietadlo a hotelová Wi-Fi
-
-1. Na letisku upravíš zostavu a pridáš figúru, telefón ju uloží.
-2. O 0,7 s sa ju appka pokúsi odoslať, ale si už v režime lietadla. **Odoslanie zlyhá a nikde sa
-   nezapamätá, že čaká.** Opakuje sa len pri ďalšej úprave tej istej zostavy.
-3. V hoteli (aj mimo EÚ) sa pripojíš na Wi-Fi a otvoríš appku. Plátno pri návrate a pri opätovnom
-   pripojení stiahne zostavu zo servera a **server vyhrá úplne**. Figúru pridanú v lietadle appka
-   v telefóne **zmaže** a tvoje úpravy prepíše starými.
-
-Rovnako dopadne: **zatvorenie appky** počas tých 0,7 s (čakanie je len v pamäti), **hotelová Wi-Fi
-s prihlasovacou stránkou** (požiadavky zlyhajú ako offline) a **slabý signál v sále v podzemí**.
-
-**Oprava (návrh):**
-- zostava dostane trvalú značku „čaká na odoslanie“ uloženú v iPhone;
-- pri návrate siete a appky sa najprv odošle a až potom stiahne;
-- stiahnutie nikdy neprepíše zostavu, ktorá ešte čaká.
-
-### (B) ❌ KRITICKÉ: dvaja partneri, jeden offline
-
-1. Ty si offline a pohneš figúrou. Partnerka je online a pridá novú figúru.
-2. Ty sa pripojíš a niečo upravíš. Appka pošle **celú tvoju zostavu** a potom zmaže na serveri
-   všetky figúry, ktoré v tvojom telefóne nie sú, **teda aj figúru partnerky**.
-
-**Oprava:** namiesto „zmaž, čo nemám“ posielať zoznam figúr, ktoré si naozaj zmazal (tzv.
-tombstones). Pri zmene tej istej figúry z oboch strán rozhodne čas zmeny na serveri, nie v telefóne.
-
-### (C) ❌ Partner zmaže figúru a ona sa vráti
-
-Mazať figúry smie podľa RLS len majiteľ zostavy. Keď zmaže partner, server požiadavku potichu
-nevykoná (0 riadkov, žiadna chyba) a pri ďalšom stiahnutí sa figúra vráti.
-**Rozhodni:** má partner smieť mazať figúry? Pre trénera platí, že nesmie (zámer).
-
-### (D) ⚠️ Zlé hodiny v telefóne
-
-Zoznam zostáv rozhoduje „novšia vyhrá“ podľa času uloženého v telefóne. Telefón s ručne zmeneným
-časom alebo zlým časovým pásmom tak môže prehrať novšiu verziu staršou. Riešenie: čas zmeny určuje
-server (`now()` v databáze).
-
-### (E) ❌ Skopírovaný odkaz z YouTube otvorí okno pozvánky
-
-Pri každom návrate do appky sa kontroluje, či je v schránke nejaký odkaz (`hasURLs`). Akýkoľvek
-odkaz, aj z YouTube, otvorí okno pre odloženú pozvánku. Správne by to malo byť len pri prvom
-spustení po inštalácii, na čo je odložená pozvánka určená.
-
-### (F) ✅ Iná krajina, mimo EÚ
-
-Databáza je v Írsku (eu-west-1) a appka funguje odkiaľkoľvek, len s trochu dlhšou odozvou. Dáta
-ostávajú v EÚ (GDPR). Problém mimo EÚ nie je krajina, ale nestabilné pripojenie, čiže body (A) a (B).
-
-### (G) ❌ QR kód nesie pôvodné ID zostavy aj figúr
-
-Import z QR ponechá pôvodné ID. Kto naskenuje tvoj QR kód:
-- má kópiu, ktorá sa nikdy neuloží na server (ID už patrí tebe a RLS jeho uloženie odmietne,
-  potichu);
-- **po otvorení plátna sa pripojí do tvojho živého kanála** (`canvas_<ID>`), takže jeho ťahanie
-  figúr sa prejaví u teba a tvoje u neho.
-
-**Oprava:** import cudzej zostavy dostane nové ID. Pôvodné ID ponechať len pri obnove vlastnej
-zostavy.
-
----
-
-## 4. 10 000 ľudí naraz a účet za Supabase
-
-Limity bezplatného plánu pre živé spojenie (oficiálna tabuľka Supabase):
-
-| Limit | Free | Pro |
+| Princíp | Čo znamená | Stav |
 |---|---|---|
-| Súčasné spojenia | **200** | 500 |
-| Správy za sekundu | **100** | 500 |
-| Správy o prítomnosti za sekundu | **20** | 50 |
-| Pripojenia do kanála za sekundu | 100 | 500 |
-
-Ďalšie limity bezplatného plánu podľa cenníkov (pred spustením over v dashboarde): databáza 500 MB,
-úložisko 1 GB, prenos 5 GB, 50 000 aktívnych používateľov mesačne. **Projekt sa uspí po 7 dňoch bez
-aktivity.**
-
-| Situácia | Čo sa stane dnes |
-|---|---|
-| 200 ľudí má naraz otvorené plátno | Každé plátno = 1 spojenie, **aj keď niekto pracuje sám**. Dvestoprvý sa nepripojí a vidí „Offline“. Ukladanie cez REST funguje ďalej. ❌ |
-| 1 človek ťahá figúru | Prítomnosť (kurzor partnera) sa posiela pri **každom** pohybe prsta, 60 až 120-krát za sekundu, aj keď nikto nepočúva. Limit 20 za sekundu pre celý projekt prekročí sám. Supabase potom môže odpájať spojenia. ❌ |
-| 4 ľudia ťahajú naraz | Ťahanie pošle až 25 správ za sekundu na osobu, takže 4 ľudia prekročia 100 za sekundu. ❌ |
-| 10 000 ľudí uloží zostavu za deň | 3 malé požiadavky na jedno uloženie (kB). Databáza ani prenos to zvládnu. ✅ |
-| 10 000 ľudí uloží zostavu **v tú istú minútu** | Asi 30 000 požiadaviek. Malý server bezplatného plánu by spomalil a časť požiadaviek by zlyhala, a tie sa dnes neopakujú, viď (A). ⚠️ |
-| Veľkosť dát | Zostava má pár kB a hlasovky ostávajú v telefóne. 500 MB stačí na tisíce používateľov. ✅ |
-| KSIS | Server ťahá KSIS sám, nie každý telefón, s cache a „naživo“ len v deň súťaže. ✅ |
-
-**Oprava (zároveň šetrí batériu):**
-- živý kanál pripojiť len pri zostave zdieľanej s partnerom alebo trénerom;
-- prítomnosť posielať najviac 4-krát za sekundu a len keď je partner pripojený;
-- ťahanie posielať najviac 10-krát za sekundu a len s partnerom v kanáli;
-- neúspešné odoslanie opakovať s narastajúcim odstupom (1 s, 5 s, 30 s…), nie hneď všetci naraz.
+| **KISS** | Najjednoduchšie riešenie, ktoré funguje | ✅ Telefón hlavný, server záloha; jeden záznamník namiesto zložitého zlučovania |
+| **YAGNI** | Nestavať nič „na neskôr“ | 🛠 Zmazaných 14 nevolaných analytických funkcií, `SyncStatus`, mŕtvy dizajnový systém (ukážka, tlačidlá, karty), falošné voľby pri ukladaní videa |
+| **DRY** | Každé pravidlo na jednom mieste | 🛠 Jedna kontrola „majiteľ alebo partner“ pre kanál aj mazanie, jedna kópia hlasovky, jedno mazanie videa, jeden štýl oznámení, jeden krokovač |
+| **Local-first** | Zmena nezmizne bez internetu | 🛠 Záznamník a opakovanie |
+| **Idempotencia** | Rovnaké odoslanie viackrát = rovnaký výsledok | 🛠 `upsert` len zmenených figúr, mazanie len podľa zoznamu |
+| **Never trust the client** | Bezpečnosť len na serveri | 🛠 Súkromný kanál, QR ako kópia, predplatné cez StoreKit, limity |
+| **Least privilege** | Každý len to, čo potrebuje | 🛠 Kanál len majiteľ a partner; funkcia na zápis nákupu zatvorená |
 
 ---
 
-## 5. Ako by nás mohli hacknúť (zdieľanie s partnerom)
+## 3. Čo je opravené 22. 10.
 
-| Útok | Stav |
-|---|---|
-| Niekto zoberie verejný anon kľúč z appky a číta cudzie zostavy | ✅ RLS: zostavy vidí len majiteľ, prijatý partner alebo tréner a majiteľ appky |
-| Tréner prepíše figúry žiaka | ✅ Poistka v databáze povolí trénerovi meniť len poznámku trénera (aj takty) |
-| Bývalý partner po odpojení číta zostavy | ✅ RLS po zrušení prepojenia prístup zoberie |
-| Bývalý partner, ktokoľvek s QR kódom alebo hosťujúci tréner po konci kľúča **sa pripojí do živého kanála** a pošle „figúra zmazaná“ | ❌ **Kanál je verejný** (žiadne pravidlá v `realtime`). Appka takú správu berie ako pravdu, zmaže figúru u seba a pri ďalšom odoslaní, viď (B), aj na serveri. Treba súkromný kanál s pravidlami a správy brať len ako signál „obnov zo servera“. |
-| Spam pozvánok, hromadné hľadanie tanečníkov | ⚠️ Chýba rate limiting (je v pláne) |
-| Uhádnutie pozvánky | ✅ Tokeny sú náhodné, krátkodobé a odvolateľné, bez osobných údajov |
-| Prístup k cudzím videám | ✅ Úložisko je súkromné |
-| Ukradnutý účet majiteľa appky | ⚠️ Konzola majiteľa má veľkú moc. Zapni dvojstupňové overenie na Apple ID, Supabase, GitHube a Verceli. |
-
----
-
-## 6. Batéria
-
-| Čo | Stav |
-|---|---|
-| AirPlay hľadá televízor len na plátne | ✅ |
-| Video v poznámkach: vždy len jedno, bez zvuku | ✅ |
-| Žiadne časovače na pozadí (audit Kalendára) | ✅ |
-| Živé spojenie a správy aj pri práci osamote | ❌ viď §4 |
-| Plátno nechá obrazovku stále zapnutú (zámer pre sálu) | ⚠️ Ak ho niekto nechá otvorené v taške, vybije baterku. Návrh: po 10 min bez dotyku dovoliť zhasnutie. |
+| Problém | Následok predtým | Oprava |
+|---|---|---|
+| Zmeny z lietadla | Neodoslali sa a po návrate ich zmazalo stiahnutie zo servera | Záznamník, opakovanie, stiahnutie čaká |
+| Stará kópia partnera | Zmazala figúry, ktoré pridal druhý | Len zmenené figúry, mazanie len podľa zoznamu |
+| Zostava na novom iPhone bez figúr | Premenovanie zmazalo všetky jej figúry na serveri | To isté |
+| Zostava zmazaná offline | Po obnove sa vrátila | Zmazanie čaká v záznamníku |
+| Verejný živý kanál | Bývalý partner alebo ktokoľvek s QR mohol poslať „figúra zmazaná“ | Súkromný kanál (RLS na `realtime.messages`), len majiteľ a partner |
+| QR import | Kópia mala ID originálu, pripojila sa do jeho kanála; podvrhnutý QR mohol prepísať zostavu | Vždy nové ID, kód už ID nenesie, kontrola obsahu |
+| Kurzor partnera | 60 až 120 správ/s aj osamote (limit projektu 20/s) | 4/s a len s partnerom; ťahanie 10/s; bez partnera žiadne spojenie |
+| **Zápis Premium** | Ktokoľvek prihlásený si cez API zapísal Premium zadarmo | Funkcia zatvorená; appka verí StoreKitu a darovaniu majiteľa |
+| Hľadanie „%%“ | Vrátilo všetkých, dal sa vypísať zoznam používateľov | `%` a `_` sú obyčajné znaky; najviac 120 hľadaní za 10 min |
+| Spam | Bez limitov | Žiadosti 30/deň, pozvánky 20/deň, zápisy zostáv 2000/deň a figúr 5000/deň |
+| Partner maže figúru | Server potichu odmietol, figúra sa vrátila | Partner smie mazať (tréner nie) |
+| Hodiny v telefóne | Rozhodovali, čo je novšie | Čas zmeny dáva server; uložené poznámky a videá sa ukazujú v čase SR, v zahraničí s označením „(čas SR)“ |
+| Video z Denníka vo figúre | Zmazanie figúry, jej videa alebo zostavy zmazalo video aj z Denníka | Súbor sa zmaže, len keď ho nič iné nepoužíva |
+| Ukladanie videa | Okno zbieralo rolu, štítky a názov a zahodilo ich; krížik zahodil natočené video bez opýtania | Poctivé okno s náhľadom a orezaním, zahodenie len po potvrdení |
+| Hľadanie tanečníkov | Požiadavka pri každom písmene, stará odpoveď mohla prepísať novú | Čaká na pauzu v písaní, stará odpoveď nevyhrá |
+| Schránka | Každý skopírovaný odkaz otvoril okno pozvánky | Kontrola len raz po inštalácii |
+| Paywall | Bez odpovede App Store ukázal ceny v eurách natvrdo | Ceny len z App Store („…“, kým neodpovie) |
+| Plátno nechané otvorené | Obrazovka nikdy nezhasla | Zhasne po 10 min bez dotyku |
 
 ---
 
-## 7. Checklisty
+## 4. Audit 60 nečakaných situácií
 
-### Dáta a offline
-- [x] Každá zmena sa uloží hneď do iPhonu
-- [x] Prázdna odpoveď servera nezmaže figúry v telefóne
-- [x] Takty prázdne idú ako `null` (vymazané takty sa nevrátia)
-- [ ] Neodoslaná zmena sa pamätá aj po zatvorení appky a opakuje sa (A)
-- [ ] Stiahnutie neprepíše neodoslané zmeny (A)
-- [ ] Stará kópia nemôže zmazať figúry partnera (B)
-- [ ] Partnerovo mazanie: rozhodnúť a dorobiť (C)
-- [ ] Čas zmeny určuje server, nie telefón (D)
-- [ ] Import z QR dostane nové ID (G)
+### A. Sieť a synchronizácia
+| # | Situácia | Stav |
+|---|---|---|
+| 1 | Režim lietadla počas ukladania | 🛠 čaká v záznamníku, odošle sa pri návrate siete |
+| 2 | Appka zabitá počas 0,7 s čakania | 🛠 zostava je označená hneď, odošle sa pri ďalšom spustení |
+| 3 | Hotelová Wi-Fi s prihlasovacou stránkou (sieť „je“, ale nič neprejde) | 🛠 opakovanie s narastajúcim odstupom, stiahnutie čaká |
+| 4 | Odoslanie prejde napoly (zostava áno, figúry nie) | 🛠 záznamník sa vyčistí až po celom úspechu; opakovanie pošle znova |
+| 5 | Partner offline upraví, druhý medzitým pridá figúru | 🛠 nič sa nestratí |
+| 6 | Obaja offline upravia **tú istú** figúru | ⚠️ vyhrá ten, kto sa pripojí neskôr (pre v1 v poriadku) |
+| 7 | Zostava stiahnutá na nový iPhone, premenovaná pred otvorením | 🛠 figúry na serveri ostanú |
+| 8 | Zostava zmazaná offline | 🛠 neobjaví sa znova |
+| 9 | Zle nastavené hodiny alebo pásmo v telefóne | 🛠 čas zmeny dáva server |
+| 10 | Odhlásenie s neodoslanými zmenami | 🛠 čakajú na prihlásenie toho istého účtu |
+| 11 | Iný účet na tom istom iPhone | ✅ dáta aj záznamník sa vymažú, nič sa neodošle pod cudzím účtom |
+| 12 | 10 000 iPhonov sa naraz vráti online | 🛠 náhodne posunuté opakovanie |
+| 13 | Údržba alebo výpadok Supabase | ✅ obrazovka údržby, práca offline, zmeny čakajú |
+| 14 | Bezplatný projekt Supabase sa po 7 dňoch nečinnosti uspí | ⚠️ pred spustením: Pro plán alebo pravidelná aktivita (úloha pre teba) |
+| 15 | Server odmietne zápis (limit) | ✅ limity sú pre bežné tancovanie ďaleko; zápis sa skúsi neskôr |
 
-### Náklady (účet)
-- [x] KSIS ťahá server s cache, „naživo“ len v deň súťaže
-- [x] Konfigurácia najviac raz za interval
-- [x] Zoznam zostáv len pri potiahnutí nadol
-- [x] Hlasovky sa neposielajú na server
-- [ ] Živý kanál len pri zdieľanej zostave (§4)
-- [ ] Prítomnosť a ťahanie obmedzené a len s partnerom (§4)
-- [ ] Opakovanie s narastajúcim odstupom (§4)
+### B. Partner a živé spojenie
+| # | Situácia | Stav |
+|---|---|---|
+| 16 | Bývalý partner sa pripojí do kanála | 🛠 súkromný kanál ho nepustí |
+| 17 | Kópia z QR sa pripojí k originálu | 🛠 nové ID |
+| 18 | Podvrhnutý QR prepíše tvoju zostavu | 🛠 import je vždy kópia |
+| 19 | QR s nezmyselnými súradnicami alebo obrovskými textami | 🛠 kontrola a orezanie |
+| 20 | QR prezradí tvoje osobné poznámky k figúram | ❓ dnes kód nesie aj poznámky; rozhodni, či ich má niesť |
+| 21 | Partner zmaže figúru | 🛠 povolené |
+| 22 | Tréner chce meniť figúry | ✅ poistka v databáze to nedovolí |
+| 23 | Partner zablokovaný počas spoločnej práce | 🔍 over: po zablokovaní má prísť o prístup okamžite |
+| 24 | Partner zruší účet | ✅ jeho dáta sa vymažú, prístup zanikne |
+| 25 | Obaja ťahajú tú istú figúru | ✅ figúru, ktorú ťahá partner, ukazuje zámok |
+| 26 | Práca osamote | 🛠 žiadne spojenie, žiadne správy |
 
-### Bezpečnosť
-- [x] RLS na všetkých 22 tabuľkách
-- [x] Service-role kľúč len v Edge Functions, žiadne tajomstvá v gite
-- [x] Blokovanie, poistka trénera, súkromné úložisko
-- [ ] Súkromný živý kanál s pravidlami (§5)
-- [ ] Správy kanála len ako signál, nie pravda (§5)
-- [ ] Rate limiting (pozvánky, hľadanie)
-- [ ] Dvojstupňové overenie na všetkých účtoch (úloha pre teba)
+### C. Médiá
+| # | Situácia | Stav |
+|---|---|---|
+| 27 | Video zmazané z Fotiek | ✅ „Video bolo zmazané z Fotiek.“ |
+| 28 | Zakázaný prístup k Fotkám | ✅ výzva do Nastavení; kamera uloží video do appky |
+| 29 | Video len v iCloude (optimalizované úložisko) a offline | 🔍 over, či sa ukáže zrozumiteľná hláška |
+| 30 | Plný disk počas nahrávania | 🔍 over na iPhone s takmer plným úložiskom |
+| 31 | Hovor počas nahrávania videa alebo hlasovky | 🔍 over, či sa nahrávka uloží |
+| 32 | Zmazaná figúra s videom z Denníka | 🛠 video ostane v Denníku |
+| 33 | Zmazaná poznámka v Denníku, ktorej hlasovka je vo figúre | ✅ figúra má vlastnú kópiu |
+| 34 | Zatvorenie okna po natočení | 🛠 pýta sa |
+| 35 | Súbor hlasovky chýba (obnova zálohy bez súborov) | 🔍 over, čo ukáže hlasovka |
 
-### Kód (DRY, YAGNI, KISS)
-- [x] Žiadne varovania kompilátora (pripravené na Swift 6)
-- [x] Spoločné tokeny a komponenty namiesto kópií
-- [ ] Zmazať nepoužívané analytické udalosti, `SyncStatus` a `syncRoutineImmediatelyOnBackground`
-- [ ] Rozhodnúť o analytike: buď zapojiť (s App Privacy), alebo zmazať celú kostru
-- [ ] Okno pozvánky zo schránky len pri prvom spustení (E)
+### D. Účet a bezpečnosť
+| # | Situácia | Stav |
+|---|---|---|
+| 36 | Zápis Premium cez API | 🛠 zatvorené |
+| 37 | Vypísanie všetkých používateľov hľadaním | 🛠 |
+| 38 | Spam žiadostí, pozvánok, hľadaní, zápisov | 🛠 limity |
+| 39 | SQL injection | ✅ appka posiela len parametre, v databáze nie je dynamické SQL zo vstupu |
+| 40 | Uhádnutie tokenu pozvánky | ✅ náhodné, krátkodobé, odvolateľné |
+| 41 | Zmazanie účtu | ✅ v appke, so zmazaním karty vo Wallet |
+| 42 | Ukradnutý odomknutý telefón | ✅ voliteľný zámok Face ID pri otvorení |
+| 43 | Vypršané prihlásenie počas ukladania | ✅ SDK ho obnoví, inak sa zápis zopakuje |
+| 44 | Zablokovaný (banned) účet | ✅ oznámenie a RLS `active_account_only` (restrictive na 11 tabuľkách) |
+| 45 | Odkaz z cudzej domény | ✅ appka spracuje len vlastné odkazy |
+| 46 | Ukradnutý účet majiteľa appky | ⚠️ zapni dvojstupňové overenie na Apple ID, Supabase, GitHube a Verceli |
+
+### E. Predplatné
+| # | Situácia | Stav |
+|---|---|---|
+| 47 | Vrátené peniaze (refund) | ✅ StoreKit odobratie berie do úvahy, zmeny prídu cez `Transaction.updates` |
+| 48 | Spustenie offline s Plus | ✅ posledný overený stav z iPhonu |
+| 49 | Plus vyprší a v jednom tanci máš 3 zostavy | 🔍 over: zostavy majú ostať čitateľné, len nová sa nevytvorí |
+| 50 | Iná krajina a mena | 🛠 ceny len z App Store |
+| 51 | Rodinné zdieľanie | ❓ zapnúť alebo nie v App Store Connect |
+
+### F. Čas
+| # | Situácia | Stav |
+|---|---|---|
+| 52 | Poznámka uložená v USA | 🛠 ukáže sa v čase SR, v zahraničí s označením „(čas SR)“ |
+| 53 | Zmena letného času | ✅ test |
+| 54 | Tréning cez polnoc | ✅ Kalendár počíta s časom po polnoci |
+| 55 | Tréning naplánovaný doma, si v USA | ✅ Kalendár ukazuje miestny čas, ako každý kalendár |
+
+### G. Ostatné
+| # | Situácia | Stav |
+|---|---|---|
+| 56 | Skopírovaný odkaz z YouTube | 🛠 okno pozvánky už nevyskočí |
+| 57 | Rýchle písanie pri hľadaní tanečníka | 🛠 jedna požiadavka, správne výsledky |
+| 58 | Plátno nechané otvorené v taške | 🛠 zhasne po 10 min |
+| 59 | Veľké písmo v iPhone | 🛠 poznámky a špendlíky; ⚠️ iné obrazovky majú ešte pevné veľkosti |
+| 60 | VoiceOver | ⚠️ hlavné ovládacie prvky majú popisy, celý audit ešte nebol |
 
 ---
 
-## 8. Navrhované poradie opráv
+## 5. Čo ostáva
 
-1. **Offline a konflikty (A, B, D):** značka „čaká na odoslanie“, opakovanie pred stiahnutím,
-   zoznam zmazaných figúr, čas zo servera. Najdôležitejšie, inak môžu zmiznúť dáta.
-2. **Živý kanál (§4, §5, G):** súkromný kanál s pravidlami, pripojenie len pri zdieľanej zostave,
-   obmedzenie správ, správy ako signál, nové ID pri QR importe. Šetrí účet, batériu aj bezpečnosť
-   naraz.
-3. **Rozhodnutia:** mazanie partnerom (C), analytika.
-4. **Drobnosti:** schránka (E), YAGNI upratanie, zhasnutie obrazovky na plátne.
-5. **Rate limiting** (už v pláne).
+1. **Overenie nákupu podpisom Apple** (Edge Function s podpísanou transakciou), aby server spoľahlivo
+   poznal platiacich. Treba to pred spustením zdieľaných videí a trénerských funkcií.
+2. **Supabase Dashboard → Realtime → Settings: vypnúť „Allow public access“**, aby sa nedali otvárať verejné
+   kanály (úloha pre teba, 1 klik).
+3. Rozhodnutia: poznámky v QR (20), rodinné zdieľanie (51).
+4. Testy na iPhone: 23, 29, 30, 31, 35, 49.
+5. Pred spustením: Supabase Pro alebo pravidelná aktivita (14), dvojstupňové overenie (46).
+6. Dynamic Type a VoiceOver na zvyšných obrazovkách (59, 60).
 
-Body 1 a 2 menia databázu (pravidlá, stĺpce), takže SQL ukážem vopred. Každý krok vyskúšame na
-iPhone podľa testu nižšie.
-
-### Test na iPhone (po oprave 1)
+### Test na iPhone: lietadlo
 1. Otvor zostavu, zapni režim lietadla, pridaj figúru a jednou pohni.
-2. Zatvor appku úplne (potiahni nahor z prepínača appiek).
-3. Vypni režim lietadla a otvor appku a zostavu. Figúra aj posun musia ostať a po chvíli byť aj
-   u partnera.
-4. To isté na dvoch iPhonoch: jeden offline pohne figúrou, druhý online pridá figúru. Po pripojení
-   musia mať oba obe zmeny.
+2. Zatvor appku úplne (potiahni nahor v prepínači appiek).
+3. Vypni režim lietadla a otvor appku a zostavu. Figúra aj posun musia ostať a po chvíli byť aj u partnera.
+4. To isté na dvoch iPhonoch: jeden offline pohne figúrou, druhý online pridá figúru. Po pripojení majú obaja
+   obe zmeny.
 
 ## Zdroje
 - [Supabase: Realtime Limits](https://supabase.com/docs/guides/realtime/limits)
