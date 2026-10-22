@@ -311,9 +311,10 @@ public struct SubscriptionPaywallView: View {
         return subscriptionManager.availableProducts.first { $0.id == id }
     }
 
+    /// Always the App Store's price in the viewer's own currency; until it answers, "…" (a price typed into the app
+    /// would show euros to someone who pays in dollars).
     private func price(for tier: SubscriptionTier, annual: Bool) -> String {
-        product(for: tier, annual: annual)?.displayPrice
-            ?? (annual ? tier.annualPriceFormatted : tier.monthlyPriceFormatted)
+        product(for: tier, annual: annual)?.displayPrice ?? "…"
     }
 
     /// "4,17 €" for the annual price spread over twelve months; nil until the App Store answers.

@@ -40,22 +40,6 @@ public enum SubscriptionTier: String, CaseIterable, Codable, Sendable {
         }
     }
     
-    public var monthlyPriceFormatted: String {
-        switch self {
-        case .free: return "0,00 €"
-        case .plus: return "5,99 €"
-        case .premium: return "14,99 €"
-        }
-    }
-    
-    public var annualPriceFormatted: String {
-        switch self {
-        case .free: return "0,00 €"
-        case .plus: return "49,99 €"
-        case .premium: return "129,99 €"
-        }
-    }
-    
     public var badgeColor: Color {
         switch self {
         case .free: return Color.gray
