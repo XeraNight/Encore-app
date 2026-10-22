@@ -36,4 +36,5 @@ extension Logger {
 
     /// General / uncategorised — use sparingly.
     nonisolated static let general  = Logger(subsystem: subsystem, category: "general")
+    nonisolated static let analytics = Logger(subsystem: subsystem, category: "analytics")
 }

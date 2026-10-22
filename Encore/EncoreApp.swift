@@ -58,9 +58,6 @@ struct EncoreApp: App {
         Task.detached(priority: .background) {
             await EncoreApp.seedIfNeeded(container: containerRef)
         }
-
-        // Analytics setup (PostHog – see AnalyticsManager.swift for setup instructions)
-        AnalyticsManager.shared.setup()
     }
 
     var body: some Scene {

@@ -7,51 +7,34 @@ import OSLog
 // All event calls go through here so switching providers in the future
 // requires editing only this file.
 //
-// Setup: Add PostHog Swift SDK via Swift Package Manager in Xcode:
-//   File > Add Package Dependencies > https://github.com/PostHog/posthog-ios
-// Then uncomment the import and the PostHog calls below.
-//
-// POSTHOG_API_KEY: Create a free project at https://posthog.com/
-// Set the key in Info.plist as POSTHOG_API_KEY or hardcode it here (anon key is safe to ship).
+// No provider is connected yet: events only go to the debug log (category "analytics").
+// To connect PostHog: add the posthog-ios package (ask first, no new packages without approval),
+// set it up once in EncoreApp.init with the EU host (https://eu.posthog.com), key POSTHOG_API_KEY
+// in Info.plist, and send the calls below to PostHogSDK.shared. Update App Privacy in App Store Connect.
 
 final class AnalyticsManager {
     static let shared = AnalyticsManager()
-    private let logger = Logger(subsystem: "com.jakub.encore", category: "Analytics")
+    private let logger = Logger.analytics
 
     private init() {}
 
-    // MARK: - Setup (called once from EncoreApp.init)
-    func setup() {
-        // Uncomment after adding PostHog SPM package:
-        //
-        // let config = PostHogConfig(
-        //     apiKey: Bundle.main.object(forInfoDictionaryKey: "POSTHOG_API_KEY") as? String ?? "",
-        //     host: "https://eu.posthog.com"  // EU server for GDPR
-        // )
-        // config.captureApplicationLifecycleEvents = true
-        // config.capturePushNotifications = false
-        // PostHogSDK.shared.setup(config)
-        //
-        logger.debug("[Analytics] Setup called (PostHog stub)")
-    }
-
     // MARK: - Generic Event
     func capture(_ event: String, properties: [String: Any] = [:]) {
-        logger.debug("[Analytics] Event: \(event, privacy: .public) props: \(properties.description, privacy: .public)")
+        logger.debug("Event: \(event, privacy: .public) props: \(properties.description, privacy: .public)")
         // Uncomment after adding PostHog:
         // PostHogSDK.shared.capture(event, properties: properties)
     }
 
     // MARK: - Identity (call after login to associate events with a user)
     func identify(userId: String, email: String?) {
-        logger.debug("[Analytics] Identify: \(userId, privacy: .private)")
+        logger.debug("Identify: \(userId, privacy: .private)")
         // PostHogSDK.shared.identify(userId, userProperties: ["email": email ?? ""])
     }
 
     // MARK: - Reset (call on sign out)
     func reset() {
         // PostHogSDK.shared.reset()
-        logger.debug("[Analytics] Reset")
+        logger.debug("Reset")
     }
 }
 
