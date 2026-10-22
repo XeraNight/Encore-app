@@ -175,7 +175,15 @@ final class FriendManager: ObservableObject {
     }
     
     // MARK: - Deferred Deep Link Pasteboard Inspection
+    private static let pasteboardCheckedKey = "encore.deferredInvitePasteboardChecked"
+
+    /// An invite opened on the web before the app was installed leaves its link in the pasteboard; the app
+    /// offers it once, the first time a signed-in user opens it. Later every copied link (YouTube, a website)
+    /// would bring the sheet up again on each return to the app.
     func checkPasteboardForDeferredInvite() {
+        let defaults = UserDefaults.standard
+        guard AuthManager.shared.isAuthenticated, !defaults.bool(forKey: Self.pasteboardCheckedKey) else { return }
+        defaults.set(true, forKey: Self.pasteboardCheckedKey)
         if UIPasteboard.general.hasURLs {
             self.showDeferredInvitePrompt = true
         }
