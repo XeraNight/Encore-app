@@ -53,7 +53,8 @@ struct HomeCaptureWorkspace: View {
         .fullScreenCover(isPresented: $isCameraPresented) {
             DanceCameraView(savesToPhotos: true) { localPath in
                 capturedVideoPath = localPath
-                save(InstantNote(text: "Tréningové video", videoPath: localPath, danceName: selectedDance))
+                // No text: Denník names a clip "Tréningové video" itself, and a stored label landed in figure notes.
+                save(InstantNote(videoPath: localPath, danceName: selectedDance))
                 isCameraPresented = false
             }
             .ignoresSafeArea()

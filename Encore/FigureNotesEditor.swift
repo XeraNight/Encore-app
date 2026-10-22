@@ -612,7 +612,7 @@ private struct AttachmentVideoBlock: View {
                 CustomAVPlayerRepresentable(player: player, gravity: .resizeAspectFill)
                     .transition(.opacity)
             } else {
-                MediaThumbnailView(path: ref.path, cornerRadius: 0)
+                MediaThumbnailView(path: ref.path, cornerRadius: 0, showsFormatBadge: false)
                 if video.missingPath == ref.path {
                     Label("Video sa nenašlo", systemImage: "video.slash.fill")
                         .font(.caption.weight(.semibold))
