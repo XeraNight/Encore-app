@@ -3,7 +3,8 @@ import SwiftData
 import CoreImage.CIFilterBuiltins
 
 struct QRSharePayload: Codable {
-    let id: String? // routine ID (optional for backward compatibility)
+    /// Older codes carried the routine's ID; it is read but never used (an import is always a new copy).
+    let id: String?
     let n: String // name
     let d: String // danceName
     let c: String // danceCategory
@@ -11,7 +12,8 @@ struct QRSharePayload: Codable {
 }
 
 struct QRShareNode: Codable {
-    let id: String? // node ID (optional for backward compatibility)
+    /// Older codes carried the figure's ID; ignored like the routine's.
+    let id: String?
     let x: Double
     let y: Double
     let f: String // figureName
@@ -35,8 +37,9 @@ enum RoutineShareImportError: LocalizedError {
 }
 
 enum RoutineShareImporter {
-    /// Creates the routine (or updates it when the same routine was imported before) and returns its name.
-    @MainActor
+    /// Creates a new copy of the routine and returns its name. Always new IDs: a code from someone else must
+    /// never overwrite one of your routines, and a copy must not share the original's live channel. The content
+    /// is checked like anything from outside: short texts, figures on the floor.
     static func importRoutine(fromCode rawCode: String, into context: ModelContext) throws -> String {
         let trimmed = rawCode.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let data = trimmed.data(using: .utf8),
@@ -44,40 +47,24 @@ enum RoutineShareImporter {
             throw RoutineShareImportError.unreadable
         }
         guard payload.nodes.count <= 200 else { throw RoutineShareImportError.tooManyFigures }
-        guard payload.n.count <= 120, payload.d.count <= 80 else { throw RoutineShareImportError.invalidContent }
-
-        let routineId = payload.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-        let existing = try? context.fetch(FetchDescriptor<Routine>(predicate: #Predicate { $0.id == routineId })).first
-        let routine: Routine
-        if let existing {
-            routine = existing
-            routine.name = payload.n
-            routine.danceName = payload.d
-            routine.danceCategory = payload.c
-            routine.updatedAt = Date()
-        } else {
-            routine = Routine(id: routineId, name: payload.n, danceName: payload.d, danceCategory: payload.c)
-            context.insert(routine)
+        let name = payload.n.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, name.count <= 120, payload.d.count <= 80, payload.c.count <= 40 else {
+            throw RoutineShareImportError.invalidContent
         }
 
-        for raw in payload.nodes {
-            let nodeId = raw.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-            if let node = routine.canvasNodes.first(where: { $0.id == nodeId }) {
-                node.x = raw.x
-                node.y = raw.y
-                node.figureName = raw.f
-                node.rhythm = raw.r ?? ""
-                node.notes = raw.n ?? ""
-                node.orderIndex = raw.o
-                node.transitionNotes = raw.t ?? ""
-            } else {
-                let node = CanvasNode(
-                    id: nodeId, x: raw.x, y: raw.y, figureName: raw.f, rhythm: raw.r ?? "",
-                    notes: raw.n ?? "", orderIndex: raw.o, transitionNotes: raw.t ?? ""
-                )
-                node.routine = routine
-                context.insert(node)
-            }
+        let routine = Routine(id: UUID(), name: name, danceName: payload.d, danceCategory: payload.c)
+        context.insert(routine)
+        let floor = BallroomFloorConfig.safeCardBounds(cardWidth: 40, cardHeight: 40, wallMargin: 8)
+        for (index, raw) in payload.nodes.enumerated() {
+            let x = raw.x.isFinite ? min(max(raw.x, floor.minX), floor.maxX) : BallroomFloorConfig.centerPoint.x
+            let y = raw.y.isFinite ? min(max(raw.y, floor.minY), floor.maxY) : BallroomFloorConfig.centerPoint.y
+            let node = CanvasNode(
+                id: UUID(), x: x, y: y, figureName: String(raw.f.prefix(80)), rhythm: String((raw.r ?? "").prefix(80)),
+                notes: String((raw.n ?? "").prefix(5000)), orderIndex: (0...200).contains(raw.o) ? raw.o : index,
+                transitionNotes: String((raw.t ?? "").prefix(500))
+            )
+            node.routine = routine
+            context.insert(node)
         }
 
         do {
@@ -86,7 +73,7 @@ enum RoutineShareImporter {
             throw RoutineShareImportError.unreadable
         }
         SupabaseSyncManager.shared.syncRoutineOnBackground(routine)
-        return payload.n
+        return name
     }
 }
 
@@ -94,7 +81,7 @@ struct QRGenerator {
     static func generatePayload(from routine: Routine) -> String? {
         let shareNodes = routine.canvasNodes.map { node in
             QRShareNode(
-                id: node.id.uuidString,
+                id: nil,
                 x: node.x,
                 y: node.y,
                 f: node.figureName,
@@ -105,7 +92,7 @@ struct QRGenerator {
             )
         }
         let payload = QRSharePayload(
-            id: routine.id.uuidString,
+            id: nil,   // a code carries no IDs: whoever scans it gets a copy, not a way into this routine
             n: routine.name,
             d: routine.danceName,
             c: routine.danceCategory,
