@@ -517,7 +517,7 @@ private struct JournalNoteCard: View {
 
     private var header: some View {
         HStack(spacing: 8) {
-            Text(note.createdAt, format: showsDate ? .dateTime.day().month(.abbreviated).hour().minute() : .dateTime.hour().minute())
+            Text(showsDate ? EncoreTime.dayAndClock(note.createdAt) : EncoreTime.clock(note.createdAt))
                 .font(.caption.weight(.medium))
                 .monospacedDigit()
                 .foregroundColor(Color.textSecondary)

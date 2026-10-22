@@ -237,7 +237,7 @@ struct NoteDetailSheet: View {
                 .frame(width: 34, height: 34)
                 .background(Color.white.opacity(0.08), in: Circle())
                 .accessibilityHidden(true)
-            Text(note.createdAt, format: .dateTime.weekday(.wide).day().month(.wide).hour().minute())
+            Text(EncoreTime.longDayAndClock(note.createdAt))
                 .font(.footnote.weight(.medium))
                 .foregroundColor(Color.white.opacity(0.75))
             Spacer(minLength: 8)

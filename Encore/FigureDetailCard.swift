@@ -1417,7 +1417,7 @@ struct InstantNotesInboxSection: View {
 
     private func noteCard(_ note: InstantNote) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(note.createdAt, format: .dateTime.day().month(.abbreviated).hour().minute())
+            Text(EncoreTime.dayAndClock(note.createdAt))
                 .font(.caption)
                 .foregroundColor(Color.textSecondary)
 

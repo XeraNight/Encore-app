@@ -67,7 +67,7 @@ struct JournalInsertSheet: View {
     private func row(_ note: InstantNote) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                Text(note.createdAt, format: .dateTime.hour().minute())
+                Text(EncoreTime.clock(note.createdAt))
                     .font(.caption.weight(.medium))
                     .monospacedDigit()
                     .foregroundColor(Color.textSecondary)

@@ -356,7 +356,7 @@ struct VideoVaultView: View {
                         .font(.footnote.weight(.bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    Text(entry.createdAt, format: .dateTime.day().month(.abbreviated).hour().minute())
+                    Text(EncoreTime.dayAndClock(entry.createdAt))
                         .font(.caption2)
                         .foregroundColor(Color.textSecondary)
                 }

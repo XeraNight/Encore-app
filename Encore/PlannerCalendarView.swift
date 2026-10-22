@@ -594,7 +594,7 @@ struct PlannerCalendarView: View {
                                     .lineLimit(4)
                             }
                             Spacer(minLength: 8)
-                            Text(note.createdAt.formatted(date: .omitted, time: .shortened))
+                            Text(EncoreTime.clock(note.createdAt))
                                 .font(.caption2.weight(.medium))
                                 .foregroundColor(Color.textSecondary)
                         }
