@@ -76,7 +76,6 @@ struct FigureNotesEditor: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             guard textView.isFirstResponder else { return }
-            parent.controller.hasCaret = true
             reveal(textView)
         }
 
@@ -84,10 +83,7 @@ struct FigureNotesEditor: UIViewRepresentable {
         /// once the new height has been laid out.
         private func reveal(_ textView: UITextView) {
             DispatchQueue.main.async {
-                guard let end = textView.selectedTextRange?.end else { return }
-                var ancestor = textView.superview
-                while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
-                guard let page = ancestor as? UIScrollView else { return }
+                guard let end = textView.selectedTextRange?.end, let page = textView.enclosingScrollView else { return }
                 let caret = textView.caretRect(for: end).insetBy(dx: 0, dy: -28)
                 page.scrollRectToVisible(textView.convert(caret, to: page), animated: true)
             }
@@ -199,8 +195,6 @@ final class NoteEditorController: ObservableObject {
     /// Every recording made or placed here (the figure's own copies), so the ones deleted from the text can be
     /// removed from the phone.
     private(set) var recordedFiles: Set<String> = []
-    /// The dancer has put the cursor somewhere; otherwise text from Denník goes at the end.
-    fileprivate(set) var hasCaret = false
 
     private let recorder = VoiceNoteRecorder()
     private weak var textView: NotesTextView?
@@ -268,21 +262,34 @@ final class NoteEditorController: ObservableObject {
     }
 
     // MARK: From Denník
-    /// Text from Denník where the cursor is (at the end on its own line when it never was in the text). It
-    /// lights up gold for a moment, so it is clear where it landed.
-    func insertText(_ text: String) {
+    /// Text from Denník where it was dropped, in the plain note style, with a space where it would stick to a
+    /// word. It lights up gold for a moment, so it is clear where it landed.
+    func insertText(_ text: String, at index: Int) {
         guard let textView, !text.isEmpty else { return }
         let storage = textView.textStorage
-        let selection = textView.selectedRange
-        let location = hasCaret ? min(selection.location + selection.length, storage.length) : storage.length
-        var string = text
-        if !hasCaret, storage.length > 0, !storage.string.hasSuffix("\n") { string = "\n" + string }
-        storage.insert(NSAttributedString(string: string, attributes: textView.typingAttributes), at: location)
-        let inserted = NSRange(location: location, length: (string as NSString).length)
+        let location = min(max(0, index), storage.length)
+        let string = storage.string as NSString
+        var piece = text
+        if location > 0, !Self.isSpace(string.character(at: location - 1)) { piece = " " + piece }
+        if location < string.length, !Self.isSpace(string.character(at: location)) { piece += " " }
+        storage.insert(NSAttributedString(string: piece, attributes: NoteTextBridge.uikit(AttributeContainer())), at: location)
+        let inserted = NSRange(location: location, length: (piece as NSString).length)
         textView.selectedRange = NSRange(location: inserted.upperBound, length: 0)
         textView.setNeedsLayout()
         flash(inserted)
         edited()
+    }
+
+    private static func isSpace(_ character: unichar) -> Bool {
+        UnicodeScalar(character).map { CharacterSet.whitespacesAndNewlines.contains($0) } ?? false
+    }
+
+    /// Scrolls the page under the notes by this much, within its ends (something is dragged near an edge).
+    func scrollPage(by delta: CGFloat) {
+        guard let page = textView?.enclosingScrollView else { return }
+        let top = -page.adjustedContentInset.top
+        let bottom = max(top, page.contentSize.height - page.bounds.height + page.adjustedContentInset.bottom)
+        page.contentOffset.y = min(max(page.contentOffset.y + delta, top), bottom)
     }
 
     /// Where a voice note dropped at this point (window coordinates) would go, and the cursor line there.
@@ -295,16 +302,13 @@ final class NoteEditorController: ObservableObject {
         return (index, textView.convert(textView.caretRect(for: position), to: nil))
     }
 
-    /// A voice note from Denník (the figure's own copy of the recording), with the note's text after it.
-    func insertVoice(_ ref: VoiceNoteRef, followedBy text: String?, at index: Int) {
+    /// A voice note from Denník (the figure's own copy of the recording), on its own.
+    func insertVoice(_ ref: VoiceNoteRef, at index: Int) {
         guard let textView else { return }
         let storage = textView.textStorage
         let location = min(max(0, index), storage.length)
-        let piece = NSMutableAttributedString(attachment: VoiceTextAttachment(
+        let piece = NSAttributedString(attachment: VoiceTextAttachment(
             token: VoiceTokenModel(ref: ref), player: player, onStopRecording: {}))
-        if let text, !text.isEmpty {
-            piece.append(NSAttributedString(string: " " + text, attributes: textView.typingAttributes))
-        }
         storage.insert(piece, at: location)
         recordedFiles.insert(ref.fileName)
         let inserted = NSRange(location: location, length: piece.length)
@@ -337,27 +341,20 @@ final class NoteEditorController: ObservableObject {
         return afterLastLine ? caret.maxY + 4 : caret.minY - 2
     }
 
-    /// A video from Denník as a block of its own between paragraphs, with the note's text after it.
-    func insertVideo(_ ref: VideoNoteRef, followedBy text: String?, at index: Int) {
+    /// A video from Denník as a block of its own between paragraphs.
+    func insertVideo(_ ref: VideoNoteRef, at index: Int) {
         guard let textView else { return }
         let storage = textView.textStorage
         let location = min(max(0, index), storage.length)
         let string = storage.string as NSString
-        let newline = NSAttributedString(string: "\n", attributes: textView.typingAttributes)
+        let newline = NSAttributedString(string: "\n", attributes: NoteTextBridge.uikit(AttributeContainer()))
         let piece = NSMutableAttributedString()
         if location > 0, string.character(at: location - 1) != 10 { piece.append(newline) }
         piece.append(NSAttributedString(attachment: VideoTextAttachment(ref: ref, controller: self)))
         piece.append(newline)
-        if let text, !text.isEmpty {
-            piece.append(NSAttributedString(string: text, attributes: textView.typingAttributes))
-            if location < storage.length, string.character(at: location) != 10 { piece.append(newline) }
-        }
         storage.insert(piece, at: location)
         textView.selectedRange = NSRange(location: location + piece.length, length: 0)
         textView.setNeedsLayout()
-        if let text, !text.isEmpty {
-            flash(NSRange(location: location + piece.length - (text as NSString).length, length: (text as NSString).length))
-        }
         edited()
     }
 
@@ -713,6 +710,15 @@ final class NoteVideoPlayer: ObservableObject {
         looper = nil
         player = nil
         playingPath = nil
+    }
+}
+
+private extension UIView {
+    /// The page the notes sit on (the text view itself never scrolls).
+    var enclosingScrollView: UIScrollView? {
+        var ancestor = superview
+        while let view = ancestor, !(view is UIScrollView) { ancestor = view.superview }
+        return ancestor as? UIScrollView
     }
 }
 

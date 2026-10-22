@@ -53,13 +53,13 @@ struct FigureDetailCard: View {
     @State private var isDuel = false
     @State private var showModelPicker = false
     @State private var showJournal = false
-    /// A voice note or video from Denník being dragged to its place in the text.
-    @State private var placing: PendingMedia?
+    /// A piece of Denník being dragged to its place in the notes, and the spot it would go to now.
+    @State private var placing: PendingPiece?
+    @State private var placementTarget: Int?
     @State private var notesFrame: CGRect = .zero
 
-    private struct PendingMedia: Equatable {
-        let media: NoteMedia
-        let text: String?
+    private struct PendingPiece: Equatable {
+        let piece: PlacedPiece
         let noteId: UUID
     }
     @State private var showTimeline = false
@@ -130,26 +130,28 @@ struct FigureDetailCard: View {
             }
             .overlay {
                 if let pending = placing {
-                    MediaPlacementOverlay(
-                        media: pending.media,
-                        startPoint: CGPoint(x: notesFrame.midX, y: notesFrame.midY + 36),
-                        controller: noteEditor,
-                        onCancel: cancelPlacement,
-                        onPlace: { index in place(pending, at: index) }
-                    )
-                    .transition(.opacity)
+                    PlacementOverlay(piece: pending.piece, controller: noteEditor, notesFrame: notesFrame,
+                                     target: $placementTarget)
+                        .transition(.opacity)
                 }
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: placing)
             .safeAreaBar(edge: .top) { header }
             .safeAreaBar(edge: .bottom) {
-                if isWriting {
+                if let pending = placing {
+                    // Under the notes, not over them: the page scrolls all the way to their end above it.
+                    PlacementBar(hint: pending.piece.hint, canPlace: placementTarget != nil, onCancel: cancelPlacement) {
+                        if let index = placementTarget { place(pending, at: index) }
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                } else if isWriting {
                     NoteFormatBar(onFormat: { noteEditor.apply($0) }, isRecording: noteEditor.isRecording,
                                   onVoice: { noteEditor.toggleRecording() }) { isWriting = false }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }
             .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: isWriting)
+            .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: placing)
         }
         .preferredColorScheme(.dark)
 
@@ -181,8 +183,10 @@ struct FigureDetailCard: View {
         }
         .onChange(of: isWriting) { _, writing in
             if writing { sweepTrigger += 1 } else { noteEditor.stopRecording(); persistNotes() }
-            onWritingChange?(writing)
+            onWritingChange?(writing || placing != nil)
         }
+        // Placing takes the whole screen like writing: the tab bar goes away.
+        .onChange(of: placing) { onWritingChange?(isWriting || placing != nil) }
         .onChange(of: node.displayVideoPath) { _, newValue in
             videoHeightOverride = nil
             setupPlayer(for: newValue)
@@ -707,51 +711,45 @@ struct FigureDetailCard: View {
     }
 
     // MARK: - From Denník
-    /// Text goes where the cursor is; a voice note (the figure's own copy) or a video is dragged to its place
-    /// first. The video is not copied: Denník keeps it and the text points to it.
-    private func insertFromJournal(_ note: InstantNote) {
-        let text = note.hasText ? note.text : nil
-        if let video = note.videoPath {
-            Task {
+    /// Each kind on its own, dragged to its place first: the text, the voice note (the figure's own copy, so
+    /// deleting it in Denník keeps it here) or the video (not copied: Denník keeps it, the text points to it).
+    private func insertFromJournal(_ note: InstantNote, _ part: JournalPart) {
+        Task {
+            let piece: PlacedPiece
+            switch part {
+            case .text:
+                piece = .text(note.text.trimmingCharacters(in: .whitespacesAndNewlines))
+            case .voice:
+                guard let audio = note.audioPath, let copy = await MediaStorageManager.copyVoiceNote(audio) else { return }
+                piece = .voice(VoiceNoteRef(fileName: copy, duration: note.audioDuration ?? 0))
+            case .video:
+                guard let video = note.videoPath else { return }
                 let portrait = await VideoStill.isPortrait(await MediaResolver.videoURL(path: video)) ?? false
-                // After the sheet has gone, so the notes are visible.
-                try? await Task.sleep(for: .milliseconds(350))
-                placing = PendingMedia(media: .video(VideoNoteRef(path: video, isPortrait: portrait)), text: text, noteId: note.id)
+                piece = .video(VideoNoteRef(path: video, isPortrait: portrait))
             }
-        } else if let audio = note.audioPath {
-            let source = MediaStorageManager.url(for: audio)
-            let name = "voice_\(UUID().uuidString).m4a"
-            let target = MediaStorageManager.url(for: name)
-            let pending = PendingMedia(media: .voice(VoiceNoteRef(fileName: name, duration: note.audioDuration ?? 0)),
-                                       text: text, noteId: note.id)
-            Task {
-                let copied = await Task.detached(priority: .userInitiated) {
-                    (try? FileManager.default.copyItem(at: source, to: target)) != nil
-                }.value
-                guard copied else { return }
-                try? await Task.sleep(for: .milliseconds(350))
-                placing = pending
-            }
-        } else {
-            noteEditor.insertText(note.text.trimmingCharacters(in: .whitespacesAndNewlines))
-            markInFigure(note.id)
+            // After the sheet has gone, so the notes are visible.
+            try? await Task.sleep(for: .milliseconds(350))
+            placing = PendingPiece(piece: piece, noteId: note.id)
         }
     }
 
-    private func place(_ pending: PendingMedia, at index: Int) {
-        switch pending.media {
-        case .voice(let ref): noteEditor.insertVoice(ref, followedBy: pending.text, at: index)
-        case .video(let ref): noteEditor.insertVideo(ref, followedBy: pending.text, at: index)
+    private func place(_ pending: PendingPiece, at index: Int) {
+        switch pending.piece {
+        case .text(let text): noteEditor.insertText(text, at: index)
+        case .voice(let ref): noteEditor.insertVoice(ref, at: index)
+        case .video(let ref): noteEditor.insertVideo(ref, at: index)
         }
         markInFigure(pending.noteId)
         placing = nil
+        placementTarget = nil
         successCount += 1
     }
 
     /// A voice copy was made for this figure; not placed, it goes again.
     private func cancelPlacement() {
-        if case .voice(let ref) = placing?.media { MediaStorageManager.removeFile(named: ref.fileName) }
+        if case .voice(let ref) = placing?.piece { MediaStorageManager.removeFile(named: ref.fileName) }
         placing = nil
+        placementTarget = nil
     }
 
     private func useJournalVideo(_ note: InstantNote, asModel: Bool) {

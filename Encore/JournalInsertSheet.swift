@@ -2,11 +2,14 @@ import SwiftData
 import SwiftUI
 
 // MARK: - From Denník into a figure's notes
-/// Denník from inside a figure (BRAND_GUIDELINES §1A): the small notes, newest first. Text goes where the
-/// cursor is, a voice note or a video is dragged to its place in the text; a video can also become the
+/// What of a Denník note goes into a figure's notes: each kind on its own, never glued together.
+enum JournalPart { case text, voice, video }
+
+/// Denník from inside a figure (BRAND_GUIDELINES §1A): the small notes, newest first. Its text, voice note and
+/// video each have their own button and are dragged to their place in the notes; a video can also become the
 /// figure's video or model.
 struct JournalInsertSheet: View {
-    let onInsert: (InstantNote) -> Void
+    let onInsert: (InstantNote, JournalPart) -> Void
     let onUseVideo: (InstantNote, _ asModel: Bool) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -101,28 +104,38 @@ struct JournalInsertSheet: View {
         .homeCard(cornerRadius: 18)
     }
 
-    @ViewBuilder
+    /// One button per kind the note has; side by side when they fit.
     private func actions(for note: InstantNote) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { actionButtons(for: note) }
+            VStack(alignment: .leading, spacing: 8) { actionButtons(for: note) }
+        }
+    }
+
+    @ViewBuilder
+    private func actionButtons(for note: InstantNote) -> some View {
+        if note.hasText {
+            Button { insert(note, .text) } label: { actionLabel("Vložiť text", icon: "text.quote") }
+                .buttonStyle(.pressable(scale: 0.96))
+        }
+        if note.audioPath != nil {
+            Button { insert(note, .voice) } label: { actionLabel("Vložiť hlasovku", icon: "waveform") }
+                .buttonStyle(.pressable(scale: 0.96))
+        }
         if note.videoPath != nil {
             Menu {
-                Button {
-                    dismiss()
-                    onInsert(note)
-                } label: { Label("Vložiť do poznámok", systemImage: "text.insert") }
+                Button { insert(note, .video) } label: { Label("Vložiť do poznámok", systemImage: "text.insert") }
                 Button { use(note, asModel: false) } label: { Label("Ako moje video", systemImage: "person.fill") }
                 Button { use(note, asModel: true) } label: { Label("Ako vzor", systemImage: "star.fill") }
             } label: {
-                actionLabel("Použiť video vo figúre", icon: "video.fill")
+                actionLabel("Video", icon: "video.fill")
             }
-        } else if note.hasText || note.audioPath != nil {
-            Button {
-                dismiss()
-                onInsert(note)
-            } label: {
-                actionLabel(note.audioPath != nil ? "Vložiť hlasovku do poznámok" : "Vložiť do poznámok", icon: "text.insert")
-            }
-            .buttonStyle(.pressable(scale: 0.96))
         }
+    }
+
+    private func insert(_ note: InstantNote, _ part: JournalPart) {
+        dismiss()
+        onInsert(note, part)
     }
 
     private func use(_ note: InstantNote, asModel: Bool) {
@@ -140,113 +153,192 @@ struct JournalInsertSheet: View {
     }
 }
 
-// MARK: - Placing a voice note or a video in the text
-/// The voice note or video floats over the notes; drag it (or anywhere) and a gold line shows where it goes:
-/// a cursor in the text for a voice note, a line between paragraphs for a video. "Vložiť sem" puts it there.
-struct MediaPlacementOverlay: View {
-    let media: NoteMedia
-    let startPoint: CGPoint
+// MARK: - Placing a piece in the notes
+/// A piece of Denník on its way into a figure's notes.
+enum PlacedPiece: Equatable {
+    case text(String)
+    case voice(VoiceNoteRef)
+    case video(VideoNoteRef)
+
+    var hint: String {
+        switch self {
+        case .text: return "Potiahni text na miesto v poznámkach"
+        case .voice: return "Potiahni hlasovku na miesto v texte"
+        case .video: return "Potiahni video medzi odseky"
+        }
+    }
+}
+
+/// The piece floats over the notes. Drag it and a gold mark shows where it goes: a cursor in the text, or a line
+/// between paragraphs for a video. Only the piece takes touches, so a finger still scrolls the notes under it,
+/// and dragging the piece to the top or bottom edge scrolls on its own: any place in long notes can be reached.
+struct PlacementOverlay: View {
+    let piece: PlacedPiece
     let controller: NoteEditorController
-    let onCancel: () -> Void
-    let onPlace: (Int) -> Void
+    /// The notes on screen (window coordinates); it moves while the page scrolls.
+    let notesFrame: CGRect
+    @Binding var target: Int?
 
-    @State private var point: CGPoint?
-    @State private var target: (index: Int, mark: CGRect)?
+    /// Middle of the floating piece (window coordinates).
+    @State private var center: CGPoint?
+    @State private var dragStart: CGPoint?
+    @State private var mark: CGRect?
+    @State private var visible: CGRect = .zero
+    @State private var previewWidth: CGFloat = 0
+    /// Points per frame the page scrolls while the piece is held near an edge.
+    @State private var edgeSpeed: CGFloat = 0
 
-    private var isVideo: Bool {
-        if case .video = media { return true }
+    private static let edgeZone: CGFloat = 80
+
+    private var isBlock: Bool {
+        if case .video = piece { return true }
         return false
     }
 
-    private var previewSize: CGSize {
-        switch media {
-        case .voice: return InlineVoiceToken.size
-        case .video(let ref): return ref.isPortrait ? CGSize(width: 63, height: 112) : CGSize(width: 144, height: 81)
-        }
-    }
-
-    /// The preview floats this far above the finger, so the finger never hides the spot.
-    private var lift: CGFloat { previewSize.height / 2 + 20 }
-
     var body: some View {
         GeometryReader { geo in
-            let origin = geo.frame(in: .global).origin
-            let current = point ?? startPoint
+            let frame = geo.frame(in: .global)
             ZStack(alignment: .topLeading) {
-                Color.black.opacity(0.3)
-                    .contentShape(Rectangle())
-                    .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global)
-                        .onChanged { value in move(to: value.location) })
-
-                if let mark = target?.mark {
+                if let mark {
                     Capsule()
                         .fill(Color.gold400)
-                        .frame(width: isVideo ? mark.width : 3, height: isVideo ? 3 : mark.height + 8)
+                        .frame(width: isBlock ? mark.width : 3, height: isBlock ? 3 : mark.height + 8)
                         .shadow(color: Color.gold400.opacity(0.6), radius: 6)
-                        .position(x: mark.midX - origin.x, y: mark.midY - origin.y)
-                        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: target?.index)
+                        .position(x: mark.midX - frame.minX, y: mark.midY - frame.minY)
+                        .animation(.spring(response: 0.2, dampingFraction: 0.8), value: target)
+                        .allowsHitTesting(false)
                 }
-
-                preview
-                    .scaleEffect(1.1)
-                    .shadow(color: .black.opacity(0.5), radius: 10, y: 6)
-                    .position(x: current.x - origin.x, y: current.y - origin.y - lift)
-                    .allowsHitTesting(false)
-
-                VStack(spacing: 12) {
-                    Text(isVideo ? "Potiahni video medzi odseky" : "Potiahni hlasovku na miesto v texte")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .background(Color.black.opacity(0.5), in: Capsule())
-                    Spacer()
-                    HStack(spacing: 12) {
-                        Button(action: onCancel) {
-                            Text("Zrušiť")
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity, minHeight: 52)
-                                .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.pressable)
-                        PrimarySheetButton(title: "Vložiť sem", isLoading: false, isEnabled: target != nil) {
-                            if let index = target?.index { onPlace(index) }
-                        }
-                    }
+                if let center {
+                    preview
+                        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { previewWidth = $0 }
+                        .scaleEffect(dragStart == nil ? 1 : 1.08)
+                        .shadow(color: .black.opacity(0.5), radius: 10, y: 6)
+                        .contentShape(Rectangle())
+                        .gesture(drag)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: dragStart == nil)
+                        .position(x: center.x - frame.minX, y: center.y - frame.minY)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .frame(width: geo.size.width, height: geo.size.height)
+            }
+            .onAppear {
+                visible = frame
+                start(in: frame)
+            }
+            .onChange(of: frame) { _, newFrame in visible = newFrame }
+        }
+        // The page scrolled under the piece: the spot under it changed.
+        .onChange(of: notesFrame) { retarget() }
+        .task(id: edgeSpeed) {
+            guard edgeSpeed != 0 else { return }
+            while !Task.isCancelled {
+                controller.scrollPage(by: edgeSpeed)
+                retarget()
+                try? await Task.sleep(for: .milliseconds(16))
             }
         }
-        .ignoresSafeArea(.keyboard)
-        .sensoryFeedback(.selection, trigger: target?.index)
-        .onAppear { move(to: startPoint) }
+        .sensoryFeedback(.selection, trigger: target)
     }
 
     @ViewBuilder
     private var preview: some View {
-        switch media {
+        switch piece {
+        case .text(let text):
+            Label(text, systemImage: "text.quote")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: 220, minHeight: 36)
+                .fixedSize()
+                .background(Color.obsidian900.opacity(0.92), in: Capsule())
+                .overlay(Capsule().stroke(Color.gold400.opacity(0.6), lineWidth: 1))
         case .voice(let ref):
             InlineVoiceToken(ref: ref, player: controller.player)
         case .video(let ref):
-            MediaThumbnailView(path: ref.path, cornerRadius: 12)
-                .frame(width: previewSize.width, height: previewSize.height)
+            MediaThumbnailView(path: ref.path, cornerRadius: 12, showsFormatBadge: false)
+                .frame(width: ref.isPortrait ? 63 : 144, height: ref.isPortrait ? 112 : 81)
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.gold400.opacity(0.6), lineWidth: 1))
         }
     }
 
-    private func move(to location: CGPoint) {
-        point = location
-        // A voice note goes where the token starts, a video to the paragraph edge nearest its middle.
-        switch media {
-        case .voice:
-            target = controller.insertionPoint(nearGlobal: CGPoint(x: location.x - previewSize.width / 2, y: location.y - lift))
-                .map { ($0.index, $0.caret) }
-        case .video:
-            target = controller.blockInsertionPoint(nearGlobal: CGPoint(x: location.x, y: location.y - lift))
-                .map { ($0.index, $0.line) }
+    private var drag: some Gesture {
+        DragGesture(minimumDistance: 0, coordinateSpace: .global)
+            .onChanged { value in
+                if dragStart == nil { dragStart = center }
+                guard let dragStart else { return }
+                let y = min(max(dragStart.y + value.translation.height, visible.minY + 24), visible.maxY - 24)
+                let x = min(max(dragStart.x + value.translation.width, visible.minX + 24), visible.maxX - 24)
+                center = CGPoint(x: x, y: y)
+                retarget()
+                edgeSpeed = speed(at: y)
+            }
+            .onEnded { _ in
+                dragStart = nil
+                edgeSpeed = 0
+            }
+    }
+
+    /// Starts at the top of the notes when they are on screen, otherwise in the middle of what is visible.
+    private func start(in frame: CGRect) {
+        let y = min(max(notesFrame.minY + 60, frame.minY + Self.edgeZone), frame.maxY - Self.edgeZone)
+        center = CGPoint(x: frame.midX, y: y)
+        retarget()
+    }
+
+    /// Faster the deeper into the edge zone, up and down.
+    private func speed(at y: CGFloat) -> CGFloat {
+        if y < visible.minY + Self.edgeZone { return -14 * (1 - (y - visible.minY) / Self.edgeZone) }
+        if y > visible.maxY - Self.edgeZone { return 14 * (1 - (visible.maxY - y) / Self.edgeZone) }
+        return 0
+    }
+
+    /// Text and voice go where the piece starts, a video to the paragraph edge nearest its middle.
+    private func retarget() {
+        guard let center else { return }
+        if isBlock {
+            let point = controller.blockInsertionPoint(nearGlobal: center)
+            target = point?.index
+            mark = point?.line
+        } else {
+            let point = controller.insertionPoint(nearGlobal: CGPoint(x: center.x - previewWidth / 2, y: center.y))
+            target = point?.index
+            mark = point?.caret
         }
+    }
+}
+
+/// Under the notes while a piece is placed: what to do, "Zrušiť" and "Vložiť sem".
+struct PlacementBar: View {
+    let hint: String
+    let canPlace: Bool
+    let onCancel: () -> Void
+    let onPlace: () -> Void
+
+    var body: some View {
+        VStack(spacing: 10) {
+            VStack(spacing: 2) {
+                Text(hint)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(.white)
+                Text("Poznámkami posúvaš prstom, pri okraji sa posunú samé.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+            }
+            .multilineTextAlignment(.center)
+            HStack(spacing: 12) {
+                Button(action: onCancel) {
+                    Text("Zrušiť")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+                PrimarySheetButton(title: "Vložiť sem", isLoading: false, isEnabled: canPlace, action: onPlace)
+            }
+        }
+        .padding(14)
+        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 6)
     }
 }
