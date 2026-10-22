@@ -52,8 +52,9 @@ zverejní **adresu, telefón a e-mail**. Bez vyplnenia nebude appka v EÚ dostup
   virtuálne sídlo ako adresa, samostatné číslo (druhá SIM alebo eSIM) a `support@encore-sk.com`.
 - Príjem od Apple je podnikateľský príjem; daňové riešenie prejdi s účtovníkom (toto nie je právna rada).
 - Rovnaké údaje musia byť v Podmienkach v appke (dnes tam je „Jakub Kalina (fyzická osoba)“).
-- ❌ V Podmienkach stojí, že Encore „sama na KSIS nechodí ani nič neobnovuje na pozadí“. Server však KSIS
-  načítava denne o 5:00 a počas sledovanej súťaže každé 2 minúty. Pred review prepísať.
+- ✅ V Podmienkach stojí, že Encore „sama na KSIS nechodí ani nič neobnovuje na pozadí“, a je to pravda: serverové
+  úlohy volali funkciu, ktorá nikdy nebola nasadená (Cloudflare server nepustí), a 22. 10. boli vypnuté. Text treba
+  zmeniť až s upozorneniami z telefónu (`docs/KSIS_PHONE_ALERTS_PLAN.md`).
 
 **Verdikt:** po stránke kódu áno. Review môže zablokovať len to, čo je v App Store Connect (zmluva, produkty,
 testovací účet, odkazy), a test nákupu cez TestFlight.
