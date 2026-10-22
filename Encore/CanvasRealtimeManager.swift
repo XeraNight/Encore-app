@@ -49,7 +49,12 @@ final class CanvasRealtimeManager {
     private var channel: RealtimeChannelV2?
     private let senderId = UUID()
     private var lastBroadcastAtByNode: [UUID: Date] = [:]
-    private let minimumBroadcastInterval: TimeInterval = 0.04
+    /// Ten drag updates a second look smooth on the partner's screen and stay within the free plan
+    /// (100 messages a second for all users); presence (the partner's cursor) four times a second
+    /// (20 a second for all users).
+    private let minimumBroadcastInterval: TimeInterval = 0.1
+    private let minimumPresenceInterval: TimeInterval = 0.25
+    private var lastPresenceAt: Date?
     private var listenerTasks: [Task<Void, Never>] = []
     private var statusSubscription: RealtimeSubscription?
     private var currentUserName: String = "User"
@@ -288,8 +293,14 @@ final class CanvasRealtimeManager {
     }
 
     // MARK: - Presence Update (volaj pri každom pohybe / drag)
+    /// Someone else has the routine open; with nobody listening nothing is sent.
+    private var hasListeners: Bool { !partnerPresences.isEmpty }
+
     func updatePresence(x: Double, y: Double, userName: String, draggingNodeId: UUID? = nil) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
+        // The end of a drag always goes (it frees the figure for the partner); moves at most 4 times a second.
+        if draggingNodeId != nil, let last = lastPresenceAt, Date().timeIntervalSince(last) < minimumPresenceInterval { return }
+        lastPresenceAt = Date()
         let state = PresenceState(
             userId: senderId.uuidString,
             userName: userName,
@@ -305,7 +316,7 @@ final class CanvasRealtimeManager {
     // MARK: - Broadcast Senders
 
     func broadcastNodeMove(nodeId: UUID, x: Double, y: Double, force: Bool = false) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
         
         if !force {
             let now = Date()
@@ -321,7 +332,7 @@ final class CanvasRealtimeManager {
     }
 
     func broadcastNodeAdded(node: CanvasNode, senderName: String) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
         let message = CanvasActionMessage(action: "added", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
             orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,
@@ -330,7 +341,7 @@ final class CanvasRealtimeManager {
     }
 
     func broadcastNodeDeleted(nodeId: UUID, figureName: String, senderName: String) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
         let message = CanvasActionMessage(action: "deleted", nodeId: nodeId, figureName: figureName,
             x: 0, y: 0, rhythm: "", notes: "", sharedVideoPath: nil, orderIndex: 0, transitionNotes: "",
             senderId: senderId, senderName: senderName)
@@ -338,7 +349,7 @@ final class CanvasRealtimeManager {
     }
 
     func broadcastNodeUpdated(node: CanvasNode, senderName: String) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
         let message = CanvasActionMessage(action: "updated", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
             orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,
@@ -347,7 +358,7 @@ final class CanvasRealtimeManager {
     }
 
     func broadcastTransitionUpdated(node: CanvasNode, senderName: String) {
-        guard let ch = channel, ch.status == .subscribed else { return }
+        guard let ch = channel, ch.status == .subscribed, hasListeners else { return }
         let message = CanvasActionMessage(action: "transition_updated", nodeId: node.id, figureName: node.figureName,
             x: node.x, y: node.y, rhythm: node.rhythm, notes: node.notes, sharedVideoPath: node.sharedVideoPath,
             orderIndex: node.orderIndex, transitionNotes: node.transitionNotes, senderId: senderId, senderName: senderName,

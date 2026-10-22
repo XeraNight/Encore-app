@@ -126,6 +126,10 @@ struct RoutineCanvasView: View {
     @State private var airPlayRoutes = AirPlayRoutes()
     /// Offline for a few seconds, not just the moment of connecting when the canvas opens.
     @State private var isOfflineForAWhile = false
+    /// Someone else can open this routine (a partner or coach); only then the canvas goes live.
+    @State private var isShared = false
+    /// The screen stays on while the canvas is used, and may sleep after 10 minutes without a touch.
+    @State private var lastActivity = Date()
     @State private var isRefreshing = false
     @State private var sketch: [SketchStroke] = []
     @State private var sketchColor: SketchColor = .red
@@ -442,6 +446,7 @@ struct RoutineCanvasView: View {
                     }
 
                     statusPill
+                    screenSleepGuard
 
                     Spacer()
                 }
@@ -616,7 +621,7 @@ struct RoutineCanvasView: View {
             UIApplication.shared.isIdleTimerDisabled = true
             sketch = CanvasSketch(data: routine.sketchData).strokes
             NavDepth.shared.push()   // hide floating dock while canvas is displayed for full screen ballroom view
-            realtimeManager.connect(to: routine.id, userName: userName)
+            connectIfShared()
             startLiveActivity()
             
             // 1. Move Node Realtime Handler
@@ -731,9 +736,7 @@ struct RoutineCanvasView: View {
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
-                if !realtimeManager.isConnected {
-                    realtimeManager.connect(to: routine.id, userName: userName)
-                }
+                if !realtimeManager.isConnected { connectIfShared() }
                 Task {
                     await refreshFromDB(userInitiated: false)
                 }
@@ -811,7 +814,17 @@ struct RoutineCanvasView: View {
 
     /// The live pill is for the moments it matters: the partner is here, the connection is down, a refresh runs.
     private var showsStatusPill: Bool {
-        isRefreshing || isOfflineForAWhile || (realtimeManager.isConnected && !realtimeManager.partnerPresences.isEmpty)
+        isRefreshing || (isShared && isOfflineForAWhile) || (realtimeManager.isConnected && !realtimeManager.partnerPresences.isEmpty)
+    }
+
+    /// Live editing only when someone else can open this routine; alone it would only spend battery and the
+    /// cloud's connection budget (the free plan allows 200 at once for all users).
+    private func connectIfShared() {
+        Task {
+            isShared = await ConnectionManager.shared.hasSharingConnection()
+            guard isShared else { return }
+            realtimeManager.connect(to: routine.id, userName: userName)
+        }
     }
 
     private var statusPill: some View {
@@ -819,9 +832,7 @@ struct RoutineCanvasView: View {
             if showsStatusPill {
                 RealtimeStatusPill(isConnected: realtimeManager.isConnected, isSyncing: isRefreshing,
                                    partnerName: realtimeManager.partnerPresences.values.first?.userName) {
-                    if !realtimeManager.isConnected {
-                        realtimeManager.connect(to: routine.id, userName: userName)
-                    }
+                    if !realtimeManager.isConnected { connectIfShared() }
                     guard !isRefreshing else { return }
                     Task { await refreshFromDB(userInitiated: true) }
                 }
@@ -836,6 +847,24 @@ struct RoutineCanvasView: View {
             guard !Task.isCancelled else { return }
             isOfflineForAWhile = true
         }
+    }
+
+    /// Keeps the screen on while the canvas is used (a hall, hands busy) and lets it sleep after 10 minutes
+    /// without a pan, zoom or drag, so a canvas left open in a bag does not drain the battery.
+    private var screenSleepGuard: some View {
+        Color.clear
+            .frame(width: 0, height: 0)
+            .onChange(of: scale) { lastActivity = Date() }
+            .onChange(of: translation) { lastActivity = Date() }
+            .onChange(of: liveNodePositions) { lastActivity = Date() }
+            .onChange(of: selectedNodeForEdit?.id) { lastActivity = Date() }
+            .task(id: lastActivity) {
+                UIApplication.shared.isIdleTimerDisabled = true
+                try? await Task.sleep(for: .seconds(600))
+                guard !Task.isCancelled else { return }
+                UIApplication.shared.isIdleTimerDisabled = false
+            }
+            .accessibilityHidden(true)
     }
 
     /// AirPlay only when a TV or speaker is in reach.

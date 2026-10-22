@@ -41,6 +41,8 @@ public final class ConnectionManager: ObservableObject {
     }
     
     public func reset() {
+        sharingKnown = nil
+        UserDefaults.standard.removeObject(forKey: Self.sharingKey)
         activePartners = []
         activeStudents = []
         activeCoaches = []
@@ -50,6 +52,33 @@ public final class ConnectionManager: ObservableObject {
         errorMessage = nil
     }
     
+    // MARK: - Is anyone else in my routines?
+    private static let sharingKey = "encore.hasSharingConnection"
+    private var sharingKnown: Bool?
+
+    /// Whether someone else can open my routines or I theirs (an accepted partner, coach or student). Asked at
+    /// most once per session with one tiny count query, then remembered; offline the last answer is used.
+    public func hasSharingConnection() async -> Bool {
+        if let sharingKnown { return sharingKnown }
+        do {
+            let count = try await SupabaseConfig.client
+                .from("connections")
+                .select("id", head: true, count: .exact)
+                .eq("status", value: "accepted")
+                .execute()
+                .count ?? 0
+            rememberSharing(count > 0)
+            return count > 0
+        } catch {
+            return UserDefaults.standard.bool(forKey: Self.sharingKey)
+        }
+    }
+
+    private func rememberSharing(_ shared: Bool) {
+        sharingKnown = shared
+        UserDefaults.standard.set(shared, forKey: Self.sharingKey)
+    }
+
     // MARK: - Fetch All Connections
     public func fetchAllConnections() async {
         guard let myId = AuthManager.shared.currentUser?.id else { return }
@@ -149,6 +178,7 @@ public final class ConnectionManager: ObservableObject {
             self.activePartners = partners
             self.activeStudents = students
             self.activeCoaches = coaches
+            rememberSharing(!(partners.isEmpty && students.isEmpty && coaches.isEmpty))
             self.incomingRequests = incoming
             self.outgoingRequests = outgoing
             
