@@ -13,7 +13,7 @@ struct InlineVoiceToken: View {
     var elapsed: TimeInterval = 0
     var onStopRecording: (() -> Void)? = nil
 
-    static let size = CGSize(width: 136, height: 32)
+    nonisolated static let size = CGSize(width: 136, height: 32)
 
     @State private var levels: [CGFloat] = []
 

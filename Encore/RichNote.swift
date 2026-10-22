@@ -66,7 +66,8 @@ nonisolated enum NoteMedia: Hashable {
 }
 
 extension AttributeDynamicLookup {
-    subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.EncoreNoteAttributes, T>) -> T {
+    // nonisolated: key paths like \.font on attributes are formed everywhere, also off the main actor.
+    nonisolated subscript<T: AttributedStringKey>(dynamicMember keyPath: KeyPath<AttributeScopes.EncoreNoteAttributes, T>) -> T {
         self[T.self]
     }
 }
@@ -80,7 +81,7 @@ extension AttributeDynamicLookup {
 /// Voice notes and videos are kept even then: their markers in the new text get them back.
 enum RichNote {
     /// The object replacement character a voice note or a video occupies in the text.
-    static let attachmentCharacter = "\u{FFFC}"
+    nonisolated static let attachmentCharacter = "\u{FFFC}"
 
     static func plain(_ text: AttributedString) -> String {
         text.runs.reduce(into: "") { result, run in
@@ -110,7 +111,7 @@ enum RichNote {
         text.runs.compactMap(media(of:))
     }
 
-    private static func media(of run: AttributedString.Runs.Run) -> NoteMedia? {
+    nonisolated private static func media(of run: AttributedString.Runs.Run) -> NoteMedia? {
         if let voice = run.voiceNote { return .voice(voice) }
         if let video = run.videoNote { return .video(video) }
         return nil
@@ -156,5 +157,5 @@ enum RichNote {
 enum NoteStyle {
     static let ink = Color.white.opacity(0.95)
     static let sizes: [CGFloat] = [14, 16, 18, 22, 28, 34]
-    static let defaultSize: CGFloat = 18
+    nonisolated static let defaultSize: CGFloat = 18
 }
