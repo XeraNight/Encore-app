@@ -441,7 +441,7 @@ struct DanceCameraView: View {
                     Button {
                         showFullMetronomeSheet = true
                     } label: {
-                        Label("🎛️ Otvoriť BPM Tréner & Zvuky", systemImage: "slider.vertical.3")
+                        Label("Metronóm a zvuky", systemImage: "metronome")
                     }
                 }
                 
@@ -786,7 +786,7 @@ struct DanceCameraView: View {
     private func saveInstantMemoryBookmark() {
         let durationString = formatDuration(camera.recordingDuration)
         let danceName = metronome.selectedPreset != .off ? "\(metronome.selectedPreset.shortCode) Tréning" : "Dance Training Hall 4"
-        let noteText = "📌 Značka [\(durationString)] — \(danceName)"
+        let noteText = "Značka \(durationString) – \(danceName)"
         
         let newNote = InstantNote(text: noteText)
         modelContext.insert(newNote)

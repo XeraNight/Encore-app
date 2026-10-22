@@ -141,7 +141,10 @@ struct DebriefSheet: View {
                                     feeling = (feeling == item) ? nil : item
                                 } label: {
                                     VStack(spacing: 4) {
-                                        Text(item.emoji).font(.title)
+                                        Image(systemName: item.symbol)
+                                            .font(.title2)
+                                            .foregroundStyle(Color.gold400)
+                                            .symbolEffect(.bounce, value: feeling == item)
                                         Text(item.title)
                                             .font(.caption2.weight(.semibold))
                                             .foregroundColor(.white.opacity(0.85))

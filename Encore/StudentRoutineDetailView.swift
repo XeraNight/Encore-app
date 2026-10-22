@@ -336,7 +336,7 @@ struct StudentRoutineDetailView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
                     
-                    TextField("Napíšte poznámku...", text: $editedNotesText, axis: .vertical)
+                    TextField("Napíš poznámku…", text: $editedNotesText, axis: .vertical)
                         .font(.subheadline)
                         .foregroundColor(.white)
                         .lineLimit(4...8)

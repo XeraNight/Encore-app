@@ -43,7 +43,7 @@ struct AccountBannedNoticeView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("Uvedený dôvod:", systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(.amberGold)
+                        .foregroundColor(Color.gold400)
                     
                     Text(reason.isEmpty ? "Porušenie Podmienok používania alebo pravidiel komunity." : reason)
                         .font(.system(size: 14, weight: .regular))

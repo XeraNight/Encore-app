@@ -255,7 +255,7 @@ struct TrainingOccurrenceCard: View {
                     Label("Reflexia uložená", systemImage: "checkmark.seal.fill")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(Color.syncEmerald)
-                    if let feeling = entry?.feeling { Text(feeling.emoji) }
+                    if let feeling = entry?.feeling { Image(systemName: feeling.symbol).foregroundStyle(Color.gold400) }
                     if let outcome = occurrence.goalOutcome {
                         Text(outcome.title)
                             .font(.caption2.weight(.bold))

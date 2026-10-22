@@ -285,7 +285,7 @@ struct TrainingTrendsContent: View {
                     HStack(spacing: 10) {
                         ForEach(TrainingFeeling.allCases) { feeling in
                             VStack(spacing: 2) {
-                                Text(feeling.emoji).font(.title2)
+                                Image(systemName: feeling.symbol).font(.title2).foregroundStyle(Color.gold400)
                                 Text("\(trends.feelings[feeling] ?? 0)")
                                     .font(.system(.subheadline, design: .rounded).weight(.heavy))
                                     .foregroundColor(.white)

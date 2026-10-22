@@ -269,7 +269,7 @@ struct TrainingJournalView: View {
                         .tracking(1.4)
                         .foregroundColor(Color.gold400)
                     if let feeling = entry.feeling {
-                        Text("\(feeling.emoji) \(feeling.title)")
+                        Label(feeling.title, systemImage: feeling.symbol)
                             .font(.caption)
                             .foregroundColor(.white.opacity(0.7))
                     }

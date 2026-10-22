@@ -86,7 +86,7 @@ struct LogoCommandPaletteView: View {
                                             onSelectNewRoutine()
                                         }
                                         
-                                        commandRow(icon: "arrow.left.and.right.square.fill", title: "⚔️ Porovnať tanec", subtitle: "Idol vs. Moje video s analýzou", color: Color.standardBlue) {
+                                        commandRow(icon: "arrow.left.and.right.square.fill", title: "Porovnať videá", subtitle: "Moje video a vzor vedľa seba", color: Color.standardBlue) {
                                             isPresented = false
                                             onSelectCompare()
                                         }

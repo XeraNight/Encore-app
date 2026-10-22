@@ -87,53 +87,58 @@ final class RemoteConfigManager: ObservableObject {
     }
 }
 
+// MARK: - Full-screen notices (BRAND_GUIDELINES §1A)
+/// The app cannot go on as usual: an update is required, or the servers are down for maintenance.
+private struct ServiceNotice<Action: View>: View {
+    let icon: String
+    let title: String
+    let message: String
+    @ViewBuilder var action: Action
+
+    var body: some View {
+        ZStack {
+            EllegancePageBackground()
+            VStack(spacing: 22) {
+                Image(systemName: icon)
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundColor(Color.gold400)
+                    .frame(width: 84, height: 84)
+                    .background(Color.gold500.opacity(0.14), in: Circle())
+                    .overlay(Circle().stroke(Color.gold400.opacity(0.4), lineWidth: 1.5))
+                    .accessibilityHidden(true)
+                VStack(spacing: 10) {
+                    Text(title)
+                        .font(.system(.title2, design: .rounded).weight(.bold))
+                        .foregroundColor(.white)
+                    Text(message)
+                        .font(.body)
+                        .foregroundColor(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                action
+            }
+            .padding(.horizontal, 32)
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
 // MARK: - Force Update Modal Overlay
 struct ForceUpdateView: View {
     let appStoreURL: URL?
-    
+
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                ZStack {
-                    Circle()
-                        .fill(Color.amberGold.opacity(0.18))
-                        .frame(width: 84, height: 84)
-                    Image(systemName: "arrow.down.circle.fill")
-                        .font(.system(size: 42, weight: .bold))
-                        .foregroundColor(Color.amberGold)
+        ServiceNotice(icon: "arrow.down.circle.fill", title: "Dôležitá aktualizácia",
+                      message: "Táto verzia Encore už nefunguje so serverom. Stiahni si najnovšiu z App Store, tvoje dáta ostanú.") {
+            if let url = appStoreURL {
+                Link(destination: url) {
+                    Label("Aktualizovať v App Store", systemImage: "arrow.down.app.fill")
+                        .font(.headline)
+                        .foregroundColor(Color.obsidian900)
+                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .background(Color.gold400, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                
-                VStack(spacing: 10) {
-                    Text("Dôležitá aktualizácia")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Text("Pre bezproblémové používanie a stabilitu tvojich tréningov si prosím stiahni najnovšiu verziu Encore z App Store.")
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 28)
-                }
-                
-                if let url = appStoreURL {
-                    Link(destination: url) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "apple.logo")
-                                .font(.system(size: 16, weight: .bold))
-                            Text("Aktualizovať cez App Store")
-                                .font(.system(size: 16, weight: .black, design: .rounded))
-                        }
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.amberGold)
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .padding(.horizontal, 36)
-                        .shadow(color: Color.amberGold.opacity(0.4), radius: 10, y: 4)
-                    }
-                }
+                .buttonStyle(.pressable)
             }
         }
     }
@@ -143,55 +148,21 @@ struct ForceUpdateView: View {
 struct MaintenanceNoticeView: View {
     let message: String
     let onContinueOffline: () -> Void
-    
+
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.12))
-                        .frame(width: 84, height: 84)
-                    Image(systemName: "wrench.and.screwdriver.fill")
-                        .font(.system(size: 38, weight: .bold))
-                        .foregroundColor(Color.amberGold)
-                }
-                
-                VStack(spacing: 10) {
-                    Text("Plánovaná údržba serverov")
-                        .font(.system(size: 24, weight: .heavy, design: .rounded))
-                        .foregroundColor(.white)
-                    
-                    Text(message)
-                        .font(.system(size: 15, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 28)
-                }
-                
-                Button {
-                    HapticFeedback.light()
-                    onContinueOffline()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "bolt.horizontal.fill")
-                        Text("Pokračovať v offline režime")
-                            .font(.system(size: 15, weight: .bold, design: .rounded))
-                    }
+        ServiceNotice(icon: "wrench.and.screwdriver.fill", title: "Prebieha údržba", message: message) {
+            Button {
+                HapticFeedback.light()
+                onContinueOffline()
+            } label: {
+                Label("Pokračovať bez internetu", systemImage: "icloud.slash")
+                    .font(.headline)
                     .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 15)
-                    .background(Color(white: 0.16))
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
-                    .padding(.horizontal, 36)
-                }
-                .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, minHeight: 52)
+                    .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Color.white.opacity(0.14), lineWidth: 1))
             }
+            .buttonStyle(.pressable)
         }
     }
 }

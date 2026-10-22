@@ -55,11 +55,12 @@ enum TrainingFeeling: String, CaseIterable, Identifiable {
     case great, tired, breakthrough
     var id: String { rawValue }
 
-    var emoji: String {
+    /// SF Symbol for the feeling (no emoji in the interface).
+    var symbol: String {
         switch self {
-        case .great: return "🔥"
-        case .tired: return "⚡"
-        case .breakthrough: return "🎯"
+        case .great: return "flame.fill"
+        case .tired: return "battery.25percent"
+        case .breakthrough: return "scope"
         }
     }
 
