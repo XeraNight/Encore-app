@@ -181,20 +181,6 @@ private actor RoutineSyncDebouncer {
     }
 }
 
-// MARK: - Sync Status (S2-4 — Observable by UI for offline/failure feedback)
-
-enum SyncStatus: Equatable, Sendable {
-    case idle
-    case syncing
-    case success
-    case failed(String)   // associated error description
-
-    var isFailure: Bool {
-        if case .failed = self { return true }
-        return false
-    }
-}
-
 final class SupabaseSyncManager: Sendable {
     static let shared = SupabaseSyncManager()
 
@@ -206,10 +192,6 @@ final class SupabaseSyncManager: Sendable {
 
     nonisolated var isEnabled: Bool { true }
 
-    // MARK: - Sync Status (published for UI consumption)
-    // Updated on @MainActor so SwiftUI views can observe without wrapping.
-    @MainActor static var syncStatus: SyncStatus = .idle
-    
     // MARK: - Database Synchronisation
     
     @SyncActor
@@ -254,62 +236,44 @@ final class SupabaseSyncManager: Sendable {
         }
     }
     
+    /// Uploads what changed in a routine: the routine itself, the figures whose content differs from the last
+    /// upload or download, and the figures deleted on this iPhone. Nothing else on the server is touched, so an
+    /// old copy cannot overwrite a partner's figures or delete ones it never knew (a routine just downloaded to
+    /// a new iPhone has no figures yet). True when the server has it all.
     @SyncActor
-    func syncRoutine(_ routineId: UUID, name: String, danceName: String, category: String, createdAt: Date, updatedAt: Date, lastModifiedBy: String?, nodes: [DBCanvasNodeRow]) async {
-        guard let client else { return }
-        
+    private func push(_ snapshot: RoutineSnapshot, version: Int) async -> Bool {
+        guard let client else { return false }
+        let changed = await SyncLedger.shared.changedRows(snapshot.nodes)
+        let deleted = await SyncLedger.shared.deletedNodes(in: snapshot.id)
         let routineRow = DBRoutineRow(
-            id: routineId,
-            name: name,
-            dance_name: danceName,
-            dance_category: category,
-            created_at: createdAt,
-            updated_at: updatedAt,
-            last_modified_by: lastModifiedBy
+            id: snapshot.id,
+            name: snapshot.name,
+            dance_name: snapshot.danceName,
+            dance_category: snapshot.category,
+            created_at: snapshot.createdAt,
+            updated_at: snapshot.updatedAt,
+            last_modified_by: snapshot.lastModifiedBy
         )
-        
         do {
-            // 1. Upsert Routine (create or update)
-            try await client
-                .from("routines")
-                .upsert(routineRow)
-                .execute()
-            
-            if nodes.isEmpty {
-                // 2a. No nodes – delete everything for this routine
-                try await client
-                    .from("canvas_nodes")
-                    .delete()
-                    .eq("routine_id", value: routineId)
-                    .execute()
-            } else {
-                // 2b. Upsert all nodes – UPDATE existing, INSERT new ones
-                // onConflict: "id" = ak node už existuje, updatuje; inak vytvorí
-                try await client
-                    .from("canvas_nodes")
-                    .upsert(nodes, onConflict: "id")
-                    .execute()
-                
-                // 3. Vymaž osirotené nodes (existujú v DB ale nie lokálne)
-                // Toto nespustí false DELETE eventy pre existujúce figury
-                let ids = nodes.map { $0.id.uuidString.lowercased() }
-                let idsString = ids.joined(separator: ",")
-                try await client
-                    .from("canvas_nodes")
-                    .delete()
-                    .eq("routine_id", value: routineId)
-                    .not("id", operator: .in, value: "(\(idsString))")
+            try await client.from("routines").upsert(routineRow).execute()
+            if !changed.isEmpty {
+                try await client.from("canvas_nodes").upsert(changed, onConflict: "id").execute()
+            }
+            if !deleted.isEmpty {
+                try await client.from("canvas_nodes").delete()
+                    .in("id", values: deleted.map { $0.uuidString.lowercased() })
                     .execute()
             }
-            
-            Logger.sync.info("Synced routine '\(name, privacy: .public)' (\(nodes.count) nodes)")
-            await MainActor.run { SupabaseSyncManager.syncStatus = .success }
+            await SyncLedger.shared.uploaded(routine: snapshot.id, version: version, rows: changed, deletedNodes: deleted)
+            Logger.sync.info("Synced routine '\(snapshot.name, privacy: .public)' (\(changed.count) changed, \(deleted.count) deleted)")
+            return true
         } catch {
-            Logger.sync.error("Failed to sync routine '\(name, privacy: .public)': \(error.localizedDescription, privacy: .public)")
-            await MainActor.run { SupabaseSyncManager.syncStatus = .failed(error.localizedDescription) }
+            Logger.sync.error("Routine upload failed, will retry: \(error.localizedDescription, privacy: .public)")
+            await MainActor.run { PendingSyncRunner.shared.scheduleRetry() }
+            return false
         }
     }
-    
+
     @SyncActor
     func fetchRoutine(_ routineId: UUID) async -> (DBRoutineRow, [DBCanvasNodeRow])? {
         guard let client else { return nil }
@@ -338,18 +302,25 @@ final class SupabaseSyncManager: Sendable {
     }
     
     @SyncActor
-    func deleteRoutine(_ routineId: UUID) async {
-        guard let client else { return }
-        
+    /// Deletes the routine on the server; offline it waits in the ledger and goes when the network is back,
+    /// so a routine deleted on the plane does not come back with the next refresh.
+    @discardableResult
+    func deleteRoutine(_ routineId: UUID) async -> Bool {
+        await SyncLedger.shared.recordDeletion(routine: routineId)
+        guard let client else { return false }
         do {
             try await client
                 .from("routines")
                 .delete()
                 .eq("id", value: routineId)
                 .execute()
+            await SyncLedger.shared.routineDeletedOnServer(routineId)
             Logger.sync.info("Deleted routine \(routineId.uuidString, privacy: .public)")
+            return true
         } catch {
-            Logger.sync.error("Failed to delete routine: \(error.localizedDescription, privacy: .public)")
+            Logger.sync.error("Routine delete failed, will retry: \(error.localizedDescription, privacy: .public)")
+            await MainActor.run { PendingSyncRunner.shared.scheduleRetry() }
+            return false
         }
     }
     
@@ -370,16 +341,19 @@ final class SupabaseSyncManager: Sendable {
         }
     }
     
-    /// Pull-to-refresh: adds routines created elsewhere and updates ones changed elsewhere (newer wins).
+    /// Pull-to-refresh: what waits goes up first, then routines created elsewhere are added and ones changed
+    /// elsewhere updated (newer wins). A routine still waiting here, or deleted here, is left alone.
     @MainActor
     func pullRoutines(into context: ModelContext) async {
+        _ = await sendPending(in: context)
         guard let cloudRoutines = await fetchAllRoutines() else { return }
         let local = (try? context.fetch(FetchDescriptor<Routine>())) ?? []
         let localById = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let deletedHere = Set(await SyncLedger.shared.deletedRoutineIds)
 
-        for row in cloudRoutines {
+        for row in cloudRoutines where !deletedHere.contains(row.id) {
             if let existing = localById[row.id] {
-                guard row.updated_at > existing.updatedAt else { continue }
+                guard row.updated_at > existing.updatedAt, !(await SyncLedger.shared.isPending(row.id)) else { continue }
                 existing.name = row.name
                 existing.danceName = row.dance_name
                 existing.danceCategory = row.dance_category
@@ -417,40 +391,56 @@ final class SupabaseSyncManager: Sendable {
         }
     }
     
-    /// Waits a moment and merges quick edits into one upload.
+    /// A routine changed here: it is marked as waiting at once (kept even if the app is closed), and quick
+    /// edits are merged into one upload a moment later.
     func syncRoutineOnBackground(_ routine: Routine) {
         guard isEnabled else { return }
         let snapshot = RoutineSnapshot(routine)
         Task(priority: .background) {
+            let version = await SyncLedger.shared.markChanged(snapshot.id)
             await self.routineSyncDebouncer.schedule(routineId: snapshot.id) {
-                await self.push(snapshot)
+                _ = await self.push(snapshot, version: version)
             }
         }
     }
 
-    func syncRoutineImmediatelyOnBackground(_ routine: Routine) {
-        guard isEnabled else { return }
-        let snapshot = RoutineSnapshot(routine)
-        Task(priority: .background) { await self.push(snapshot) }
-    }
-
     /// Uploads now and returns when done, for steps that need the routine on the server first
     /// (sharing a figure video checks there that the figure is yours).
-    func syncRoutineNow(_ routine: Routine) async {
-        guard isEnabled else { return }
-        await push(RoutineSnapshot(routine))
+    @discardableResult
+    func syncRoutineNow(_ routine: Routine) async -> Bool {
+        guard isEnabled else { return false }
+        let snapshot = RoutineSnapshot(routine)
+        let version = await SyncLedger.shared.markChanged(snapshot.id)
+        return await push(snapshot, version: version)
     }
 
-    private func push(_ snapshot: RoutineSnapshot) async {
-        await syncRoutine(
-            snapshot.id,
-            name: snapshot.name,
-            danceName: snapshot.danceName,
-            category: snapshot.category,
-            createdAt: snapshot.createdAt,
-            updatedAt: snapshot.updatedAt,
-            lastModifiedBy: snapshot.lastModifiedBy,
-            nodes: snapshot.nodes
-        )
+    /// Before a routine is downloaded: what waits goes up first, so the download cannot overwrite it.
+    /// False when it could not be sent; then the download must wait too.
+    @MainActor
+    func sendIfPending(_ routine: Routine) async -> Bool {
+        guard await SyncLedger.shared.isPending(routine.id) else { return true }
+        let snapshot = RoutineSnapshot(routine)
+        let version = await SyncLedger.shared.version(of: routine.id)
+        return await push(snapshot, version: version)
+    }
+
+    /// Everything that waits: routines deleted or changed while offline. True when all of it went through.
+    @MainActor
+    func sendPending(in context: ModelContext) async -> Bool {
+        // Signed out: nothing can go up now; it waits for the next sign-in of the same account.
+        guard AuthManager.shared.isAuthenticated else { return true }
+        var allSent = true
+        for id in await SyncLedger.shared.deletedRoutineIds {
+            allSent = await deleteRoutine(id) && allSent
+        }
+        for id in await SyncLedger.shared.pendingRoutineIds {
+            let descriptor = FetchDescriptor<Routine>(predicate: #Predicate { $0.id == id })
+            guard let routine = try? context.fetch(descriptor).first else {
+                await SyncLedger.shared.forget(id)
+                continue
+            }
+            allSent = await sendIfPending(routine) && allSent
+        }
+        return allSent
     }
 }

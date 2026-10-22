@@ -25,6 +25,9 @@ enum LocalDataGuard {
         if let stored = defaults.string(forKey: ownerKey), stored != userId.uuidString {
             Logger.auth.notice("[LocalDataGuard] Local data belongs to another account, clearing it.")
             wipeAll()
+            // Nothing the previous account left unsent may go up under this one.
+            Task { await SyncLedger.shared.reset() }
+            ConnectionManager.shared.reset()
         }
         // No stored owner (data from before this feature): adopt it for the current user.
         defaults.set(userId.uuidString, forKey: ownerKey)

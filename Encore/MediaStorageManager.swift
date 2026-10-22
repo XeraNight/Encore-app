@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 import OSLog
+import SwiftData
 
 enum MediaStorageManager {
     nonisolated static var documentsDirectory: URL {
@@ -96,5 +97,23 @@ enum MediaStorageManager {
             let size = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? NSNumber)?.int64Value ?? 0
             return total + size
         }
+    }
+}
+
+extension MediaStorageManager {
+    /// Deletes a video file kept in Encore unless something else still shows it: a Denník note, another
+    /// figure, or a figure's model. A video put into a figure from Denník must not vanish from Denník when
+    /// the figure or its video is deleted. A Fotky link is not a file here. True when the file was deleted.
+    @MainActor
+    @discardableResult
+    static func removeVideoIfUnused(_ path: String?, in context: ModelContext, ignoring nodeId: UUID? = nil) -> Bool {
+        guard let path, !path.isEmpty, !PhotoLibraryVideoStore.isReference(path) else { return false }
+        let target: String? = path
+        let notes = (try? context.fetchCount(FetchDescriptor<InstantNote>(predicate: #Predicate { $0.videoPath == target }))) ?? 1
+        let nodes = (try? context.fetch(FetchDescriptor<CanvasNode>(
+            predicate: #Predicate { $0.videoPath == target || $0.activeTargetVideoPath == target }))) ?? []
+        guard notes == 0, nodes.allSatisfy({ $0.id == nodeId }) else { return false }
+        removeFile(named: path)
+        return true
     }
 }

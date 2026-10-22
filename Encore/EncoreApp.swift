@@ -51,7 +51,11 @@ struct EncoreApp: App {
             }
         }
 
-        MainActor.assumeIsolated { AppContainer.shared = container }
+        MainActor.assumeIsolated {
+            AppContainer.shared = container
+            // Changes made offline go up whenever the network or the app comes back.
+            PendingSyncRunner.shared.start(container: container)
+        }
 
         // Seed on a true background task — never touches the main thread
         let containerRef = container
@@ -234,6 +238,7 @@ struct RootAppView: View {
                 UserProfileStore.shared.refreshForActiveUser()
                 friendManager.checkPendingInviteAfterLogin()
                 friendManager.checkPasteboardForDeferredInvite()
+                PendingSyncRunner.shared.run()
                 Task {
                     await authManager.checkCurrentSession()
                     await remoteConfig.syncConfig()

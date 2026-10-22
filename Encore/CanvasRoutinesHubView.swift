@@ -354,12 +354,12 @@ extension Routine {
     @MainActor
     func deleteEverywhere(in context: ModelContext) {
         let routineId = id
-        for node in canvasNodes {
-            FigureVideoPlayback.shared.stop(nodeId: node.id)
-            MediaStorageManager.removeFile(named: node.videoPath)
-        }
+        let videos = canvasNodes.map { (id: $0.id, path: $0.videoPath) }
+        videos.forEach { FigureVideoPlayback.shared.stop(nodeId: $0.id) }
         context.delete(self)
         try? context.save()
+        // Read before the delete: after it only other figures and Denník count as still using a video.
+        videos.forEach { MediaStorageManager.removeVideoIfUnused($0.path, in: context) }
         Task { await SupabaseSyncManager.shared.deleteRoutine(routineId) }
     }
 }

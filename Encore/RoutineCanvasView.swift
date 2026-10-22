@@ -696,8 +696,9 @@ struct RoutineCanvasView: View {
                 try? modelContext.save()
             }
 
-            // 5. Initial Sync with Supabase Database on connection
+            // 5. Initial Sync with Supabase Database on connection (what waits here goes up first)
             Task {
+                guard await SupabaseSyncManager.shared.sendIfPending(routine) else { return }
                 if let (dbRoutine, dbNodes) = await SupabaseSyncManager.shared.fetchRoutine(routine.id) {
                     // Check if DB version is newer
                     if dbRoutine.updated_at > routine.updatedAt {
@@ -747,7 +748,10 @@ struct RoutineCanvasView: View {
         defer {
             Task { @MainActor in isRefreshing = false }
         }
-        guard let (_, dbNodes) = await SupabaseSyncManager.shared.fetchRoutine(routine.id) else { return }
+        // Changes made here (maybe on a plane) go up first; while they cannot, the download waits, so it never
+        // overwrites them.
+        guard await SupabaseSyncManager.shared.sendIfPending(routine),
+              let (_, dbNodes) = await SupabaseSyncManager.shared.fetchRoutine(routine.id) else { return }
 
         await MainActor.run {
             reconcileNodes(with: dbNodes)
@@ -782,6 +786,8 @@ struct RoutineCanvasView: View {
         }
         routine.canvasNodes = newNodes
         try? modelContext.save()
+        // The server's version is not a change of ours: only later edits here go up.
+        Task { await SyncLedger.shared.downloaded(dbNodes) }
     }
 
     private func scheduleRemoteMoveSave() {
@@ -996,9 +1002,10 @@ struct RoutineCanvasView: View {
         pendingDelete = nil
         guard let node = routine.canvasNodes.first(where: { $0.id == pending.id }) else { return }
 
-        if let videoPath = node.videoPath {
-            MediaStorageManager.removeFile(named: videoPath)
-        }
+        // A video Denník still has stays; the server loses this figure only because it was deleted here.
+        MediaStorageManager.removeVideoIfUnused(node.videoPath, in: modelContext, ignoring: node.id)
+        let routineId = routine.id
+        Task { await SyncLedger.shared.recordDeletion(node: pending.id, in: routineId) }
         modelContext.delete(node)
         // The relationship may still list the deleted figure until the next save.
         let remaining = routine.canvasNodes

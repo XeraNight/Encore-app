@@ -825,9 +825,9 @@ struct FigureDetailCard: View {
             node.replaceSharedVideoPath(nil)
         }
         stopPlayer()
-        MediaStorageManager.removeFile(named: videoPath)   // a Fotky video stays in Fotky
-        // A file kept in Encore is gone now, so its take leaves the timeline too; a Fotky take stays.
-        if !PhotoLibraryVideoStore.isReference(videoPath) {
+        // A file only this figure used is gone now, so its take leaves the timeline too; a Fotky take or a
+        // video Denník still has stays.
+        if MediaStorageManager.removeVideoIfUnused(videoPath, in: modelContext, ignoring: node.id) {
             node.mediaVault.filter { $0.filePath == videoPath }.forEach(modelContext.delete)
         }
         node.videoPath = nil
