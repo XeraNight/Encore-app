@@ -7,7 +7,7 @@ enum JournalPart { case text, voice, video }
 
 /// Denník from inside a figure (BRAND_GUIDELINES §1A): the small notes, newest first. Its text, voice note and
 /// video each have their own button and are dragged to their place in the notes; a video can also become the
-/// figure's video or model.
+/// figure's video or model. A video from Fotky joins Denník and goes to the notes the same way.
 struct JournalInsertSheet: View {
     let onInsert: (InstantNote, JournalPart) -> Void
     let onUseVideo: (InstantNote, _ asModel: Bool) -> Void
@@ -28,27 +28,27 @@ struct JournalInsertSheet: View {
         NavigationStack {
             ZStack {
                 EllegancePageBackground()
-                if notes.isEmpty {
-                    Text("Denník je zatiaľ prázdny. Rýchle poznámky z Domova sa zobrazia tu a odtiaľ ich vložíš do figúry.")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                        .multilineTextAlignment(.center)
-                        .padding(24)
-                        .homeCard(cornerRadius: 20)
-                        .padding(.horizontal, 20)
-                } else {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            ForEach(days, id: \.day) { group in
-                                HomeSectionHeader(title: group.day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)).uppercased(),
-                                                  systemImage: "calendar")
-                                ForEach(group.notes) { row($0) }
-                            }
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        fromFotky
+                        if notes.isEmpty {
+                            Text("Denník je zatiaľ prázdny. Rýchle poznámky z Domova sa zobrazia tu a odtiaľ ich vložíš do figúry.")
+                                .font(.subheadline)
+                                .foregroundColor(.white.opacity(0.7))
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .padding(24)
+                                .homeCard(cornerRadius: 20)
                         }
-                        .padding(.horizontal, 20)
-                        .padding(.top, 8)
-                        .padding(.bottom, 30)
+                        ForEach(days, id: \.day) { group in
+                            HomeSectionHeader(title: group.day.formatted(.dateTime.weekday(.wide).day().month(.abbreviated)).uppercased(),
+                                              systemImage: "calendar")
+                            ForEach(group.notes) { row($0) }
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
+                    .padding(.bottom, 30)
                 }
             }
             .navigationTitle("Z denníka")
@@ -62,6 +62,25 @@ struct JournalInsertSheet: View {
             .onDisappear { player.stop() }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// A video from Fotky goes into Denník and straight to its place in the notes.
+    private var fromFotky: some View {
+        FotkyVideoPicker(onImported: { insert($0, .video) }) { isImporting in
+            HStack(spacing: 8) {
+                if isImporting {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "photo.on.rectangle")
+                    Text("Vložiť video z Fotiek")
+                }
+            }
+            .font(.subheadline.weight(.bold))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity, minHeight: 50)
+            .homeCard(cornerRadius: 16)
+        }
+        .buttonStyle(.pressable(scale: 0.97))
     }
 
     private func row(_ note: InstantNote) -> some View {

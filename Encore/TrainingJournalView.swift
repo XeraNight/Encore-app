@@ -159,7 +159,7 @@ struct TrainingJournalView: View {
             Text("Tvoj tréningový denník")
                 .font(.headline)
                 .foregroundColor(.white)
-            Text("Ťukni na Hlas alebo Text a zapíš, čo si chceš z tréningu zapamätať. Poznámky sa tu zoradia podľa dní.")
+            Text("Ťukni na Hlas alebo Text a zapíš, čo si chceš z tréningu zapamätať, alebo pridaj video z Fotiek. Poznámky sa tu zoradia podľa dní.")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
@@ -328,6 +328,27 @@ struct TrainingJournalView: View {
                 newNoteButton(title: "Hlas", systemImage: "mic.fill", kind: .voice)
                 Rectangle().fill(Color.obsidian900.opacity(0.2)).frame(width: 1, height: 24)
                 newNoteButton(title: "Text", systemImage: "square.and.pencil", kind: .text)
+                Rectangle().fill(Color.obsidian900.opacity(0.2)).frame(width: 1, height: 24)
+                FotkyVideoPicker(danceName: dayNotes.last?.danceName, onImported: { note in
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
+                        selectedDay = calendar.startOfDay(for: note.createdAt)
+                    }
+                    showToast("Video je v denníku")
+                }) { isImporting in
+                    Group {
+                        if isImporting {
+                            ProgressView().tint(Color.obsidian900)
+                        } else {
+                            Label("Fotky", systemImage: "photo.on.rectangle")
+                        }
+                    }
+                    .font(.headline.weight(.bold))
+                    .foregroundColor(Color.obsidian900)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.pressable(scale: 0.94))
+                .accessibilityLabel("Video z Fotiek")
             }
             .frame(height: 52)
             .background(Color.gold400, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
