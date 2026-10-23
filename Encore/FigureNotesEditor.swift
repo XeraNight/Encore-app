@@ -68,6 +68,12 @@ struct FigureNotesEditor: UIViewRepresentable {
             if parent.text != model { parent.text = model }
         }
 
+        /// Return in a bulleted line starts the next bullet, in an empty one it ends the list.
+        func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+            guard text == "\n" else { return true }
+            return !parent.controller.continueBullets(at: range)
+        }
+
         func textViewDidChange(_ textView: UITextView) {
             parent.controller.edited()
             textView.setNeedsLayout()
@@ -259,6 +265,83 @@ final class NoteEditorController: ObservableObject {
         textView.selectedRange = range
         textView.setNeedsLayout()
         edited()
+    }
+
+    // MARK: Bullets
+    /// A bullet is plain text at the start of a line, so it syncs and reads the same everywhere.
+    static let bullet = "• "
+    private static let bulletLength = (bullet as NSString).length
+
+    /// Bullets on for the lines the cursor or the selection is in, or off when they all have one.
+    /// A line that starts with a video block is left alone.
+    func toggleBullets() {
+        guard let textView else { return }
+        let storage = textView.textStorage
+        let text = storage.string as NSString
+        let selection = textView.selectedRange
+        let starts = Self.lineStarts(in: text.paragraphRange(for: selection), of: text)
+            .filter { $0 >= storage.length || !(storage.attribute(.attachment, at: $0, effectiveRange: nil) is VideoTextAttachment) }
+        guard !starts.isEmpty else { return }
+        let removing = starts.allSatisfy { text.substring(from: $0).hasPrefix(Self.bullet) }
+        let changed = removing ? starts : starts.filter { !text.substring(from: $0).hasPrefix(Self.bullet) }
+        let delta = removing ? -Self.bulletLength : Self.bulletLength
+
+        storage.beginEditing()
+        // From the end, so the earlier positions stay valid.
+        for start in changed.reversed() {
+            if removing {
+                storage.deleteCharacters(in: NSRange(location: start, length: Self.bulletLength))
+            } else {
+                let plain = start >= storage.length || storage.attribute(.attachment, at: start, effectiveRange: nil) != nil
+                let attributes = plain ? textView.typingAttributes : storage.attributes(at: start, effectiveRange: nil)
+                storage.insert(NSAttributedString(string: Self.bullet, attributes: attributes), at: start)
+            }
+        }
+        storage.endEditing()
+
+        let before = changed.filter { $0 <= selection.location }.count * delta
+        let inside = changed.filter { $0 > selection.location && $0 < selection.upperBound }.count * delta
+        let firstLine = starts.first ?? 0
+        textView.selectedRange = NSRange(location: max(firstLine, selection.location + before),
+                                         length: max(0, selection.length + inside))
+        textView.setNeedsLayout()
+        edited()
+    }
+
+    /// Handles Return in a bulleted line; false when the line has no bullet and the key types as usual.
+    func continueBullets(at range: NSRange) -> Bool {
+        guard let textView, range.length == 0 else { return false }
+        let storage = textView.textStorage
+        let text = storage.string as NSString
+        let line = text.paragraphRange(for: NSRange(location: range.location, length: 0))
+        guard range.location >= line.location + Self.bulletLength,
+              text.substring(with: line).hasPrefix(Self.bullet) else { return false }
+        let rest = text.substring(with: NSRange(location: line.location + Self.bulletLength,
+                                                length: line.length - Self.bulletLength))
+        if rest.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            storage.deleteCharacters(in: NSRange(location: line.location, length: Self.bulletLength))
+            textView.selectedRange = NSRange(location: line.location, length: 0)
+        } else {
+            let next = NSAttributedString(string: "\n" + Self.bullet, attributes: textView.typingAttributes)
+            storage.insert(next, at: range.location)
+            textView.selectedRange = NSRange(location: range.location + next.length, length: 0)
+        }
+        textView.setNeedsLayout()
+        edited()
+        return true
+    }
+
+    /// Where each line in `range` starts.
+    private static func lineStarts(in range: NSRange, of text: NSString) -> [Int] {
+        var starts: [Int] = []
+        var location = range.location
+        repeat {
+            starts.append(location)
+            let next = text.paragraphRange(for: NSRange(location: location, length: 0)).upperBound
+            guard next > location else { break }
+            location = next
+        } while location < range.upperBound
+        return starts
     }
 
     // MARK: From Denník

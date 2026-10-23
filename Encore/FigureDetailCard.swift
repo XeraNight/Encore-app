@@ -147,7 +147,8 @@ struct FigureDetailCard: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 } else if isWriting {
                     NoteFormatBar(onFormat: { noteEditor.apply($0) }, isRecording: noteEditor.isRecording,
-                                  onVoice: { noteEditor.toggleRecording() }) { isWriting = false }
+                                  onVoice: { noteEditor.toggleRecording() },
+                                  onBullets: { noteEditor.toggleBullets() }) { isWriting = false }
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
             }

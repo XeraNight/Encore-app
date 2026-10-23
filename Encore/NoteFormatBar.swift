@@ -8,6 +8,7 @@ struct NoteFormatBar: View {
     let onFormat: ((inout AttributeContainer) -> Void) -> Void
     let isRecording: Bool
     let onVoice: () -> Void
+    let onBullets: () -> Void
     let onDone: () -> Void
 
     @State private var size: CGFloat = NoteStyle.defaultSize
@@ -40,7 +41,7 @@ struct NoteFormatBar: View {
                 fontMenu
                 colorMenu
                 alignmentButton
-                sizeMenu
+                bulletsButton
                 voiceButton
                 Button(action: onDone) { icon("keyboard.chevron.compact.down") }
                     .buttonStyle(.plain)
@@ -84,6 +85,17 @@ struct NoteFormatBar: View {
             Toggle(isOn: Binding(get: { isBold }, set: { isBold = $0; applyFont() })) {
                 Label("Tučné", systemImage: "bold")
             }
+            Divider()
+            Menu {
+                ForEach(NoteStyle.sizes, id: \.self) { value in
+                    Button {
+                        size = value
+                        applyFont()
+                    } label: {
+                        if size == value { Label("\(Int(value)) pt", systemImage: "checkmark") } else { Text("\(Int(value)) pt") }
+                    }
+                }
+            } label: { Label("Veľkosť", systemImage: "textformat.size") }
         } label: { icon("textformat") }
     }
 
@@ -137,18 +149,12 @@ struct NoteFormatBar: View {
         }
     }
 
-    // MARK: Size
-    private var sizeMenu: some View {
-        Menu {
-            ForEach(NoteStyle.sizes, id: \.self) { value in
-                Button {
-                    size = value
-                    applyFont()
-                } label: {
-                    if size == value { Label("\(Int(value)) pt", systemImage: "checkmark") } else { Text("\(Int(value)) pt") }
-                }
-            }
-        } label: { icon("textformat.size") }
+    // MARK: Bullets
+    /// Bullets on or off for the lines the cursor or the selection is in.
+    private var bulletsButton: some View {
+        Button(action: onBullets) { icon("list.bullet") }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Odrážky")
     }
 
     // MARK: Voice note
