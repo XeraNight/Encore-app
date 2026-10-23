@@ -313,7 +313,7 @@ struct UniversalMediaPickerSheet: View {
         isImporting = true
         Task {
             defer { isImporting = false }
-            if let path = await pickedPath(item) {
+            if let path = await PhotosImport.storedPath(for: item) {
                 onSelectMedia(path)
                 dismiss()
             } else {
@@ -321,9 +321,13 @@ struct UniversalMediaPickerSheet: View {
             }
         }
     }
+}
 
+// MARK: - Picking from Fotky
+/// The path Encore stores for an item picked in Fotky. Used by the media picker and Home's Denník capture.
+enum PhotosImport {
     /// A video stays in Fotky and is referenced; a photo (or a video Encore may not read) is copied.
-    private func pickedPath(_ item: PhotosPickerItem) async -> String? {
+    static func storedPath(for item: PhotosPickerItem) async -> String? {
         let isVideo = item.supportedContentTypes.contains { $0.conforms(to: .movie) }
         if isVideo {
             if let identifier = item.itemIdentifier {

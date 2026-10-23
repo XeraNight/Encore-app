@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import PhotosUI
 
 // MARK: - Capture modes
 enum CaptureInputMode: String, CaseIterable, Identifiable {
@@ -37,6 +38,9 @@ struct HomeCaptureWorkspace: View {
     @State private var showSaved = false
     @State private var sweepTrigger = 0
     @State private var capturedVideoPath: String?
+    @State private var pickedVideo: PhotosPickerItem?
+    @State private var isImporting = false
+    @State private var importFailed = false
     @FocusState private var isTextFocused: Bool
     @Namespace private var modeNamespace
     @ObservedObject private var quickActions = QuickActionRouter.shared
@@ -75,6 +79,12 @@ struct HomeCaptureWorkspace: View {
         }
         .sensoryFeedback(.success, trigger: savedCounter)
         .sensoryFeedback(.selection, trigger: mode)
+        .onChange(of: pickedVideo) { _, item in importVideo(item) }
+        .alert("Video sa nepodarilo pridať", isPresented: $importFailed) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Skús ho vybrať znova.")
+        }
         .onChange(of: quickActions.pending, initial: true) { _, action in
             guard let action, [.video, .voice, .text].contains(action) else { return }
             quickActions.pending = nil
@@ -204,15 +214,18 @@ struct HomeCaptureWorkspace: View {
                     }
                     .transition(.scale(scale: 0.96).combined(with: .opacity))
 
-                Button { isCameraPresented = true } label: {
-                    Label("Natočiť ďalšie", systemImage: "record.circle")
-                        .font(.footnote.weight(.bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(Color.white.opacity(0.12), in: Capsule())
+                HStack(spacing: 10) {
+                    Button { isCameraPresented = true } label: {
+                        Label("Natočiť ďalšie", systemImage: "record.circle")
+                            .font(.footnote.weight(.bold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.white.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.pressable)
+                    fromPhotosButton
                 }
-                .buttonStyle(.pressable)
             } else {
                 Spacer(minLength: 0)
 
@@ -230,7 +243,7 @@ struct HomeCaptureWorkspace: View {
                         Text("Tanečná kamera")
                             .font(.callout.weight(.bold))
                             .foregroundColor(.white)
-                        Text("Video sa uloží do Denníka, k figúre ho dáš neskôr.")
+                        Text("Natoč video alebo ho vyber z Fotiek. Uloží sa do Denníka, k figúre ho dáš neskôr.")
                             .font(.caption)
                             .foregroundColor(Color.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -240,22 +253,45 @@ struct HomeCaptureWorkspace: View {
 
                 Spacer(minLength: 0)
 
-                Button { isCameraPresented = true } label: {
-                    Label("Otvoriť kameru", systemImage: "record.circle")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
-                        .padding(.horizontal, 22)
-                        .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing),
-                            in: Capsule()
-                        )
+                HStack(spacing: 10) {
+                    Button { isCameraPresented = true } label: {
+                        Label("Otvoriť kameru", systemImage: "record.circle")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(Color.obsidian900)
+                            .padding(.horizontal, 22)
+                            .padding(.vertical, 12)
+                            .background(
+                                LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing),
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.pressable)
+                    fromPhotosButton
                 }
-                .buttonStyle(.pressable)
                 .padding(.bottom, 8)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// A video already in Fotky goes to Denník like a recorded one (it stays in Fotky, Encore keeps a link).
+    private var fromPhotosButton: some View {
+        PhotosPicker(selection: $pickedVideo, matching: .videos, photoLibrary: .shared()) {
+            Group {
+                if isImporting {
+                    ProgressView().tint(.white)
+                } else {
+                    Label("Z Fotiek", systemImage: "photo.on.rectangle")
+                }
+            }
+            .font(.footnote.weight(.bold))
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.12), in: Capsule())
+        }
+        .buttonStyle(.pressable)
+        .disabled(isImporting)
     }
 
     // MARK: Mode switch
@@ -303,6 +339,21 @@ struct HomeCaptureWorkspace: View {
         save(InstantNote(text: trimmedDraft, danceName: selectedDance))
         draft = ""
         isTextFocused = false
+    }
+
+    private func importVideo(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        pickedVideo = nil
+        isImporting = true
+        Task {
+            defer { isImporting = false }
+            guard let path = await PhotosImport.storedPath(for: item) else {
+                importFailed = true
+                return
+            }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { capturedVideoPath = path }
+            save(InstantNote(videoPath: path, danceName: selectedDance))
+        }
     }
 
     private func save(_ note: InstantNote) {
