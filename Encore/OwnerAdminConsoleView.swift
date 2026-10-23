@@ -3,7 +3,7 @@ import Supabase
 import OSLog
 
 // MARK: - Owner Admin Console
-/// Gift a plan, find a dancer and ban or unban an account. Only the owner sees it (server `is_app_owner()`),
+/// Gift a plan, find a dancer, ban or unban an account or delete it. Only the owner sees it (server `is_app_owner()`),
 /// and every action is checked again on the server (RLS and owner functions), so the screen grants nothing
 /// by itself. Moderation tool for App Review 1.2; described in the review notes (2.5.19).
 struct OwnerAdminConsoleView: View {
@@ -31,6 +31,7 @@ struct OwnerAdminConsoleView: View {
 
     @State private var banReasonText = "Porušenie pravidiel komunity"
     @State private var userToBan: AdminUserSearchItem?
+    @State private var userToDelete: AdminUserSearchItem?
 
     private var selectedUser: AdminUserSearchItem? {
         searchResults.first { $0.id == selectedUserId }
@@ -86,6 +87,14 @@ struct OwnerAdminConsoleView: View {
                 Button("Zrušiť", role: .cancel) {}
             } message: { _ in
                 Text("Odhlási sa na všetkých zariadeniach a už sa neprihlási. Dá sa to vrátiť tlačidlom Odblokovať.")
+            }
+            .sheet(item: $userToDelete) { user in
+                OwnerDeleteAccountSheet(user: user) {
+                    selectedUserId = nil
+                    statusMessage = "Účet \(user.name) je zmazaný."
+                    successCount += 1
+                    Task { await search() }
+                }
             }
             .task(id: searchQuery) {
                 // Searches as you type, after a short pause (a new letter cancels the previous search).
@@ -223,6 +232,15 @@ struct OwnerAdminConsoleView: View {
                 .buttonStyle(.pressable(scale: 0.97))
                 .disabled(isActionInProgress || user.id == authManager.currentUser?.id)
             }
+            Button { userToDelete = user } label: {
+                Label("Zmazať účet natrvalo", systemImage: "trash.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(Color.latinRed)
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            }
+            .buttonStyle(.pressable(scale: 0.97))
+            .disabled(isActionInProgress || user.id == authManager.currentUser?.id)
         }
         .padding(16)
         .homeCard(cornerRadius: 20)
