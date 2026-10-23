@@ -54,7 +54,8 @@ final class PlannerRouter: ObservableObject {
 
 // MARK: - Local notifications for the planner
 /// Plans notifications for the next two weeks (not a repeating weekly trigger) so that a day the
-/// user skipped can be left out. Everything is local, so it works without a connection.
+/// user skipped can be left out. Everything is local, so it works without a connection and on the Lock Screen.
+/// Entry deadlines are not reminded: the coach enters the pair.
 @MainActor
 enum PlannerNotifications {
     private static let prefix = "plan."
@@ -64,6 +65,24 @@ enum PlannerNotifications {
         let center = UNUserNotificationCenter.current()
         let ids = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) }
         center.removePendingNotificationRequests(withIdentifiers: ids)
+    }
+
+    /// Plans from what is stored on the iPhone. Runs whenever the app opens, so reminders keep coming even when
+    /// Kalendár stays closed for weeks (each plan covers only 14 days ahead).
+    static func rescheduleFromStore() async {
+        await NotificationManager.shared.checkAuthorizationStatus()
+        guard let context = AppContainer.shared?.mainContext else { return }
+        do {
+            let cadences = try context.fetch(FetchDescriptor<TrainingCadence>())
+            let logs = try context.fetch(FetchDescriptor<TrainingLogEntry>())
+            let competitions = try context.fetch(FetchDescriptor<PlannedCompetition>())
+            let sessions = try context.fetch(FetchDescriptor<PlannedSession>())
+            let priorities = try context.fetch(FetchDescriptor<LessonPriority>())
+            await reschedule(cadences: cadences, logs: logs, competitions: competitions, sessions: sessions,
+                             priorities: priorities, remindsFocus: SubscriptionManager.shared.currentTier >= .plus)
+        } catch {
+            Logger.general.error("Planning reminders failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     static func reschedule(
@@ -92,12 +111,11 @@ enum PlannerNotifications {
 
             for cadence in cadences where cadence.isEnabled && cadence.weekday == weekday {
                 if skipped.contains(key(cadence: cadence.id, day: day)) { continue }
-                if remindsFocus {
-                    addFocus(id: "\(prefix)focus.\(cadence.id.uuidString).\(offset)",
-                             title: cadence.title.isEmpty ? "Tréning" : cadence.title,
-                             start: PlannerCalendar.date(on: day, minutes: cadence.startMinutes),
-                             category: cadence.danceCategory, priorities: priorities, now: now, center: center)
-                }
+                addReminder(id: "\(prefix)before.\(cadence.id.uuidString).\(offset)",
+                            title: cadence.title.isEmpty ? "Tréning" : cadence.title,
+                            start: PlannerCalendar.date(on: day, minutes: cadence.startMinutes),
+                            category: cadence.danceCategory, priorities: remindsFocus ? priorities : [],
+                            now: now, center: center)
                 // Ask for the reflection 5 minutes after the session ends.
                 let fire = PlannerCalendar.date(on: day, minutes: cadence.endMinutes + 5)
                 guard fire > now else { continue }
@@ -115,10 +133,9 @@ enum PlannerNotifications {
         let skippedSessions = Set(settled.compactMap(\.sessionId))
         let horizon = cal.date(byAdding: .day, value: horizonDays, to: today) ?? today
         for session in sessions where !skippedSessions.contains(session.id) && session.start < horizon {
-            if remindsFocus {
-                addFocus(id: "\(prefix)focus.\(session.id.uuidString)", title: session.displayTitle, start: session.start,
-                         category: session.danceCategory, priorities: priorities, now: now, center: center)
-            }
+            addReminder(id: "\(prefix)before.\(session.id.uuidString)", title: session.displayTitle, start: session.start,
+                        category: session.danceCategory, priorities: remindsFocus ? priorities : [],
+                        now: now, center: center)
             let fire = session.end.addingTimeInterval(5 * 60)
             guard fire > now else { continue }
             // "Lekcia" and an own name have their own gender, so the title stays neutral.
@@ -134,43 +151,27 @@ enum PlannerNotifications {
             )
         }
 
-        for comp in competitions where comp.intent != .declined {
-            if let deadline = comp.entryDeadline {
-                for daysBefore in [3, 1] {
-                    if let base = cal.date(byAdding: .day, value: -daysBefore, to: PlannerCalendar.startOfDay(deadline)) {
-                        let fire = PlannerCalendar.date(on: base, minutes: 9 * 60)
-                        if fire > now {
-                            add(
-                                id: "\(prefix)deadline.\(comp.id.uuidString).\(daysBefore)",
-                                title: "Uzávierka prihlášok",
-                                body: "\(comp.name): \(PlannerCalendar.daysText(until: deadline, from: fire).lowercased()) je uzávierka.",
-                                at: fire,
-                                center: center
-                            )
-                        }
-                    }
-                }
-            }
-            if comp.intent == .going,
-               let eve = cal.date(byAdding: .day, value: -1, to: PlannerCalendar.startOfDay(comp.date)) {
-                let fire = PlannerCalendar.date(on: eve, minutes: 18 * 60)
-                if fire > now {
-                    add(
-                        id: "\(prefix)eve.\(comp.id.uuidString)",
-                        title: "Zajtra súťaž",
-                        body: "\(comp.name)\(comp.city.isEmpty ? "" : ", \(comp.city)"). Skontroluj tašku a štartové číslo.",
-                        at: fire,
-                        center: center
-                    )
-                }
+        for comp in competitions where comp.intent == .going {
+            let day = PlannerCalendar.startOfDay(comp.date)
+            let place = comp.city.isEmpty ? comp.name : "\(comp.name), \(comp.city)"
+            let reminders: [(id: String, offset: Int, minutes: Int, title: String, body: String)] = [
+                ("eve", -1, 18 * 60, "Zajtra súťaž", "\(place). Zbaľ si tašku a priprav oblečenie."),
+                ("day", 0, 7 * 60, "Dnes súťaž", "\(place). Držíme palce!"),
+                ("after", 1, 10 * 60, "Ulož si výsledok", "\(comp.name): výsledok a krížiky porotcov si uložíš v Súťažiach.")
+            ]
+            for reminder in reminders {
+                guard let base = cal.date(byAdding: .day, value: reminder.offset, to: day) else { continue }
+                let fire = PlannerCalendar.date(on: base, minutes: reminder.minutes)
+                guard fire > now else { continue }
+                add(id: "\(prefix)\(reminder.id).\(comp.id.uuidString)", title: reminder.title, body: reminder.body,
+                    at: fire, center: center)
             }
         }
     }
 
-    /// An hour before a training (Plus): what to focus on, the open Top 3 of the dances trained that day.
-    /// Without open priorities there is nothing to remind, so no notification.
-    private static func addFocus(id: String, title: String, start: Date, category: String,
-                                 priorities: [LessonPriority], now: Date, center: UNUserNotificationCenter) {
+    /// An hour before a training. On Plus it says what to focus on: the open Top 3 of the dances trained that day.
+    private static func addReminder(id: String, title: String, start: Date, category: String,
+                                    priorities: [LessonPriority], now: Date, center: UNUserNotificationCenter) {
         let fire = start.addingTimeInterval(-60 * 60)
         guard fire > now else { return }
         let focus = priorities
@@ -178,10 +179,9 @@ enum PlannerNotifications {
             .sorted { ($0.createdAt, -$0.rank) > ($1.createdAt, -$1.rank) }
             .prefix(3)
             .map(\.text)
-        guard !focus.isEmpty else { return }
         add(id: id,
             title: "Dnes \(start.formatted(date: .omitted, time: .shortened)) · \(title)",
-            body: "Zameraj sa na: " + focus.joined(separator: " · "),
+            body: focus.isEmpty ? "Tréning začína o hodinu." : "Zameraj sa na: " + focus.joined(separator: " · "),
             at: fire, center: center)
     }
 

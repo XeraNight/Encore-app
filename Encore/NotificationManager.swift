@@ -5,7 +5,7 @@ import Combine
 import OSLog
 
 // MARK: - Notification Manager
-// Správca lokálnych notifikácií, tréningových pripomenutí a upozornení o zmenách od partnera.
+/// Permission for local notifications and what a tapped one opens. The reminders are planned in `PlannerNotifications`.
 @MainActor
 final class NotificationManager: NSObject, ObservableObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
@@ -40,50 +40,6 @@ final class NotificationManager: NSObject, ObservableObject, UNUserNotificationC
             isAuthorized = false
             return false
         }
-    }
-
-    // MARK: - Schedule Training Reminder
-    func scheduleTrainingReminder(routineName: String, danceName: String, inTimeInterval interval: TimeInterval) {
-        guard notificationsEnabled, isAuthorized else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Tréning zostavy: \(routineName)"
-        content.subtitle = danceName
-        content.body = "Je čas zopakovať si figúry a prechody v zostave \(routineName)."
-        content.sound = .default
-        content.badge = 1
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(5, interval), repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "training_reminder_\(UUID().uuidString)",
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                Logger.general.error("Scheduling reminder failed: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
-
-    // MARK: - Partner Action Alert
-    func notifyPartnerUpdate(senderName: String, actionDescription: String) {
-        guard notificationsEnabled, isAuthorized else { return }
-
-        let content = UNMutableNotificationContent()
-        content.title = "Aktualizácia od partnera (\(senderName))"
-        content.body = actionDescription
-        content.sound = .default
-
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
-        let request = UNNotificationRequest(
-            identifier: "partner_update_\(UUID().uuidString)",
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request)
     }
 
     // MARK: - UNUserNotificationCenterDelegate

@@ -228,6 +228,7 @@ struct RootAppView: View {
             PasswordUpdateSheet(mode: .recovery)
         }
         .task {
+            await PlannerNotifications.rescheduleFromStore()
             await remoteConfig.syncConfig()
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
@@ -240,6 +241,7 @@ struct RootAppView: View {
                 friendManager.checkPasteboardForDeferredInvite()
                 PendingSyncRunner.shared.run()
                 Task {
+                    await PlannerNotifications.rescheduleFromStore()
                     await authManager.checkCurrentSession()
                     await remoteConfig.syncConfig()
                 }

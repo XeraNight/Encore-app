@@ -54,7 +54,7 @@ struct DancePlannerView: View {
     private var planSignature: String {
         let c = cadences.map { "\($0.id)\($0.weekday)\($0.startMinutes)\($0.durationMinutes)\($0.isEnabled)" }
         let l = logs.filter { $0.status == .skipped }.map { "\($0.id)" }
-        let k = competitions.map { "\($0.id)\($0.date.timeIntervalSince1970)\($0.entryDeadline?.timeIntervalSince1970 ?? 0)\($0.intentRaw)" }
+        let k = competitions.map { "\($0.id)\($0.date.timeIntervalSince1970)\($0.intentRaw)" }
         let s = sessions.map { "\($0.id)\($0.start.timeIntervalSince1970)\($0.durationMinutes)\($0.goal)" }
         // Open Top 3 and Plus change what the reminder before a training says.
         let p = priorities.filter(\.isOpen).map { "\($0.id)\($0.text)" } + ["\(remindsFocus)"]
@@ -107,12 +107,9 @@ struct DancePlannerView: View {
         }
         .task(id: planSignature) { await reschedule() }
         .onChange(of: scenePhase) { _, phase in
+            // Reminders are planned again by the app itself whenever it opens (EncoreApp).
             guard phase == .active else { return }
             refreshDay()
-            Task {
-                await NotificationManager.shared.checkAuthorizationStatus()
-                await reschedule()
-            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in
             refreshDay()
