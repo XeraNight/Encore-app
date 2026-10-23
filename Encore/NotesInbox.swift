@@ -153,7 +153,9 @@ struct NoteDetailSheet: View {
     @State private var sweepTrigger = 0
     @FocusState private var isWriting: Bool
 
-    private var hasText: Bool { !note.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// A voice note or a video goes to a figure as it is; only a text note is written here.
+    private var showsText: Bool { (note.audioPath == nil && note.videoPath == nil) || note.hasText }
+    private var canAdd: Bool { note.hasText || note.audioPath != nil || note.videoPath != nil }
 
     var body: some View {
         NavigationStack {
@@ -166,31 +168,23 @@ struct NoteDetailSheet: View {
 
                         if let audioPath = note.audioPath {
                             section("NAHRÁVKA", systemImage: "waveform") {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    VoiceNotePlayerView(fileName: audioPath)
-                                    Text("Vypočuj si nahrávku a nižšie napíš, čo z nej chceš ponechať.")
-                                        .font(.caption)
-                                        .foregroundColor(Color.white.opacity(0.65))
-                                }
-                                .padding(14)
-                                .homeCard()
+                                VoiceNotePlayerView(fileName: audioPath)
+                                    .padding(14)
+                                    .homeCard()
                             }
                         }
 
                         if let videoPath = note.videoPath {
                             section("VIDEO", systemImage: "video.fill") {
-                                VStack(alignment: .leading, spacing: 10) {
-                                    LoopingVideoPlayer(videoPath: videoPath, rate: 1.0)
-                                        .frame(height: 220)
-                                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    Text("K figúre ho pripojíš v jej detaile.")
-                                        .font(.caption)
-                                        .foregroundColor(Color.white.opacity(0.65))
-                                }
+                                LoopingVideoPlayer(videoPath: videoPath, rate: 1.0)
+                                    .frame(height: 220)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                         }
 
-                        section("TEXT", systemImage: "text.alignleft") { editor }
+                        if showsText {
+                            section("TEXT", systemImage: "text.alignleft") { editor }
+                        }
 
                         actions
                     }
@@ -248,7 +242,7 @@ struct NoteDetailSheet: View {
     private var editor: some View {
         ZStack(alignment: .topLeading) {
             if note.text.isEmpty {
-                Text(note.audioPath != nil ? "Napíš, čo si z nahrávky chceš zapamätať…" : "Napíš poznámku…")
+                Text("Napíš poznámku…")
                     .font(.callout)
                     .foregroundColor(Color.textPlaceholder)
                     .padding(.top, 8)
@@ -281,12 +275,12 @@ struct NoteDetailSheet: View {
             PrimarySheetButton(
                 title: note.isImported ? "Pridať k ďalšej figúre" : "Pridať k figúre",
                 isLoading: false,
-                isEnabled: hasText
+                isEnabled: canAdd
             ) {
                 showFigurePicker = true
             }
 
-            if !hasText {
+            if !canAdd {
                 Text("Najprv napíš text, ktorý chceš k figúre pridať.")
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
@@ -301,7 +295,7 @@ struct NoteDetailSheet: View {
             }
             .buttonStyle(.pressable)
         }
-        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: hasText)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: canAdd)
     }
 
     private func section<Content: View>(_ title: String, systemImage: String, @ViewBuilder content: () -> Content) -> some View {
