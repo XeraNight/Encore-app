@@ -1186,13 +1186,19 @@ nonisolated enum VideoStill {
     }
 
     /// True for a video filmed upright (taller than wide once rotated), nil when unknown.
-    @concurrent
     static func isPortrait(_ url: URL?) async -> Bool? {
+        await aspectRatio(url).map { $0 < 1 }
+    }
+
+    /// Width ÷ height of the picture as filmed (rotation applied), nil when unknown.
+    @concurrent
+    static func aspectRatio(_ url: URL?) async -> CGFloat? {
         guard let url,
               let track = try? await AVURLAsset(url: url).loadTracks(withMediaType: .video).first,
               let geometry = try? await track.load(.naturalSize, .preferredTransform) else { return nil }
         let upright = CGRect(origin: .zero, size: geometry.0).applying(geometry.1)
-        return abs(upright.height) > abs(upright.width)
+        guard upright.height != 0 else { return nil }
+        return abs(upright.width) / abs(upright.height)
     }
 
     /// One frame of the video in seconds (1/30 when unknown), so frame steps land on real frames.

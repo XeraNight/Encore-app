@@ -43,7 +43,8 @@ struct FigureDetailCard: View {
     @ObservedObject private var playback = FigureVideoPlayback.shared
     @State private var playerGeneration = 0
     @State private var videoUnavailable = false
-    @State private var detectedPortrait: Bool? = nil
+    /// Width ÷ height of the playing video as filmed, nil until known.
+    @State private var videoAspect: CGFloat? = nil
     @State private var videoHeightOverride: CGFloat? = nil
     @State private var dragStartHeight: CGFloat? = nil
     @State private var showCamera = false
@@ -81,7 +82,7 @@ struct FigureDetailCard: View {
 
     /// Portrait frame when the picture is upright-tall after the user's rotation.
     private var isPortraitLayout: Bool {
-        let natural = detectedPortrait ?? false
+        let natural = (videoAspect ?? 1) < 1
         return rotation % 180 == 0 ? natural : !natural
     }
 
@@ -378,6 +379,9 @@ struct FigureDetailCard: View {
         let maxHeight = screenHeight * 0.72
         let defaultHeight = isPortraitLayout ? min(screenHeight * 0.55, width * 1.25) : width * 9 / 16
         let height = min(max(videoHeightOverride ?? defaultHeight, 150), maxHeight)
+        // The frame hugs a playing video, so an upright one has no black bars at its sides.
+        let shownAspect = playback.nodeId == node.id ? videoAspect.map { rotation % 180 == 0 ? $0 : 1 / $0 } : nil
+        let boxWidth = shownAspect.map { min(width, height * $0) } ?? width
 
         VStack(spacing: 6) {
             ZStack {
@@ -391,7 +395,7 @@ struct FigureDetailCard: View {
                             .frame(width: rotation % 180 == 0 ? width : height, height: rotation % 180 == 0 ? height : width)
                             .rotationEffect(.degrees(Double(rotation)))
                     } else if playback.nodeId == node.id, let player = playback.player {
-                        RotatableVideoView(player: player, rotation: rotation, size: CGSize(width: width, height: height))
+                        RotatableVideoView(player: player, rotation: rotation, size: CGSize(width: boxWidth, height: height))
                             .overlay(alignment: .bottomTrailing) { soundButton }
                     } else if videoUnavailable {
                         unavailableVideo(path: path)
@@ -402,7 +406,7 @@ struct FigureDetailCard: View {
                     emptyVideo
                 }
             }
-            .frame(height: height)
+            .frame(width: boxWidth, height: height)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(alignment: .topTrailing) {
                 if node.displayVideoPath != nil { videoMenu }
@@ -936,7 +940,7 @@ struct FigureDetailCard: View {
     private func startPlayer(_ url: URL) {
         playback.show(url: url, nodeId: node.id, title: node.figureName, subtitle: node.routine?.name ?? "Encore")
         Task { @MainActor in
-            detectedPortrait = await Self.isPortrait(url)
+            videoAspect = await VideoStill.aspectRatio(url)
         }
     }
 
@@ -945,15 +949,6 @@ struct FigureDetailCard: View {
         playback.stop(nodeId: node.id)
     }
 
-    /// True when the video was recorded upright (taller than wide, after rotation).
-    private static func isPortrait(_ url: URL) async -> Bool? {
-        let asset = AVURLAsset(url: url)
-        guard let track = try? await asset.loadTracks(withMediaType: .video).first,
-              let size = try? await track.load(.naturalSize),
-              let transform = try? await track.load(.preferredTransform) else { return nil }
-        let rotated = size.applying(transform)
-        return abs(rotated.height) > abs(rotated.width)
-    }
 }
 
 // MARK: - Looping Player view helpers
