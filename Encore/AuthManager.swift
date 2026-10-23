@@ -167,8 +167,12 @@ final class AuthManager: ObservableObject {
                 userName = str
             }
         }
-        // Token refreshes arrive as new sessions too; only a real user change reloads the profile.
-        if isNewUser { UserProfileStore.shared.refreshForActiveUser() }
+        // Token refreshes arrive as new sessions too; only a real user change reloads the profile and the
+        // routines (after an account switch or on a new iPhone the list would stay empty until a pull-to-refresh).
+        if isNewUser {
+            UserProfileStore.shared.refreshForActiveUser()
+            Task { await SupabaseSyncManager.shared.pullRoutinesIntoApp() }
+        }
     }
 
     private func clearSession() {

@@ -341,6 +341,13 @@ final class SupabaseSyncManager: Sendable {
         }
     }
     
+    /// The same download into the app's store, after a sign-in, where no view hands over a context.
+    @MainActor
+    func pullRoutinesIntoApp() async {
+        guard let context = AppContainer.shared?.mainContext else { return }
+        await pullRoutines(into: context)
+    }
+
     /// Pull-to-refresh: what waits goes up first, then routines created elsewhere are added and ones changed
     /// elsewhere updated (newer wins). A routine still waiting here, or deleted here, is left alone.
     @MainActor
