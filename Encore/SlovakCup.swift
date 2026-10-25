@@ -31,6 +31,20 @@ nonisolated enum SlovakCup {
         var title: String { self == .standard ? "ŠTT" : "LAT" }
     }
 
+    /// The disciplines the couple dances the cup in, from its KSIS age category and class (článok 23): adults
+    /// in class B, A or S, Juniori I in D, C or B, Juniori II in D, C, B or A. Others are not in the cup.
+    static func disciplines(for couple: UserCouple) -> [Discipline] {
+        guard let group = Group(ageCategory: couple.ageCategory) else { return [] }
+        let classes: Set<String> = switch group {
+        case .adults: ["B", "A", "S"]
+        case .juniors: (couple.ageCategory ?? "").contains("II") ? ["D", "C", "B", "A"] : ["D", "C", "B"]
+        }
+        return Discipline.allCases.filter { discipline in
+            let className = discipline == .standard ? couple.stt.className : couple.lat.className
+            return className.map { classes.contains($0.uppercased()) } ?? false
+        }
+    }
+
     static let roundsPerYear = 7
     static let roundsForChampionship = 3
 

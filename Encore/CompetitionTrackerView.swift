@@ -121,12 +121,14 @@ struct CompetitionTrackerView: View {
 
     // MARK: Slovenský pohár
     /// The official KSIS table, read live in the KSIS browser; the last one read stays here until the next read.
+    /// Only for couples in the cup, by their KSIS age category and class (SlovakCup.disciplines).
     @ViewBuilder
     private func slovakCupSection(_ couple: UserCouple) -> some View {
-        if let group = SlovakCup.Group(ageCategory: couple.ageCategory) {
+        let disciplines = SlovakCup.disciplines(for: couple)
+        if let group = SlovakCup.Group(ageCategory: couple.ageCategory), !disciplines.isEmpty {
             VStack(alignment: .leading, spacing: 12) {
                 HomeSectionHeader(title: "SLOVENSKÝ POHÁR", systemImage: "trophy.fill")
-                ForEach(SlovakCup.Discipline.allCases) { discipline in
+                ForEach(disciplines) { discipline in
                     cupCard(couple, group: group, discipline: discipline)
                 }
             }

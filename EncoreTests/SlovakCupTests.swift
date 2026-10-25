@@ -21,10 +21,24 @@ struct SlovakCupTests {
         return try JSONDecoder().decode(SlovakCupStandings.self, from: Data(json.utf8))
     }
 
-    private func couple(id: Int?, names: String, age: String = "Dospelí") throws -> UserCouple {
+    private func couple(id: Int?, names: String, age: String = "Dospelí", stt: String? = nil, lat: String? = nil) throws -> UserCouple {
         let idField = id.map { "\"couple_id\":\($0)," } ?? ""
-        let json = "{\"id\":\"\(UUID().uuidString)\",\(idField)\"partner_names\":\"\(names)\",\"age_category\":\"\(age)\"}"
+        let classes = [stt.map { "\"stt_class\":\"\($0)\"," }, lat.map { "\"lat_class\":\"\($0)\"," }].compactMap { $0 }.joined()
+        let json = "{\"id\":\"\(UUID().uuidString)\",\(idField)\(classes)\"partner_names\":\"\(names)\",\"age_category\":\"\(age)\"}"
         return try JSONDecoder().decode(UserCouple.self, from: Data(json.utf8))
+    }
+
+    @Test func onlyCouplesInTheCupSeeIt() throws {
+        let adultsD = try couple(id: 1, names: "A - B", age: "Dospelí", stt: "D", lat: "D")
+        let adultsAB = try couple(id: 2, names: "A - B", age: "Dospelí", stt: "A", lat: "C")
+        let juniorsOne = try couple(id: 3, names: "A - B", age: "Juniori I", stt: "B", lat: "A")
+        let juniorsTwo = try couple(id: 4, names: "A - B", age: "Juniori II", stt: "A", lat: "D")
+        let seniors = try couple(id: 5, names: "A - B", age: "Seniori I", stt: "A", lat: "A")
+        #expect(SlovakCup.disciplines(for: adultsD).isEmpty)
+        #expect(SlovakCup.disciplines(for: adultsAB) == [.standard])
+        #expect(SlovakCup.disciplines(for: juniorsOne) == [.standard])
+        #expect(SlovakCup.disciplines(for: juniorsTwo) == [.standard, .latin])
+        #expect(SlovakCup.disciplines(for: seniors).isEmpty)
     }
 
     @Test func juniorsAndAdultsDanceTheirOwnSeries() {
