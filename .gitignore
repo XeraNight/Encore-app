@@ -30,6 +30,8 @@ build/
 DerivedData/
 *.xccheckout
 *.xcscmblueprint
+main
+
 
 # ── Xcode user-specific settings ────────────────────────────
 *.xcuserstate

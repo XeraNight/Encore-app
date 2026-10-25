@@ -185,7 +185,7 @@ graph TD
   - **Postgres Changes:** Záložný kanál počúvajúci priame zmeny v tabuľke `canvas_nodes`.
   - **Heartbeat & Auto-Reconnect:** Každých 8 sekúnd overuje stav WebSocket kanála a pri obnove spojenia automaticky vyvolá refresh dát.
 
-#### `Encore/SupabaseSecurityFix.sql`
+#### `supabase/legacy/SupabaseSecurityFix.sql`
 - **Účel:** SQL migrácia pre Supabase databázu. Nastavuje `REPLICA IDENTITY FULL` pre tabuľku `canvas_nodes`, zapína RLS (Row Level Security) politiky a publikuje tabuľky do `supabase_realtime`.
 
 ---

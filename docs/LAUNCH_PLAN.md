@@ -5,7 +5,7 @@
 Rozhodnutia: poznámky a videá zostávajú v telefóne; logo sa na Home rozdelí na mužskú a ženskú časť; knižnica figúr sa filtruje podľa výkonnostnej triedy; Kamera sa presúva z doku na Home.
 
 ## 0. Pravidlá a hotové veci
-- Hotové: CLAUDE.md, .claude/settings.json, odstránenie aury loga, heslo sa neukladá, owner check iba z overeného e-mailu, SQL hardening (supabase/migrations/20261005_hardening_function_grants.sql, treba spustiť v SQL editore), supabase/admin_grant_plan.sql.
+- Hotové: CLAUDE.md, .claude/settings.json, odstránenie aury loga, heslo sa neukladá, owner check iba z overeného e-mailu, SQL hardening (supabase/migrations/20261005_hardening_function_grants.sql, treba spustiť v SQL editore).
 - Pozastavené do Developer účtu (100 €): Sign in with Apple, StoreKit v App Store Connect, Wallet, TestFlight.
 
 ## 1. Home

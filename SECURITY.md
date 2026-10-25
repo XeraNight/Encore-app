@@ -6,7 +6,7 @@ Tento dokument slúži ako oficiálny bezpečnostný manuál a architektonická 
 
 ## ⚡ 0. Ako udeliť kamarátom a VIP partnerom Studio Tier zadarmo
 
-Keďže migračný skript `AdminAndEntitlements.sql` je spustený v Supabase, tabuľka `public.user_entitlements` je aktívna.
+Keďže migračný skript `supabase/legacy/AdminAndEntitlements.sql` je spustený v Supabase, tabuľka `public.user_entitlements` je aktívna.
 
 ### A. Cez Supabase SQL Editor (Najrýchlejšie – 5 sekúnd):
 1. Otvor [supabase.com](https://supabase.com) -> tvoj projekt -> **SQL Editor**.

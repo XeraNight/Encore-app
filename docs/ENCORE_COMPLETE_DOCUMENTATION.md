@@ -91,8 +91,8 @@ Waze-style pills:    .system(size: 12-14, weight: .heavy, design: .rounded)
 
 ### Logá
 
-- `docs/EncoreLogo_Full.svg` — kompletné logo s textom
-- `docs/EncoreLogo_Mark.svg` — ikonická značka (app icon základ)
+- `docs/brand/EncoreLogo_Full.svg` — kompletné logo s textom
+- `docs/brand/EncoreLogo_Mark.svg` — ikonická značka (app icon základ)
 
 ---
 

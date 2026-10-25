@@ -20,7 +20,7 @@
 | **Licencie k fontom** | 🟢 **ČISTÉ** | Používajú sa 100% natívne Apple fonty (SF Pro, New York, SF Mono) | Žiadne cudzie fonty s rizikom licenčných poplatkov |
 | **Encryption export tag** | 🟢 **HOTOVO** | `ITSAppUsesNonExemptEncryption = false` je v `Info.plist` | Hotovo, žiadne papierovanie v App Store Connect |
 | **Privacy Policy & EULA v appke** | 🟢 **HOTOVO** | Odkaz + interaktívny prehliadač v `ProfileView`, `AuthSheetView`, `LegalComplianceView` | Vložiť verejný odkaz do App Store Connect pred odoslaním na review |
-| **Majiteľská konzola & VIP dary** | 🟢 **HOTOVO** | God Mode pre Jakuba, udelenie VIP tierov zadarmo kamarátom v Supabase SQL | Spustené v Supabase SQL (`AdminAndEntitlements.sql`) |
+| **Majiteľská konzola & VIP dary** | 🟢 **HOTOVO** | God Mode pre Jakuba, udelenie VIP tierov zadarmo kamarátom v Supabase SQL | Spustené v Supabase SQL (`supabase/legacy/AdminAndEntitlements.sql`) |
 | **Moderácia & Blokovanie účtov** | 🟢 **HOTOVO** | Možnosť zablokovať účet priamo z appky + interceptor `AccountBannedNoticeView` | Právne ošetrené v ToS čl. 2.5 a Privacy Policy čl. 1.7 |
 | **Súťažné body (Gating)** | 🟢 **HOTOVO** | Plus = vlastný pár a body, Studio = zverenci / roster viacerých párov (`CompetitionTrackerView`) | Spracovanie podložené Oprávneným záujmom (GDPR) |
 | **SZTŠ / ksis.eu dáta** | 🟡 **STRATÉGIA** | Prebieha cez Supabase Edge Function s rate limitom | Poslať informačný e-mail / žiadosť o partnerstvo na SZTŠ |
@@ -122,7 +122,7 @@ V dotazníku v App Store Connect zaškrtávame:
 
 ## 3. 🛡️ Databáza a Row Level Security (RLS) — KRITICKÝ KROK
 
-V súbore `Encore/SupabaseSecurityFix.sql` je zdokumentovaný aktuálny stav. RLS je zapnuté, ale pravidlá zatiaľ povoľujú prístup všetkým overeným používateľom (`using (true)`), pretože v tabuľkách historicky chýbal stĺpec `user_id`.
+V súbore `supabase/legacy/SupabaseSecurityFix.sql` je zdokumentovaný aktuálny stav. RLS je zapnuté, ale pravidlá zatiaľ povoľujú prístup všetkým overeným používateľom (`using (true)`), pretože v tabuľkách historicky chýbal stĺpec `user_id`.
 
 ### Čo treba spraviť v Supabase SQL editore pred spustením pre verejnosť:
 1. Pridať stĺpec vlastníctva:
