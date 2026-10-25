@@ -97,6 +97,8 @@ private nonisolated struct DeviceData: Encodable, Sendable {
         let status: String
         let reflection: String
         let feeling: String?
+        /// Every feeling with its dance and note (Ako to bolo).
+        let moments: [TrainingMoment]
         let dance: String?
     }
 
@@ -227,7 +229,7 @@ private extension DeviceData {
         trainingDiary = fetch(TrainingLogEntry.self)
             .sorted { $0.day > $1.day }
             .map {
-                TrainingDay(day: $0.day, title: $0.title, status: $0.statusRaw, reflection: $0.reflectionNote, feeling: $0.feelingRaw, dance: $0.danceName)
+                TrainingDay(day: $0.day, title: $0.title, status: $0.statusRaw, reflection: $0.reflectionNote, feeling: $0.feelingRaw, moments: $0.moments, dance: $0.danceName)
             }
 
         lessonPriorities = fetch(LessonPriority.self)
