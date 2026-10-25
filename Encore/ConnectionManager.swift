@@ -4,11 +4,14 @@ import OSLog
 import Combine
 import Supabase
 
-// MARK: - Unified Connection Manager (Partners & Coach-Student)
+// MARK: - Unified Connection Manager (connections, the partner, coach and student)
+/// A plain connection gives no access to the other person's things; only the partner (one) shares routines.
 @MainActor
 public final class ConnectionManager: ObservableObject {
     public static let shared = ConnectionManager()
     
+    @Published public var activeConnections: [DancerConnection] = []
+    /// One partner; older accounts may still have more until they turn the rest into connections.
     @Published public var activePartners: [DancerConnection] = []
     @Published public var activeStudents: [DancerConnection] = []
     @Published public var activeCoaches: [DancerConnection] = []
@@ -16,6 +19,8 @@ public final class ConnectionManager: ObservableObject {
     @Published public var outgoingRequests: [DancerConnection] = []
     /// Dancers I blocked (App Review 1.2), shown with "Odblokovať".
     @Published public private(set) var blockedDancers: [DancerSearchResult] = []
+    /// The KSIS couple each connected person linked (class and points, public in KSIS), by user id.
+    @Published private(set) var couplesByUser: [UUID: UserCouple] = [:]
     
     @Published public var isLoading: Bool = false
     @Published public var errorMessage: String? = nil
@@ -43,12 +48,14 @@ public final class ConnectionManager: ObservableObject {
     public func reset() {
         sharingKnown = nil
         UserDefaults.standard.removeObject(forKey: Self.sharingKey)
+        activeConnections = []
         activePartners = []
         activeStudents = []
         activeCoaches = []
         incomingRequests = []
         outgoingRequests = []
         blockedDancers = []
+        couplesByUser = [:]
         errorMessage = nil
     }
     
@@ -56,8 +63,9 @@ public final class ConnectionManager: ObservableObject {
     private static let sharingKey = "encore.hasSharingConnection"
     private var sharingKnown: Bool?
 
-    /// Whether someone else can open my routines or I theirs (an accepted partner, coach or student). Asked at
-    /// most once per session with one tiny count query, then remembered; offline the last answer is used.
+    /// Whether someone else can open my routines or I theirs (an accepted partner, coach or student; a plain
+    /// connection does not count). Asked at most once per session with one tiny count query, then remembered;
+    /// offline the last answer is used.
     public func hasSharingConnection() async -> Bool {
         if let sharingKnown { return sharingKnown }
         do {
@@ -65,6 +73,7 @@ public final class ConnectionManager: ObservableObject {
                 .from("connections")
                 .select("id", head: true, count: .exact)
                 .eq("status", value: "accepted")
+                .in("relationship_type", values: [ConnectionRelationshipType.partner.rawValue, ConnectionRelationshipType.coachStudent.rawValue])
                 .execute()
                 .count ?? 0
             rememberSharing(count > 0)
@@ -99,20 +108,40 @@ public final class ConnectionManager: ObservableObject {
                 let updated_at: String?
             }
             
-            let rawList: [RawConnectionDTO] = try await client
+            struct BlockRow: Decodable { let blocked_id: UUID }
+            /// A connected person's KSIS couple; RLS returns only the couples of people I am connected with.
+            struct CoupleRow: Decodable {
+                let userId: UUID
+                let couple: UserCouple
+                init(from decoder: Decoder) throws {
+                    struct Key: CodingKey {
+                        var stringValue: String
+                        var intValue: Int? { nil }
+                        init(stringValue: String) { self.stringValue = stringValue }
+                        init?(intValue: Int) { nil }
+                    }
+                    userId = try decoder.container(keyedBy: Key.self).decode(UUID.self, forKey: Key(stringValue: "user_id"))
+                    couple = try UserCouple(from: decoder)
+                }
+            }
+
+            // Four reads at once instead of one after another.
+            async let rows: [RawConnectionDTO] = client
                 .from("connections")
                 .select("id, user_a_id, user_b_id, relationship_type, status, initiated_by, created_at, updated_at")
                 .or("user_a_id.eq.\(myId),user_b_id.eq.\(myId)")
                 .execute()
                 .value
-            
             // Names and photos of the people in these rows and of blocked dancers. Profiles are private, so a
             // server function returns just these people (related_profiles).
-            let related: [DancerSearchResult] = try await client.rpc("related_profiles").execute().value
-            let profilesDict = Dictionary(related.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            async let people: [DancerSearchResult] = client.rpc("related_profiles").execute().value
+            async let blocked: [BlockRow] = client.from("user_blocks").select("blocked_id").execute().value
+            async let couples: [CoupleRow] = client.from("user_couples").select().neq("user_id", value: myId).execute().value
 
-            struct BlockRow: Decodable { let blocked_id: UUID }
-            let blocks: [BlockRow] = try await client.from("user_blocks").select("blocked_id").execute().value
+            let (rawList, related, blocks) = try await (rows, people, blocked)
+            let profilesDict = Dictionary(related.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            // The KSIS line is extra: without it the list still shows.
+            self.couplesByUser = Dictionary(((try? await couples) ?? []).map { ($0.userId, $0.couple) }, uniquingKeysWith: { first, _ in first })
             self.blockedDancers = blocks.map {
                 profilesDict[$0.blocked_id]
                     ?? DancerSearchResult(id: $0.blocked_id, dancerCode: "", fullName: "Tanečník", club: "", avatarUrl: nil)
@@ -121,6 +150,7 @@ public final class ConnectionManager: ObservableObject {
             let iso = ISO8601DateFormatter()
             iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
             
+            var plain: [DancerConnection] = []
             var partners: [DancerConnection] = []
             var students: [DancerConnection] = []
             var coaches: [DancerConnection] = []
@@ -161,6 +191,8 @@ public final class ConnectionManager: ObservableObject {
                     }
                 } else if st == .accepted {
                     switch relType {
+                    case .connection:
+                        plain.append(conn)
                     case .partner:
                         partners.append(conn)
                     case .coachStudent:
@@ -175,6 +207,9 @@ public final class ConnectionManager: ObservableObject {
                 }
             }
             
+            // Someone who is my partner is not listed again as a plain connection.
+            let partnerIds = Set(partners.map(\.otherUserId))
+            self.activeConnections = plain.filter { !partnerIds.contains($0.otherUserId) }
             self.activePartners = partners
             self.activeStudents = students
             self.activeCoaches = coaches
@@ -207,7 +242,7 @@ public final class ConnectionManager: ObservableObject {
         let userB: UUID
         
         switch type {
-        case .partner:
+        case .connection, .partner:
             // Zoradenie UUID pre deterministickú unikátnosť
             if myId.uuidString < targetUserId.uuidString {
                 userA = myId
@@ -245,13 +280,16 @@ public final class ConnectionManager: ObservableObject {
         )
         
         do {
+            // An earlier rejected or revoked request between the two is asked again.
             try await client
                 .from("connections")
-                .upsert(payload)
+                .upsert(payload, onConflict: "user_a_id,user_b_id,relationship_type")
                 .execute()
         } catch let error as PostgrestError where error.code == "42501" {
             // Refused on the server (for example a block either way); the reason is not revealed.
             throw NSError(domain: "Encore", code: 403, userInfo: [NSLocalizedDescriptionKey: "Žiadosť sa nedá poslať."])
+        } catch let error as PostgrestError where error.hint == "already_has_partner" {
+            throw NSError(domain: "Encore", code: 409, userInfo: [NSLocalizedDescriptionKey: error.message])
         }
         
         await fetchAllConnections()
@@ -287,12 +325,25 @@ public final class ConnectionManager: ObservableObject {
             updated_at: ISO8601DateFormatter().string(from: Date())
         )
         
-        try await client
-            .from("connections")
-            .update(payload)
-            .eq("id", value: connectionId)
-            .execute()
+        do {
+            try await client
+                .from("connections")
+                .update(payload)
+                .eq("id", value: connectionId)
+                .execute()
+        } catch let error as PostgrestError where error.hint == "already_has_partner" {
+            throw NSError(domain: "Encore", code: 409, userInfo: [NSLocalizedDescriptionKey: error.message])
+        }
         
+        await fetchAllConnections()
+    }
+
+    // MARK: - Partner back to a plain connection
+    /// Either side; the access to each other's routines ends at once (make_plain_connection on the server).
+    public func makePlainConnection(connectionId: UUID) async throws {
+        struct Params: Encodable { let p_connection_id: UUID }
+        try await SupabaseConfig.client.rpc("make_plain_connection", params: Params(p_connection_id: connectionId)).execute()
+        rememberSharing(activePartners.count > 1 || !activeStudents.isEmpty || !activeCoaches.isEmpty)
         await fetchAllConnections()
     }
     

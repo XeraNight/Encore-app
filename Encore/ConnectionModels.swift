@@ -3,20 +3,32 @@ import SwiftUI
 
 // MARK: - Connection Relationship Type
 public enum ConnectionRelationshipType: String, CaseIterable, Codable, Sendable {
-    case partner = "partner"             // Obojsmerný prístup k spoločným choreografiám
+    case connection = "connection"       // Spojenie: no access to the other person's things
+    case partner = "partner"             // Obojsmerný prístup k spoločným choreografiám, len jeden partner
     case coachStudent = "coach_student"  // Jednosmerný prístup (Tréner -> Zverenec)
-    
+
     public var title: String {
         switch self {
-        case .partner: return "Tanečný Partner"
+        case .connection: return "Spojenie"
+        case .partner: return "Partner / partnerka"
         case .coachStudent: return "Tréner & Zverenec"
         }
     }
-    
+
     public var badgeIcon: String {
         switch self {
+        case .connection: return "person.2.fill"
         case .partner: return "figure.dance"
         case .coachStudent: return "graduationcap.fill"
+        }
+    }
+
+    /// What a pending request asks for, as the invited person reads it.
+    public var requestText: String {
+        switch self {
+        case .connection: return "Chce sa s tebou spojiť"
+        case .partner: return "Chce ťa nastaviť ako partnera. Uvidíte a upravíte si navzájom zostavy."
+        case .coachStudent: return "Chce sa prepojiť ako tréner"
         }
     }
 }

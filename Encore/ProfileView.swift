@@ -188,13 +188,15 @@ struct ProfileView: View {
         let parts = [
             connectionManager.activePartners.count > 0
                 ? slovakCount(connectionManager.activePartners.count, one: "partner", few: "partneri", many: "partnerov") : nil,
+            connectionManager.activeConnections.count > 0
+                ? slovakCount(connectionManager.activeConnections.count, one: "spojenie", few: "spojenia", many: "spojení") : nil,
             AppFeatures.coachTools && connectionManager.activeCoaches.count > 0
                 ? slovakCount(connectionManager.activeCoaches.count, one: "tréner", few: "tréneri", many: "trénerov") : nil,
             AppFeatures.coachTools && connectionManager.activeStudents.count > 0
                 ? slovakCount(connectionManager.activeStudents.count, one: "žiak", few: "žiaci", many: "žiakov") : nil
         ].compactMap { $0 }
         if parts.isEmpty {
-            return AppFeatures.coachTools ? "Pridaj partnera alebo trénera cez ID tanečníka" : "Pridaj partnera cez ID tanečníka"
+            return "Spoj sa s kamarátmi z tanca cez QR kód alebo ID tanečníka"
         }
         return parts.joined(separator: " · ")
     }

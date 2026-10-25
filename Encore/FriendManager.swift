@@ -282,7 +282,7 @@ final class FriendManager: ObservableObject {
     }
     
     // MARK: - Respond to Incoming Invite (Send Request or Decline)
-    /// Accepting never connects at once: a token or a dancer code sends a partner request, and the other
+    /// Accepting never connects at once: a token or a dancer code sends a connection request, and the other
     /// person confirms it in Priatelia. Returns true when the request was sent (or already exists).
     /// Declining only closes the invite.
     func respondToIncomingInvite(accept: Bool) async -> Bool {
@@ -318,7 +318,7 @@ final class FriendManager: ObservableObject {
                     return false
                 }
             } else if let code = invite.dancerCode {
-                try await ConnectionManager.shared.sendRequestByDancerCode(code: code, type: .partner)
+                try await ConnectionManager.shared.sendRequestByDancerCode(code: code, type: .connection)
             } else {
                 inviteErrorMessage = "Pozvánka nie je platná."
                 return false

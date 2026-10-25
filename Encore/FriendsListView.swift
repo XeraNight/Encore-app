@@ -1,8 +1,9 @@
 import SwiftUI
 
 // MARK: - Prepojenia
-/// Partners, coaches and students in one place (BRAND_GUIDELINES §1A). One way in: "+" (ID tanečníka),
-/// your QR code for others, or scanning theirs.
+/// Connections, the partner, coaches and students in one place (BRAND_GUIDELINES §1A). One way in: "+" (ID
+/// tanečníka), your QR code for others, or scanning theirs. A connection gives no access to the other person's
+/// things; the partner (one) is chosen from the connections and shares the routines.
 struct FriendsListView: View {
     @ObservedObject private var connectionManager = ConnectionManager.shared
     @ObservedObject private var friendManager = FriendManager.shared
@@ -11,7 +12,7 @@ struct FriendsListView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     enum ConnectionTab: String, CaseIterable, Identifiable {
-        case partners = "Partneri"
+        case connections = "Spojenia"
         case coaches = "Tréneri"
         case students = "Zverenci"
         case requests = "Žiadosti"
@@ -20,11 +21,11 @@ struct FriendsListView: View {
 
         /// Coaches and students wait for the coach tools (`AppFeatures.coachTools`).
         static var visible: [ConnectionTab] {
-            AppFeatures.coachTools ? allCases : [.partners, .requests]
+            AppFeatures.coachTools ? allCases : [.connections, .requests]
         }
     }
 
-    @State private var selectedTab: ConnectionTab = .partners
+    @State private var selectedTab: ConnectionTab = .connections
     @State private var searchText = ""
     @State private var showScanner = false
     @State private var showMyCard = false
@@ -38,6 +39,8 @@ struct FriendsListView: View {
     /// The dancer about to be blocked (App Review 1.2), from a connection or a request.
     @State private var blockTarget: DancerConnection?
     @State private var actionCount = 0
+    @State private var partnerToEnd: DancerConnection?
+    @State private var errorText: String?
     @Environment(\.openURL) private var openURL
 
     var body: some View {
@@ -99,7 +102,27 @@ struct FriendsListView: View {
                 connectionToRevoke = nil
             }
         } message: {
-            Text("Stratí prístup k vašim spoločným zostavám a poznámkam. Prepojiť sa môžete kedykoľvek znova.")
+            Text(connectionToRevoke?.relationshipType == .connection
+                 ? "Spojenie sa zruší. Spojiť sa môžete kedykoľvek znova."
+                 : "Stratí prístup k vašim spoločným zostavám a poznámkam. Prepojiť sa môžete kedykoľvek znova.")
+        }
+        .confirmationDialog(
+            "Zmeniť na spojenie?",
+            isPresented: Binding(get: { partnerToEnd != nil }, set: { if !$0 { partnerToEnd = nil } }),
+            titleVisibility: .visible,
+            presenting: partnerToEnd
+        ) { conn in
+            Button("Zmeniť \(conn.otherUserName) na spojenie") {
+                run { try await connectionManager.makePlainConnection(connectionId: conn.id) }
+            }
+            Button("Ponechať", role: .cancel) {}
+        } message: { _ in
+            Text("Ostanete spojení, ale prestanete vidieť a upravovať si navzájom zostavy.")
+        }
+        .alert("Nepodarilo sa", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorText ?? "")
         }
         .confirmationDialog(
             "Zablokovať?",
@@ -136,7 +159,7 @@ struct FriendsListView: View {
 
     private var currentList: [DancerConnection] {
         switch selectedTab {
-        case .partners: return connectionManager.activePartners
+        case .connections: return connectionManager.activePartners + connectionManager.activeConnections
         case .coaches: return connectionManager.activeCoaches
         case .students: return connectionManager.activeStudents
         case .requests: return []
@@ -232,16 +255,8 @@ struct FriendsListView: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .partners:
-            connectionList(
-                filtered(connections: connectionManager.activePartners), badge: "Partner",
-                empty: emptyStateView(
-                    icon: "figure.dance",
-                    title: "Zatiaľ žiadny partner",
-                    subtitle: "Prepoj sa s partnerom alebo partnerkou a zostavy uvidíte obaja, zmeny hneď.",
-                    actionTitle: "Pridať partnera"
-                )
-            )
+        case .connections:
+            connectionsTabContent
         case .coaches:
             connectionList(
                 filtered(connections: connectionManager.activeCoaches), badge: "Tréner",
@@ -256,6 +271,67 @@ struct FriendsListView: View {
             studentsTabContent
         case .requests:
             requestsTabContent
+        }
+    }
+
+    // MARK: Connections and the partner
+    @ViewBuilder
+    private var connectionsTabContent: some View {
+        let partners = filtered(connections: connectionManager.activePartners)
+        let plain = filtered(connections: connectionManager.activeConnections)
+        if partners.isEmpty && plain.isEmpty {
+            emptyStateView(
+                icon: "person.2.fill",
+                title: "Zatiaľ žiadne spojenia",
+                subtitle: "Spoj sa s kamarátmi z tanca cez QR kód alebo ID tanečníka. Spojenie nedáva prístup k tvojim zostavám. Partnera alebo partnerku potom vyberieš zo spojení.",
+                actionTitle: "Pridať spojenie"
+            )
+        } else {
+            if !partners.isEmpty {
+                HomeSectionHeader(title: "PARTNER", systemImage: "figure.dance")
+                    .padding(.horizontal, 4)
+                if connectionManager.activePartners.count > 1 {
+                    Text("Partner môže byť len jeden. Ostatných zmeň na spojenie, inak môžu upravovať tvoje zostavy.")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Color.latinRed)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(partners) { conn in
+                    connectionRow(conn: conn, badgeTitle: "Partner")
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
+            if !plain.isEmpty {
+                HomeSectionHeader(title: "SPOJENIA", systemImage: "person.2.fill", count: plain.count)
+                    .padding(.horizontal, 4)
+                    .padding(.top, partners.isEmpty ? 0 : 8)
+                ForEach(plain) { conn in
+                    connectionRow(conn: conn, badgeTitle: nil)
+                        .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                }
+            }
+        }
+    }
+
+    /// Class and points of the person's KSIS couple, and its places in the cup tables read on this iPhone.
+    private func ksisLine(for conn: DancerConnection) -> String? {
+        guard let couple = connectionManager.couplesByUser[conn.otherUserId] else { return nil }
+        var parts = [("ŠTT", couple.stt), ("LAT", couple.lat)].compactMap { label, standing in
+            standing.className.map { "\(label) \($0)" + (standing.points.map { " \($0) b" } ?? "") }
+        }
+        if let id = couple.coupleId { parts += SlovakCupStore.shared.places(ofCouple: id) }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// Runs one change and shows the server's reason when it is refused (for example a second partner).
+    private func run(_ change: @escaping () async throws -> Void) {
+        Task {
+            do {
+                try await change()
+                actionCount += 1
+            } catch {
+                errorText = error.localizedDescription
+            }
         }
     }
 
@@ -407,7 +483,7 @@ struct FriendsListView: View {
     }
 
     // MARK: Rows
-    private func connectionRow(conn: DancerConnection, badgeTitle: String) -> some View {
+    private func connectionRow(conn: DancerConnection, badgeTitle: String?) -> some View {
         HStack(spacing: 12) {
             Image(systemName: conn.relationshipType.badgeIcon)
                 .font(.subheadline.weight(.bold))
@@ -421,27 +497,47 @@ struct FriendsListView: View {
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
                         .lineLimit(1)
-                    Text(badgeTitle)
-                        .font(.caption2.weight(.bold))
-                        .foregroundColor(Color.gold300)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.gold500.opacity(0.16), in: Capsule())
+                    if let badgeTitle {
+                        Text(badgeTitle)
+                            .font(.caption2.weight(.bold))
+                            .foregroundColor(Color.gold300)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.gold500.opacity(0.16), in: Capsule())
+                    }
                 }
                 Text([conn.otherUserDancerCode, conn.otherUserClub].filter { !$0.isEmpty }.joined(separator: " · "))
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.65))
                     .lineLimit(1)
+                if let ksis = ksisLine(for: conn) {
+                    Text(ksis)
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.gold300)
+                        .lineLimit(2)
+                }
             }
 
             Spacer(minLength: 4)
 
             Menu {
+                if conn.relationshipType == .connection {
+                    Button {
+                        run { try await connectionManager.sendRequest(targetUserId: conn.otherUserId, type: .partner) }
+                    } label: {
+                        Label("Je to môj partner / moja partnerka", systemImage: "figure.dance")
+                    }
+                    .disabled(!connectionManager.activePartners.isEmpty)
+                } else if conn.relationshipType == .partner {
+                    Button { partnerToEnd = conn } label: {
+                        Label("Zmeniť na spojenie", systemImage: "person.2")
+                    }
+                }
                 Button(role: .destructive) {
                     connectionToRevoke = conn
                     showRevokeConfirmation = true
                 } label: {
-                    Label("Zrušiť prepojenie", systemImage: "link.badge.slash")
+                    Label(conn.relationshipType == .connection ? "Zrušiť spojenie" : "Zrušiť prepojenie", systemImage: "link.badge.slash")
                 }
                 Button {
                     report(conn)
@@ -474,9 +570,10 @@ struct FriendsListView: View {
                     Text(req.otherUserName)
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
-                    Text("Chce sa prepojiť ako: \(req.relationshipType.title)")
+                    Text(req.relationshipType.requestText)
                         .font(.caption)
                         .foregroundColor(Color.gold300)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 Spacer(minLength: 4)
                 Menu {
@@ -499,8 +596,12 @@ struct FriendsListView: View {
             HStack(spacing: 10) {
                 Button {
                     Task {
-                        try? await connectionManager.acceptRequest(connectionId: req.id)
-                        actionCount += 1
+                        do {
+                            try await connectionManager.acceptRequest(connectionId: req.id)
+                            actionCount += 1
+                        } catch {
+                            errorText = error.localizedDescription
+                        }
                     }
                 } label: {
                     Label("Prijať", systemImage: "checkmark")
@@ -534,7 +635,7 @@ struct FriendsListView: View {
                 Text(req.otherUserName)
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(.white)
-                Text(req.relationshipType.title)
+                Text(req.relationshipType == .partner ? "Žiadosť o partnera" : "Žiadosť o spojenie")
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
             }
@@ -642,7 +743,7 @@ struct FriendsListView: View {
         if clean.starts(with: "DNC-") {
             // A scanned ID tanečníka
             Task {
-                try? await connectionManager.sendRequestByDancerCode(code: clean, type: .partner)
+                try? await connectionManager.sendRequestByDancerCode(code: clean, type: .connection)
             }
         } else if let url = URL(string: clean) {
             _ = friendManager.handleIncomingURL(url)

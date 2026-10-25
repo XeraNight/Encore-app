@@ -7,7 +7,7 @@ struct AddConnectionSheetView: View {
     @ObservedObject private var profileStore = UserProfileStore.shared
     
     @State private var searchQuery: String = ""
-    @State private var selectedType: ConnectionRelationshipType = .partner
+    @State private var selectedType: ConnectionRelationshipType = .connection
     @State private var searchResults: [DancerSearchResult] = []
     @State private var isSearching: Bool = false
     @State private var searchTask: Task<Void, Never>?
@@ -24,7 +24,8 @@ struct AddConnectionSheetView: View {
                 
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 20) {
-                        // 1. Relationship Type Picker (only partners until the coach tools are back)
+                        // 1. Relationship Type Picker (only plain connections until the coach tools are back;
+                        //    the partner is chosen later from the connections)
                         if AppFeatures.coachTools {
                             relationshipTypeSection
                         }
@@ -76,7 +77,7 @@ struct AddConnectionSheetView: View {
                     .padding(.bottom, 40)
                 }
             }
-            .navigationTitle("Nové prepojenie")
+            .navigationTitle("Nové spojenie")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -101,10 +102,10 @@ struct AddConnectionSheetView: View {
             
             HStack(spacing: 10) {
                 typeButton(
-                    type: .partner,
-                    title: "Tanečný Partner",
-                    icon: "figure.dance",
-                    desc: "Obojsmerné zdieľanie choreografií"
+                    type: .connection,
+                    title: "Spojenie",
+                    icon: "person.2.fill",
+                    desc: "Bez prístupu k tvojim zostavám"
                 )
                 
                 typeButton(
@@ -277,7 +278,7 @@ struct AddConnectionSheetView: View {
                     ProgressView().tint(LuxuryTheme.obsidian900)
                 }
                 Image(systemName: "paperplane.fill")
-                Text(isSending ? "Odosielam..." : "Odoslať žiadosť o prepojenie")
+                Text(isSending ? "Odosielam…" : "Odoslať žiadosť o spojenie")
             }
             .font(.system(size: 15, weight: .bold))
             .foregroundColor(LuxuryTheme.obsidian900)

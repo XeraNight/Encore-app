@@ -117,6 +117,15 @@ final class SlovakCupStore: ObservableObject {
         saved[Self.key(group, discipline)]
     }
 
+    /// "5. v pohári ŠTT" for a couple found in the tables read so far (connections' couples too).
+    func places(ofCouple parId: Int) -> [String] {
+        SlovakCup.Discipline.allCases.flatMap { discipline in
+            saved.filter { $0.key.hasSuffix(".\(discipline.rawValue)") }.values.compactMap { table in
+                table.standings.entries.first { $0.parId == parId }?.place.map { "\($0.display) v pohári \(discipline.title)" }
+            }
+        }
+    }
+
     func remember(_ standings: SlovakCupStandings) {
         guard let group = SlovakCup.Group(ageCategory: standings.category) else { return }
         let discipline: SlovakCup.Discipline = standings.category.lowercased().contains("latin") ? .latin : .standard
