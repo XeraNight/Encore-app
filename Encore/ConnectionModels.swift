@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - Connection Relationship Type
 public enum ConnectionRelationshipType: String, CaseIterable, Codable, Sendable {
     case connection = "connection"       // Spojenie: no access to the other person's things
-    case partner = "partner"             // Obojsmerný prístup k spoločným choreografiám, len jeden partner
+    case partner = "partner"             // The dance partner, only one (shared routines: AppFeatures.partnerRoutines)
     case coachStudent = "coach_student"  // Jednosmerný prístup (Tréner -> Zverenec)
 
     public var title: String {
@@ -27,7 +27,7 @@ public enum ConnectionRelationshipType: String, CaseIterable, Codable, Sendable 
     public var requestText: String {
         switch self {
         case .connection: return "Chce sa s tebou spojiť"
-        case .partner: return "Chce ťa nastaviť ako partnera. Uvidíte a upravíte si navzájom zostavy."
+        case .partner: return "Chce si ťa označiť ako svoj tanečný pár"
         case .coachStudent: return "Chce sa prepojiť ako tréner"
         }
     }

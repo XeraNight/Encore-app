@@ -735,7 +735,8 @@ struct RoutineCanvasView: View {
             stopLiveActivity()
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-            if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
+            // Only another person editing the routine is a reason to download it again here.
+            if AppFeatures.partnerRoutines && newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
                 if !realtimeManager.isConnected { connectIfShared() }
                 Task {
                     await refreshFromDB(userInitiated: false)
@@ -820,6 +821,7 @@ struct RoutineCanvasView: View {
     /// Live editing only when someone else can open this routine; alone it would only spend battery and the
     /// cloud's connection budget (the free plan allows 200 at once for all users).
     private func connectIfShared() {
+        guard AppFeatures.partnerRoutines else { return }
         Task {
             isShared = await ConnectionManager.shared.hasSharingConnection()
             guard isShared else { return }

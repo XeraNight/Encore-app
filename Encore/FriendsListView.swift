@@ -104,9 +104,7 @@ struct FriendsListView: View {
                 connectionToRevoke = nil
             }
         } message: {
-            Text(connectionToRevoke?.relationshipType == .connection
-                 ? "Spojenie sa zruší. Spojiť sa môžete kedykoľvek znova."
-                 : "Stratí prístup k vašim spoločným zostavám a poznámkam. Prepojiť sa môžete kedykoľvek znova.")
+            Text("Spojenie sa zruší. Spojiť sa môžete kedykoľvek znova.")
         }
         .confirmationDialog(
             "Zmeniť na spojenie?",
@@ -119,7 +117,7 @@ struct FriendsListView: View {
             }
             Button("Ponechať", role: .cancel) {}
         } message: { _ in
-            Text("Ostanete spojení, ale prestanete vidieť a upravovať si navzájom zostavy.")
+            Text("Ostanete spojení, len už nebudete označení ako pár.")
         }
         .sheet(item: $resultsOf) { conn in
             if let couple = connectionManager.couplesByUser[conn.otherUserId] {
@@ -290,7 +288,7 @@ struct FriendsListView: View {
             emptyStateView(
                 icon: "person.2.fill",
                 title: "Zatiaľ žiadne spojenia",
-                subtitle: "Spoj sa s kamarátmi z tanca cez QR kód alebo ID tanečníka. Spojenie nedáva prístup k tvojim zostavám. Partnera alebo partnerku potom vyberieš zo spojení.",
+                subtitle: "Spoj sa s kamarátmi z tanca cez QR kód alebo ID tanečníka. Svoj tanečný pár potom označíš v spojeniach.",
                 actionTitle: "Pridať spojenie"
             )
         } else {
@@ -298,7 +296,7 @@ struct FriendsListView: View {
                 HomeSectionHeader(title: "PARTNER", systemImage: "figure.dance")
                     .padding(.horizontal, 4)
                 if connectionManager.activePartners.count > 1 {
-                    Text("Partner môže byť len jeden. Ostatných zmeň na spojenie, inak môžu upravovať tvoje zostavy.")
+                    Text("Partner môže byť len jeden. Ostatných zmeň na spojenie.")
                         .font(.footnote.weight(.semibold))
                         .foregroundColor(Color.latinRed)
                         .fixedSize(horizontal: false, vertical: true)

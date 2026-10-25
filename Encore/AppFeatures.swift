@@ -9,4 +9,7 @@ nonisolated enum AppFeatures {
     static let coachTools = false
     /// Sharing figure videos with partner and coach (720p copy on Cloudflare R2). Videos stay in Fotky.
     static let sharedVideos = false
+    /// Routines shared with the partner: both edit them, live on the canvas (Supabase Realtime). Held back until it
+    /// works across iPhone and Android; until then every routine is the user's own and nothing connects live.
+    static let partnerRoutines = false
 }

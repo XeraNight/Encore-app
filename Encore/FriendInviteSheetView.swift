@@ -60,7 +60,7 @@ struct FriendInviteSheetView: View {
                                 .foregroundColor(Color.gold300.opacity(0.8))
                         }
                         
-                        Text("Chce sa s tebou spojiť v Encore a zdieľať tanečné zostavy a figúry.")
+                        Text("Chce sa s tebou spojiť v Encore.")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(Color.white.opacity(0.65))
                             .multilineTextAlignment(.center)
@@ -144,7 +144,7 @@ struct FriendInviteSheetView: View {
                                 .font(.system(size: 24, weight: .black, design: .rounded))
                                 .foregroundColor(.white)
                             
-                            Text("Keď ju \(invite.name) potvrdí v Priateľoch, budete môcť navzájom zdieľať zostavy a tréningové postrehy.")
+                            Text("Keď ju \(invite.name) potvrdí, budete spojení.")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color.gold300.opacity(0.75))
                                 .multilineTextAlignment(.center)

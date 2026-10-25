@@ -90,7 +90,7 @@ struct FriendInviteModalSheet: View {
                             .padding(.top, 2)
                         }
                         
-                        Text("Tento tanečník ťa pozýva na prepojenie profilov v Encore. Keď tvoju žiadosť potvrdí, môžete zdieľať choreografie, figúry a synchronizovať tréningy.")
+                        Text("Pozýva ťa na spojenie v Encore. Keď tvoju žiadosť potvrdí, budete spojení.")
                             .font(.system(size: 13))
                             .multilineTextAlignment(.center)
                             .foregroundColor(Color.textSecondary)

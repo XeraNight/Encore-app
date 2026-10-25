@@ -326,11 +326,14 @@ final class SupabaseSyncManager: Sendable {
     
     @SyncActor
     func fetchAllRoutines() async -> [DBRoutineRow]? {
-        guard let client else { return nil }
+        guard let client, let userId = client.auth.currentUser?.id else { return nil }
         do {
+            // Only the user's own: the owner's account may read every routine, and shared routines are held back
+            // (AppFeatures.partnerRoutines).
             let rows: [DBRoutineRow] = try await client
                 .from("routines")
                 .select()
+                .eq("user_id", value: userId)
                 .order("updated_at", ascending: false)
                 .execute()
                 .value

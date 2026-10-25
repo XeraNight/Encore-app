@@ -126,8 +126,8 @@ public struct SubscriptionPaywallView: View {
                 .font(.system(.title2, design: .rounded).weight(.heavy))
                 .foregroundColor(.white)
             Text(AppFeatures.coachTools
-                 ? "Free ti ostane navždy: poznámky, plátno, výsledky z KSIS, zdieľanie s partnerom a kľúč pre hosťujúceho trénera. Plus a Premium pridávajú pohodlie a analýzu."
-                 : "Free ti ostane navždy: poznámky, plátno, výsledky z KSIS a spoločné zostavy s partnerom. Plus a Premium pridávajú pohodlie a analýzu.")
+                 ? "Free ti ostane navždy: poznámky, plátno, výsledky z KSIS a kľúč pre hosťujúceho trénera. Plus a Premium pridávajú pohodlie a analýzu."
+                 : "Free ti ostane navždy: poznámky, plátno a výsledky z KSIS. Plus a Premium pridávajú pohodlie a analýzu.")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)

@@ -96,11 +96,6 @@ final class SubscriptionManager: ObservableObject {
         isAppOwner || currentTier == .premium
     }
     
-    /// Možnosť zdieľať zostavy s partnerom v cloude
-    public var canShareWithPartner: Bool {
-        isAppOwner || currentTier == .plus || currentTier == .premium
-    }
-    
     /// Maximálny počet vytvorených zostáv na jeden tanec (Free = 1 na tanec, Plus/Premium = neobmedzene)
     public var maxRoutinesPerDanceAllowed: Int {
         (isAppOwner || currentTier == .plus || currentTier == .premium) ? 9999 : 1
