@@ -113,13 +113,6 @@ struct TrainingJournalView: View {
             } message: { note in
                 Text(note.audioPath != nil ? "Zmaže sa aj hlasovka. Nedá sa to vrátiť." : "Nedá sa to vrátiť.")
             }
-            .confirmationDialog("Zmazať reflexiu?", isPresented: Binding(get: { reflectionToDelete != nil }, set: { if !$0 { reflectionToDelete = nil } }),
-                                titleVisibility: .visible, presenting: reflectionToDelete) { entry in
-                Button("Zmazať", role: .destructive) { delete(entry) }
-                Button("Ponechať", role: .cancel) {}
-            } message: { _ in
-                Text("Zmaže sa celý zápis z tohto tréningu: poznámka, pocity aj to, že si bol na tréningu. Tréning v pláne ostane. Nedá sa to vrátiť.")
-            }
             .sensoryFeedback(.selection, trigger: selectedDay)
             .sensoryFeedback(.selection, trigger: mode)
             .sensoryFeedback(.success, trigger: savedTick)
@@ -146,6 +139,14 @@ struct TrainingJournalView: View {
                     } else {
                         dayStrip
                         dayHeader
+                            // One dialog for the day's reflections (on the ForEach it would repeat for every card).
+                            .confirmationDialog("Zmazať reflexiu?", isPresented: Binding(get: { reflectionToDelete != nil }, set: { if !$0 { reflectionToDelete = nil } }),
+                                                titleVisibility: .visible, presenting: reflectionToDelete) { entry in
+                                Button("Zmazať", role: .destructive) { delete(entry) }
+                                Button("Ponechať", role: .cancel) {}
+                            } message: { _ in
+                                Text("Zmaže sa celý zápis z tohto tréningu: poznámka, pocity aj záznam o účasti. Tréning v pláne ostane. Nedá sa to vrátiť.")
+                            }
                         ForEach(dayReflections) { reflectionCard($0) }
                         ForEach(dayNotes) { card(for: $0, showsDate: false) }
                     }
