@@ -90,7 +90,7 @@ export function errorResponse(
   errorCode:
     | "unauthorized"
     | "apple_reauth_required"
-    | "needs_verification"
+    | "needs_dancer"
     | "conflict"
     | "forbidden"
     | "invalid_input"

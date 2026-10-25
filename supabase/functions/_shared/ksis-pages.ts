@@ -149,23 +149,6 @@ export function splitPair(text: string): KsisPairNames {
   return cut < 0 ? { partner: value, partnerka: "" } : { partner: value.slice(0, cut), partnerka: value.slice(cut + 3) };
 }
 
-/**
- * Whether one of the account's names is this dancer: the surname and the first name both appear in it, in any order
- * and without diacritics, so "Jakub Kalina", "Kalina Jakub" and the e-mail "jakubkalina05" all match "Kalina Jakub".
- * A part shorter than 3 letters must be a whole word, so a short name does not match inside a longer one.
- */
-export function accountMatchesDancer(accountNames: string[], dancer: KsisPersonName): boolean {
-  const parts = [dancer.surname, dancer.firstName]
-    .flatMap((part) => normalizeDancerName(part).split(/[^a-z]+/))
-    .filter((part) => part.length > 0);
-  if (parts.length < 2) return false;
-  return accountNames.some((name) => {
-    const words = normalizeDancerName(name).split(/[^a-z]+/).filter((word) => word.length > 0);
-    const joined = words.join("");
-    return parts.every((part) => part.length >= 3 ? joined.includes(part) : words.includes(part));
-  });
-}
-
 export function isSameCouple(a: KsisPairNames, b: KsisPairNames): boolean {
   return normalizeDancerName(a.partner) === normalizeDancerName(b.partner) &&
     normalizeDancerName(a.partnerka) === normalizeDancerName(b.partnerka);
@@ -213,7 +196,10 @@ export function parseCouplesList(html: string): KsisCoupleListRow[] {
 }
 
 /** KSIS numbers a couple with the partner's personal number; a partnerka is found by her name. */
-export function sideInCouple(member: KsisMemberRow, couple: KsisCoupleListRow): "partner" | "partnerka" | null {
+export function sideInCouple(
+  member: Pick<KsisMemberRow, "personNumber" | "name">,
+  couple: Pick<KsisCoupleListRow, "pairNumber" | "partner" | "partnerka">,
+): "partner" | "partnerka" | null {
   const name = normalizeDancerName(member.name);
   if (couple.pairNumber === member.personNumber || normalizeDancerName(couple.partner) === name) return "partner";
   return normalizeDancerName(couple.partnerka) === name ? "partnerka" : null;
