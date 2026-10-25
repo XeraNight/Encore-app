@@ -12,10 +12,21 @@
 // Kinds: couples_list, couple_detail, couple_page, results, marks, registrations, slp_standings, blocked,
 // unsupported.
 // Only the user's own couple is stored; other couples on the page are read and forgotten.
+// Linking (couple_detail save): one couple per account and one account per dancer. The account's name (Apple,
+// Google, registration, the e-mail before @) must match one of the two dancers; otherwise the dancer says which one
+// they are and the request waits for the owner (ksis_link_requests, owner_decide_link_request).
 // Errors: { error, message } with a Slovak message the app shows as is.
 
-import { corsHeaders, errorResponse, getAuthenticatedUser, getSupabaseAdmin, jsonResponse } from "../_shared/supabase-client.ts";
 import {
+  type AuthUser,
+  corsHeaders,
+  errorResponse,
+  getAuthenticatedUser,
+  getSupabaseAdmin,
+  jsonResponse,
+} from "../_shared/supabase-client.ts";
+import {
+  accountMatchesDancer,
   coupleRounds,
   disciplineOf,
   isSameCouple,
@@ -35,7 +46,8 @@ import {
 
 const HOST = "szts.ksis.eu";
 const MAX_HTML = 2_000_000;
-const MAX_COUPLES = 3;
+// One account follows one couple and is one of its two dancers (migration 20261025_ksis_link_verification).
+const MAX_COUPLES = 1;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Kind = "couples_list" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
@@ -45,6 +57,8 @@ type Body = {
   url?: string;
   html?: string;
   consent?: boolean;
+  /** Which dancer the account is, when its name does not match and it asks the owner to verify. */
+  side?: string;
   pairNumber?: number;
   resultId?: string;
 };
@@ -54,6 +68,7 @@ interface LinkedCouple {
   pair_number: number | null;
   couple_id: number | null;
   partner_names: string | null;
+  side: string | null;
 }
 
 // deno-lint-ignore no-explicit-any
@@ -83,7 +98,7 @@ Deno.serve(async (req: Request) => {
     switch (body.action) {
       case "read":
       case "save":
-        return await handlePage(admin, user.id, body);
+        return await handlePage(admin, user, body);
       case "unlink":
         return await unlink(admin, user.id, body.pairNumber);
       case "delete_result":
@@ -121,7 +136,8 @@ function kindOf(url: URL): Kind | null {
   }
 }
 
-async function handlePage(admin: Admin, userId: string, body: Body): Promise<Response> {
+async function handlePage(admin: Admin, user: AuthUser, body: Body): Promise<Response> {
+  const userId = user.id;
   if (typeof body.url !== "string" || typeof body.html !== "string") {
     return errorResponse("invalid_input", "Chýba stránka.", 400);
   }
@@ -143,7 +159,7 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
       case "couples_list":
         return jsonResponse(readCouplesList(body.html, linked));
       case "couple_detail":
-        return await coupleDetail(admin, userId, body.html, linked, save, body.consent === true);
+        return await coupleDetail(admin, user, body.html, linked, save, body.consent === true, body.side);
       case "couple_page":
         return await couplePage(admin, userId, body.html, linked, save);
       case "results":
@@ -170,7 +186,7 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
 async function linkedCouples(admin: Admin, userId: string): Promise<LinkedCouple[]> {
   const { data, error } = await admin
     .from("user_couples")
-    .select("id, pair_number, couple_id, partner_names")
+    .select("id, pair_number, couple_id, partner_names, side")
     .eq("user_id", userId);
   if (error) throw error;
   return data ?? [];
@@ -218,7 +234,30 @@ function readCouplesList(html: string, linked: LinkedCouple[]) {
 
 // ── Couple detail: link the couple, refresh class, points, finals ───────────────────────────────
 
-async function coupleDetail(admin: Admin, userId: string, html: string, linked: LinkedCouple[], save: boolean, consent: boolean) {
+/** The names the account carries: from Apple or Google, from the registration, and the e-mail before @. */
+function accountNames(user: AuthUser): string[] {
+  const meta = user.user_metadata ?? {};
+  const text = (key: string) => (typeof meta[key] === "string" ? (meta[key] as string) : "");
+  return [
+    text("full_name"),
+    text("name"),
+    `${text("given_name")} ${text("family_name")}`,
+    `${text("first_name")} ${text("last_name")}`,
+    (user.email ?? "").split("@")[0],
+  ].map((name) => name.trim()).filter((name) => name.length > 0);
+}
+
+const isUniqueViolation = (error: { code?: string } | null) => error?.code === "23505";
+
+async function coupleDetail(
+  admin: Admin,
+  user: AuthUser,
+  html: string,
+  linked: LinkedCouple[],
+  save: boolean,
+  consent: boolean,
+  requestedSide: string | undefined,
+) {
   const detail = parseCoupleDetail(html);
   const partner = `${detail.partner.surname} ${detail.partner.firstName}`.trim();
   const partnerka = `${detail.partnerka.surname} ${detail.partnerka.firstName}`.trim();
@@ -233,13 +272,27 @@ async function coupleDetail(admin: Admin, userId: string, html: string, linked: 
     stt: detail.stt,
     lat: detail.lat,
   };
-  if (!save) return jsonResponse({ kind: "couple_detail", couple, isLinked: existing !== undefined });
+  const names = accountNames(user);
+  const sideByName = accountMatchesDancer(names, detail.partner)
+    ? "partner"
+    : accountMatchesDancer(names, detail.partnerka) ? "partnerka" : null;
+
+  if (!save) {
+    const { data: pending } = await admin
+      .from("ksis_link_requests").select("pair_number").eq("user_id", user.id).eq("status", "pending").maybeSingle();
+    return jsonResponse({
+      kind: "couple_detail",
+      couple,
+      isLinked: existing !== undefined,
+      verificationPending: pending?.pair_number === detail.pairNumber,
+    });
+  }
 
   if (!existing && !consent) {
     return errorResponse("invalid_input", "Potvrď, že partner(ka) súhlasí so zobrazením spoločných výsledkov.", 400);
   }
   if (!existing && linked.length >= MAX_COUPLES) {
-    return errorResponse("forbidden", `Prepojiť sa dajú najviac ${MAX_COUPLES} páry.`, 403);
+    return errorResponse("forbidden", "Sledovať sa dá jeden pár. Ak máš nového partnera, najprv odpoj súčasný pár.", 403);
   }
 
   const now = new Date().toISOString();
@@ -260,11 +313,61 @@ async function coupleDetail(admin: Admin, userId: string, html: string, linked: 
     ksis_refreshed_at: now,
     updated_at: now,
   };
-  const { error } = existing
-    ? await admin.from("user_couples").update(row).eq("id", existing.id)
-    : await admin.from("user_couples").insert({ ...row, user_id: userId, discipline: "ALL", partner_consent: true });
-  if (error) throw error;
-  return jsonResponse({ kind: "couple_detail", couple, isLinked: true, saved: 1 });
+
+  // Already ours: refresh class and points; a couple linked before learns which dancer the account is.
+  if (existing) {
+    const learn = existing.side === null && sideByName !== null ? { side: sideByName } : {};
+    let { error } = await admin.from("user_couples").update({ ...row, ...learn }).eq("id", existing.id);
+    if (isUniqueViolation(error) && "side" in learn) {
+      // Another account already is that dancer; the refresh still goes through.
+      ({ error } = await admin.from("user_couples").update(row).eq("id", existing.id));
+    }
+    if (error) throw error;
+    return jsonResponse({ kind: "couple_detail", couple, isLinked: true, saved: 1 });
+  }
+
+  // The account's name is one of the dancers: linked at once.
+  if (sideByName) {
+    const { error } = await admin
+      .from("user_couples")
+      .insert({ ...row, side: sideByName, user_id: user.id, discipline: "ALL", partner_consent: true });
+    if (isUniqueViolation(error)) {
+      return errorResponse("conflict", "Tohto tanečníka už sleduje iný účet v Encore. Ak je to tvoj pár, napíš nám na podporu.", 409);
+    }
+    if (error) throw error;
+    return jsonResponse({ kind: "couple_detail", couple, isLinked: true, saved: 1 });
+  }
+
+  // The name does not match: the dancer says who they are and the owner decides (owner console).
+  if (requestedSide !== "partner" && requestedSide !== "partnerka") {
+    return errorResponse(
+      "needs_verification",
+      "Meno tvojho účtu nesedí s menami v tomto páre. Vyber, kto z nich si, a pošli žiadosť o overenie.",
+      409,
+    );
+  }
+  const { count: taken, error: takenError } = await admin
+    .from("user_couples")
+    .select("id", { count: "exact", head: true })
+    .eq("pair_number", detail.pairNumber)
+    .eq("side", requestedSide);
+  if (takenError) throw takenError;
+  if ((taken ?? 0) > 0) {
+    return errorResponse("conflict", "Tohto tanečníka už sleduje iný účet v Encore. Ak je to tvoj pár, napíš nám na podporu.", 409);
+  }
+  const { error: requestError } = await admin.from("ksis_link_requests").insert({
+    user_id: user.id,
+    pair_number: detail.pairNumber,
+    side: requestedSide,
+    dancer_name: requestedSide === "partner" ? partner : partnerka,
+    account_name: names[0] ?? "",
+    couple: row,
+  });
+  if (isUniqueViolation(requestError)) {
+    return errorResponse("conflict", "Už čakáš na overenie páru. Keď ho schválime alebo zamietneme, môžeš poslať ďalšiu žiadosť.", 409);
+  }
+  if (requestError) throw requestError;
+  return jsonResponse({ kind: "couple_detail", couple, isLinked: false, verificationPending: true });
 }
 
 // ── Couple page: the KSIS couple id and the whole history ────────────────────────────────────────

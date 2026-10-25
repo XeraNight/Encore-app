@@ -3,6 +3,7 @@
 // scripts/anonymize-ksis-fixture.js).
 import { assert, assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
+  accountMatchesDancer,
   coupleRounds,
   disciplineOf,
   isChallengePage,
@@ -350,4 +351,23 @@ Deno.test("Slovenský pohár standings: places, every round and the sum of the 4
     const best = entry.rounds.flatMap((round) => round ? [round.points] : []).sort((a, b) => b - a).slice(0, 4);
     assertEquals(best.reduce((sum, points) => sum + points, 0), entry.total);
   }
+});
+
+// ── Linking a couple: the account must be one of its dancers ─────────────────────────────────────
+
+Deno.test("an account name matches a dancer in any order, without diacritics, also in an e-mail", () => {
+  const dancer = { surname: "Kissová", firstName: "Nikoletta" };
+  assert(accountMatchesDancer(["Nikoletta Kissova"], dancer));
+  assert(accountMatchesDancer(["KISSOVÁ NIKOLETTA"], dancer));
+  assert(accountMatchesDancer(["nikolettakissova.sk"], dancer));
+  assert(accountMatchesDancer(["", "Iné Meno", "nikoletta.kissova"], dancer));
+  assert(!accountMatchesDancer(["Nikoletta Nová"], dancer));
+  assert(!accountMatchesDancer(["kissova"], dancer));
+  assert(!accountMatchesDancer([], dancer));
+});
+
+Deno.test("a short name part must be a whole word", () => {
+  const dancer = { surname: "Li", firstName: "Anna" };
+  assert(accountMatchesDancer(["Anna Li"], dancer));
+  assert(!accountMatchesDancer(["Anna Lipová"], dancer));
 });
