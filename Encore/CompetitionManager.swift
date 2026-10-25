@@ -52,9 +52,9 @@ final class CompetitionManager: ObservableObject {
         loadFailed = false
     }
 
-    /// Own rows only (RLS).
+    /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
     func loadAllData() async {
-        guard AuthManager.shared.isAuthenticated else { return }
+        guard AuthManager.shared.isAuthenticated, let myId = AuthManager.shared.currentUser?.id else { return }
         isLoading = true
         defer { isLoading = false }
         do {
@@ -62,6 +62,7 @@ final class CompetitionManager: ObservableObject {
             async let loadedCouples: [UserCouple] = client
                 .from("user_couples")
                 .select("id, pair_number, couple_id, partner_names, club, age_category, stt_class, stt_points, stt_finals, stt_last_change, lat_class, lat_points, lat_finals, lat_last_change, ksis_refreshed_at")
+                .eq("user_id", value: myId)
                 .not("pair_number", operator: .is, value: "null")
                 .order("created_at")
                 .execute()
@@ -69,6 +70,7 @@ final class CompetitionManager: ObservableObject {
             async let loadedResults: [CompetitionResult] = client
                 .from("competition_results")
                 .select("id, sutaz_id, couple_id, event_name, category_name, discipline, date, couple_count, placement_text, placement, points_earned, cumulative_stats, start_number, rounds, judges")
+                .eq("user_id", value: myId)
                 .eq("is_deleted", value: false)
                 .order("date", ascending: false)
                 .execute()
