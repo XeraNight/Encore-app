@@ -17,11 +17,11 @@ const AUDIENCES = [
   {
     id: 'couple',
     label: 'Pár',
-    title: 'Jedna zostava. Obaja ju tancujete rovnako.',
+    title: 'Tanečný pár. Každý vo svojom mobile.',
     points: [
-      'Spoločné zostavy a figúry, ktoré sa obom zosynchronizujú.',
-      'Poznámky k figúram, ktoré vidíte obaja, aj zmeny partnera naživo.',
-      'Výsledky páru z KSIS v denníku aj kalendári.',
+      'Kópiu svojej zostavy pošleš partnerovi cez QR kód za sekundu.',
+      'Spojenie si môžeš označiť ako Pár (partner to potvrdí).',
+      'Výsledky páru z KSIS v denníku a kalendári sezóny.',
     ],
   },
 ]

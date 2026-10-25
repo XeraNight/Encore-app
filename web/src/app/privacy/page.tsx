@@ -75,7 +75,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-semibold text-white">2. Aké osobné údaje spracúvame</h2>
             <ul className="list-disc pl-5 space-y-2 text-zinc-300">
               <li>
-                <strong>Údaje účtu:</strong> Meno / tanečná prezývka a e-mailová adresa (získané priamou registráciou alebo prostredníctvom Apple Sign-In či Google Sign-In) slúžiace výlučne na autentifikáciu a synchronizáciu.
+                <strong>Údaje účtu:</strong> Meno / tanečná prezývka a e-mailová adresa (získané priamou registráciou alebo prostredníctvom Apple Sign-In či Google Sign-In) slúžiace výlučne na autentifikáciu a synchronizáciu. Aplikácia je určená pre používateľov od 16 rokov; mladší používatelia si môžu účet založiť len so súhlasom zákonného zástupcu.
               </li>
               <li>
                 <strong>Tanečné zostavy a choreografie:</strong> Názvy tancov, figúr, uzlové pozície na 2D canvase, počítanie taktov, prechody a technické poznámky ukladané za účelom tréningového plánovania.
@@ -87,7 +87,7 @@ export default function PrivacyPolicyPage() {
                 <strong>Mikrofón a hlasový prepis:</strong> Hlasové nahrávky slúžia na okamžitý lokálny prepis pokynov trénera cez systémový Apple Speech Recognition do textu poznámky figúry.
               </li>
               <li>
-                <strong>Verejné súťažné výsledky (SZTŠ / ksis.eu):</strong> Zobrazenie bodov a finálových umiestnení z verejného systému ksis.eu na základe oprávneného záujmu (čl. 6 ods. 1 písm. f) GDPR) pre osobný prehľad tanečníka.
+                <strong>Verejné súťažné dáta (SZTŠ / ksis.eu):</strong> Kto ste v KSIS (osobné číslo z preukazu, meno, klub, triedy), Vaše páry vrátane skončených a pri Vašich súťažiach trieda, body, finále, umiestnenia a krížiky porotcov. Mená ostatných tanečníkov a párov sa neukladajú.
               </li>
             </ul>
           </section>
@@ -121,7 +121,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>Formspree</strong>: doručenie správy z kontaktného formulára na stránke Podpora.</li>
             </ul>
             <p>
-              Výsledky zo súťaží: keď v aplikácii otvoríte stránku systému KSIS, aplikácia z nej prečíta a uloží len údaje Vášho prepojeného páru (triedu, body, finále, umiestnenia a krížiky porotcov). Mená ostatných párov sa neukladajú. Jediným oficiálnym zdrojom výsledkov je Slovenský zväz tanečného športu.
+              Verejné športové dáta (SZTŠ / ksis.eu): keď v aplikácii otvoríte stránku systému KSIS, aplikácia z nej prečíta a uloží len údaje o Vás. Uloží: kto ste v KSIS (osobné číslo z preukazu, meno, klub a triedy, keď sa sami vyberiete v zozname členov), Vaše páry vrátane skončených a pri Vašich súťažiach triedu, body, finále, umiestnenia a krížiky porotcov. Mená ostatných členov a párov sa neukladajú. Kým Vás neoverí Encore alebo Váš overený partner či partnerka, tieto údaje vidíte len Vy. Zdieľanie výsledkov so spojeniami je dobrovoľné, predvolene vypnuté v Nastaveniach a prístupné len pre overených tanečníkov. Právny základ: oprávnený záujem (čl. 6 ods. 1 písm. f GDPR), evidencia vlastnej športovej výkonnosti. Jediným oficiálnym zdrojom výsledkov je Slovenský zväz tanečného športu.
             </p>
           </section>
 

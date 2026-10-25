@@ -81,9 +81,9 @@ const FEATURES: {
     id: 'parket',
     eyebrow: 'Parket',
     icon: IconFloor,
-    title: 'Zostava, ktorú obaja tancujete rovnako.',
-    text: 'Poskladaj figúry na parkete presne tak, ako idú v sále. Partner vidí tú istú verziu a každú zmenu hneď.',
-    points: ['Doby, nášľapy a smer tanca pri každej figúre', 'Poznámka k prechodu medzi figúrami', 'Zdieľanie QR kódom alebo priamo s partnerom'],
+    title: 'Zostava presne tak, ako ju tancuješ.',
+    text: 'Poskladaj figúry na parkete presne podľa smeru tanca a sály. Partnerovi pošleš kópiu zostavy jednoducho cez QR kód.',
+    points: ['Doby, nášľapy a smer tanca pri každej figúre', 'Poznámka k prechodu medzi figúrami', 'Kópia zostavy pre partnera cez QR kód'],
     screen: SCREENS.canvas,
     screenLabel: 'Parket',
   },
@@ -122,8 +122,8 @@ const FEATURES: {
     eyebrow: 'Súťaže',
     icon: IconTrophy,
     title: 'Každá súťaž. Každý krížik.',
-    text: 'V aplikácii otvoríš KSIS a jedným ťuknutím uložíš svoje výsledky aj krížiky od porotcov. Celá sezóna je potom v denníku a v kalendári.',
-    points: ['Umiestnenie, body a finále z KSIS', 'Krížiky od každého porotcu v každom kole', 'Kalendár odtancovaných súťaží'],
+    text: 'V aplikácii sa nájdeš v zozname členov KSIS a jedným ťuknutím uložíš výsledky súťaže aj s krížikmi od porotcov. Všetky páry aj história ti ostávajú.',
+    points: ['Výsledky, body a krížiky porotcov z KSIS', 'Slovenský pohár: poradie, 4 najlepšie kolá a postup podľa pravidiel SZTŠ', 'História odtancovaných súťaží ostáva aj pri zmene partnera'],
     screen: SCREENS.competitions,
     screenLabel: 'Súťaže',
     note: 'Encore nie je oficiálna aplikácia SZTŠ. Výsledky si ukladáš z verejného systému KSIS.',
@@ -132,7 +132,7 @@ const FEATURES: {
 
 const STEPS = [
   { title: 'Vytvor si účet', text: 'E-mailom, cez Google alebo Apple. Zadarmo.' },
-  { title: 'Prepoj sa s partnerom', text: 'Naskenuje tvoj QR kód a ty prepojenie potvrdíš.' },
+  { title: 'Pridaj si spojenia', text: 'Naskenuj QR kód alebo zadaj ID tanečníka a označ svoj tanečný pár.' },
   { title: 'Trénuj', text: 'Zostavy, poznámky a výsledky sa skladajú samy do jedného denníka.' },
 ]
 

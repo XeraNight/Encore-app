@@ -117,10 +117,10 @@ export default function SupportPage() {
             <div className="space-y-4">
               <div className="bg-[#100F16] border border-zinc-800 rounded-xl p-5">
                 <h3 className="text-white font-medium mb-1">
-                  Ako funguje synchronizácia choreografií?
+                  Ako funguje zálohovanie a zdieľanie zostáv?
                 </h3>
                 <p className="text-sm text-zinc-400">
-                  Akonáhle sa prihlásite do rovnakého účtu, Vaše zostavy a figúry na 2D canvase sa v reálnom čase zálohujú v cloude (Supabase EÚ). Po pripojení partnera môžete zostavu zdieľať cez QR kód alebo pozvánkový link.
+                  Keď ste prihlásení do svojho účtu, vaše vlastné zostavy a knižnica figúr sa bezpečne zálohujú v cloude (Supabase EÚ) a máte ich na každom svojom zariadení. Partnerovi pošlete kópiu zostavy jednoducho zosnímaním QR kódu (z iPhonu na iPhone).
                 </p>
               </div>
 
@@ -135,10 +135,10 @@ export default function SupportPage() {
 
               <div className="bg-[#100F16] border border-zinc-800 rounded-xl p-5">
                 <h3 className="text-white font-medium mb-1">
-                  Ako si pridám svoju tanečnú kartu do Apple Wallet (Peňaženky)?
+                  Ako si pridám svoju tanečnú kartu do Apple Peňaženky (Wallet)?
                 </h3>
                 <p className="text-sm text-zinc-400">
-                  V aplikácii Encore v sekcii Profil ťuknite na tlačidlo „Pridať do Apple Wallet“. Vygeneruje sa oficiálny digitálny tanečný preukaz s QR kódom a klubovou príslušnosťou.
+                  V aplikácii Encore na svojej členskej karte ťuknite na „Pridať do Apple Peňaženky“. Vytvorí sa vaša karta Encore s QR kódom na rýchle spojenie s inými tanečníkmi. Upozorňujeme, že táto karta slúži výhradne pre aplikáciu Encore a nie je oficiálnym preukazom SZTŠ.
                 </p>
               </div>
 

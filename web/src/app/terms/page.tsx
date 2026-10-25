@@ -125,9 +125,17 @@ export default function TermsPage() {
             </ul>
           </section>
 
-          {/* Section 5: Disclaimers */}
+          {/* Section 5: Age restriction */}
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-white">5. Zrieknutie sa zodpovednosti (Disclaimers)</h2>
+            <h2 className="text-lg font-semibold text-white">5. Vekové obmedzenie a ochrana mladistvých (GDPR)</h2>
+            <p>
+              Aplikácia Encore je určená pre tanečníkov všetkých vekových kategórií vrátane juniorov a mládeže. Používatelia mladší ako 16 rokov môžu aplikáciu používať a zakladať si účet výhradne so súhlasom svojho zákonného zástupcu (rodiča) v súlade s článkom 8 nariadenia GDPR a zákonom č. 18/2018 Z. z. o ochrane osobných údajov.
+            </p>
+          </section>
+
+          {/* Section 6: Disclaimers */}
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold text-white">6. Zrieknutie sa zodpovednosti (Disclaimers)</h2>
             <div className="bg-[#121118] border border-[#D4AF37]/25 rounded-xl p-5 my-3 space-y-3">
               <p className="text-white font-medium text-xs uppercase tracking-wider text-[#D4AF37]">
                 Zdravotné vyhlásenie:
@@ -145,9 +153,9 @@ export default function TermsPage() {
             </div>
           </section>
 
-          {/* Section 6: Contact */}
+          {/* Section 7: Contact */}
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-white">6. Kontaktné údaje a právna podpora</h2>
+            <h2 className="text-lg font-semibold text-white">7. Kontaktné údaje a právna podpora</h2>
             <p>
               V prípade akýchkoľvek právnych otázok alebo nahlásenia porušenia podmienok nás kontaktujte na:{' '}
               <a href="mailto:support@encore-sk.com" className="text-[#D4AF37] underline hover:opacity-80">

@@ -43,8 +43,8 @@ export const PLANS: Plan[] = [
       'Poznámky, diktovanie a hlasové poznámky',
       'Tréningový plán a kalendár',
       'Výsledky a krížiky z KSIS',
-      'Spoločné zostavy s partnerom',
-      'Zdieľanie zostavy QR kódom',
+      'Záloha vlastných zostáv v cloude',
+      'Kópia zostavy pre partnera cez QR kód',
     ],
   },
   {
@@ -85,15 +85,15 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Ako sa do Encore dostanú moje výsledky?',
-    a: 'V aplikácii otvoríš KSIS, nájdeš svoj pár a jedným ťuknutím uložíš históriu súťaží. Po každej ďalšej súťaži si takto uložíš aj umiestnenie a krížiky od porotcov.',
+    a: 'V aplikácii otvoríš KSIS, nájdeš sa v zozname členov a ťukneš „Som to ja“. Encore spozná tvoje páry (aj skončené) a jedným ťuknutím uložíš výsledky súťaže aj s krížikmi od porotcov.',
   },
   {
     q: 'Funguje Encore bez internetu?',
-    a: 'Áno. Zostavy, poznámky a plán máš priamo v telefóne, takže v sále bez signálu fungujú. Keď je pripojenie, zmeny sa zosynchronizujú s partnerom.',
+    a: 'Áno. Zostavy, poznámky a plán máš priamo v telefóne, takže v sále bez signálu fungujú. Keď sa pripojíš na internet, tvoje vlastné dáta sa bezpečne zálohujú do cloudu.',
   },
   {
     q: 'Kto vidí moje zostavy a videá?',
-    a: 'Zostavy vidíš ty a partner, s ktorým sa v aplikácii prepojíš. Prepojenie potvrdzuješ ty a kedykoľvek ho môžeš zrušiť. Dáta sú uložené na serveroch v EÚ. Videá ostávajú v tvojich Fotkách a partnerovi ich pošleš sám.',
+    a: 'Tvoje zostavy a poznámky vidíš iba ty. Partnerovi môžeš poslať kópiu zostavy cez QR kód. Spojeniam sa po overení v KSIS zobrazia tvoje výsledky iba vtedy, ak si ich zdieľanie v Nastaveniach sám zapneš. Videá ostávajú v tvojich Fotkách.',
   },
   {
     q: 'Je Encore aj pre Android?',
@@ -101,7 +101,7 @@ export const FAQ: { q: string; a: string }[] = [
   },
   {
     q: 'Môžem Encore používať zadarmo?',
-    a: 'Áno, navždy. Free obsahuje parket, poznámky, plán, výsledky z KSIS aj zdieľanie s partnerom. Plus a Premium pridávajú viac zostáv, Top 3 priority a analýzu videa.',
+    a: 'Áno, navždy. Free obsahuje parket, poznámky, plán, výsledky z KSIS aj poslanie kópie zostavy partnerovi cez QR kód. Plus a Premium pridávajú neobmedzené zostavy, Top 3 priority a analýzu videa.',
   },
   {
     q: 'Ako zruším predplatné?',

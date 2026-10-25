@@ -89,7 +89,7 @@ export default function AddFriendClientView({
             Pozvánka od {inviter.name}
           </h1>
           <p className="text-xs text-stone-400 max-w-xs">
-            Pridaj sa do Encore a zdieľajte spoločne tanečné zostavy, figúry a hudobný metronóm.
+            Pridaj sa do Encore a spoj sa s tanečníkmi z tvojho klubu a parketu.
           </p>
         </div>
 
