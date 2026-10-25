@@ -5,8 +5,9 @@ import Supabase
 import OSLog
 
 // MARK: - KSIS in the app
-/// Linked couples and results from KSIS. Everything comes from a KSIS page the user has open in the app
-/// (`KSISBrowserView`): the server function `ksis-page` reads it and stores only the user's own couple.
+/// Who the user is in KSIS, their couples (the current one and the ones before) and results. Everything comes from a
+/// KSIS page the user has open in the app (`KSISBrowserView`): the server function `ksis-page` reads it and stores only
+/// the user's own data.
 /// Our server never contacts KSIS itself (docs/KSIS_SAMPLES_NEEDED.md §1).
 @MainActor
 final class CompetitionManager: ObservableObject {
@@ -17,20 +18,23 @@ final class CompetitionManager: ObservableObject {
     @Published private(set) var isLoading = false
     @Published private(set) var loadFailed = false
 
-    var activeCouple: UserCouple? { couples.first }
+    /// Who the user picked in the KSIS members list; nil until they do.
+    @Published private(set) var dancer: KSISDancer?
+    /// Someone waits to be confirmed as the partner of the user's current couple (only a verified dancer sees it).
+    @Published private(set) var partnerWaiting: KSISPartnerWaiting?
 
-    /// The couple waiting for the owner's verification, when the account follows none yet.
-    @Published private(set) var pendingLink: KSISLinkRequest?
+    var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
+    var previousCouples: [UserCouple] { couples.filter { !$0.isCurrent } }
 
     enum ActionError: LocalizedError {
         case server(String)
-        /// The account's name does not match the couple: the dancer picks who they are and asks for verification.
-        case needsVerification(String)
+        /// The user has not picked themselves in the members list yet.
+        case needsDancer(String)
         case network
 
         var errorDescription: String? {
             switch self {
-            case .server(let message), .needsVerification(let message): return message
+            case .server(let message), .needsDancer(let message): return message
             case .network: return "Nepodarilo sa spojiť so serverom. Skontroluj internet a skús to znova."
             }
         }
@@ -52,7 +56,8 @@ final class CompetitionManager: ObservableObject {
     }
 
     func resetState() {
-        pendingLink = nil
+        dancer = nil
+        partnerWaiting = nil
         couples = []
         results = []
         loadFailed = false
@@ -65,12 +70,19 @@ final class CompetitionManager: ObservableObject {
         defer { isLoading = false }
         do {
             let client = SupabaseConfig.client
+            async let loadedDancers: [KSISDancer] = client
+                .from("ksis_dancers")
+                .select("user_id, person_number, name, club, status, created_at")
+                .eq("user_id", value: myId)
+                .execute()
+                .value
             async let loadedCouples: [UserCouple] = client
                 .from("user_couples")
-                .select("id, pair_number, couple_id, partner_names, club, age_category, stt_class, stt_points, stt_finals, stt_last_change, lat_class, lat_points, lat_finals, lat_last_change, ksis_refreshed_at")
+                .select("id, is_current, pair_number, couple_id, partner_names, club, age_category, stt_class, stt_points, stt_finals, stt_last_change, lat_class, lat_points, lat_finals, lat_last_change, ksis_refreshed_at")
                 .eq("user_id", value: myId)
                 .not("pair_number", operator: .is, value: "null")
-                .order("created_at")
+                .order("is_current", ascending: false)
+                .order("created_at", ascending: false)
                 .execute()
                 .value
             async let loadedResults: [CompetitionResult] = client
@@ -81,9 +93,10 @@ final class CompetitionManager: ObservableObject {
                 .order("date", ascending: false)
                 .execute()
                 .value
+            dancer = try await loadedDancers.first
             couples = try await loadedCouples
             results = try await loadedResults
-            pendingLink = couples.isEmpty ? try? await pendingRequest(myId) : nil
+            partnerWaiting = dancer?.isVerified == true ? await waitingPartner() : nil
             loadFailed = false
         } catch {
             loadFailed = true
@@ -91,15 +104,21 @@ final class CompetitionManager: ObservableObject {
         }
     }
 
-    private func pendingRequest(_ userId: UUID) async throws -> KSISLinkRequest? {
-        let rows: [KSISLinkRequest] = try await SupabaseConfig.client
-            .from("ksis_link_requests")
-            .select("id, user_id, pair_number, side, dancer_name, account_name, couple, created_at")
-            .eq("user_id", value: userId)
-            .eq("status", value: "pending")
-            .execute()
-            .value
-        return rows.first
+    /// Extra: the diary still shows when this fails.
+    private func waitingPartner() async -> KSISPartnerWaiting? {
+        let rows: [KSISPartnerWaiting]? = try? await SupabaseConfig.client.rpc("my_partner_waiting").execute().value
+        return rows?.first
+    }
+
+    /// The verified dancer confirms the partner of their current couple; the server checks both sides of the couple.
+    func confirmPartner(_ waiting: KSISPartnerWaiting) async throws {
+        struct Params: Encodable { let p_partner: UUID }
+        do {
+            try await SupabaseConfig.client.rpc("confirm_partner", params: Params(p_partner: waiting.userId)).execute()
+        } catch {
+            throw ActionError.server("Potvrdenie sa nepodarilo. Skús to znova.")
+        }
+        partnerWaiting = nil
     }
 
     func results(for couple: UserCouple) -> [CompetitionResult] {
@@ -113,18 +132,17 @@ final class CompetitionManager: ObservableObject {
         try await call(KSISPageRequest(action: "read", url: url.absoluteString, html: html))
     }
 
-    /// Stores what the open page says about the user's couple, then reloads the diary.
-    func save(url: URL, html: String, consent: Bool = false, side: String? = nil) async throws -> KSISPageReply {
+    /// Stores what the open page says about the user (who they are, their couples, a result), then reloads the diary.
+    func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil) async throws -> KSISPageReply {
         let reply: KSISPageReply = try await call(
-            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, side: side)
+            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber)
         )
         await loadAllData()
         return reply
     }
 
     func unlink(_ couple: UserCouple) async throws {
-        guard let pairNumber = couple.pairNumber else { return }
-        let _: KSISOkReply = try await call(KSISPageRequest(action: "unlink", pairNumber: pairNumber))
+        let _: KSISOkReply = try await call(KSISPageRequest(action: "unlink", coupleId: couple.id.uuidString.lowercased()))
         await loadAllData()
     }
 
@@ -138,7 +156,7 @@ final class CompetitionManager: ObservableObject {
             return try await EdgeFunctionClient.call("ksis-page", request)
         } catch EdgeFunctionClient.Failure.server(let code, let message) {
             let text = message ?? "Nepodarilo sa to. Skús to znova."
-            throw code == "needs_verification" ? ActionError.needsVerification(text) : ActionError.server(text)
+            throw code == "needs_dancer" ? ActionError.needsDancer(text) : ActionError.server(text)
         } catch {
             throw ActionError.network
         }

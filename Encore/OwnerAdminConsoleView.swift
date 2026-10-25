@@ -32,8 +32,10 @@ struct OwnerAdminConsoleView: View {
     @State private var banReasonText = "Porušenie pravidiel komunity"
     @State private var userToBan: AdminUserSearchItem?
     @State private var userToDelete: AdminUserSearchItem?
-    /// KSIS couples waiting for verification: the account's name did not match the dancer.
-    @State private var linkRequests: [KSISLinkRequest] = []
+    /// Dancers who picked themselves in the KSIS members list and wait to be verified.
+    @State private var dancersToVerify: [KSISDancer] = []
+    /// Account name and e-mail of each of them, to compare with the KSIS name.
+    @State private var accounts: [UUID: String] = [:]
 
     private var selectedUser: AdminUserSearchItem? {
         searchResults.first { $0.id == selectedUserId }
@@ -46,7 +48,7 @@ struct OwnerAdminConsoleView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         ownerHeader
-                        if !linkRequests.isEmpty { linkRequestsSection }
+                        if !dancersToVerify.isEmpty { dancersSection }
                         PlannerChoice(options: [(Mode.search, "Hľadať človeka"), (Mode.email, "Podľa e-mailu")],
                                       selection: $mode)
                         if mode == .search {
@@ -99,7 +101,7 @@ struct OwnerAdminConsoleView: View {
                     Task { await search() }
                 }
             }
-            .task { await loadLinkRequests() }
+            .task { await loadDancersToVerify() }
             .task(id: searchQuery) {
                 // Searches as you type, after a short pause (a new letter cancels the previous search).
                 try? await Task.sleep(for: .milliseconds(350))
@@ -303,23 +305,24 @@ struct OwnerAdminConsoleView: View {
     }
 
     // MARK: - KSIS verification
-    private var linkRequestsSection: some View {
+    private var dancersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "OVERENIE PÁROV", systemImage: "person.badge.shield.checkmark", count: linkRequests.count)
-            ForEach(linkRequests) { request in
+            HomeSectionHeader(title: "OVERENIE TANEČNÍKOV", systemImage: "person.badge.shield.checkmark", count: dancersToVerify.count)
+            ForEach(dancersToVerify) { dancer in
                 VStack(alignment: .leading, spacing: 10) {
-                    Text(request.couple.partnerNames ?? "Pár \(request.pairNumber)")
+                    Text("\(dancer.name) · č. \(dancer.personNumber)")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
-                    Text("Účet: \(request.accountName.isEmpty ? "bez mena" : request.accountName) · tvrdí, že je \(request.dancerName)")
+                    Text(["Účet: \(accounts[dancer.userId] ?? "bez mena")", dancer.club.map { "KSIS: \($0)" }]
+                        .compactMap { $0 }.joined(separator: " · "))
                         .font(.caption)
                         .foregroundColor(Color.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack(spacing: 10) {
-                        PrimarySheetButton(title: "Schváliť", isLoading: false, isEnabled: !isActionInProgress) {
-                            decide(request, approve: true)
+                        PrimarySheetButton(title: "Overiť", isLoading: false, isEnabled: !isActionInProgress) {
+                            decide(dancer, approve: true)
                         }
-                        Button { decide(request, approve: false) } label: {
+                        Button { decide(dancer, approve: false) } label: {
                             Text("Zamietnuť")
                                 .font(.subheadline.weight(.bold))
                                 .foregroundColor(Color.latinRed)
@@ -335,32 +338,53 @@ struct OwnerAdminConsoleView: View {
                 .transition(.opacity.combined(with: .scale(scale: 0.97)))
             }
         }
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: linkRequests.map(\.id))
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: dancersToVerify.map(\.id))
     }
 
-    /// The owner reads every pending request (RLS ksis_link_requests_read).
-    private func loadLinkRequests() async {
+    /// The owner reads every dancer and profile (RLS ksis_dancers_read, profiles).
+    private func loadDancersToVerify() async {
+        struct Account: Decodable {
+            let id: UUID
+            let name: String?
+            let full_name: String?
+            let email: String?
+        }
         do {
-            linkRequests = try await SupabaseConfig.client
-                .from("ksis_link_requests")
-                .select("id, user_id, pair_number, side, dancer_name, account_name, couple, created_at")
+            let client = SupabaseConfig.client
+            let dancers: [KSISDancer] = try await client
+                .from("ksis_dancers")
+                .select("user_id, person_number, name, club, status, created_at")
                 .eq("status", value: "pending")
                 .order("created_at")
                 .execute()
                 .value
+            let found: [Account] = dancers.isEmpty ? [] : try await client
+                .from("profiles")
+                .select("id, name, full_name, email")
+                .in("id", values: dancers.map(\.userId))
+                .execute()
+                .value
+            accounts = Dictionary(found.map { account in
+                (account.id, [account.name ?? account.full_name, account.email].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+            }, uniquingKeysWith: { first, _ in first })
+            dancersToVerify = dancers
         } catch {
-            Logger.general.error("Loading link requests failed: \(error.localizedDescription, privacy: .public)")
+            Logger.general.error("Loading dancers to verify failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    private func decide(_ request: KSISLinkRequest, approve: Bool) {
+    private func decide(_ dancer: KSISDancer, approve: Bool) {
         perform {
-            struct Params: Encodable { let p_request_id: UUID; let p_approve: Bool }
-            try await SupabaseConfig.client
-                .rpc("owner_decide_link_request", params: Params(p_request_id: request.id, p_approve: approve))
-                .execute()
-            await loadLinkRequests()
-            return approve ? "Pár je prepojený." : "Žiadosť je zamietnutá."
+            struct Params: Encodable { let p_user: UUID; let p_approve: Bool }
+            do {
+                try await SupabaseConfig.client
+                    .rpc("owner_decide_dancer", params: Params(p_user: dancer.userId, p_approve: approve))
+                    .execute()
+            } catch let error as PostgrestError where error.code == "23505" {
+                throw OwnerConsoleError.dancerTaken
+            }
+            await loadDancersToVerify()
+            return approve ? "\(dancer.name) je overený." : "Žiadosť je zamietnutá."
         }
     }
 
@@ -479,6 +503,11 @@ struct OwnerAdminConsoleView: View {
             }
         }
     }
+}
+
+private enum OwnerConsoleError: LocalizedError {
+    case dancerTaken
+    var errorDescription: String? { "tohto tanečníka už má overený iný účet." }
 }
 
 // MARK: - Admin User Search Item

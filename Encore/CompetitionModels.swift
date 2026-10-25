@@ -25,9 +25,12 @@ struct UserCouple: Identifiable, Decodable, Equatable, Sendable {
     let stt: Standing
     let lat: Standing
     let refreshedAt: String?
+    /// The couple that dances now; the ones before stay as the history.
+    let isCurrent: Bool
 
     enum CodingKeys: String, CodingKey {
         case id
+        case isCurrent = "is_current"
         case pairNumber = "pair_number"
         case coupleId = "couple_id"
         case partnerNames = "partner_names"
@@ -59,6 +62,7 @@ struct UserCouple: Identifiable, Decodable, Equatable, Sendable {
             lastChange: try c.decodeIfPresent(String.self, forKey: .latLastChange)
         )
         refreshedAt = try c.decodeIfPresent(String.self, forKey: .refreshedAt)
+        isCurrent = try c.decodeIfPresent(Bool.self, forKey: .isCurrent) ?? true
     }
 
     /// "Tanečný Adam & Tanečná Eva"
@@ -212,15 +216,17 @@ struct KSISPageRequest: Encodable, Sendable {
     var url: String? = nil
     var html: String? = nil
     var consent: Bool? = nil
-    /// "partner" or "partnerka": which dancer the account is, when its name does not match and the owner verifies.
-    var side: String? = nil
-    var pairNumber: Int? = nil
+    /// "Toto som ja" on the members list.
+    var personNumber: Int? = nil
+    /// The saved couple to unlink (`user_couples.id`).
+    var coupleId: String? = nil
     var resultId: String? = nil
 }
 
 /// What the server read on the open KSIS page. Fields depend on `kind`.
 struct KSISPageReply: Decodable, Sendable {
     enum Kind: String, Decodable, Sendable {
+        case membersList = "members_list"
         case couplesList = "couples_list"
         case coupleDetail = "couple_detail"
         case couplePage = "couple_page"
@@ -237,6 +243,20 @@ struct KSISPageReply: Decodable, Sendable {
         }
     }
 
+    struct ListedMember: Decodable, Sendable, Identifiable {
+        let personNumber: Int
+        /// "Priezvisko Meno" as KSIS writes it.
+        let name: String
+        let club: String
+        let sttClass: String
+        let latClass: String
+        /// A member who stopped keeps the last classes.
+        let active: Bool
+        let isMe: Bool
+
+        var id: Int { personNumber }
+    }
+
     struct ListedCouple: Decodable, Sendable, Identifiable {
         let pairNumber: Int
         let partner: String
@@ -245,9 +265,16 @@ struct KSISPageReply: Decodable, Sendable {
         let ageCategory: String
         let sttClass: String
         let latClass: String
+        /// "Aktívny" for the couple that dances now, empty for one that ended.
+        let status: String
+        /// Which of the two the signed-in dancer is; nil when the couple is not theirs.
+        let side: String?
         let isLinked: Bool
 
-        var id: Int { pairNumber }
+        /// A partner who changes partnerka may keep the number.
+        var id: String { "\(pairNumber)|\(partnerka)" }
+        var isMine: Bool { side != nil }
+        var isActive: Bool { status == "Aktívny" }
     }
 
     struct PageStanding: Decodable, Sendable {
@@ -309,9 +336,12 @@ struct KSISPageReply: Decodable, Sendable {
     }
 
     let kind: Kind
+    let members: [ListedMember]?
     let couples: [ListedCouple]?
     let couple: PageCouple?
     let isLinked: Bool?
+    /// Couple detail: one of the signed-in dancer's couples.
+    let isMine: Bool?
     let isOwn: Bool?
     let competitions: Int?
     let competition: Competition?
@@ -325,34 +355,42 @@ struct KSISPageReply: Decodable, Sendable {
     let event: Event?
     let categories: [String]?
     let saved: Int?
-    /// Couple detail: a request to verify this couple waits for the owner.
-    let verificationPending: Bool?
     /// Results: "points", "slp" (Slovenský pohár) or "none" (WDSF, ordinary cups).
     let scoring: String?
     /// The official Slovenský pohár standings (slp_poradie.php).
     let standings: SlovakCupStandings?
 }
 
-// MARK: - A couple waiting for the owner's verification
-struct KSISLinkRequest: Decodable, Equatable, Sendable, Identifiable {
-    struct Couple: Decodable, Equatable, Sendable {
-        let partnerNames: String?
-        enum CodingKeys: String, CodingKey { case partnerNames = "partner_names" }
-    }
-
-    let id: UUID
+// MARK: - Who the account is in KSIS (`ksis_dancers`)
+/// Picked in the members list. Private until the owner or the verified partner confirms it.
+struct KSISDancer: Decodable, Equatable, Sendable, Identifiable {
     let userId: UUID
-    let pairNumber: Int
-    let side: String
-    let dancerName: String
-    let accountName: String
-    let couple: Couple
+    let personNumber: Int
+    /// "Priezvisko Meno" as KSIS writes it.
+    let name: String
+    let club: String?
+    let status: String
     let createdAt: Date
 
+    var id: UUID { userId }
+    var isVerified: Bool { status == "verified" }
+
     enum CodingKeys: String, CodingKey {
-        case id, side, couple
-        case userId = "user_id", pairNumber = "pair_number", dancerName = "dancer_name"
-        case accountName = "account_name", createdAt = "created_at"
+        case name, club, status
+        case userId = "user_id", personNumber = "person_number", createdAt = "created_at"
+    }
+}
+
+/// The account waiting to be confirmed as the partner of the verified dancer's current couple.
+struct KSISPartnerWaiting: Decodable, Equatable, Sendable, Identifiable {
+    let userId: UUID
+    let accountName: String
+    let ksisName: String
+
+    var id: UUID { userId }
+
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id", accountName = "account_name", ksisName = "ksis_name"
     }
 }
 

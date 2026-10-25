@@ -136,7 +136,7 @@ public final class ConnectionManager: ObservableObject {
             // server function returns just these people (related_profiles).
             async let people: [DancerSearchResult] = client.rpc("related_profiles").execute().value
             async let blocked: [BlockRow] = client.from("user_blocks").select("blocked_id").execute().value
-            async let couples: [CoupleRow] = client.from("user_couples").select().neq("user_id", value: myId).execute().value
+            async let couples: [CoupleRow] = client.from("user_couples").select().neq("user_id", value: myId).eq("is_current", value: true).execute().value
 
             let (rawList, related, blocks) = try await (rows, people, blocked)
             let profilesDict = Dictionary(related.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })

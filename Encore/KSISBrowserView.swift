@@ -6,8 +6,9 @@ import OSLog
 
 // MARK: - KSIS in the app
 /// KSIS inside Encore. The dancer browses KSIS as in Safari (and passes its check as a person). After each
-/// page loads, the panel below says what that page means for the linked couple and offers one action:
-/// link the couple, save the history, a result or the crosses, put a registration into Plán.
+/// page loads, the panel below says what that page means for the dancer and offers one action: "Som to ja" in the
+/// members list, save the couples, a result with its crosses or the history, put a registration into Plán. Every
+/// panel ends with the pages worth going to next.
 /// The app never opens KSIS pages on its own and never refreshes in the background: pulling the page
 /// down is the live view on competition day (docs/KSIS_SAMPLES_NEEDED.md §1).
 struct KSISBrowserView: View {
@@ -22,8 +23,10 @@ struct KSISBrowserView: View {
 
     @State private var state: ReadState = .idle
     @State private var consent = false
-    /// The account's name did not match the couple: it picks which dancer it is and asks the owner to verify.
-    @State private var needsSide = false
+    /// A dancer was picked before: picking another one asks first (that one's couples and results go).
+    @State private var dancerToReplace: KSISPageReply.ListedMember?
+    /// "Uložiť do histórie" saved the result and opened its marks: they save themselves when they load.
+    @State private var savesMarksNext = false
     @State private var isSaving = false
     @State private var notice: String?
     @State private var isPanelExpanded = true
@@ -59,6 +62,17 @@ struct KSISBrowserView: View {
         .background(EllegancePageBackground())
         .sensoryFeedback(.success, trigger: successTick)
         .sensoryFeedback(.impact(weight: .heavy), trigger: advanceTick)
+        .confirmationDialog(
+            "Zmeniť tanečníka?",
+            isPresented: Binding(get: { dancerToReplace != nil }, set: { if !$0 { dancerToReplace = nil } }),
+            titleVisibility: .visible,
+            presenting: dancerToReplace
+        ) { member in
+            Button("Som \(member.name)", role: .destructive) { save(personNumber: member.personNumber) }
+            Button("Zrušiť", role: .cancel) {}
+        } message: { _ in
+            Text("Páry a súťaže predošlého tanečníka sa z Encore zmažú.")
+        }
         .preferredColorScheme(.dark)
     }
 
@@ -152,7 +166,8 @@ struct KSISBrowserView: View {
         case .failed: return "Stránku sa nepodarilo prečítať"
         case .reply(let reply, _, _):
             switch reply.kind {
-            case .couplesList: return "Nájdené páry"
+            case .membersList: return "Zoznam členov"
+            case .couplesList: return "Páry v KSIS"
             case .coupleDetail: return "Detail páru"
             case .couplePage: return "Stránka páru"
             case .results: return "Výsledková listina"
@@ -169,15 +184,17 @@ struct KSISBrowserView: View {
     private var panelContent: some View {
         switch state {
         case .idle:
-            hint("Otvor zoznam párov, stránku svojho páru, výsledky, hodnotenie alebo poradie Slovenského pohára. Appka ich rozpozná sama.")
+            guide(nil)
         case .reading:
             ProgressView()
                 .tint(Color.gold400)
                 .frame(maxWidth: .infinity)
         case .failed(let message):
             hint(message)
-        case .reply(let reply, _, _):
+            navigation
+        case .reply(let reply, let url, _):
             switch reply.kind {
+            case .membersList: membersList(reply)
             case .couplesList: couplesList(reply)
             case .coupleDetail: coupleDetail(reply)
             case .couplePage: couplePage(reply)
@@ -186,45 +203,111 @@ struct KSISBrowserView: View {
             case .registrations: registrations(reply)
             case .slpStandings: slovakCup(reply)
             case .blocked: hint("Dokonči overenie na stránke vyššie. Potom sa panel sám obnoví.")
-            case .unsupported: hint("Otvor zoznam párov, stránku svojho páru, výsledky alebo hodnotenie. Appka ich rozpozná sama.")
+            case .unsupported: guide(url)
             }
+            if reply.kind != .unsupported && reply.kind != .blocked { navigation }
         }
     }
 
     // MARK: Kinds
     @ViewBuilder
-    private func couplesList(_ reply: KSISPageReply) -> some View {
-        let couples = reply.couples ?? []
-        if couples.isEmpty {
-            hint("Žiadny pár. Skús priezvisko alebo číslo preukazu partnera.")
+    private func membersList(_ reply: KSISPageReply) -> some View {
+        let members = reply.members ?? []
+        if members.isEmpty {
+            hint("Nikoho som nenašiel. Skús priezvisko bez diakritiky alebo číslo z preukazu.")
         } else {
-            ForEach(couples) { couple in
+            if manager.dancer == nil {
+                hint("Kto z nich si? Svoje dáta uvidíš hneď len ty, spojeniam sa ukážu po overení.")
+            }
+            ForEach(members) { member in
                 HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("\(couple.partner) & \(couple.partnerka)")
+                        Text(member.name)
                             .font(.subheadline.weight(.bold))
                             .foregroundColor(.white)
-                        Text("\(couple.club) · \(couple.ageCategory) · ŠTT \(couple.sttClass) · LAT \(couple.latClass)")
+                        Text(memberLine(member))
                             .font(.caption)
                             .foregroundColor(Color.textSecondary)
                     }
                     Spacer(minLength: 8)
-                    if couple.isLinked {
-                        Label("Prepojené", systemImage: "checkmark.seal.fill")
+                    if member.isMe {
+                        Label("To si ty", systemImage: "checkmark.seal.fill")
                             .font(.caption.weight(.bold))
                             .foregroundColor(Color.syncEmerald)
-                    } else {
-                        smallButton("Sme to my") {
-                            if let url = URL(string: "https://\(Self.host)/detail_paru.php?cp=\(couple.pairNumber)") {
-                                web.load(url)
-                            }
+                    } else if manager.dancer?.isVerified != true {
+                        smallButton("Som to ja") {
+                            if manager.dancer == nil { save(personNumber: member.personNumber) } else { dancerToReplace = member }
                         }
                     }
                 }
                 .padding(12)
                 .homeCard(cornerRadius: 14)
             }
+            if let me = members.first(where: \.isMe), let url = Self.couplesURL(surname: Self.surname(of: me.name)) {
+                primaryButton("Nájsť moje páry") { web.load(url) }
+            }
         }
+    }
+
+    private func memberLine(_ member: KSISPageReply.ListedMember) -> String {
+        let classes = [("ŠTT", member.sttClass), ("LAT", member.latClass)].filter { !$0.1.isEmpty }.map { "\($0.0) \($0.1)" }
+        return ([member.club] + classes + (member.active ? [] : ["neaktívny"])).filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    @ViewBuilder
+    private func couplesList(_ reply: KSISPageReply) -> some View {
+        let mine = (reply.couples ?? []).filter(\.isMine)
+        if manager.dancer == nil {
+            hint("Najprv sa nájdi v zozname členov. Potom appka spozná, ktoré páry sú tvoje.")
+        } else if mine.isEmpty {
+            hint("Tvoj pár tu nie je. Vyhľadaj svoje priezvisko a odškrtni Aktívne, nech sa ukážu aj skončené páry.")
+        } else {
+            ForEach(mine) { couple in
+                listedCoupleRow(couple)
+            }
+            if mine.contains(where: { !$0.isLinked }) {
+                consentToggle
+                primaryButton(mine.count == 1 ? "Uložiť môj pár" : "Uložiť moje páry (\(mine.count))", isEnabled: consent, action: { save() })
+            } else if let current = mine.first(where: \.isActive), let url = Self.page("detail_paru.php?cp=\(current.pairNumber)") {
+                hint("Páry sú uložené. Trieda a body aktuálneho páru sú v jeho detaile.")
+                primaryButton("Trieda a body aktuálneho páru") { web.load(url) }
+            } else {
+                hint("Páry sú uložené. Ulož si súťaže: otvor výsledky súťaže, kde ste tancovali.")
+            }
+        }
+    }
+
+    private func listedCoupleRow(_ couple: KSISPageReply.ListedCouple) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text("\(couple.partner) & \(couple.partnerka)")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                Spacer(minLength: 6)
+                Text(couple.isActive ? "aktuálny" : "skončený")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(couple.isActive ? Color.obsidian900 : .white.opacity(0.7))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(couple.isActive ? Color.gold400 : Color.white.opacity(0.1), in: Capsule())
+            }
+            Text([couple.club, couple.ageCategory, couple.isActive ? "ŠTT \(couple.sttClass) · LAT \(couple.latClass)" : ""]
+                .filter { !$0.isEmpty }.joined(separator: " · "))
+                .font(.caption)
+                .foregroundColor(Color.textSecondary)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .homeCard(cornerRadius: 14)
+    }
+
+    private var consentToggle: some View {
+        Toggle(isOn: $consent) {
+            Text("Partner(ka) súhlasí, aby sme v Encore videli naše spoločné výsledky.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.85))
+        }
+        .tint(Color.gold500)
     }
 
     @ViewBuilder
@@ -232,27 +315,15 @@ struct KSISBrowserView: View {
         if let couple = reply.couple {
             coupleCard(couple)
             if reply.isLinked == true {
-                hint("Ďalej: otvor výsledky ktorejkoľvek súťaže, kde ste tancovali, a ťukni na svoje meno. Uložíš celú históriu aj s krížikmi.")
                 primaryButton("Aktualizovať triedu a body", action: { save() })
-            } else if reply.verificationPending == true {
-                Label("Čaká na overenie. Keď ho schválime, pár sa ti prepojí sám.", systemImage: "hourglass")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Color.gold300)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else if needsSide {
-                hint("Meno tvojho účtu nesedí s menami v tomto páre. Kto z nich si? Žiadosť o overenie schválime ručne.")
-                HStack(spacing: 8) {
-                    secondaryButton(couple.partner) { save(side: "partner") }
-                    secondaryButton(couple.partnerka) { save(side: "partnerka") }
-                }
+                hint("Ďalej: otvor výsledky súťaže, kde ste tancovali, a ulož ju do histórie.")
+            } else if reply.isMine == true {
+                consentToggle
+                primaryButton("Uložiť pár", isEnabled: consent, action: { save() })
+            } else if manager.dancer == nil {
+                hint("Najprv sa nájdi v zozname členov, potom appka spozná svoje páry.")
             } else {
-                Toggle(isOn: $consent) {
-                    Text("Partner(ka) súhlasí, aby sme v Encore videli naše spoločné výsledky.")
-                        .font(.footnote)
-                        .foregroundColor(.white.opacity(0.85))
-                }
-                .tint(Color.gold500)
-                primaryButton("Prepojiť pár", isEnabled: consent, action: { save() })
+                hint("Toto nie je tvoj pár.")
             }
         }
     }
@@ -265,9 +336,9 @@ struct KSISBrowserView: View {
         if reply.isOwn == true {
             primaryButton("Uložiť históriu (\(reply.competitions ?? 0) súťaží)", action: { save() })
         } else if reply.isLinked == true {
-            hint("Toto nie je stránka tvojho prepojeného páru.")
+            hint("Toto nie je stránka tvojho páru.")
         } else {
-            hint("Najprv prepoj svoj pár: vyhľadaj ho v zozname párov a ťukni Sme to my.")
+            hint("Najprv ulož svoje páry: nájdi sa v zozname členov a potom v zozname párov.")
         }
     }
 
@@ -286,12 +357,14 @@ struct KSISBrowserView: View {
                         if let total = own.total { statPill("\(total.points)/\(total.finals)F", caption: "spolu") }
                     }
                 }
-                primaryButton("Uložiť výsledok", action: { save() })
-                secondaryButton("Hodnotenie porotcov") { openMarks(competition.sutazId) }
+                primaryButton("Uložiť do histórie", action: saveResultAndMarks)
+                if own.slp != nil, let url = cupURL(for: competition.category) {
+                    secondaryButton("Poradie Slovenského pohára") { web.load(url) }
+                }
             } else {
                 hint(manager.couples.isEmpty
-                     ? "Najprv prepoj svoj pár, potom appka nájde jeho výsledok."
-                     : "Tvoj prepojený pár v tejto súťaži nie je.")
+                     ? "Najprv ulož svoje páry, potom appka nájde váš výsledok."
+                     : "Tvoj pár v tejto súťaži nie je. Ťukni Späť a vyber inú kategóriu.")
             }
         }
     }
@@ -316,8 +389,8 @@ struct KSISBrowserView: View {
                 hint("Počas súťaže potiahni stránku nadol. Keď KSIS zverejní ďalšie kolo, uvidíš ho tu.")
             } else {
                 hint(manager.couples.isEmpty
-                     ? "Najprv prepoj svoj pár, potom appka nájde jeho krížiky."
-                     : "Tvoj prepojený pár v tomto hodnotení zatiaľ nie je. Počas súťaže potiahni stránku nadol a skús znova.")
+                     ? "Najprv ulož svoje páry, potom appka nájde vaše krížiky."
+                     : "Tvoj pár v tomto hodnotení zatiaľ nie je. Počas súťaže potiahni stránku nadol a skús znova.")
             }
         }
     }
@@ -335,8 +408,8 @@ struct KSISBrowserView: View {
                                     showsChampionship: group == .adults || (couple.ageCategory ?? "").contains("II"))
             } else {
                 hint(manager.couples.isEmpty
-                     ? "Prepoj svoj pár a appka tu ukáže jeho miesto a čo mu chýba."
-                     : "Tvoj prepojený pár v tomto poradí zatiaľ nie je.")
+                     ? "Ulož svoje páry a appka tu ukáže vaše miesto a čo vám chýba."
+                     : "Tvoj pár v tomto poradí zatiaľ nie je.")
             }
         }
     }
@@ -359,10 +432,77 @@ struct KSISBrowserView: View {
                 }
             } else {
                 hint(reply.isLinked == true
-                     ? "Tvoj prepojený pár tu prihlásený nie je."
-                     : "Prepoj svoj pár a appka tu nájde vaše kategórie.")
+                     ? "Tu prihlásení nie ste."
+                     : "Ulož svoje páry a appka tu nájde vaše kategórie.")
             }
         }
+    }
+
+    // MARK: Guide
+    /// What to do on a page the app does not read.
+    @ViewBuilder
+    private func guide(_ url: URL?) -> some View {
+        let akcia = url.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false)?.queryItems }?
+            .first(where: { $0.name == "akcia" })?.value
+        if manager.dancer == nil {
+            hint("Najprv sa nájdi: v zozname členov vyhľadaj svoje priezvisko alebo číslo z preukazu a ťukni Som to ja.")
+        } else if akcia == "KS" {
+            hint("Ťukni na podujatie a potom na Prihlášky. Ukážem, či ste prihlásení, a pridáš si súťaž do kalendára.")
+        } else if akcia == "S" {
+            hint("Ťukni na súťaž, kde ste tancovali. Ukážem vaše miesto a uložíš ho do histórie jedným ťuknutím.")
+        } else {
+            hint("Otvor výsledky súťaže, prihlášky alebo poradie pohára. Appka ich rozpozná sama.")
+        }
+        navigation
+    }
+
+    /// The pages worth going to next, from any page.
+    private var navigation: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if let dancer = manager.dancer {
+                    navButton("Moje páry", icon: "person.2.fill", url: Self.couplesURL(surname: Self.surname(of: dancer.name)))
+                } else {
+                    navButton("Zoznam členov", icon: "person.text.rectangle", url: Self.membersSearchURL(for: ""))
+                }
+                navButton("Výsledky", icon: "trophy.fill", url: Self.page("menu.php?akcia=S"))
+                navButton("Kalendár", icon: "calendar", url: Self.page("menu.php?akcia=KS"))
+                ForEach(cupLinks, id: \.title) { link in
+                    navButton(link.title, icon: "rosette", url: link.url)
+                }
+            }
+        }
+        .scrollClipDisabled()
+    }
+
+    /// The cup standings of the current couple, in the disciplines it dances the cup in.
+    private var cupLinks: [(title: String, url: URL?)] {
+        guard let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory) else { return [] }
+        let year = Calendar.current.component(.year, from: Date())
+        return SlovakCup.disciplines(for: couple).map {
+            ("Pohár \($0.title)", SlovakCup.standingsURL(year: year, group: group, discipline: $0))
+        }
+    }
+
+    /// The standings for a cup round's category ("Dospelí A LAT").
+    private func cupURL(for category: String) -> URL? {
+        guard let group = SlovakCup.Group(ageCategory: category) else { return nil }
+        let discipline: SlovakCup.Discipline = category.hasSuffix("LAT") ? .latin : .standard
+        return SlovakCup.standingsURL(year: Calendar.current.component(.year, from: Date()), group: group, discipline: discipline)
+    }
+
+    private func navButton(_ title: String, icon: String, url: URL?) -> some View {
+        Button {
+            if let url { web.load(url) }
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .frame(minHeight: 34)
+                .background(Color.white.opacity(0.08), in: Capsule())
+        }
+        .buttonStyle(.pressable)
     }
 
     // MARK: Pieces
@@ -460,7 +600,6 @@ struct KSISBrowserView: View {
         readGeneration += 1
         let generation = readGeneration
         notice = nil
-        needsSide = false
         state = .reading
         Task {
             do {
@@ -469,6 +608,7 @@ struct KSISBrowserView: View {
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { state = .reply(reply, url, html) }
                 noteAdvancement(reply)
                 if let standings = reply.standings { SlovakCupStore.shared.remember(standings) }
+                saveMarksIfAsked(reply)
             } catch {
                 guard generation == readGeneration else { return }
                 state = .failed(error.localizedDescription)
@@ -484,33 +624,52 @@ struct KSISBrowserView: View {
         advanceTick += 1
     }
 
-    private func save(side: String? = nil) {
+    private func save(personNumber: Int? = nil, then next: (() -> Void)? = nil) {
         guard case .reply(_, let url, let html) = state, !isSaving else { return }
         isSaving = true
         Task {
             defer { isSaving = false }
             do {
-                let reply = try await manager.save(url: url, html: html, consent: consent, side: side)
-                needsSide = false
+                let reply = try await manager.save(url: url, html: html, consent: consent, personNumber: personNumber)
                 state = .reply(reply, url, html)
                 successTick += 1
                 notice = savedMessage(reply)
-            } catch CompetitionManager.ActionError.needsVerification(let message) {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { needsSide = true }
-                notice = message
+                next?()
             } catch {
                 notice = error.localizedDescription
             }
         }
     }
 
+    /// One tap: the result, then the crosses of the same competition (its marks page opens and saves itself).
+    private func saveResultAndMarks() {
+        guard case .reply(let reply, _, _) = state, let sutazId = reply.competition?.sutazId else { return save() }
+        save {
+            savesMarksNext = true
+            openMarks(sutazId)
+        }
+    }
+
+    private func saveMarksIfAsked(_ reply: KSISPageReply) {
+        guard savesMarksNext else { return }
+        savesMarksNext = false
+        guard reply.kind == .marks else { return }
+        if reply.rounds?.isEmpty == false {
+            save()
+        } else {
+            notice = "Výsledok je v histórii. Krížiky KSIS zatiaľ nezverejnil."
+        }
+    }
+
     private func savedMessage(_ reply: KSISPageReply) -> String {
         switch reply.kind {
-        case .coupleDetail where reply.verificationPending == true: return "Žiadosť o overenie je odoslaná."
-        case .coupleDetail: return "Pár je prepojený, trieda a body sú aktuálne."
-        case .couplePage: return "História je v denníku: \(reply.saved ?? 0) súťaží."
-        case .results: return "Výsledok je v denníku."
-        case .marks: return "Krížiky sú v denníku."
+        case .membersList:
+            return "Si \(manager.dancer?.name ?? "uložený"). Teraz nájdi svoje páry."
+        case .couplesList: return "Páry sú uložené: \(reply.saved ?? 0)."
+        case .coupleDetail: return "Trieda a body sú aktuálne."
+        case .couplePage: return "História je uložená: \(reply.saved ?? 0) súťaží."
+        case .results: return "Výsledok je v histórii, načítavam krížiky…"
+        case .marks: return "Výsledok aj krížiky sú v histórii."
         default: return "Uložené."
         }
     }
@@ -553,16 +712,38 @@ struct KSISBrowserView: View {
         return isoDay.date(from: iso)?.formatted(style.locale(Locale(identifier: "sk")))
     }
 
-    /// Couples list search: a number goes to "Č.pr", anything else to the name search.
-    static func searchURL(for query: String) -> URL? {
+    static func page(_ path: String) -> URL? {
+        URL(string: "https://\(host)/\(path)")
+    }
+
+    /// Members list search, members who stopped too: a number goes to "Č.pr", anything else to the name search.
+    static func membersSearchURL(for query: String) -> URL? {
+        search(akcia: "CZ", query: query, filters: ["sekcia"])
+    }
+
+    /// The dancer's couples, the ones that ended too.
+    static func couplesURL(surname: String) -> URL? {
+        search(akcia: "CZP", query: surname, filters: ["vekktg", "vtstt", "vtlat"])
+    }
+
+    /// As KSIS's own search form sends it; without "aktivne" it lists inactive rows too.
+    private static func search(akcia: String, query: String, filters: [String]) -> URL? {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return page("menu.php?akcia=\(akcia)") }
+        let isNumber = trimmed.allSatisfy(\.isNumber)
         var components = URLComponents(string: "https://\(host)/menu.php")
-        var items = [URLQueryItem(name: "akcia", value: "CZP"), URLQueryItem(name: "aktivne", value: "on")]
-        if !trimmed.isEmpty {
-            items.append(URLQueryItem(name: trimmed.allSatisfy(\.isNumber) ? "cis_pr" : "hladany_text", value: trimmed))
-        }
-        components?.queryItems = items
+        components?.queryItems = [
+            URLQueryItem(name: "akcia", value: akcia),
+            URLQueryItem(name: "cis_pr", value: isNumber ? trimmed : ""),
+            URLQueryItem(name: "klub", value: ""),
+            URLQueryItem(name: "hladany_text", value: isNumber ? "" : trimmed),
+        ] + filters.map { URLQueryItem(name: $0, value: "") }
         return components?.url
+    }
+
+    /// KSIS writes "Priezvisko Meno".
+    static func surname(of name: String) -> String {
+        name.split(separator: " ").first.map(String.init) ?? name
     }
 }
 

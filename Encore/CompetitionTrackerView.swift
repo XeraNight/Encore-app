@@ -1,8 +1,8 @@
 import SwiftUI
 
 // MARK: - Súťaže
-/// The linked couple with class, points and finals from KSIS, every competition with the crosses of each
-/// judge, and KSIS in the app for linking, saving and following a competition live (BRAND_GUIDELINES §1A).
+/// Who the user is in KSIS, the current couple with class, points and finals, the couples before, every competition
+/// with the crosses of each judge, and KSIS in the app for saving and following a competition live (BRAND_GUIDELINES §1A).
 /// Free for everyone. Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár places from
 /// the competition rules (SlovakCup).
 struct CompetitionTrackerView: View {
@@ -27,16 +27,16 @@ struct CompetitionTrackerView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    if manager.couples.isEmpty {
-                        linkSection
-                    } else {
-                        ForEach(manager.couples) { couple in
-                            coupleSection(couple)
-                            slovakCupSection(couple)
-                        }
-                        if !manager.results.isEmpty {
-                            mySeasonCard
-                        }
+                    dancerSection
+                    if let couple = manager.activeCouple {
+                        coupleSection(couple)
+                        slovakCupSection(couple)
+                    }
+                    if !manager.previousCouples.isEmpty {
+                        previousCouplesSection
+                    }
+                    if !manager.results.isEmpty {
+                        mySeasonCard
                     }
 
                     liveSection
@@ -73,15 +73,15 @@ struct CompetitionTrackerView: View {
                 browser = KSISBrowserTarget(url: url)
             }
         }
-        .confirmationDialog("Odpojiť pár?", isPresented: Binding(
+        .confirmationDialog("Odstrániť pár z Encore?", isPresented: Binding(
             get: { coupleToUnlink != nil },
             set: { if !$0 { coupleToUnlink = nil } }
         ), titleVisibility: .visible) {
-            Button("Odpojiť a zmazať výsledky", role: .destructive) {
+            Button("Odstrániť aj s výsledkami", role: .destructive) {
                 if let couple = coupleToUnlink { unlink(couple) }
             }
         } message: {
-            Text("Z Encore zmizne pár aj jeho uložené výsledky. V KSIS sa nič nezmení.")
+            Text("Z Encore zmizne tento pár aj jeho uložené výsledky. Ostatné páry ostanú. V KSIS sa nič nezmení.")
         }
         .alert("Nepodarilo sa", isPresented: Binding(
             get: { errorText != nil },
@@ -179,28 +179,77 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    // MARK: Link
-    private var linkSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "PREPOJ SA S KSIS", systemImage: "link")
-            if let pending = manager.pendingLink {
-                Label("Čaká na overenie: \(pending.couple.partnerNames ?? pending.dancerName). Keď ho schválime, pár sa ti prepojí sám.",
-                      systemImage: "hourglass")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Color.gold300)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(14)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .homeCard(cornerRadius: 16)
+    // MARK: Dancer
+    /// Who the user is in KSIS: found by name or the personal number, private until verified.
+    @ViewBuilder
+    private var dancerSection: some View {
+        if let dancer = manager.dancer {
+            VStack(alignment: .leading, spacing: 12) {
+                HomeSectionHeader(title: "TANEČNÍK V KSIS", systemImage: "person.text.rectangle")
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(dancer.name)
+                                .font(.system(.title3, design: .rounded).weight(.bold))
+                                .foregroundColor(.white)
+                            Text([dancer.club, "č. \(dancer.personNumber)"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                                .font(.footnote)
+                                .foregroundColor(Color.textSecondary)
+                        }
+                        Spacer(minLength: 8)
+                        Label(dancer.isVerified ? "Overený" : "Čaká na overenie",
+                              systemImage: dancer.isVerified ? "checkmark.seal.fill" : "hourglass")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(dancer.isVerified ? Color.syncEmerald : Color.gold300)
+                    }
+                    if !dancer.isVerified {
+                        Text("Svoje páry a súťaže vidíš hneď. Spojeniam sa ukážu, keď ťa overíme my alebo tvoj overený partner.")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.7))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    if manager.couples.isEmpty {
+                        Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")
+                            .font(.footnote)
+                            .foregroundColor(Color.gold300)
+                    }
+                    Button {
+                        if let url = KSISBrowserView.couplesURL(surname: KSISBrowserView.surname(of: dancer.name)) {
+                            browser = KSISBrowserTarget(url: url)
+                        }
+                    } label: {
+                        Label("Moje páry v KSIS", systemImage: "person.2.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(manager.couples.isEmpty ? Color.obsidian900 : Color.gold400)
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(manager.couples.isEmpty ? Color.gold400 : Color.white.opacity(0.06),
+                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    }
+                    .buttonStyle(.pressable)
+                }
+                .padding(16)
+                .homeCard(cornerRadius: 20)
+
+                if let waiting = manager.partnerWaiting {
+                    partnerWaitingCard(waiting)
+                }
             }
+        } else {
+            findYourselfSection
+        }
+    }
+
+    private var findYourselfSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "NÁJDI SA V KSIS", systemImage: "magnifyingglass")
             VStack(alignment: .leading, spacing: 14) {
-                Text("Vyhľadaj svoj pár v KSIS a prepoj sa s ním. Jeden účet sleduje jeden pár a si v ňom ty, partner alebo partnerka. Uvidíš triedu, body, finále a všetky výsledky s krížikmi od každého porotcu.")
+                Text("Vyhľadaj sa v zozname členov KSIS a ťukni Som to ja. Appka potom spozná tvoje páry, aj tie skončené, a uvidíš triedu, body, finále a výsledky s krížikmi od každého porotcu.")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
 
                 TextField("", text: $searchText,
-                          prompt: Text("Priezvisko alebo číslo preukazu partnera").foregroundColor(.white.opacity(0.4)))
+                          prompt: Text("Priezvisko alebo číslo z preukazu").foregroundColor(.white.opacity(0.4)))
                     .focused($searchFocused)
                     .submitLabel(.search)
                     .onSubmit(search)
@@ -210,10 +259,6 @@ struct CompetitionTrackerView: View {
                     .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
 
                 PrimarySheetButton(title: "Hľadať v KSIS", isLoading: false, isEnabled: true, action: search)
-
-                Text("Číslo páru v KSIS je číslo preukazu partnera. Partnerka nájde pár podľa priezviska.")
-                    .font(.caption)
-                    .foregroundColor(Color.textSecondary)
             }
             .padding(16)
             .homeCard(cornerRadius: 20)
@@ -222,9 +267,91 @@ struct CompetitionTrackerView: View {
 
     private func search() {
         searchFocused = false
-        if let url = KSISBrowserView.searchURL(for: searchText) {
+        if let url = KSISBrowserView.membersSearchURL(for: searchText) {
             browser = KSISBrowserTarget(url: url)
         }
+    }
+
+    /// The verified dancer confirms the partner of their current couple; the server checks both are in that couple.
+    private func partnerWaitingCard(_ waiting: KSISPartnerWaiting) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(waiting.accountName.isEmpty ? "Niekto" : waiting.accountName) sa v Encore hlási ako \(waiting.ksisName) z vášho páru.")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Potvrď to, iba ak je to naozaj tvoj partner alebo partnerka.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.7))
+            PrimarySheetButton(title: "Áno, potvrdiť", isLoading: false, isEnabled: true) {
+                Task {
+                    do {
+                        try await manager.confirmPartner(waiting)
+                        refreshCount += 1
+                    } catch {
+                        errorText = error.localizedDescription
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .homeCard(cornerRadius: 20)
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    // MARK: Couples before
+    private var previousCouplesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "PREDCHÁDZAJÚCE PÁRY", systemImage: "clock.arrow.circlepath", count: manager.previousCouples.count)
+            VStack(spacing: 0) {
+                ForEach(manager.previousCouples) { couple in
+                    previousCoupleRow(couple)
+                    if couple.id != manager.previousCouples.last?.id {
+                        HomeRowDivider()
+                    }
+                }
+            }
+            .homeCard(cornerRadius: 20)
+        }
+    }
+
+    private func previousCoupleRow(_ couple: UserCouple) -> some View {
+        let saved = manager.results(for: couple).count
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(couple.title)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(.white)
+                Text(([couple.club, couple.ageCategory].compactMap { $0 } + [saved > 0 ? "\(saved) súťaží" : "bez uložených súťaží"])
+                    .filter { !$0.isEmpty }.joined(separator: " · "))
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+            }
+            Spacer(minLength: 8)
+            Menu {
+                if let coupleId = couple.coupleId {
+                    Button {
+                        if let url = URL(string: "https://\(KSISBrowserView.host)/par.php?id=\(coupleId)") {
+                            browser = KSISBrowserTarget(url: url)
+                        }
+                    } label: {
+                        Label("História v KSIS", systemImage: "list.bullet.rectangle")
+                    }
+                }
+                Button(role: .destructive) {
+                    coupleToUnlink = couple
+                } label: {
+                    Label("Odstrániť z Encore", systemImage: "trash")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(.white.opacity(0.7))
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Možnosti páru \(couple.title)")
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     // MARK: Couple
@@ -235,7 +362,7 @@ struct CompetitionTrackerView: View {
                     Button(role: .destructive) {
                         coupleToUnlink = couple
                     } label: {
-                        Label("Odpojiť pár", systemImage: "link.badge.minus")
+                        Label("Odstrániť z Encore", systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis")
