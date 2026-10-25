@@ -21,6 +21,7 @@ struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RecordingActivityAttributes.self) { context in
             RecordingLockScreenView(context: context)
+                .activityBackgroundTint(ActivityStyle.tint)
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded Leading (Top Left of island)
@@ -155,16 +156,21 @@ private func segmentColor(for index: Int, isActive: Bool) -> Color {
 // MARK: - Lock Screen banner
 /// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it and round
 /// actions on the right, on dark red glass with a faint gold only where the light breaks at the bottom edge.
-/// The glass itself is the system's, so it follows the iPhone's Liquid Glass setting (clear or tinted); the dark red
-/// lies over it as a see-through layer.
+/// The red is the system's background tint at half strength, so the Lock Screen shows through it.
 private enum ActivityStyle {
-    static let redLayer = Color(red: 52/255, green: 4/255, blue: 12/255).opacity(0.6)
+    static let tint = Color(red: 138/255, green: 16/255, blue: 34/255).opacity(0.5)
     static let gold = Color(red: 212/255, green: 175/255, blue: 55/255)       // gold500
     static let goldLight = Color(red: 255/255, green: 224/255, blue: 136/255) // gold400
 }
 
+/// What stands on the left: an SF Symbol, or the gold Encore mark.
+private enum ActivityIcon {
+    case symbol(String)
+    case encoreLogo
+}
+
 private struct ActivityBanner<Trailing: View>: View {
-    let icon: String
+    let icon: ActivityIcon
     let title: Text
     let detailIcon: String
     let detail: Text
@@ -172,9 +178,7 @@ private struct ActivityBanner<Trailing: View>: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: icon)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
+            leading
                 .frame(width: 30)
             VStack(alignment: .leading, spacing: 4) {
                 title
@@ -196,7 +200,6 @@ private struct ActivityBanner<Trailing: View>: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .background(ActivityStyle.redLayer)
         // Where the light breaks at the bottom edge: a faint gold, brightest in the middle.
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
@@ -208,6 +211,24 @@ private struct ActivityBanner<Trailing: View>: View {
                     .frame(height: 1)
             }
             .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private var leading: some View {
+        switch icon {
+        case .symbol(let name):
+            Image(systemName: name)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+        case .encoreLogo:
+            Image("EncoreLogo")
+                .resizable()
+                .renderingMode(.template)
+                .scaledToFit()
+                .frame(width: 30, height: 30)
+                .foregroundStyle(LinearGradient(colors: [ActivityStyle.goldLight, ActivityStyle.gold],
+                                                startPoint: .top, endPoint: .bottom))
         }
     }
 }
@@ -233,7 +254,7 @@ private struct RecordingLockScreenView: View {
         let state = context.state
         let timer = Text(timerInterval: state.startDate...Date.distantFuture, countsDown: false)
         ActivityBanner(
-            icon: "video.fill",
+            icon: .symbol("video.fill"),
             title: Text(state.sessionTitle.isEmpty ? "Nahrávam" : state.sessionTitle),
             detailIcon: "record.circle",
             detail: state.bpm > 0 ? Text("\(timer) · \(state.bpm) BPM") : timer
@@ -257,6 +278,7 @@ struct TrainingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TrainingActivityAttributes.self) { context in
             TrainingLockScreenView(context: context)
+                .activityBackgroundTint(ActivityStyle.tint)
                 .widgetURL(URL(string: context.attributes.reflectionURL))
         } dynamicIsland: { context in
             DynamicIsland {
@@ -301,7 +323,7 @@ private struct TrainingLockScreenView: View {
         let state = context.state
         if context.isStale {
             ActivityBanner(
-                icon: "checkmark.seal.fill",
+                icon: .encoreLogo,
                 title: Text("Tréning skončil"),
                 detailIcon: "square.and.pencil",
                 detail: Text("Ako to bolo? Zapíš to za 20 sekúnd.")
@@ -310,7 +332,7 @@ private struct TrainingLockScreenView: View {
             }
         } else {
             ActivityBanner(
-                icon: "figure.dance",
+                icon: .encoreLogo,
                 title: Text(context.attributes.title),
                 detailIcon: state.focus.isEmpty ? "clock" : "scope",
                 detail: state.focus.isEmpty
@@ -318,13 +340,11 @@ private struct TrainingLockScreenView: View {
                     : Text(state.focus)
             ) {
                 Text(state.start, style: .timer)
-                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .font(.system(size: 20, weight: .heavy, design: .rounded))
                     .monospacedDigit()
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(.trailing)
                     .foregroundStyle(.white)
-                    .minimumScaleFactor(0.7)
-                    .frame(width: 58, height: 58)
-                    .background(Circle().fill(.white.opacity(0.12)))
+                    .frame(width: 76, alignment: .trailing)
                     .accessibilityLabel("Čas do začiatku tréningu")
             }
         }
@@ -337,7 +357,7 @@ struct EncoreLiveActivity: Widget {
         ActivityConfiguration(for: EncoreAttributes.self) { context in
             let state = context.state
             ActivityBanner(
-                icon: "figure.dance",
+                icon: .symbol("figure.dance"),
                 title: Text(state.currentFigureName),
                 detailIcon: state.nextFigureName.isEmpty ? "music.note" : "arrow.turn.down.right",
                 detail: Text(state.nextFigureName.isEmpty ? context.attributes.routineName : "Nasleduje: \(state.nextFigureName)")
@@ -350,6 +370,7 @@ struct EncoreLiveActivity: Widget {
                     .background(Circle().fill(.white.opacity(0.12)))
                     .accessibilityLabel("Figúra \(state.currentFigureIndex) z \(state.totalFigures)")
             }
+            .activityBackgroundTint(ActivityStyle.tint)
 
         } dynamicIsland: { context in
             DynamicIsland {
