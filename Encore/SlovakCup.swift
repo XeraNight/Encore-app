@@ -151,6 +151,12 @@ final class SlovakCupStore: ObservableObject {
         }
     }
 
+    /// Another account signed in on this iPhone.
+    func clear() {
+        saved = [:]
+        UserDefaults.standard.removeObject(forKey: key)
+    }
+
     private static func key(_ group: SlovakCup.Group, _ discipline: SlovakCup.Discipline) -> String {
         "\(group.rawValue).\(discipline.rawValue)"
     }

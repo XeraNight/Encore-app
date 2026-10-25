@@ -28,6 +28,7 @@ enum LocalDataGuard {
             // Nothing the previous account left unsent may go up under this one.
             Task { await SyncLedger.shared.reset() }
             ConnectionManager.shared.reset()
+            SlovakCupStore.shared.clear()
         }
         // No stored owner (data from before this feature): adopt it for the current user.
         defaults.set(userId.uuidString, forKey: ownerKey)
