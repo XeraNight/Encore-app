@@ -53,12 +53,21 @@ struct SessionEditorSheet: View {
             canSave: true,
             hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
-            delete: session.map { session in
-                PlannerEditorDelete(
+            delete: session.map { session -> PlannerEditorDelete in
+                let written = TrainingLogEntry.written(after: session.id, in: modelContext)
+                return PlannerEditorDelete(
                     buttonTitle: "Zmazať tréning",
                     question: "Zmazať tréning?",
-                    message: "Zmizne z Encore aj z Apple Kalendára. Zapísaná reflexia ostane v kalendári aj v Denníku.",
-                    actions: [.init(title: "Zmazať") { session.delete(in: modelContext) }]
+                    message: written.isEmpty
+                        ? "Zmizne z Encore aj z Apple Kalendára."
+                        : "Zmizne z Encore aj z Apple Kalendára. Reflexia z neho môže ostať v Denníku, alebo ju zmaž s ním.",
+                    actions: written.isEmpty
+                        ? [.init(title: "Zmazať") { session.delete(in: modelContext) }]
+                        : [.init(title: "Zmazať, reflexia ostane") { session.delete(in: modelContext) },
+                           .init(title: "Zmazať aj reflexiu") {
+                               written.forEach { modelContext.delete($0) }
+                               session.delete(in: modelContext)
+                           }]
                 )
             }
         ) {
@@ -214,8 +223,16 @@ struct SessionEditorSheet: View {
     }
 }
 
+extension TrainingLogEntry {
+    /// What was written after a one-off training, or after any day of a weekly one (the ids never clash).
+    static func written(after trainingId: UUID, in context: ModelContext) -> [TrainingLogEntry] {
+        ((try? context.fetch(FetchDescriptor<TrainingLogEntry>())) ?? [])
+            .filter { $0.sessionId == trainingId || $0.cadenceId == trainingId }
+    }
+}
+
 extension PlannedSession {
-    /// Deletes the training here and its event in Apple Calendar. A written reflection stays as a note.
+    /// Deletes the training here and its event in Apple Calendar. A written reflection stays unless it goes too.
     func delete(in context: ModelContext) {
         if let eventId = calendarEventId {
             Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }

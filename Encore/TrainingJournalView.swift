@@ -25,6 +25,7 @@ struct TrainingJournalView: View {
     @State private var noteToEdit: InstantNote?
     @State private var noteForFigure: InstantNote?
     @State private var noteToDelete: InstantNote?
+    @State private var reflectionToDelete: TrainingLogEntry?
     @State private var figureNames: [UUID: String] = [:]
     @State private var debriefEntry: TrainingLogEntry?
     @State private var toast: String?
@@ -111,6 +112,13 @@ struct TrainingJournalView: View {
                 Button("Ponechať", role: .cancel) {}
             } message: { note in
                 Text(note.audioPath != nil ? "Zmaže sa aj hlasovka. Nedá sa to vrátiť." : "Nedá sa to vrátiť.")
+            }
+            .confirmationDialog("Zmazať reflexiu?", isPresented: Binding(get: { reflectionToDelete != nil }, set: { if !$0 { reflectionToDelete = nil } }),
+                                titleVisibility: .visible, presenting: reflectionToDelete) { entry in
+                Button("Zmazať", role: .destructive) { delete(entry) }
+                Button("Ponechať", role: .cancel) {}
+            } message: { _ in
+                Text("Zmaže sa celý zápis z tohto tréningu: poznámka, pocity aj to, že si bol na tréningu. Tréning v pláne ostane. Nedá sa to vrátiť.")
             }
             .sensoryFeedback(.selection, trigger: selectedDay)
             .sensoryFeedback(.selection, trigger: mode)
@@ -290,7 +298,11 @@ struct TrainingJournalView: View {
             .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.gold400.opacity(0.25), lineWidth: 1))
         }
         .buttonStyle(.pressable(scale: 0.98))
-        .accessibilityHint("Otvorí reflexiu na úpravu")
+        .contextMenu {
+            Button { debriefEntry = entry } label: { Label("Upraviť", systemImage: "pencil") }
+            Button(role: .destructive) { reflectionToDelete = entry } label: { Label("Zmazať reflexiu", systemImage: "trash") }
+        }
+        .accessibilityHint("Otvorí reflexiu na úpravu. Podržaním ju zmažeš.")
     }
 
     private func card(for note: InstantNote, showsDate: Bool) -> some View {
@@ -417,6 +429,12 @@ struct TrainingJournalView: View {
     private func restore(_ note: InstantNote) {
         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { note.importedAt = nil }
         try? modelContext.save()
+    }
+
+    private func delete(_ entry: TrainingLogEntry) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { modelContext.delete(entry) }
+        try? modelContext.save()
+        showToast("Reflexia je zmazaná")
     }
 
     private func delete(_ note: InstantNote) {

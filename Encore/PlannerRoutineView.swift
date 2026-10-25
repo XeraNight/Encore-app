@@ -267,12 +267,21 @@ struct CadenceEditorSheet: View {
             canSave: true,
             hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
-            delete: cadence.map { cadence in
-                PlannerEditorDelete(
+            delete: cadence.map { cadence -> PlannerEditorDelete in
+                let written = TrainingLogEntry.written(after: cadence.id, in: modelContext)
+                return PlannerEditorDelete(
                     buttonTitle: "Zmazať tréning",
                     question: "Zmazať týždenný tréning?",
-                    message: "Zmizne z Encore a budúce termíny aj z Apple Kalendára. Zapísané reflexie ostanú.",
-                    actions: [.init(title: "Zmazať všetky budúce") { cadence.delete(in: modelContext) }]
+                    message: written.isEmpty
+                        ? "Zmizne z Encore a budúce termíny aj z Apple Kalendára."
+                        : "Zmizne z Encore a budúce termíny aj z Apple Kalendára. Reflexie z neho (\(written.count)) môžu ostať v Denníku, alebo ich zmaž s ním.",
+                    actions: written.isEmpty
+                        ? [.init(title: "Zmazať všetky budúce") { cadence.delete(in: modelContext) }]
+                        : [.init(title: "Zmazať, reflexie ostanú") { cadence.delete(in: modelContext) },
+                           .init(title: "Zmazať aj reflexie") {
+                               written.forEach { modelContext.delete($0) }
+                               cadence.delete(in: modelContext)
+                           }]
                 )
             }
         ) {
