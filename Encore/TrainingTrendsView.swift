@@ -129,7 +129,10 @@ struct TrainingTrendsView: View {
                 EllegancePageBackground()
                 ScrollView {
                     if let trends {
-                        TrainingTrendsContent(trends: trends)
+                        VStack(alignment: .leading, spacing: 22) {
+                            DanceRadarSection(logs: logs, priorities: priorities)
+                            TrainingTrendsContent(trends: trends)
+                        }
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
                             .padding(.bottom, 40)
