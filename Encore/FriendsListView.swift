@@ -539,7 +539,7 @@ struct FriendsListView: View {
                     connectionToRevoke = conn
                     showRevokeConfirmation = true
                 } label: {
-                    Label(conn.relationshipType == .connection ? "Zrušiť spojenie" : "Zrušiť prepojenie", systemImage: "link.badge.slash")
+                    Label(conn.relationshipType == .connection ? "Zrušiť spojenie" : "Zrušiť prepojenie", systemImage: "person.badge.minus")
                 }
                 Button {
                     report(conn)
