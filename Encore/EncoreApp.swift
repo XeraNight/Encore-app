@@ -240,7 +240,11 @@ struct RootAppView: View {
             await remoteConfig.syncConfig()
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
-            if newPhase == .background { authManager.appDidEnterBackground() }
+            if newPhase == .background {
+                authManager.appDidEnterBackground()
+                // What was written just now goes up while iOS still gives the app a moment.
+                PendingSyncRunner.shared.run()
+            }
             if newPhase == .active && oldPhase == .background { authManager.appDidBecomeActive() }
             if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
                 // Device woke up from lock screen or returned from background!

@@ -158,6 +158,8 @@ final class PendingSyncRunner {
         retryTask?.cancel()
         Task {
             let allSent = await SupabaseSyncManager.shared.sendPending(in: container.mainContext)
+            // The diary, plan and notes: their own fingerprints, a failure waits for the next run.
+            await DeviceBackup.upload(in: container.mainContext)
             isRunning = false
             if allSent { attempt = 0 } else { scheduleRetry() }
         }

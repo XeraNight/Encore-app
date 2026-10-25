@@ -172,6 +172,7 @@ final class AuthManager: ObservableObject {
         if isNewUser {
             UserProfileStore.shared.refreshForActiveUser()
             Task { await SupabaseSyncManager.shared.pullRoutinesIntoApp() }
+            Task { await DeviceBackup.restoreIfNeeded() }
         }
     }
 

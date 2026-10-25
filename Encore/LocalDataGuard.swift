@@ -89,6 +89,8 @@ enum LocalDataGuard {
 
         // Reminders of the previous account's trainings and competitions must not keep coming.
         Task { await PlannerNotifications.cancelAll() }
+        // What went up from this store was the previous account's; an empty store may be filled back from the cloud.
+        DeviceBackup.reset()
 
         let toRemove = files
         Task.detached(priority: .utility) {
