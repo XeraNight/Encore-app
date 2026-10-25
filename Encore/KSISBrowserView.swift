@@ -156,6 +156,7 @@ struct KSISBrowserView: View {
             case .results: return "Výsledková listina"
             case .marks: return "Hodnotenie porotcov"
             case .registrations: return "Prihlášky"
+            case .slpStandings: return "Slovenský pohár"
             case .blocked: return "KSIS overuje, že si človek"
             case .unsupported: return "Encore číta stránky KSIS"
             }
@@ -166,7 +167,7 @@ struct KSISBrowserView: View {
     private var panelContent: some View {
         switch state {
         case .idle:
-            hint("Otvor zoznam párov, stránku svojho páru, výsledky alebo hodnotenie. Appka ich rozpozná sama.")
+            hint("Otvor zoznam párov, stránku svojho páru, výsledky, hodnotenie alebo poradie Slovenského pohára. Appka ich rozpozná sama.")
         case .reading:
             ProgressView()
                 .tint(Color.gold400)
@@ -181,6 +182,7 @@ struct KSISBrowserView: View {
             case .results: resultsPage(reply)
             case .marks: marksPage(reply)
             case .registrations: registrations(reply)
+            case .slpStandings: slovakCup(reply)
             case .blocked: hint("Dokonči overenie na stránke vyššie. Potom sa panel sám obnoví.")
             case .unsupported: hint("Otvor zoznam párov, stránku svojho páru, výsledky alebo hodnotenie. Appka ich rozpozná sama.")
             }
@@ -263,8 +265,13 @@ struct KSISBrowserView: View {
             if let own = reply.own {
                 HStack(spacing: 8) {
                     statPill(own.place.map { "\($0.display) z \(competition.couples ?? 0)" } ?? "–", caption: "miesto")
-                    statPill(own.points.map { "+\($0)" } ?? "–", caption: "body")
-                    if let total = own.total { statPill("\(total.points)/\(total.finals)F", caption: "spolu") }
+                    if let slp = own.slp {
+                        statPill(slp.place?.display ?? "–", caption: "v pohári")
+                        statPill(slp.points.map { "+\($0)" } ?? "–", caption: "body do pohára")
+                    } else if reply.scoring != "none" {
+                        statPill(own.points.map { "+\($0)" } ?? "–", caption: "body")
+                        if let total = own.total { statPill("\(total.points)/\(total.finals)F", caption: "spolu") }
+                    }
                 }
                 primaryButton("Uložiť výsledok", action: { save() })
                 secondaryButton("Hodnotenie porotcov") { openMarks(competition.sutazId) }
@@ -298,6 +305,25 @@ struct KSISBrowserView: View {
                 hint(manager.couples.isEmpty
                      ? "Najprv prepoj svoj pár, potom appka nájde jeho krížiky."
                      : "Tvoj prepojený pár v tomto hodnotení zatiaľ nie je. Počas súťaže potiahni stránku nadol a skús znova.")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func slovakCup(_ reply: KSISPageReply) -> some View {
+        if let standings = reply.standings {
+            Text([standings.year.map(String.init), standings.category].compactMap { $0 }.joined(separator: " · "))
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(.white)
+            if let group = SlovakCup.Group(ageCategory: standings.category),
+               let couple = manager.couples.first(where: { SlovakCup.entry(in: standings, for: $0) != nil }),
+               let entry = SlovakCup.entry(in: standings, for: couple) {
+                SlovakCupStatusView(status: SlovakCup.status(of: entry, in: standings, group: group),
+                                    showsChampionship: group == .adults || (couple.ageCategory ?? "").contains("II"))
+            } else {
+                hint(manager.couples.isEmpty
+                     ? "Prepoj svoj pár a appka tu ukáže jeho miesto a čo mu chýba."
+                     : "Tvoj prepojený pár v tomto poradí zatiaľ nie je.")
             }
         }
     }
@@ -428,6 +454,7 @@ struct KSISBrowserView: View {
                 guard generation == readGeneration else { return }
                 withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { state = .reply(reply, url, html) }
                 noteAdvancement(reply)
+                if let standings = reply.standings { SlovakCupStore.shared.remember(standings) }
             } catch {
                 guard generation == readGeneration else { return }
                 state = .failed(error.localizedDescription)
@@ -532,7 +559,7 @@ struct KSISRoundSummaryRow: View {
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(.white)
                 Spacer(minLength: 4)
-                Text(round.isFinal ? "Suma \(round.sumText)" : "\(round.sumText) krížikov")
+                Text(round.isFinal || round.isScores ? "Suma \(round.sumText)" : "\(round.sumText) krížikov")
                     .font(.caption.weight(.bold))
                     .monospacedDigit()
                     .foregroundColor(Color.gold300)
@@ -547,7 +574,11 @@ struct KSISRoundSummaryRow: View {
                         .accessibilityLabel(advanced ? "Postup" : "Bez postupu")
                 }
             }
-            if !round.isFinal {
+            if round.isScores {
+                Text(round.dances.map { "\($0.dance.capitalized) \(KSISRound.scoreText($0.score ?? 0))" }.joined(separator: " · "))
+                    .font(.caption2)
+                    .foregroundColor(Color.textSecondary)
+            } else if !round.isFinal {
                 Text(round.dances.map { "\($0.dance.capitalized) \($0.crosses ?? 0)" }.joined(separator: " · "))
                     .font(.caption2)
                     .foregroundColor(Color.textSecondary)

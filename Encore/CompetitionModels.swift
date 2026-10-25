@@ -159,13 +159,16 @@ struct KSISJudgeMark: Codable, Equatable, Sendable {
 
 struct KSISDanceMarks: Codable, Equatable, Sendable {
     let dance: String
+    /// Every published judge's mark; empty in a scores round.
     let marks: [KSISJudgeMark]
     let crosses: Int?
+    /// The dance's score in a scores round (WDSF absolute judging); nil elsewhere and in rounds saved before.
+    let score: Double?
 }
 
 struct KSISRound: Codable, Equatable, Sendable, Identifiable {
     let round: String
-    /// "crosses" or "final".
+    /// "crosses", "final", or "scores" (WDSF absolute judging: one score per dance).
     let kind: String
     let dances: [KSISDanceMarks]
     /// "Suma" exactly as KSIS shows it.
@@ -180,10 +183,16 @@ struct KSISRound: Codable, Equatable, Sendable, Identifiable {
 
     var id: String { round }
     var isFinal: Bool { kind == "final" }
+    var isScores: Bool { kind == "scores" }
 
-    /// "28" for crosses, "15" or "9,5" for the final sum.
+    /// "28" for crosses, "15" or "9,5" for the final sum, "139,043" for scores.
     var sumText: String {
-        sum.rounded() == sum ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk_SK")))
+        if isScores { return Self.scoreText(sum) }
+        return sum.rounded() == sum ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk_SK")))
+    }
+
+    static func scoreText(_ value: Double) -> String {
+        value.formatted(.number.precision(.fractionLength(3)).locale(Locale(identifier: "sk_SK")))
     }
 }
 
@@ -216,6 +225,7 @@ struct KSISPageReply: Decodable, Sendable {
         case results
         case marks
         case registrations
+        case slpStandings = "slp_standings"
         case blocked
         case unsupported
 
@@ -286,6 +296,8 @@ struct KSISPageReply: Decodable, Sendable {
         let startNumber: String
         let points: Int?
         let total: Total?
+        /// Slovenský pohár round: the place among Slovak couples and this round's cup points.
+        let slp: SlovakCupRound?
     }
 
     struct Event: Decodable, Sendable {
@@ -311,6 +323,46 @@ struct KSISPageReply: Decodable, Sendable {
     let event: Event?
     let categories: [String]?
     let saved: Int?
+    /// Results: "points", "slp" (Slovenský pohár) or "none" (WDSF, ordinary cups).
+    let scoring: String?
+    /// The official Slovenský pohár standings (slp_poradie.php).
+    let standings: SlovakCupStandings?
+}
+
+// MARK: - Slovenský pohár standings (read live from KSIS, cached on the iPhone)
+struct SlovakCupRound: Codable, Equatable, Sendable {
+    /// Among Slovak couples; "9-12" for a shared place.
+    let place: KSISPlace?
+    let points: Int?
+}
+
+struct SlovakCupStandings: Codable, Equatable, Sendable {
+    struct Round: Codable, Equatable, Sendable {
+        let sutazId: Int?
+        let venue: String
+        let date: String?
+    }
+
+    struct Entry: Codable, Equatable, Sendable, Identifiable {
+        let place: KSISPlace?
+        let parId: Int
+        let partner: String
+        let partnerka: String
+        let club: String
+        /// One per round in `rounds`; nil where the couple did not dance.
+        let rounds: [SlovakCupRound?]
+        let total: Int
+
+        var id: Int { parId }
+    }
+
+    let year: Int?
+    /// As KSIS titles the table: "Dospelí Štandard", "Juniori Latin".
+    let category: String
+    /// How many best rounds count (KSIS: 4); nil when the page does not say.
+    let countedRounds: Int?
+    let rounds: [Round]
+    let entries: [Entry]
 }
 
 struct KSISOkReply: Decodable, Sendable {

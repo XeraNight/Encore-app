@@ -3,10 +3,12 @@ import SwiftUI
 // MARK: - Súťaže
 /// The linked couple with class, points and finals from KSIS, every competition with the crosses of each
 /// judge, and KSIS in the app for linking, saving and following a competition live (BRAND_GUIDELINES §1A).
-/// Free for everyone. Numbers come only from KSIS; class-promotion thresholds are never computed here.
+/// Free for everyone. Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár places from
+/// the competition rules (SlovakCup).
 struct CompetitionTrackerView: View {
     @ObservedObject private var manager = CompetitionManager.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    @ObservedObject private var cupStore = SlovakCupStore.shared
     @State private var showPaywall = false
 
     @State private var browser: KSISBrowserTarget?
@@ -30,6 +32,7 @@ struct CompetitionTrackerView: View {
                     } else {
                         ForEach(manager.couples) { couple in
                             coupleSection(couple)
+                            slovakCupSection(couple)
                         }
                         if !manager.results.isEmpty {
                             mySeasonCard
@@ -113,6 +116,64 @@ struct CompetitionTrackerView: View {
         } else {
             Button { showPaywall = true } label: { row }
                 .buttonStyle(.pressable(scale: 0.98))
+        }
+    }
+
+    // MARK: Slovenský pohár
+    /// The official KSIS table, read live in the KSIS browser; the last one read stays here until the next read.
+    @ViewBuilder
+    private func slovakCupSection(_ couple: UserCouple) -> some View {
+        if let group = SlovakCup.Group(ageCategory: couple.ageCategory) {
+            VStack(alignment: .leading, spacing: 12) {
+                HomeSectionHeader(title: "SLOVENSKÝ POHÁR", systemImage: "trophy.fill")
+                ForEach(SlovakCup.Discipline.allCases) { discipline in
+                    cupCard(couple, group: group, discipline: discipline)
+                }
+            }
+        }
+    }
+
+    private func cupCard(_ couple: UserCouple, group: SlovakCup.Group, discipline: SlovakCup.Discipline) -> some View {
+        let saved = cupStore.standings(group: group, discipline: discipline)
+        let entry = saved.flatMap { SlovakCup.entry(in: $0.standings, for: couple) }
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(discipline.title)
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                if let saved {
+                    Text("Načítané \(EncoreTime.dayAndClock(saved.readAt))")
+                        .font(.caption)
+                        .foregroundColor(Color.textSecondary)
+                }
+            }
+            if let saved, let entry {
+                SlovakCupStatusView(status: SlovakCup.status(of: entry, in: saved.standings, group: group),
+                                    showsChampionship: group == .adults || (couple.ageCategory ?? "").contains("II"))
+            } else if saved != nil {
+                Text("V tomto poradí zatiaľ nie ste.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.7))
+            }
+            Button { openCupStandings(group: group, discipline: discipline) } label: {
+                Label(saved == nil ? "Pozrieť poradie v KSIS" : "Aktualizovať z KSIS", systemImage: "arrow.clockwise")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Color.gold400)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(14)
+        .homeCard(cornerRadius: 20)
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: saved?.readAt)
+    }
+
+    private func openCupStandings(group: SlovakCup.Group, discipline: SlovakCup.Discipline) {
+        let year = Calendar.current.component(.year, from: Date())
+        if let url = SlovakCup.standingsURL(year: year, group: group, discipline: discipline) {
+            browser = KSISBrowserTarget(url: url)
         }
     }
 

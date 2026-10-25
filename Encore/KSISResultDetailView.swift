@@ -125,7 +125,7 @@ struct KSISResultDetailView: View {
     // MARK: Rounds
     private func roundCard(_ round: KSISRound) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: round.round.uppercased(), systemImage: round.isFinal ? "crown.fill" : "xmark.square.fill") {
+            HomeSectionHeader(title: round.round.uppercased(), systemImage: round.isFinal || round.isScores ? "crown.fill" : "xmark.square.fill") {
                 if let advanced = round.advanced {
                     Label(advanced ? "Postup" : "Bez postupu", systemImage: advanced ? "checkmark.circle.fill" : "xmark.circle.fill")
                         .font(.caption.weight(.bold))
@@ -135,8 +135,8 @@ struct KSISResultDetailView: View {
 
             VStack(alignment: .leading, spacing: 12) {
                 HStack(spacing: 16) {
-                    fact(round.isFinal ? "Suma" : "Krížiky", round.sumText)
-                    if let place = round.place { fact(round.isFinal ? "Miesto" : "Poradie v kole", place.display) }
+                    fact(round.isFinal || round.isScores ? "Suma" : "Krížiky", round.sumText)
+                    if let place = round.place { fact(round.isFinal || round.isScores ? "Miesto" : "Poradie v kole", place.display) }
                     if let advancedCount = round.advancedCount, !round.isFinal {
                         fact("Postúpilo", "\(advancedCount) z \(round.couplesInRound)")
                     }
@@ -176,7 +176,12 @@ struct KSISResultDetailView: View {
                     .font(.footnote.weight(.bold))
                     .foregroundColor(.white.opacity(0.85))
                 Spacer()
-                if let crosses = dance.crosses {
+                if let score = dance.score {
+                    Text(KSISRound.scoreText(score))
+                        .font(.caption.weight(.semibold))
+                        .monospacedDigit()
+                        .foregroundColor(Color.gold300)
+                } else if let crosses = dance.crosses {
                     Text("\(crosses) z \(dance.marks.count)")
                         .font(.caption.weight(.semibold))
                         .monospacedDigit()
@@ -216,7 +221,8 @@ struct KSISResultDetailView: View {
     }
 
     private func hiddenNote(for round: KSISRound) -> String? {
-        guard !hiddenJudges.isEmpty else { return nil }
+        // Absolute judging publishes a score per dance, not every judge's mark.
+        guard !hiddenJudges.isEmpty, !round.isScores else { return nil }
         let letters = hiddenJudges.map(\.letter).joined(separator: ", ")
         if round.isFinal {
             return "Porotca \(letters) je započítaný vo výsledku finále, KSIS jeho umiestnenia nezverejňuje."
