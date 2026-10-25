@@ -141,7 +141,7 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
 }
 
 // MARK: - Marks by judge (stored in `competition_results.rounds`, shown live from the open page)
-struct KSISPlace: Codable, Equatable, Sendable {
+nonisolated struct KSISPlace: Codable, Equatable, Sendable {
     let from: Int
     let to: Int
     let text: String
@@ -330,13 +330,13 @@ struct KSISPageReply: Decodable, Sendable {
 }
 
 // MARK: - Slovenský pohár standings (read live from KSIS, cached on the iPhone)
-struct SlovakCupRound: Codable, Equatable, Sendable {
+nonisolated struct SlovakCupRound: Codable, Equatable, Sendable {
     /// Among Slovak couples; "9-12" for a shared place.
     let place: KSISPlace?
     let points: Int?
 }
 
-struct SlovakCupStandings: Codable, Equatable, Sendable {
+nonisolated struct SlovakCupStandings: Codable, Equatable, Sendable {
     struct Round: Codable, Equatable, Sendable {
         let sutazId: Int?
         let venue: String

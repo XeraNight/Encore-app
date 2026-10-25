@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - Ako mi idú tance
 /// One value per dance (0…1) for the first half of the season and for the second half up to today, so the two
 /// shapes show progress. Every value is counted from the dancer's own records; nothing is estimated.
-nonisolated struct DanceRadar: Equatable {
+struct DanceRadar: Equatable {
     enum Metric: String, CaseIterable, Identifiable {
         case training, feelings, corrections, competitions
         var id: String { rawValue }
