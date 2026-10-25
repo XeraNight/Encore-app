@@ -20,7 +20,7 @@ struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RecordingActivityAttributes.self) { context in
             RecordingLockScreenView(context: context)
-                .activityBackgroundTint(ActivityStyle.crimson)
+                .activityBackgroundTint(ActivityStyle.glass)
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded Leading (Top Left of island)
@@ -153,14 +153,11 @@ private func segmentColor(for index: Int, isActive: Bool) -> Color {
 }
 
 // MARK: - Lock Screen banner
-/// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it, one round
-/// action on the right, dark red at the top, a lighter red in the middle and a soft gold at the bottom, with a thin
-/// gold line along the bottom for how far it got.
+/// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it and round
+/// actions on the right, on dark red glass with a faint gold only where the light breaks at the bottom edge.
 private enum ActivityStyle {
-    static let crimson = Color(red: 120/255, green: 5/255, blue: 20/255)      // encoreCrimson (Colors.swift)
-    static let darkRed = Color(red: 74/255, green: 3/255, blue: 14/255)
-    static let middleRed = Color(red: 128/255, green: 12/255, blue: 30/255)
-    static let softGold = Color(red: 150/255, green: 100/255, blue: 44/255)
+    /// The glass: slightly see-through, so the Lock Screen shows softly behind the dark red.
+    static let glass = Color(red: 52/255, green: 4/255, blue: 12/255).opacity(0.9)
     static let gold = Color(red: 212/255, green: 175/255, blue: 55/255)       // gold500
     static let goldLight = Color(red: 255/255, green: 224/255, blue: 136/255) // gold400
 }
@@ -170,8 +167,6 @@ private struct ActivityBanner<Trailing: View>: View {
     let title: Text
     let detailIcon: String
     let detail: Text
-    /// 0…1, the gold line along the bottom.
-    let progress: Double
     @ViewBuilder let trailing: Trailing
 
     var body: some View {
@@ -193,24 +188,24 @@ private struct ActivityBanner<Trailing: View>: View {
                         .monospacedDigit()
                         .lineLimit(1)
                 }
-                .foregroundStyle(ActivityStyle.goldLight)
+                .foregroundStyle(ActivityStyle.goldLight.opacity(0.9))
             }
             Spacer(minLength: 8)
             trailing
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .background(LinearGradient(stops: [.init(color: ActivityStyle.darkRed, location: 0),
-                                           .init(color: ActivityStyle.middleRed, location: 0.55),
-                                           .init(color: ActivityStyle.softGold, location: 1)],
-                                   startPoint: .top, endPoint: .bottom))
-        .overlay(alignment: .bottomLeading) {
-            GeometryReader { proxy in
-                Capsule()
-                    .fill(LinearGradient(colors: [ActivityStyle.gold, ActivityStyle.goldLight], startPoint: .leading, endPoint: .trailing))
-                    .frame(width: proxy.size.width * min(max(progress, 0), 1), height: 3)
-                    .frame(maxHeight: .infinity, alignment: .bottom)
+        // Where the light breaks at the bottom edge: a faint gold, brightest in the middle.
+        .overlay(alignment: .bottom) {
+            ZStack(alignment: .bottom) {
+                LinearGradient(colors: [ActivityStyle.gold.opacity(0), ActivityStyle.gold.opacity(0.14)],
+                               startPoint: .top, endPoint: .bottom)
+                    .frame(height: 16)
+                LinearGradient(colors: [ActivityStyle.gold.opacity(0), ActivityStyle.goldLight.opacity(0.5), ActivityStyle.gold.opacity(0)],
+                               startPoint: .leading, endPoint: .trailing)
+                    .frame(height: 1)
             }
+            .allowsHitTesting(false)
         }
     }
 }
@@ -225,8 +220,7 @@ private struct RoundAction: View {
             .font(.system(size: size * 0.32, weight: .bold))
             .foregroundStyle(.white)
             .frame(width: size, height: size)
-            .background(Circle().fill(.white.opacity(0.14)))
-            .overlay(Circle().stroke(ActivityStyle.gold.opacity(0.35), lineWidth: 1))
+            .background(Circle().fill(.white.opacity(0.12)))
     }
 }
 
@@ -240,8 +234,7 @@ private struct RecordingLockScreenView: View {
             icon: "video.fill",
             title: Text(state.sessionTitle.isEmpty ? "Nahrávam" : state.sessionTitle),
             detailIcon: "record.circle",
-            detail: state.bpm > 0 ? Text("\(timer) · \(state.bpm) BPM") : timer,
-            progress: Double(state.audioLevel)
+            detail: state.bpm > 0 ? Text("\(timer) · \(state.bpm) BPM") : timer
         ) {
             if #available(iOSApplicationExtension 17.0, *) {
                 HStack(spacing: 10) {
@@ -266,19 +259,17 @@ struct EncoreLiveActivity: Widget {
                 icon: "figure.dance",
                 title: Text(state.currentFigureName),
                 detailIcon: state.nextFigureName.isEmpty ? "music.note" : "arrow.turn.down.right",
-                detail: Text(state.nextFigureName.isEmpty ? context.attributes.routineName : "Nasleduje: \(state.nextFigureName)"),
-                progress: state.totalFigures > 0 ? Double(state.currentFigureIndex) / Double(state.totalFigures) : 0
+                detail: Text(state.nextFigureName.isEmpty ? context.attributes.routineName : "Nasleduje: \(state.nextFigureName)")
             ) {
                 Text("\(state.currentFigureIndex)/\(state.totalFigures)")
                     .font(.system(size: 14, weight: .heavy, design: .rounded))
                     .monospacedDigit()
                     .foregroundStyle(.white)
                     .frame(width: 50, height: 50)
-                    .background(Circle().fill(.white.opacity(0.14)))
-                    .overlay(Circle().stroke(ActivityStyle.gold.opacity(0.35), lineWidth: 1))
+                    .background(Circle().fill(.white.opacity(0.12)))
                     .accessibilityLabel("Figúra \(state.currentFigureIndex) z \(state.totalFigures)")
             }
-            .activityBackgroundTint(ActivityStyle.crimson)
+            .activityBackgroundTint(ActivityStyle.glass)
 
         } dynamicIsland: { context in
             DynamicIsland {
