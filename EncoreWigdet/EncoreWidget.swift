@@ -20,7 +20,7 @@ struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RecordingActivityAttributes.self) { context in
             RecordingLockScreenView(context: context)
-                .activityBackgroundTint(Color.black)
+                .activityBackgroundTint(ActivityStyle.crimson)
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded Leading (Top Left of island)
@@ -57,25 +57,13 @@ struct RecordingLiveActivity: Widget {
                 // Expanded Bottom (Full width controls & 11-segment VU meter)
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 12) {
-                        // Section: HALL AMBIENT LEVEL & ACTIVE SYNC
+                        // How loud the hall is, so the music is heard on the video
                         VStack(spacing: 6) {
-                            HStack {
-                                Text("HALL AMBIENT LEVEL")
-                                    .font(.system(size: 10, weight: .heavy))
-                                    .foregroundColor(Color.white.opacity(0.55))
-                                    .tracking(0.5)
-                                
-                                Spacer()
-                                
-                                Text("ACTIVE SYNC")
-                                    .font(.system(size: 9, weight: .black))
-                                    .foregroundColor(.black)
-                                    .tracking(0.5)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color(red: 0.98, green: 0.88, blue: 0.20))
-                                    .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-                            }
+                            Text("HLASITOSŤ V SÁLE")
+                                .font(.system(size: 10, weight: .heavy))
+                                .foregroundColor(Color.white.opacity(0.55))
+                                .tracking(0.5)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             
                             // 11-Segment Capsule Bar (5 Green, 3 Yellow, 3 Red)
                             HStack(spacing: 4) {
@@ -164,104 +152,103 @@ private func segmentColor(for index: Int, isActive: Bool) -> Color {
     }
 }
 
-// MARK: - Lock Screen Recording Banner
+// MARK: - Lock Screen banner
+/// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it, one round
+/// action on the right, crimson behind, and a thin gold line along the bottom for how far it got.
+private enum ActivityStyle {
+    static let crimson = Color(red: 120/255, green: 5/255, blue: 20/255)      // encoreCrimson (Colors.swift)
+    static let crimsonDeep = Color(red: 64/255, green: 2/255, blue: 10/255)
+    static let gold = Color(red: 212/255, green: 175/255, blue: 55/255)       // gold500
+    static let goldLight = Color(red: 255/255, green: 224/255, blue: 136/255) // gold400
+}
+
+private struct ActivityBanner<Trailing: View>: View {
+    let icon: String
+    let title: Text
+    let detailIcon: String
+    let detail: Text
+    /// 0…1, the gold line along the bottom.
+    let progress: Double
+    @ViewBuilder let trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 30)
+            VStack(alignment: .leading, spacing: 4) {
+                title
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                HStack(spacing: 5) {
+                    Image(systemName: detailIcon)
+                        .font(.system(size: 12, weight: .semibold))
+                    detail
+                        .font(.system(size: 14, weight: .medium))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                }
+                .foregroundStyle(ActivityStyle.goldLight)
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 16)
+        .background(LinearGradient(colors: [ActivityStyle.crimson, ActivityStyle.crimsonDeep],
+                                   startPoint: .topLeading, endPoint: .bottomTrailing))
+        .overlay(alignment: .bottomLeading) {
+            GeometryReader { proxy in
+                Capsule()
+                    .fill(LinearGradient(colors: [ActivityStyle.gold, ActivityStyle.goldLight], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: proxy.size.width * min(max(progress, 0), 1), height: 3)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+            }
+        }
+    }
+}
+
+/// The round button on the right: white symbol on a soft circle.
+private struct RoundAction: View {
+    let systemImage: String
+    var size: CGFloat = 50
+
+    var body: some View {
+        Image(systemName: systemImage)
+            .font(.system(size: size * 0.32, weight: .bold))
+            .foregroundStyle(.white)
+            .frame(width: size, height: size)
+            .background(Circle().fill(.white.opacity(0.14)))
+            .overlay(Circle().stroke(ActivityStyle.gold.opacity(0.35), lineWidth: 1))
+    }
+}
+
 private struct RecordingLockScreenView: View {
     let context: ActivityViewContext<RecordingActivityAttributes>
 
     var body: some View {
-        VStack(spacing: 12) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 3) {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(Color(red: 1.0, green: 0.27, blue: 0.23))
-                            .frame(width: 8, height: 8)
-                        Text("REC")
-                            .font(.system(size: 13, weight: .black, design: .rounded))
-                            .foregroundColor(Color(red: 1.0, green: 0.27, blue: 0.23))
-                    }
-                    Text(context.state.sessionTitle)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color.white.opacity(0.65))
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Text(timerInterval: context.state.startDate...Date.distantFuture, countsDown: false)
-                    .font(.system(size: 24, weight: .heavy, design: .monospaced))
-                    .foregroundColor(.white)
-                    .monospacedDigit()
-            }
-
-            // VU Meter
-            VStack(spacing: 6) {
-                HStack {
-                    Text("HALL AMBIENT LEVEL")
-                        .font(.system(size: 10, weight: .heavy))
-                        .foregroundColor(Color.white.opacity(0.55))
-                        .tracking(0.5)
-                    
-                    Spacer()
-                    
-                    Text("ACTIVE SYNC")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundColor(.black)
-                        .tracking(0.5)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(red: 0.98, green: 0.88, blue: 0.20))
-                        .clipShape(RoundedRectangle(cornerRadius: 3.5, style: .continuous))
-                }
-
-                HStack(spacing: 4) {
-                    ForEach(0..<11, id: \.self) { index in
-                        let threshold = Float(index + 1) / 11.0
-                        let isActive = context.state.audioLevel >= threshold
-                        
-                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(segmentColor(for: index, isActive: isActive))
-                            .frame(height: 8)
-                            .frame(maxWidth: .infinity)
-                    }
+        let state = context.state
+        let timer = Text(timerInterval: state.startDate...Date.distantFuture, countsDown: false)
+        ActivityBanner(
+            icon: "video.fill",
+            title: Text(state.sessionTitle.isEmpty ? "Nahrávam" : state.sessionTitle),
+            detailIcon: "record.circle",
+            detail: state.bpm > 0 ? Text("\(timer) · \(state.bpm) BPM") : timer,
+            progress: Double(state.audioLevel)
+        ) {
+            if #available(iOSApplicationExtension 17.0, *) {
+                HStack(spacing: 10) {
+                    Button(intent: BookmarkRecordingIntent()) { RoundAction(systemImage: "bookmark.fill", size: 42) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Označiť moment")
+                    Button(intent: StopRecordingIntent()) { RoundAction(systemImage: "stop.fill") }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Zastaviť nahrávanie")
                 }
             }
-
-            // Bottom Actions: Scaled Elegantly
-            HStack(spacing: 18) {
-                if #available(iOSApplicationExtension 17.0, *) {
-                    Button(intent: BookmarkRecordingIntent()) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(white: 0.16))
-                                .frame(width: 38, height: 38)
-                            
-                            Image(systemName: "bookmark")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(intent: StopRecordingIntent()) {
-                        ZStack {
-                            Circle()
-                                .fill(Color(red: 0.94, green: 0.28, blue: 0.22))
-                                .frame(width: 42, height: 42)
-                            
-                            RoundedRectangle(cornerRadius: 3, style: .continuous)
-                                .stroke(Color.white, lineWidth: 2)
-                                .frame(width: 12, height: 12)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(Color.black)
     }
 }
 
@@ -269,45 +256,25 @@ private struct RecordingLockScreenView: View {
 struct EncoreLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: EncoreAttributes.self) { context in
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Tréning: \(context.attributes.routineName)")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(red: 1.0, green: 0.84, blue: 0.04))
-                        .textCase(.uppercase)
-                    
-                    Text(context.state.currentFigureName)
-                        .font(.system(size: 17, weight: .black))
-                        .foregroundColor(.white)
-                    
-                    if !context.state.nextFigureName.isEmpty {
-                        Text("Nasleduje: \(context.state.nextFigureName)")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.65))
-                    }
-                }
-                
-                Spacer()
-                
-                VStack(spacing: 2) {
-                    Text("\(context.state.currentFigureIndex) / \(context.state.totalFigures)")
-                        .font(.system(size: 15, weight: .black))
-                        .foregroundColor(Color(red: 1.0, green: 0.84, blue: 0.04))
-                    Text("figúra")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white.opacity(0.5))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color(white: 0.12))
-                .cornerRadius(10)
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color(red: 1.0, green: 0.84, blue: 0.04).opacity(0.3), lineWidth: 1))
+            let state = context.state
+            ActivityBanner(
+                icon: "figure.dance",
+                title: Text(state.currentFigureName),
+                detailIcon: state.nextFigureName.isEmpty ? "music.note" : "arrow.turn.down.right",
+                detail: Text(state.nextFigureName.isEmpty ? context.attributes.routineName : "Nasleduje: \(state.nextFigureName)"),
+                progress: state.totalFigures > 0 ? Double(state.currentFigureIndex) / Double(state.totalFigures) : 0
+            ) {
+                Text("\(state.currentFigureIndex)/\(state.totalFigures)")
+                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
+                    .frame(width: 50, height: 50)
+                    .background(Circle().fill(.white.opacity(0.14)))
+                    .overlay(Circle().stroke(ActivityStyle.gold.opacity(0.35), lineWidth: 1))
+                    .accessibilityLabel("Figúra \(state.currentFigureIndex) z \(state.totalFigures)")
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
-            .background(Color.black)
-            .activityBackgroundTint(Color.black)
-            
+            .activityBackgroundTint(ActivityStyle.crimson)
+
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
