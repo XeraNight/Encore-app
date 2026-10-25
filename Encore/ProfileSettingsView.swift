@@ -167,7 +167,7 @@ struct ProfileSettingsView: View {
             toggleRow(
                 icon: "bell.badge.fill",
                 title: "Upozornenia na tréningy",
-                subtitle: "Pripomenutia tréningov, uzávierok a súťaží.",
+                subtitle: "Hodinu pred tréningom, po tréningu a pred súťažou.",
                 isOn: Binding(
                     get: { notificationManager.notificationsEnabled },
                     set: { isOn in
