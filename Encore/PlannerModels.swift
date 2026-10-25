@@ -71,6 +71,24 @@ enum TrainingFeeling: String, CaseIterable, Identifiable {
         case .breakthrough: return "Prelom v technike"
         }
     }
+
+    /// The prompt for the note under the feeling: where it happened.
+    var notePrompt: String {
+        switch self {
+        case .great: return "Čo išlo, napr. Rumba konečne s hudbou"
+        case .tired: return "Kde, napr. na konci Jive nohy nestíhali"
+        case .breakthrough: return "Čo sa podarilo, napr. otočka v Tangu"
+        }
+    }
+}
+
+/// One feeling of a training with where it happened: "Únava · Jive · nohy nestíhali na konci".
+nonisolated struct TrainingMoment: Codable, Equatable, Sendable {
+    var feelingRaw: String
+    var danceName: String?
+    var note: String
+
+    var feeling: TrainingFeeling? { TrainingFeeling(rawValue: feelingRaw) }
 }
 
 /// What happened on one concrete day for one cadence (going / skipped / reflection).
@@ -84,6 +102,8 @@ final class TrainingLogEntry {
     var statusRaw: String = TrainingStatus.planned.rawValue
     var reflectionNote: String = ""
     var feelingRaw: String? = nil
+    /// Every feeling of the training with its dance and note (JSON of `[TrainingMoment]`).
+    var momentsData: Data? = nil
     var danceName: String? = nil
     /// The `InstantNote` created from the reflection, so it can be edited later.
     var noteId: UUID? = nil
@@ -110,6 +130,21 @@ final class TrainingLogEntry {
     var feeling: TrainingFeeling? {
         get { feelingRaw.flatMap(TrainingFeeling.init(rawValue:)) }
         set { feelingRaw = newValue?.rawValue }
+    }
+
+    /// The feelings in order, each with its dance and note. A reflection from before has only `feeling`, which
+    /// becomes one moment; `feeling` keeps the first moment for the places that read one feeling.
+    var moments: [TrainingMoment] {
+        get {
+            if let momentsData, let saved = try? JSONDecoder().decode([TrainingMoment].self, from: momentsData), !saved.isEmpty {
+                return saved
+            }
+            return feeling.map { [TrainingMoment(feelingRaw: $0.rawValue, danceName: nil, note: "")] } ?? []
+        }
+        set {
+            momentsData = newValue.isEmpty ? nil : try? JSONEncoder().encode(newValue)
+            feelingRaw = newValue.first?.feelingRaw
+        }
     }
 }
 

@@ -37,6 +37,8 @@ struct TrainingTrends: Equatable {
     let months: [Month]
     let dances: [DanceCount]
     let feelings: [TrainingFeeling: Int]
+    /// The dance named most often with each feeling ("Únava: Jive 3×").
+    let feelingDances: [TrainingFeeling: DanceCount]
     let prioritiesDone: Int
     let seasonStart: Date
 
@@ -97,7 +99,16 @@ struct TrainingTrends: Equatable {
         dances = Dictionary(grouping: seasonLogs.compactMap(\.danceName), by: { $0 })
             .map { DanceCount(dance: $0.key, count: $0.value.count) }
             .sorted { ($0.count, -DanceNames.rank($0.dance)) > ($1.count, -DanceNames.rank($1.dance)) }
-        feelings = Dictionary(grouping: seasonLogs.compactMap(\.feeling), by: { $0 }).mapValues(\.count)
+        let moments = seasonLogs.flatMap(\.moments)
+        feelings = Dictionary(grouping: moments.compactMap(\.feeling), by: { $0 }).mapValues(\.count)
+        feelingDances = Dictionary(grouping: moments.filter { $0.danceName != nil }, by: { $0.feeling })
+            .reduce(into: [:]) { result, group in
+                guard let feeling = group.key else { return }
+                let counts = Dictionary(grouping: group.value.compactMap(\.danceName), by: { $0 }).mapValues(\.count)
+                if let top = counts.max(by: { ($0.value, -DanceNames.rank($0.key)) < ($1.value, -DanceNames.rank($1.key)) }) {
+                    result[feeling] = DanceCount(dance: top.key, count: top.value)
+                }
+            }
         prioritiesDone = priorities.filter { ($0.doneAt ?? .distantPast) >= seasonStart }.count
     }
 }
@@ -191,7 +202,11 @@ struct TrainingTrendsContent: View {
                 .chartYAxis {
                     AxisMarks { value in
                         AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
-                        AxisValueLabel { Text("\(value.as(Double.self).map { Int($0) } ?? 0) h").foregroundStyle(Color.textSecondary) }
+                        // "0,5 h" instead of a second "0 h" when the weeks are short.
+                        AxisValueLabel {
+                            Text("\((value.as(Double.self) ?? 0).formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h")
+                                .foregroundStyle(Color.textSecondary)
+                        }
                     }
                 }
                 .chartXAxis {
@@ -217,7 +232,9 @@ struct TrainingTrendsContent: View {
                         Text(month.start.formatted(.dateTime.month(.wide).locale(Locale(identifier: "sk"))).capitalized)
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.white)
-                            .frame(width: 90, alignment: .leading)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.75)
+                            .frame(width: 96, alignment: .leading)
                         VStack(alignment: .leading, spacing: 4) {
                             GeometryReader { geo in
                                 ZStack(alignment: .leading) {
@@ -293,6 +310,12 @@ struct TrainingTrendsContent: View {
                                     .font(.caption2)
                                     .foregroundColor(Color.textSecondary)
                                     .multilineTextAlignment(.center)
+                                if let top = trends.feelingDances[feeling] {
+                                    Text("najčastejšie \(DanceNames.display(top.dance)) \(top.count)×")
+                                        .font(.caption2.weight(.semibold))
+                                        .foregroundColor(Color.gold300)
+                                        .multilineTextAlignment(.center)
+                                }
                             }
                             .frame(maxWidth: .infinity)
                             .accessibilityElement(children: .combine)

@@ -17,7 +17,8 @@ struct DebriefSheet: View {
     @StateObject private var speech = SpeechRecognizerHelper()
     @State private var text = ""
     @State private var danceName: String?
-    @State private var feeling: TrainingFeeling?
+    /// The chosen feelings in the order of `TrainingFeeling.allCases`, each with a dance and a note.
+    @State private var moments: [TrainingMoment] = []
     @State private var saveTick = 0
     @State private var priorityTexts = ["", "", ""]
     @State private var showPaywall = false
@@ -47,7 +48,7 @@ struct DebriefSheet: View {
 
     private var hasChanges: Bool {
         text.trimmingCharacters(in: .whitespacesAndNewlines) != entry.reflectionNote
-            || danceName != entry.danceName || feeling != entry.feeling
+            || danceName != entry.danceName || moments != entry.moments
             || goalOutcome != sessionWithGoal?.goalOutcome || prioritiesChanged
     }
 
@@ -57,7 +58,7 @@ struct DebriefSheet: View {
     }
 
     private var canSave: Bool {
-        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || feeling != nil || prioritiesChanged || goalOutcome != nil
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !moments.isEmpty || prioritiesChanged || goalOutcome != nil
     }
 
     var body: some View {
@@ -133,38 +134,7 @@ struct DebriefSheet: View {
 
                     prioritiesSection
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        plannerSectionTitle("AKO TO BOLO")
-                        HStack(spacing: 10) {
-                            ForEach(TrainingFeeling.allCases) { item in
-                                Button {
-                                    feeling = (feeling == item) ? nil : item
-                                } label: {
-                                    VStack(spacing: 4) {
-                                        Image(systemName: item.symbol)
-                                            .font(.title2)
-                                            .foregroundStyle(Color.gold400)
-                                            .symbolEffect(.bounce, value: feeling == item)
-                                        Text(item.title)
-                                            .font(.caption2.weight(.semibold))
-                                            .foregroundColor(.white.opacity(0.85))
-                                            .multilineTextAlignment(.center)
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(
-                                        feeling == item ? Color.gold400.opacity(0.22) : Color.white.opacity(0.06),
-                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    )
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .stroke(feeling == item ? Color.gold400 : Color.white.opacity(0.08), lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.pressable)
-                            }
-                        }
-                    }
+                    feelingsSection
 
                     Button(action: save) {
                         Text("Uložiť reflexiu")
@@ -203,7 +173,7 @@ struct DebriefSheet: View {
             .onAppear {
                 text = entry.reflectionNote
                 danceName = entry.danceName
-                feeling = entry.feeling
+                moments = entry.moments
                 goalOutcome = sessionWithGoal?.goalOutcome
             }
             .onDisappear { _ = speech.stopTranscribing() }
@@ -323,6 +293,78 @@ struct DebriefSheet: View {
         return base.isEmpty ? spoken : "\(base) \(spoken)"
     }
 
+    // MARK: Ako to bolo
+    /// Any number of feelings; each one opens to say in which dance and what happened.
+    private var feelingsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            plannerSectionTitle("AKO TO BOLO")
+            HStack(spacing: 10) {
+                ForEach(TrainingFeeling.allCases) { item in
+                    let isOn = moments.contains { $0.feelingRaw == item.rawValue }
+                    Button { toggle(item) } label: {
+                        VStack(spacing: 4) {
+                            Image(systemName: item.symbol)
+                                .font(.title2)
+                                .foregroundStyle(Color.gold400)
+                                .symbolEffect(.bounce, value: isOn)
+                            Text(item.title)
+                                .font(.caption2.weight(.semibold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(isOn ? Color.gold400.opacity(0.22) : Color.white.opacity(0.06),
+                                    in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(isOn ? Color.gold400 : Color.white.opacity(0.08), lineWidth: 1))
+                    }
+                    .buttonStyle(.pressable)
+                    .accessibilityAddTraits(isOn ? .isSelected : [])
+                }
+            }
+            ForEach($moments, id: \.feelingRaw) { $moment in
+                momentCard($moment)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: moments.map(\.feelingRaw))
+    }
+
+    private func momentCard(_ moment: Binding<TrainingMoment>) -> some View {
+        let feeling = moment.wrappedValue.feeling
+        return VStack(alignment: .leading, spacing: 10) {
+            Label(feeling?.title ?? "", systemImage: feeling?.symbol ?? "circle")
+                .font(.footnote.weight(.bold))
+                .foregroundColor(Color.gold300)
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(dances) { dance in
+                        chip(dance.name, isOn: moment.wrappedValue.danceName == dance.name) {
+                            moment.wrappedValue.danceName = moment.wrappedValue.danceName == dance.name ? nil : dance.name
+                        }
+                    }
+                }
+            }
+            .scrollClipDisabled()
+            TextField("", text: moment.note, prompt: Text(feeling?.notePrompt ?? "").foregroundColor(Color.white.opacity(0.35)), axis: .vertical)
+                .font(.callout)
+                .foregroundColor(.white)
+                .lineLimit(1...4)
+        }
+        .plannerCard()
+    }
+
+    private func toggle(_ feeling: TrainingFeeling) {
+        if let index = moments.firstIndex(where: { $0.feelingRaw == feeling.rawValue }) {
+            moments.remove(at: index)
+        } else {
+            moments.append(TrainingMoment(feelingRaw: feeling.rawValue, danceName: danceName, note: ""))
+            let order = TrainingFeeling.allCases.map(\.rawValue)
+            moments.sort { (order.firstIndex(of: $0.feelingRaw) ?? 0) < (order.firstIndex(of: $1.feelingRaw) ?? 0) }
+        }
+    }
+
     private func save() {
         guard !isSaving else { return }
         isSaving = true
@@ -334,7 +376,7 @@ struct DebriefSheet: View {
 
         entry.reflectionNote = trimmed
         entry.danceName = danceName
-        entry.feeling = feeling
+        entry.moments = moments
         entry.status = .attended
 
         if let session = sessionWithGoal {
