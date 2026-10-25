@@ -154,10 +154,13 @@ private func segmentColor(for index: Int, isActive: Bool) -> Color {
 
 // MARK: - Lock Screen banner
 /// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it, one round
-/// action on the right, crimson behind, and a thin gold line along the bottom for how far it got.
+/// action on the right, dark red at the top, a lighter red in the middle and a soft gold at the bottom, with a thin
+/// gold line along the bottom for how far it got.
 private enum ActivityStyle {
     static let crimson = Color(red: 120/255, green: 5/255, blue: 20/255)      // encoreCrimson (Colors.swift)
-    static let crimsonDeep = Color(red: 64/255, green: 2/255, blue: 10/255)
+    static let darkRed = Color(red: 74/255, green: 3/255, blue: 14/255)
+    static let middleRed = Color(red: 128/255, green: 12/255, blue: 30/255)
+    static let softGold = Color(red: 150/255, green: 100/255, blue: 44/255)
     static let gold = Color(red: 212/255, green: 175/255, blue: 55/255)       // gold500
     static let goldLight = Color(red: 255/255, green: 224/255, blue: 136/255) // gold400
 }
@@ -197,8 +200,10 @@ private struct ActivityBanner<Trailing: View>: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
-        .background(LinearGradient(colors: [ActivityStyle.crimson, ActivityStyle.crimsonDeep],
-                                   startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(LinearGradient(stops: [.init(color: ActivityStyle.darkRed, location: 0),
+                                           .init(color: ActivityStyle.middleRed, location: 0.55),
+                                           .init(color: ActivityStyle.softGold, location: 1)],
+                                   startPoint: .top, endPoint: .bottom))
         .overlay(alignment: .bottomLeading) {
             GeometryReader { proxy in
                 Capsule()
