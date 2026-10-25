@@ -27,6 +27,8 @@ struct ProfileSettingsView: View {
     @State private var storageBytes: Int64?
     @State private var changeCount = 0
     @State private var sharingError: String?
+    @State private var isLinking = false
+    @State private var linkError: String?
 
     var body: some View {
         ZStack {
@@ -160,6 +162,49 @@ struct ProfileSettingsView: View {
                     }
                 )
             )
+            HomeRowDivider()
+            signInRow("google", title: "Google", icon: "g.circle.fill")
+            HomeRowDivider()
+            signInRow("apple", title: "Apple", icon: "applelogo")
+        }
+        .alert("Nepodarilo sa", isPresented: Binding(get: { linkError != nil }, set: { if !$0 { linkError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(linkError ?? "")
+        }
+    }
+
+    /// Google or Apple added to this account opens the same account, with the same data.
+    private func signInRow(_ provider: String, title: String, icon: String) -> some View {
+        let isLinked = authManager.signInProviders.contains(provider)
+        return Button { addSignIn(provider) } label: {
+            HomeRow(
+                icon: icon,
+                title: isLinked ? "Prihlásenie cez \(title)" : "Pridať prihlásenie cez \(title)",
+                subtitle: isLinked ? "Prepojené s týmto účtom." : "Potom sa prihlásiš aj ním, do toho istého účtu.",
+                showsChevron: !isLinked
+            )
+        }
+        .buttonStyle(.pressable(scale: 0.98))
+        .disabled(isLinked || isLinking)
+    }
+
+    private func addSignIn(_ provider: String) {
+        isLinking = true
+        Task {
+            defer { isLinking = false }
+            let failure: String?
+            if provider == "google" {
+                guard let root = UIViewController.topMost() else { return }
+                failure = await authManager.linkGoogle(presenting: root)
+            } else {
+                failure = await authManager.linkApple()
+            }
+            if let failure {
+                linkError = failure
+            } else if authManager.signInProviders.contains(provider) {
+                changeCount += 1
+            }
         }
     }
 

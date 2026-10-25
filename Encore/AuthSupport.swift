@@ -79,28 +79,39 @@ enum NameRules {
     static let maxLength = 60
 }
 
-// MARK: - Apple re-authorization (account deletion)
-/// Asks Apple for a fresh authorization code. Deleting an Apple-linked account needs it, so the server
-/// can revoke the user's Apple tokens (App Review 5.1.1(v)). Returns nil when the user cancels.
+// MARK: - Apple re-authorization (account deletion, adding Apple to an account)
+/// Asks Apple again. Deleting an Apple-linked account needs a fresh authorization code, so the server can revoke the
+/// user's Apple tokens (App Review 5.1.1(v)); adding Apple to an account needs a fresh identity token with a nonce.
+/// Returns nil when the user cancels.
 final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
     private let anchor: ASPresentationAnchor
-    private var continuation: CheckedContinuation<String?, Never>?
+    private var continuation: CheckedContinuation<ASAuthorizationAppleIDCredential?, Never>?
 
     private init(anchor: ASPresentationAnchor) {
         self.anchor = anchor
     }
 
-    /// Nil also when no window is on screen: Apple's sheet would have nothing to appear over.
     static func authorizationCode() async -> String? {
-        guard let window = UIViewController.topMost()?.view.window else { return nil }
-        return await AppleReauthorization(anchor: window).run()
+        await credential(nonce: nil)?.authorizationCode.flatMap { String(data: $0, encoding: .utf8) }
     }
 
-    private func run() async -> String? {
+    /// `hashedNonce` is the SHA-256 of the nonce the server gets with the token.
+    static func identityToken(hashedNonce: String) async -> String? {
+        await credential(nonce: hashedNonce)?.identityToken.flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// Nil also when no window is on screen: Apple's sheet would have nothing to appear over.
+    private static func credential(nonce: String?) async -> ASAuthorizationAppleIDCredential? {
+        guard let window = UIViewController.topMost()?.view.window else { return nil }
+        return await AppleReauthorization(anchor: window).run(nonce: nonce)
+    }
+
+    private func run(nonce: String?) async -> ASAuthorizationAppleIDCredential? {
         await withCheckedContinuation { continuation in
             self.continuation = continuation
             let request = ASAuthorizationAppleIDProvider().createRequest()
             request.requestedScopes = []
+            request.nonce = nonce
             let controller = ASAuthorizationController(authorizationRequests: [request])
             controller.delegate = self
             controller.presentationContextProvider = self
@@ -109,10 +120,7 @@ final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, A
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
-        let code = (authorization.credential as? ASAuthorizationAppleIDCredential)?
-            .authorizationCode
-            .flatMap { String(data: $0, encoding: .utf8) }
-        finish(code)
+        finish(authorization.credential as? ASAuthorizationAppleIDCredential)
     }
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
@@ -123,8 +131,8 @@ final class AppleReauthorization: NSObject, ASAuthorizationControllerDelegate, A
         anchor
     }
 
-    private func finish(_ code: String?) {
-        continuation?.resume(returning: code)
+    private func finish(_ credential: ASAuthorizationAppleIDCredential?) {
+        continuation?.resume(returning: credential)
         continuation = nil
     }
 }

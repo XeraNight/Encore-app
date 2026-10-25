@@ -646,13 +646,26 @@ final class AuthManager: ObservableObject {
         authSuccessMessage = nil
         defer { isLoading = false }
 
+        switch await googleCredential(presenting: rootViewController) {
+        case .cancelled:
+            return false
+        case .failure(let message):
+            authErrorMessage = message
+            return false
+        case .success(let payload):
+            return await completeGoogleLogin(payload, silent: false)
+        }
+    }
+
+    /// Google's sign-in sheet, for signing in and for adding Google to an account.
+    private func googleCredential(presenting rootViewController: UIViewController) async -> GoogleSignInOutcome {
         // Google puts the nonce into the ID token and Supabase checks it: Google gets the SHA-256 hash,
         // Supabase gets the raw value. Without it the server rejects the token
         // ("Passed nonce and nonce in id_token should either both exist or not").
         let rawNonce = AuthManager.randomNonceString()
         let hashedNonce = AuthManager.sha256(rawNonce)
 
-        let outcome: GoogleSignInOutcome = await withCheckedContinuation { continuation in
+        return await withCheckedContinuation { continuation in
             GIDSignIn.sharedInstance.signIn(
                 withPresenting: rootViewController,
                 hint: nil,
@@ -685,15 +698,46 @@ final class AuthManager: ObservableObject {
                 )))
             }
         }
+    }
 
-        switch outcome {
+    // MARK: - Adding sign-ins to the account
+    /// The ways this account signs in: "email", "google", "apple". Apple with a hidden e-mail and Google are two
+    /// accounts until the user adds one to the other here.
+    var signInProviders: Set<String> {
+        Set(currentUser?.identities?.map(\.provider) ?? [])
+    }
+
+    /// Adds Google to the signed-in account. Returns a message when it failed; nil when done or cancelled.
+    func linkGoogle(presenting rootViewController: UIViewController) async -> String? {
+        guard let client else { return Self.missingConfigMessage }
+        switch await googleCredential(presenting: rootViewController) {
         case .cancelled:
-            return false
+            return nil
         case .failure(let message):
-            authErrorMessage = message
-            return false
+            return message
         case .success(let payload):
-            return await completeGoogleLogin(payload, silent: false)
+            return await link(.init(provider: .google, idToken: payload.idToken, nonce: payload.nonce), with: client)
+        }
+    }
+
+    /// Adds Apple to the signed-in account. Returns a message when it failed; nil when done or cancelled.
+    func linkApple() async -> String? {
+        guard let client else { return Self.missingConfigMessage }
+        let nonce = Self.randomNonceString()
+        guard let idToken = await AppleReauthorization.identityToken(hashedNonce: Self.sha256(nonce)) else { return nil }
+        return await link(.init(provider: .apple, idToken: idToken, nonce: nonce), with: client)
+    }
+
+    /// The new identity arrives with the session (`userUpdated`), so the list of sign-ins updates itself.
+    private func link(_ credentials: OpenIDConnectCredentials, with client: SupabaseClient) async -> String? {
+        do {
+            _ = try await client.auth.linkIdentityWithIdToken(credentials: credentials)
+            return nil
+        } catch let error as AuthError where error.errorCode == .identityAlreadyExists {
+            return "Tento účet už patrí inému účtu v Encore. Prihlás sa ním a zmaž ho v Nastaveniach, potom ho sem pridáš."
+        } catch {
+            Logger.auth.error("[AuthManager] Linking a sign-in failed: \(error.localizedDescription, privacy: .public)")
+            return friendlyAuthError(from: error, fallbackPrefix: "Prihlásenie sa nepodarilo pridať")
         }
     }
 
