@@ -22,6 +22,8 @@ struct KSISBrowserView: View {
 
     @State private var state: ReadState = .idle
     @State private var consent = false
+    /// The account's name did not match the couple: it picks which dancer it is and asks the owner to verify.
+    @State private var needsSide = false
     @State private var isSaving = false
     @State private var notice: String?
     @State private var isPanelExpanded = true
@@ -232,6 +234,17 @@ struct KSISBrowserView: View {
             if reply.isLinked == true {
                 hint("Ďalej: otvor výsledky ktorejkoľvek súťaže, kde ste tancovali, a ťukni na svoje meno. Uložíš celú históriu aj s krížikmi.")
                 primaryButton("Aktualizovať triedu a body", action: { save() })
+            } else if reply.verificationPending == true {
+                Label("Čaká na overenie. Keď ho schválime, pár sa ti prepojí sám.", systemImage: "hourglass")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else if needsSide {
+                hint("Meno tvojho účtu nesedí s menami v tomto páre. Kto z nich si? Žiadosť o overenie schválime ručne.")
+                HStack(spacing: 8) {
+                    secondaryButton(couple.partner) { save(side: "partner") }
+                    secondaryButton(couple.partnerka) { save(side: "partnerka") }
+                }
             } else {
                 Toggle(isOn: $consent) {
                     Text("Partner(ka) súhlasí, aby sme v Encore videli naše spoločné výsledky.")
@@ -447,6 +460,7 @@ struct KSISBrowserView: View {
         readGeneration += 1
         let generation = readGeneration
         notice = nil
+        needsSide = false
         state = .reading
         Task {
             do {
@@ -470,16 +484,20 @@ struct KSISBrowserView: View {
         advanceTick += 1
     }
 
-    private func save() {
+    private func save(side: String? = nil) {
         guard case .reply(_, let url, let html) = state, !isSaving else { return }
         isSaving = true
         Task {
             defer { isSaving = false }
             do {
-                let reply = try await manager.save(url: url, html: html, consent: consent)
+                let reply = try await manager.save(url: url, html: html, consent: consent, side: side)
+                needsSide = false
                 state = .reply(reply, url, html)
                 successTick += 1
                 notice = savedMessage(reply)
+            } catch CompetitionManager.ActionError.needsVerification(let message) {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { needsSide = true }
+                notice = message
             } catch {
                 notice = error.localizedDescription
             }
@@ -488,6 +506,7 @@ struct KSISBrowserView: View {
 
     private func savedMessage(_ reply: KSISPageReply) -> String {
         switch reply.kind {
+        case .coupleDetail where reply.verificationPending == true: return "Žiadosť o overenie je odoslaná."
         case .coupleDetail: return "Pár je prepojený, trieda a body sú aktuálne."
         case .couplePage: return "História je v denníku: \(reply.saved ?? 0) súťaží."
         case .results: return "Výsledok je v denníku."

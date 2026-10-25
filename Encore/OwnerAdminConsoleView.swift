@@ -32,6 +32,8 @@ struct OwnerAdminConsoleView: View {
     @State private var banReasonText = "Porušenie pravidiel komunity"
     @State private var userToBan: AdminUserSearchItem?
     @State private var userToDelete: AdminUserSearchItem?
+    /// KSIS couples waiting for verification: the account's name did not match the dancer.
+    @State private var linkRequests: [KSISLinkRequest] = []
 
     private var selectedUser: AdminUserSearchItem? {
         searchResults.first { $0.id == selectedUserId }
@@ -44,6 +46,7 @@ struct OwnerAdminConsoleView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         ownerHeader
+                        if !linkRequests.isEmpty { linkRequestsSection }
                         PlannerChoice(options: [(Mode.search, "Hľadať človeka"), (Mode.email, "Podľa e-mailu")],
                                       selection: $mode)
                         if mode == .search {
@@ -96,6 +99,7 @@ struct OwnerAdminConsoleView: View {
                     Task { await search() }
                 }
             }
+            .task { await loadLinkRequests() }
             .task(id: searchQuery) {
                 // Searches as you type, after a short pause (a new letter cancels the previous search).
                 try? await Task.sleep(for: .milliseconds(350))
@@ -296,6 +300,68 @@ struct OwnerAdminConsoleView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(color.opacity(0.14), in: Capsule())
+    }
+
+    // MARK: - KSIS verification
+    private var linkRequestsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "OVERENIE PÁROV", systemImage: "person.badge.shield.checkmark", count: linkRequests.count)
+            ForEach(linkRequests) { request in
+                VStack(alignment: .leading, spacing: 10) {
+                    Text(request.couple.partnerNames ?? "Pár \(request.pairNumber)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                    Text("Účet: \(request.accountName.isEmpty ? "bez mena" : request.accountName) · tvrdí, že je \(request.dancerName)")
+                        .font(.caption)
+                        .foregroundColor(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 10) {
+                        PrimarySheetButton(title: "Schváliť", isLoading: false, isEnabled: !isActionInProgress) {
+                            decide(request, approve: true)
+                        }
+                        Button { decide(request, approve: false) } label: {
+                            Text("Zamietnuť")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundColor(Color.latinRed)
+                                .frame(maxWidth: .infinity, minHeight: 50)
+                                .background(Color.latinRed.opacity(0.12), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
+                        .buttonStyle(.pressable(scale: 0.97))
+                        .disabled(isActionInProgress)
+                    }
+                }
+                .padding(14)
+                .homeCard(cornerRadius: 18)
+                .transition(.opacity.combined(with: .scale(scale: 0.97)))
+            }
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: linkRequests.map(\.id))
+    }
+
+    /// The owner reads every pending request (RLS ksis_link_requests_read).
+    private func loadLinkRequests() async {
+        do {
+            linkRequests = try await SupabaseConfig.client
+                .from("ksis_link_requests")
+                .select("id, user_id, pair_number, side, dancer_name, account_name, couple, created_at")
+                .eq("status", value: "pending")
+                .order("created_at")
+                .execute()
+                .value
+        } catch {
+            Logger.general.error("Loading link requests failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func decide(_ request: KSISLinkRequest, approve: Bool) {
+        perform {
+            struct Params: Encodable { let p_request_id: UUID; let p_approve: Bool }
+            try await SupabaseConfig.client
+                .rpc("owner_decide_link_request", params: Params(p_request_id: request.id, p_approve: approve))
+                .execute()
+            await loadLinkRequests()
+            return approve ? "Pár je prepojený." : "Žiadosť je zamietnutá."
+        }
     }
 
     // MARK: - Search

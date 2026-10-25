@@ -183,8 +183,18 @@ struct CompetitionTrackerView: View {
     private var linkSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             HomeSectionHeader(title: "PREPOJ SA S KSIS", systemImage: "link")
+            if let pending = manager.pendingLink {
+                Label("Čaká na overenie: \(pending.couple.partnerNames ?? pending.dancerName). Keď ho schválime, pár sa ti prepojí sám.",
+                      systemImage: "hourglass")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .homeCard(cornerRadius: 16)
+            }
             VStack(alignment: .leading, spacing: 14) {
-                Text("Vyhľadaj svoj pár v KSIS. Uvidíš triedu, body a finále a všetky výsledky s krížikmi od každého porotcu.")
+                Text("Vyhľadaj svoj pár v KSIS a prepoj sa s ním. Jeden účet sleduje jeden pár a si v ňom ty, partner alebo partnerka. Uvidíš triedu, body, finále a všetky výsledky s krížikmi od každého porotcu.")
                     .font(.subheadline)
                     .foregroundColor(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)

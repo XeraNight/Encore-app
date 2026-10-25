@@ -212,6 +212,8 @@ struct KSISPageRequest: Encodable, Sendable {
     var url: String? = nil
     var html: String? = nil
     var consent: Bool? = nil
+    /// "partner" or "partnerka": which dancer the account is, when its name does not match and the owner verifies.
+    var side: String? = nil
     var pairNumber: Int? = nil
     var resultId: String? = nil
 }
@@ -323,10 +325,35 @@ struct KSISPageReply: Decodable, Sendable {
     let event: Event?
     let categories: [String]?
     let saved: Int?
+    /// Couple detail: a request to verify this couple waits for the owner.
+    let verificationPending: Bool?
     /// Results: "points", "slp" (Slovenský pohár) or "none" (WDSF, ordinary cups).
     let scoring: String?
     /// The official Slovenský pohár standings (slp_poradie.php).
     let standings: SlovakCupStandings?
+}
+
+// MARK: - A couple waiting for the owner's verification
+struct KSISLinkRequest: Decodable, Equatable, Sendable, Identifiable {
+    struct Couple: Decodable, Equatable, Sendable {
+        let partnerNames: String?
+        enum CodingKeys: String, CodingKey { case partnerNames = "partner_names" }
+    }
+
+    let id: UUID
+    let userId: UUID
+    let pairNumber: Int
+    let side: String
+    let dancerName: String
+    let accountName: String
+    let couple: Couple
+    let createdAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case id, side, couple
+        case userId = "user_id", pairNumber = "pair_number", dancerName = "dancer_name"
+        case accountName = "account_name", createdAt = "created_at"
+    }
 }
 
 // MARK: - Slovenský pohár standings (read live from KSIS, cached on the iPhone)
