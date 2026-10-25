@@ -9,7 +9,8 @@
 //   unlink        { pairNumber }           -> { ok }                the couple and its results are deleted
 //   delete_result { resultId }             -> { ok }
 //
-// Kinds: couples_list, couple_detail, couple_page, results, marks, registrations, blocked, unsupported.
+// Kinds: couples_list, couple_detail, couple_page, results, marks, registrations, slp_standings, blocked,
+// unsupported.
 // Only the user's own couple is stored; other couples on the page are read and forgotten.
 // Errors: { error, message } with a Slovak message the app shows as is.
 
@@ -27,6 +28,7 @@ import {
   parseMarks,
   parseRegistrations,
   parseResults,
+  parseSlpStandings,
   registeredCategories,
   splitPair,
 } from "../_shared/ksis-pages.ts";
@@ -36,7 +38,7 @@ const MAX_HTML = 2_000_000;
 const MAX_COUPLES = 3;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-type Kind = "couples_list" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations";
+type Kind = "couples_list" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
 
 type Body = {
   action?: string;
@@ -112,6 +114,8 @@ function kindOf(url: URL): Kind | null {
       return "marks";
     case "/zoznam_prihl.php":
       return "registrations";
+    case "/slp_poradie.php":
+      return "slp_standings";
     default:
       return null;
   }
@@ -148,6 +152,8 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
         return await marks(admin, userId, url, body.html, linked, save);
       case "registrations":
         return jsonResponse(readRegistrations(body.html, linked));
+      case "slp_standings":
+        return jsonResponse(readSlpStandings(body.html, linked));
     }
   } catch (err) {
     if (err instanceof KsisPageError) {
@@ -275,7 +281,9 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
     stt: page.stt,
     lat: page.lat,
   };
-  const competitions = page.history.filter((row) => disciplineOf(row.category) !== null && row.date !== null).length;
+  // WDSF competitions have no KSIS competition id and no results in KSIS, so they are not stored.
+  const stored = page.history.filter((row) => row.sutazId !== null && disciplineOf(row.category) !== null && row.date !== null);
+  const competitions = stored.length;
   if (!save) {
     return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: own !== undefined, isLinked: linked.length > 0 });
   }
@@ -297,7 +305,7 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
   }).eq("id", own.id);
   if (coupleError) throw coupleError;
 
-  const rows = page.history.flatMap((entry) => {
+  const rows = stored.flatMap((entry) => {
     const discipline = disciplineOf(entry.category);
     if (!discipline || !entry.date) return [];
     return [{
@@ -337,9 +345,9 @@ async function results(admin: Admin, userId: string, html: string, linked: Linke
   const row = page.rows.find((candidate) => findOwn(linked, candidate.parId, candidate) !== undefined);
   const own = row ? findOwn(linked, row.parId, row) : undefined;
   const ownRow = row
-    ? { parId: row.parId, round: row.round, place: row.place, startNumber: row.startNumber, points: row.points, total: row.total }
+    ? { parId: row.parId, round: row.round, place: row.place, startNumber: row.startNumber, points: row.points, total: row.total, slp: row.slp }
     : null;
-  if (!save) return jsonResponse({ kind: "results", competition, own: ownRow });
+  if (!save) return jsonResponse({ kind: "results", competition, scoring: page.scoring, own: ownRow });
 
   if (!row || !own) return errorResponse("not_found", "Tvoj prepojený pár v tejto súťaži nie je.", 404);
   const discipline = disciplineOf(page.competition.category);
@@ -371,7 +379,7 @@ async function results(admin: Admin, userId: string, html: string, linked: Linke
     imported_at: new Date().toISOString(),
   }, { onConflict: "user_id,sutaz_id,couple_id" });
   if (error) throw error;
-  return jsonResponse({ kind: "results", competition, own: ownRow, saved: 1 });
+  return jsonResponse({ kind: "results", competition, scoring: page.scoring, own: ownRow, saved: 1 });
 }
 
 // ── Marks: crosses by judge, round by round (also what "live" shows on competition day) ─────────
@@ -450,6 +458,19 @@ function readRegistrations(html: string, linked: LinkedCouple[]) {
     kind: "registrations",
     event: { name: page.eventName, date: page.date, venue: page.venue },
     categories: [...categories],
+    isLinked: linked.length > 0,
+  };
+}
+
+// ── Slovenský pohár standings: read live, nothing stored ─────────────────────────────────────────
+
+function readSlpStandings(html: string, linked: LinkedCouple[]) {
+  const page = parseSlpStandings(html);
+  const own = page.entries.find((entry) => findOwn(linked, entry.parId, entry) !== undefined);
+  return {
+    kind: "slp_standings",
+    standings: page,
+    ownParId: own?.parId ?? null,
     isLinked: linked.length > 0,
   };
 }

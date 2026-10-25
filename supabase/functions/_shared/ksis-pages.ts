@@ -12,6 +12,7 @@
  *   results           sutaz.php?sutaz_id=…                                     parseResults
  *   judges' marks     hodnot_sut.php?sutaz_id=…                                parseMarks, coupleRounds
  *   registrations     zoznam_prihl.php?id_prop=…                               parseRegistrations
+ *   Slovenský pohár   slp_poradie.php?rok=…&druh=SLPDO|SLPJUN&s_l=S|L           parseSlpStandings
  */
 import * as cheerio from "npm:cheerio@1.0.0";
 import type { CheerioAPI } from "npm:cheerio@1.0.0";
@@ -262,7 +263,8 @@ export interface KsisHistoryRow {
   date: string | null;
   eventId: number | null;
   eventName: string;
-  sutazId: number;
+  /** Null for a WDSF competition: KSIS lists it with a link to worlddancesport.org and keeps no results of it. */
+  sutazId: number | null;
   category: string;
   couples: number | null;
   place: KsisPlace | null;
@@ -303,8 +305,11 @@ export function parseCouplePage(html: string): KsisCouplePage {
     if (td.length === 0) return [];
     const event = $(td[2]).find("a");
     const competition = $(td[3]).find("a");
-    const sutazId = idFrom(competition.attr("href"), "sutaz_id");
-    if (td.length < 8 || sutazId === null) throw layoutChanged(COUPLE_PAGE, "history row");
+    const href = competition.attr("href") ?? "";
+    const sutazId = idFrom(href, "sutaz_id");
+    if (td.length < 8 || (sutazId === null && !href.includes("worlddancesport.org"))) {
+      throw layoutChanged(COUPLE_PAGE, "history row");
+    }
     return [{
       date: parseKsisDate($(td[0]).text()),
       eventId: idFrom(event.attr("href"), "pod_id"),
@@ -407,6 +412,12 @@ function parseCompetition($: CheerioAPI, page: string): KsisCompetition {
 
 // ── Results (sutaz.php) ──────────────────────────────────────────────────────────────────────────
 
+/**
+ * How a competition gives points: class points ("Body", "Celkom"), Slovenský pohár points ("SLP"), or none
+ * (WDSF competitions, ordinary cups).
+ */
+export type KsisScoring = "points" | "slp" | "none";
+
 export interface KsisResultRow extends KsisPairNames {
   /** The round the couple finished in ("Finále", "Semifinále", "1.kolo"). */
   round: string;
@@ -419,11 +430,14 @@ export interface KsisResultRow extends KsisPairNames {
   points: number | null;
   /** "Celkom": points and finals after this competition. */
   total: KsisStanding | null;
+  /** Slovenský pohár: the place among Slovak couples and this round's SLP points. Null in other competitions. */
+  slp: { place: KsisPlace | null; points: number | null } | null;
   hasCheckMark: boolean;
 }
 
 export interface KsisResults {
   competition: KsisCompetition;
+  scoring: KsisScoring;
   rows: KsisResultRow[];
 }
 
@@ -432,7 +446,13 @@ const RESULTS = "výsledková listina";
 export function parseResults(html: string): KsisResults {
   const $ = load(html, RESULTS);
   const competition = parseCompetition($, RESULTS);
-  expectColumns(RESULTS, columnTitles($, "table.table"), ["Umiestnenie", "Č.p.", "Pár", "Klub", "Body", "Celkom"]);
+  const titles = columnTitles($, "table.table");
+  expectColumns(RESULTS, titles, ["Umiestnenie", "Č.p.", "Pár", "Klub"]);
+  const fifth = titles[4]?.join(" ") ?? "";
+  const scoring: KsisScoring = fifth === "Body" ? "points" : fifth === "SLP" ? "slp" : fifth === "" ? "none" : (() => {
+    throw layoutChanged(RESULTS, `column 5 is "${fifth}"`);
+  })();
+  if (scoring === "points") expectColumns(RESULTS, titles, ["Umiestnenie", "Č.p.", "Pár", "Klub", "Body", "Celkom"]);
   const rows: KsisResultRow[] = [];
   let round = "";
   for (const tr of $("table.table").first().find("tbody tr").toArray()) {
@@ -443,7 +463,7 @@ export function parseResults(html: string): KsisResults {
     }
     const pair = $(td[2]).find("a[href*='par.php?id=']");
     const parId = idFrom(pair.attr("href"), "id");
-    if (td.length < 6 || parId === null) throw layoutChanged(RESULTS, "result row");
+    if (td.length < (scoring === "none" ? 4 : 6) || parId === null) throw layoutChanged(RESULTS, "result row");
     rows.push({
       round,
       place: parsePlace($(td[0]).text()),
@@ -451,18 +471,23 @@ export function parseResults(html: string): KsisResults {
       parId,
       ...splitPair(pair.text()),
       club: clean($(td[3]).text()),
-      points: intOrNull($(td[4]).text()),
-      total: parseStanding($(td[5]).text()),
+      points: scoring === "points" ? intOrNull($(td[4]).text()) : null,
+      total: scoring === "points" ? parseStanding($(td[5]).text()) : null,
+      slp: scoring === "slp" ? { place: parsePlace($(td[4]).text()), points: intOrNull($(td[5]).text()) } : null,
       hasCheckMark: $(tr).find(".glyphicon-ok").length > 0,
     });
   }
-  return { competition, rows };
+  return { competition, scoring, rows };
 }
 
 // ── Judges' marks (hodnot_sut.php) ───────────────────────────────────────────────────────────────
 
-/** "crosses": every judge marks X (cross) or "." per dance. "final": every judge places the couple 1–n. */
-export type KsisRoundKind = "crosses" | "final";
+/**
+ * "crosses": every judge marks X (cross) or "." per dance. "final": every judge places the couple 1–n.
+ * "scores": the WDSF absolute judging system (adult Slovenský pohár finals, WDSF World Open): one score per
+ * dance; the judges' components are in a breakdown KSIS adds under each couple, which is not read.
+ */
+export type KsisRoundKind = "crosses" | "final" | "scores";
 
 export interface KsisMarksEntry extends KsisPairNames {
   startNumber: string;
@@ -511,8 +536,10 @@ export function parseMarks(html: string): KsisMarks {
   const dances = danceTitles.map((title) => title[0]);
 
   const rounds: KsisMarksRound[] = [];
-  for (const tr of $("table.table").first().find("tbody tr").toArray()) {
-    const td = $(tr).find("td").toArray();
+  // Only the table's own rows: a scores round nests a breakdown table under every couple.
+  for (const tr of $("table.table").first().children("tbody").children("tr").toArray()) {
+    const td = $(tr).children("td").toArray();
+    if (td.length === 1 && $(td[0]).find("table").length > 0) continue;
     if (td.length === 1 && $(td[0]).attr("colspan") !== undefined) {
       rounds.push({ name: clean($(td[0]).text()), kind: "crosses", entries: [] });
       continue;
@@ -538,6 +565,10 @@ export function parseMarks(html: string): KsisMarks {
 
   for (const round of rounds) {
     const marks = round.entries.flatMap((entry) => entry.marks);
+    if (marks.length > 0 && marks.every((mark) => /^\d+\.\d+$/.test(mark))) {
+      round.kind = "scores";
+      continue;
+    }
     if (marks.some((mark) => mark.length !== judgeColumns)) throw layoutChanged(MARKS, `marks length in ${round.name}`);
     if (marks.every((mark) => /^[X.]+$/.test(mark))) round.kind = "crosses";
     else if (marks.every((mark) => /^[1-9]+$/.test(mark))) round.kind = "final";
@@ -556,9 +587,12 @@ export interface KsisJudgeMark {
 
 export interface KsisDanceMarks {
   dance: string;
+  /** Every published judge's mark; empty in a scores round. */
   marks: KsisJudgeMark[];
   /** Crosses from the published judges (crosses rounds only). */
   crosses: number | null;
+  /** The dance's score in a scores round. */
+  score: number | null;
 }
 
 export interface KsisCoupleRound {
@@ -592,12 +626,13 @@ export function coupleRounds(page: KsisMarks, parId: number): KsisCoupleRound[] 
     const entry = round.entries.find((candidate) => candidate.parId === parId);
     if (!entry) return [];
     const dances = page.dances.map((dance, i) => {
+      if (round.kind === "scores") return { dance, marks: [], crosses: null, score: Number(entry.marks[i]) };
       const marks = [...entry.marks[i]].map((mark, column) => ({
         letter: named ? judges[column].letter : null,
         name: named ? judges[column].name : null,
         mark,
       }));
-      return { dance, marks, crosses: round.kind === "crosses" ? marks.filter((m) => m.mark === "X").length : null };
+      return { dance, marks, crosses: round.kind === "crosses" ? marks.filter((m) => m.mark === "X").length : null, score: null };
     });
     const visible = round.kind === "crosses" ? dances.reduce((total, dance) => total + (dance.crosses ?? 0), 0) : null;
     const hidden = visible === null ? null : entry.sum - visible;
@@ -678,4 +713,79 @@ export function registeredCategories(registrations: KsisRegistrations, couple: K
   return registrations.categories
     .filter((category) => category.couples.some((registered) => isSameCouple(registered, couple)))
     .map((category) => category.name);
+}
+
+// ── Slovenský pohár standings (slp_poradie.php) ──────────────────────────────────────────────────
+
+export interface KsisSlpRound {
+  sutazId: number | null;
+  venue: string;
+  date: string | null;
+}
+
+export interface KsisSlpEntry extends KsisPairNames {
+  place: KsisPlace | null;
+  parId: number;
+  club: string;
+  /** One per round, in the order of `rounds`; null where the couple did not dance. */
+  rounds: ({ place: KsisPlace | null; points: number } | null)[];
+  /** "Body": the sum KSIS shows. */
+  total: number;
+}
+
+export interface KsisSlpStandings {
+  year: number | null;
+  /** As KSIS titles the table: "Dospelí Štandard", "Juniori Latin". */
+  category: string;
+  /** "Do výslednej sumy sú započítané len 4 najlepšie súťaže" → 4; null when the page does not say. */
+  countedRounds: number | null;
+  rounds: KsisSlpRound[];
+  entries: KsisSlpEntry[];
+}
+
+const SLP = "poradie Slovenského pohára";
+const SLP_TITLE = "Poradie Slovenského pohára za rok ";
+
+export function parseSlpStandings(html: string): KsisSlpStandings {
+  const $ = load(html, SLP);
+  const header = $("div.jumbotron");
+  const title = clean(header.find("h3").first().text());
+  const rest = title.startsWith(SLP_TITLE) ? title.slice(SLP_TITLE.length) : "";
+  const cut = rest.indexOf(" - ");
+  if (cut < 0) throw layoutChanged(SLP, "title");
+  const counted = clean(header.find("p").first().text()).match(/(\d+)\s+najlepš/);
+
+  const table = $("table.table").first();
+  const headers = table.find("thead th").toArray();
+  const titles = headers.map((th) => lines($(th).html()).join(" "));
+  if (titles[0] !== "Poradie" || titles[1] !== "Pár" || titles.at(-1) !== "Body") throw layoutChanged(SLP, "columns");
+  // Each round column is the venue and the date, linking to that round's results.
+  const rounds = headers.slice(2, -1).map((th) => {
+    const parts = lines($(th).html());
+    return { sutazId: idFrom($(th).find("a").attr("href"), "sutaz_id"), venue: parts[0] ?? "", date: parseKsisDate(parts.at(-1) ?? "") };
+  });
+
+  const entries = table.find("tbody tr").toArray().map((tr) => {
+    const td = $(tr).find("td").toArray();
+    const pair = $(td[1]).find("a[href*='par.php?id=']");
+    const parId = idFrom(pair.attr("href"), "id");
+    const total = intOrNull($(td.at(-1)).text());
+    if (td.length !== rounds.length + 3 || parId === null || total === null) throw layoutChanged(SLP, "row");
+    return {
+      place: parsePlace($(td[0]).text()),
+      parId,
+      ...splitPair(pair.text()),
+      club: lines($(td[1]).html())[1] ?? "",
+      // "5 (14)": 5th among Slovak couples, 14 points; "9-12 (7)" for a shared place.
+      rounds: td.slice(2, -1).map((cell) => {
+        const text = clean($(cell).text());
+        if (!text) return null;
+        const match = text.match(/^(.+?)\s*\((\d+)\)$/);
+        if (!match) throw layoutChanged(SLP, `round cell "${text}"`);
+        return { place: parsePlace(match[1]), points: Number(match[2]) };
+      }),
+      total,
+    };
+  });
+  return { year: intOrNull(rest.slice(0, cut)), category: rest.slice(cut + 3), countedRounds: counted ? Number(counted[1]) : null, rounds, entries };
 }

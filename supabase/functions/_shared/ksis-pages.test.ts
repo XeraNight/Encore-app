@@ -1,10 +1,12 @@
 // Run: deno test --allow-read --allow-env supabase/functions/_shared/ksis-pages.test.ts
-// Fixtures are real KSIS pages saved on 9. 10. 2026 with every person name replaced (fixtures/ksis/).
+// Fixtures are real KSIS pages saved on 9. 10. and 25. 10. 2026 with every person name replaced (fixtures/ksis/,
+// scripts/anonymize-ksis-fixture.js).
 import { assert, assertEquals, assertThrows } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import {
   coupleRounds,
   disciplineOf,
   isChallengePage,
+  isSameCouple,
   KsisPageError,
   parseCoupleDetail,
   parseCouplePage,
@@ -14,6 +16,7 @@ import {
   parsePlace,
   parseRegistrations,
   parseResults,
+  parseSlpStandings,
   parseStanding,
   registeredCategories,
   splitPair,
@@ -166,6 +169,7 @@ Deno.test("results: competition header, judges and every couple's placing", () =
     club: "TK ELLEGANCE Košice",
     points: 18,
     total: { points: 89, finals: 5 },
+    slp: null,
     hasCheckMark: true,
   });
   const noCheck = rows.find((row) => row.startNumber === "30");
@@ -253,6 +257,8 @@ Deno.test("a changed page is reported instead of guessed", () => {
   assertLayoutChanged(() => parseMarks(fixture("marks_12094.html").replace('<td class="hodn">XXXXXX</td>', '<td class="hodn">XXXXX</td>')));
   assertLayoutChanged(() => parseMarks(fixture("marks_12094.html").replace('<td class="hodn">XXXXXX</td>', '<td class="hodn">XX?XXX</td>')));
   assertLayoutChanged(() => parseResults(fixture("results_12094.html").replace(">Celkom<", ">Spolu<")));
+  assertLayoutChanged(() => parseResults(fixture("results_12094.html").replace(">Body<", ">Bodíky<")));
+  assertLayoutChanged(() => parseSlpStandings(fixture("slp_standings_dospeli_stt.html").replace("2 (30)", "2 30")));
   assertLayoutChanged(() => parseCoupleDetail(fixture("couple_detail_95397.html").replace('id="body_STT"', 'id="points_STT"')));
   assertLayoutChanged(() => parseCouplesList(fixture("couples_list_95397.html").replace(">Partnerka<", ">Tanečnica<")));
 });
@@ -278,4 +284,70 @@ Deno.test("registrations: the couple is found in its categories, diacritics and 
   assertEquals(registeredCategories(registrations, COUPLE), ["Dospelí D ŠTT", "Dospelí D LAT"]);
   assertEquals(registeredCategories(registrations, { partner: "TANECNY ADAM", partnerka: "tanecna eva" }), ["Dospelí D ŠTT", "Dospelí D LAT"]);
   assertEquals(registeredCategories(registrations, { partner: COUPLE.partnerka, partnerka: COUPLE.partner }), []);
+});
+
+// ── Slovenský pohár, WDSF and absolute judging (pages saved on 25. 10. 2026) ────────────────────
+
+Deno.test("Slovenský pohár round: the SLP place and points instead of class points", () => {
+  const page = parseResults(fixture("results_slp_12250.html"));
+  assertEquals(page.scoring, "slp");
+  assertEquals(page.competition.category, "SP JUN ŠTT");
+  assertEquals(page.rows.length, 22);
+  const own = page.rows.find((row) => isSameCouple(row, COUPLE));
+  // 22 Slovak couples: the winner gets 14 plus 21 beaten couples (Súťažný poriadok, článok 23).
+  assertEquals(own?.slp, { place: { from: 1, to: 1, text: "1." }, points: 35 });
+  assertEquals(own?.points, null);
+  assertEquals(page.rows.at(-1)?.slp?.points, 0);
+});
+
+Deno.test("WDSF and cup results: placings without points", () => {
+  const page = parseResults(fixture("results_wdsf_12131.html"));
+  assertEquals(page.scoring, "none");
+  assertEquals(page.rows.length, 17);
+  assertEquals(page.rows[0].place?.from, 1);
+  assert(page.rows.every((row) => row.points === null && row.total === null && row.slp === null));
+});
+
+Deno.test("absolute judging: crosses rounds stay, the final has one score per dance", () => {
+  const page = parseMarks(fixture("marks_ajs_12248.html"));
+  assertEquals(page.rounds.map((round) => `${round.name}:${round.kind}:${round.entries.length}`), [
+    "1.kolo:crosses:25",
+    "2.kolo:crosses:20",
+    "Semifinále:crosses:12",
+    "Finále:scores:6",
+  ]);
+  for (const entry of page.rounds[3].entries) {
+    const final = coupleRounds(page, entry.parId).find((round) => round.kind === "scores");
+    assert(final);
+    // "Suma" is the sum of the dances' scores.
+    const sum = final.dances.reduce((total, dance) => total + (dance.score ?? 0), 0);
+    assert(Math.abs(sum - entry.sum) < 0.002, `${sum} vs ${entry.sum}`);
+    assert(final.dances.every((dance) => dance.marks.length === 0 && dance.crosses === null));
+  }
+});
+
+Deno.test("couple page with WDSF competitions: kept, without a KSIS competition id", () => {
+  const page = parseCouplePage(fixture("couple_page_18967.html"));
+  assertEquals(page.ageCategory, "Dospelí");
+  assertEquals(page.stt, { className: "A", standing: { points: 12, finals: 1 } });
+  assertEquals(page.lat, { className: "A", standing: { points: 44, finals: 2 } });
+  assertEquals(page.history.length, 41);
+  assertEquals(page.history.filter((row) => row.sutazId === null).length, 14);
+  assertEquals([page.history[0].category, page.history[0].sutazId], ["SP ŠTT", 12171]);
+});
+
+Deno.test("Slovenský pohár standings: places, every round and the sum of the 4 best", () => {
+  const page = parseSlpStandings(fixture("slp_standings_dospeli_stt.html"));
+  assertEquals([page.year, page.category, page.countedRounds], [2026, "Dospelí Štandard", 4]);
+  assertEquals(page.rounds.length, 5);
+  assertEquals(page.rounds[0], { sutazId: 11575, venue: "ŠPORTOVÁ HALA ARÉNA POPRAD", date: "2026-03-28" });
+  assertEquals(page.entries.length, 54);
+  const own = page.entries.find((entry) => isSameCouple(entry, COUPLE));
+  assertEquals(own?.place, { from: 2, to: 3, text: "2. - 3." });
+  assertEquals(own?.rounds.map((round) => round?.points ?? null), [14, null, 7, 28, 29]);
+  assertEquals(own?.rounds[2]?.place, { from: 9, to: 12, text: "9-12" });
+  for (const entry of page.entries) {
+    const best = entry.rounds.flatMap((round) => round ? [round.points] : []).sort((a, b) => b - a).slice(0, 4);
+    assertEquals(best.reduce((sum, points) => sum + points, 0), entry.total);
+  }
 });
