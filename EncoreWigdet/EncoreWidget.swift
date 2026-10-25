@@ -20,7 +20,6 @@ struct RecordingLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: RecordingActivityAttributes.self) { context in
             RecordingLockScreenView(context: context)
-                .activityBackgroundTint(ActivityStyle.glass)
         } dynamicIsland: { context in
             DynamicIsland {
                 // Expanded Leading (Top Left of island)
@@ -155,9 +154,10 @@ private func segmentColor(for index: Int, isActive: Bool) -> Color {
 // MARK: - Lock Screen banner
 /// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it and round
 /// actions on the right, on dark red glass with a faint gold only where the light breaks at the bottom edge.
+/// The glass itself is the system's, so it follows the iPhone's Liquid Glass setting (clear or tinted); the dark red
+/// lies over it as a see-through layer.
 private enum ActivityStyle {
-    /// The glass: slightly see-through, so the Lock Screen shows softly behind the dark red.
-    static let glass = Color(red: 52/255, green: 4/255, blue: 12/255).opacity(0.9)
+    static let redLayer = Color(red: 52/255, green: 4/255, blue: 12/255).opacity(0.6)
     static let gold = Color(red: 212/255, green: 175/255, blue: 55/255)       // gold500
     static let goldLight = Color(red: 255/255, green: 224/255, blue: 136/255) // gold400
 }
@@ -195,6 +195,7 @@ private struct ActivityBanner<Trailing: View>: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 16)
+        .background(ActivityStyle.redLayer)
         // Where the light breaks at the bottom edge: a faint gold, brightest in the middle.
         .overlay(alignment: .bottom) {
             ZStack(alignment: .bottom) {
@@ -269,7 +270,6 @@ struct EncoreLiveActivity: Widget {
                     .background(Circle().fill(.white.opacity(0.12)))
                     .accessibilityLabel("Figúra \(state.currentFigureIndex) z \(state.totalFigures)")
             }
-            .activityBackgroundTint(ActivityStyle.glass)
 
         } dynamicIsland: { context in
             DynamicIsland {
