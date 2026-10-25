@@ -29,4 +29,20 @@ struct RecordingActivityAttributes: ActivityAttributes {
 
     var recordingName: String
 }
+
+/// The next training on the Lock Screen: scheduled to appear an hour before it starts, stale when it ends.
+struct TrainingActivityAttributes: ActivityAttributes {
+    public struct ContentState: Codable, Hashable {
+        var start: Date
+        var end: Date
+        /// "Zameraj sa na: …", or empty.
+        var focus: String
+    }
+
+    /// The training and its start, so a moved training is a new card.
+    var key: String
+    var title: String
+    /// Opens this training's reflection in the app (encore://plan?…).
+    var reflectionURL: String
+}
 #endif

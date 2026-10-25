@@ -8,6 +8,7 @@ struct EncoreWidgetBundle: WidgetBundle {
     var body: some Widget {
         EncoreLiveActivity()
         RecordingLiveActivity()
+        TrainingLiveActivity()
         EncoreVideoControl()
         EncoreVoiceControl()
         EncoreTextControl()
@@ -246,6 +247,85 @@ private struct RecordingLockScreenView: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel("Zastaviť nahrávanie")
                 }
+            }
+        }
+    }
+}
+
+// MARK: - The next training (scheduled by the app an hour before it starts)
+struct TrainingLiveActivity: Widget {
+    var body: some WidgetConfiguration {
+        ActivityConfiguration(for: TrainingActivityAttributes.self) { context in
+            TrainingLockScreenView(context: context)
+                .widgetURL(URL(string: context.attributes.reflectionURL))
+        } dynamicIsland: { context in
+            DynamicIsland {
+                DynamicIslandExpandedRegion(.leading) {
+                    Image(systemName: "figure.dance")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(ActivityStyle.goldLight)
+                }
+                DynamicIslandExpandedRegion(.trailing) {
+                    Text(context.state.start, style: .timer)
+                        .font(.system(size: 15, weight: .heavy, design: .rounded))
+                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    Text(context.isStale ? "Ako to bolo? Ťukni a zapíš to." : context.attributes.title)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+            } compactLeading: {
+                Image(systemName: "figure.dance").foregroundStyle(ActivityStyle.goldLight)
+            } compactTrailing: {
+                Text(context.state.start, style: .timer)
+                    .monospacedDigit()
+                    .frame(width: 44)
+            } minimal: {
+                Image(systemName: "figure.dance").foregroundStyle(ActivityStyle.goldLight)
+            }
+            .widgetURL(URL(string: context.attributes.reflectionURL))
+            .keylineTint(ActivityStyle.gold)
+        }
+    }
+}
+
+/// Before and during the training: what it is and what to focus on, with a clock that counts down to the start and
+/// then the time trained. After the end (stale): how did it go, a tap opens the reflection.
+private struct TrainingLockScreenView: View {
+    let context: ActivityViewContext<TrainingActivityAttributes>
+
+    var body: some View {
+        let state = context.state
+        if context.isStale {
+            ActivityBanner(
+                icon: "checkmark.seal.fill",
+                title: Text("Tréning skončil"),
+                detailIcon: "square.and.pencil",
+                detail: Text("Ako to bolo? Zapíš to za 20 sekúnd.")
+            ) {
+                RoundAction(systemImage: "pencil")
+            }
+        } else {
+            ActivityBanner(
+                icon: "figure.dance",
+                title: Text(context.attributes.title),
+                detailIcon: state.focus.isEmpty ? "clock" : "scope",
+                detail: state.focus.isEmpty
+                    ? Text("Dnes \(state.start, style: .time) – \(state.end, style: .time)")
+                    : Text(state.focus)
+            ) {
+                Text(state.start, style: .timer)
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
+                    .monospacedDigit()
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(.white)
+                    .minimumScaleFactor(0.7)
+                    .frame(width: 58, height: 58)
+                    .background(Circle().fill(.white.opacity(0.12)))
+                    .accessibilityLabel("Čas do začiatku tréningu")
             }
         }
     }

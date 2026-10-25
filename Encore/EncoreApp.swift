@@ -82,12 +82,17 @@ struct EncoreApp: App {
                         QuickActionRouter.shared.pending = action
                         return
                     }
-                    // 4. Guest coach key (encore://guest?k=…)
+                    // 4. The training card on the Lock Screen (encore://plan?…) opens that training's reflection.
+                    if let request = PlannerOpenRequest(url: url) {
+                        PlannerRouter.shared.pending = request
+                        return
+                    }
+                    // 5. Guest coach key (encore://guest?k=…)
                     if AppFeatures.coachTools, let token = GuestCoachLink.token(from: url.absoluteString) {
                         GuestCoachService.shared.pendingToken = token
                         return
                     }
-                    // 5. Friend invites / profile links
+                    // 6. Friend invites / profile links
                     Task { _ = FriendManager.shared.handleIncomingURL(url) }
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in

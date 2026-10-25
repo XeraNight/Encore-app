@@ -42,6 +42,34 @@ nonisolated struct PlannerOpenRequest: Equatable, Sendable {
             return [Self.sessionKey: id.uuidString]
         }
     }
+
+    /// The same as a link, for the training card on the Lock Screen: encore://plan?cadence=…&day=… or ?session=….
+    init?(url: URL) {
+        guard url.scheme == "encore", url.host == "plan",
+              let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
+        let value = { (name: String) in items.first(where: { $0.name == name })?.value }
+        if let id = value("session").flatMap(UUID.init(uuidString:)) {
+            target = .session(id)
+        } else if let id = value("cadence").flatMap(UUID.init(uuidString:)), let day = value("day").flatMap(Double.init) {
+            target = .weekly(cadenceId: id, day: Date(timeIntervalSince1970: day))
+        } else {
+            return nil
+        }
+    }
+
+    var url: URL? {
+        var components = URLComponents()
+        components.scheme = "encore"
+        components.host = "plan"
+        switch target {
+        case .weekly(let cadenceId, let day):
+            components.queryItems = [URLQueryItem(name: "cadence", value: cadenceId.uuidString),
+                                     URLQueryItem(name: "day", value: String(Int(day.timeIntervalSince1970)))]
+        case .session(let id):
+            components.queryItems = [URLQueryItem(name: "session", value: id.uuidString)]
+        }
+        return components.url
+    }
 }
 
 /// Hands a tapped notification over to the Kalendár tab, which may not exist yet (cold start, locked app).
@@ -61,7 +89,13 @@ enum PlannerNotifications {
     private static let prefix = "plan."
     private static let horizonDays = 14
 
+    /// Every reminder and the training card on the Lock Screen (another account, reminders turned off).
     static func cancelAll() async {
+        await removePendingNotifications()
+        await TrainingActivity.show(nil)
+    }
+
+    private static func removePendingNotifications() async {
         let center = UNUserNotificationCenter.current()
         let ids = await center.pendingNotificationRequests().map(\.identifier).filter { $0.hasPrefix(prefix) }
         center.removePendingNotificationRequests(withIdentifiers: ids)
@@ -93,10 +127,13 @@ enum PlannerNotifications {
         priorities: [LessonPriority] = [],
         remindsFocus: Bool = false
     ) async {
-        await cancelAll()
         let center = UNUserNotificationCenter.current()
-
-        guard NotificationManager.shared.isAuthorized, NotificationManager.shared.notificationsEnabled else { return }
+        guard NotificationManager.shared.isAuthorized, NotificationManager.shared.notificationsEnabled else {
+            await cancelAll()
+            return
+        }
+        // The card is not taken down here: TrainingActivity.show keeps it when the next training is the same.
+        await removePendingNotifications()
 
         let cal = PlannerCalendar.calendar
         let now = Date()
@@ -104,6 +141,7 @@ enum PlannerNotifications {
         // A cancelled day needs no reminder, a day with its reflection already written neither.
         let settled = logs.filter { $0.status == .skipped || $0.status == .attended }
         let skipped = Set(settled.map { key(cadence: $0.cadenceId, day: $0.day) })
+        var trainings: [UpcomingTraining] = []
 
         for offset in 0..<horizonDays {
             guard let day = cal.date(byAdding: .day, value: offset, to: today) else { continue }
@@ -111,11 +149,14 @@ enum PlannerNotifications {
 
             for cadence in cadences where cadence.isEnabled && cadence.weekday == weekday {
                 if skipped.contains(key(cadence: cadence.id, day: day)) { continue }
-                addReminder(id: "\(prefix)before.\(cadence.id.uuidString).\(offset)",
-                            title: cadence.title.isEmpty ? "Tréning" : cadence.title,
-                            start: PlannerCalendar.date(on: day, minutes: cadence.startMinutes),
-                            category: cadence.danceCategory, priorities: remindsFocus ? priorities : [],
-                            now: now, center: center)
+                trainings.append(UpcomingTraining(
+                    reminderId: "\(prefix)before.\(cadence.id.uuidString).\(offset)",
+                    title: cadence.title.isEmpty ? "Tréning" : cadence.title,
+                    start: PlannerCalendar.date(on: day, minutes: cadence.startMinutes),
+                    end: PlannerCalendar.date(on: day, minutes: cadence.endMinutes),
+                    focus: focus(category: cadence.danceCategory, priorities: remindsFocus ? priorities : []),
+                    open: PlannerOpenRequest(target: .weekly(cadenceId: cadence.id, day: day))
+                ))
                 // Ask for the reflection 5 minutes after the session ends.
                 let fire = PlannerCalendar.date(on: day, minutes: cadence.endMinutes + 5)
                 guard fire > now else { continue }
@@ -133,9 +174,14 @@ enum PlannerNotifications {
         let skippedSessions = Set(settled.compactMap(\.sessionId))
         let horizon = cal.date(byAdding: .day, value: horizonDays, to: today) ?? today
         for session in sessions where !skippedSessions.contains(session.id) && session.start < horizon {
-            addReminder(id: "\(prefix)before.\(session.id.uuidString)", title: session.displayTitle, start: session.start,
-                        category: session.danceCategory, priorities: remindsFocus ? priorities : [],
-                        now: now, center: center)
+            trainings.append(UpcomingTraining(
+                reminderId: "\(prefix)before.\(session.id.uuidString)",
+                title: session.displayTitle,
+                start: session.start,
+                end: session.end,
+                focus: focus(category: session.danceCategory, priorities: remindsFocus ? priorities : []),
+                open: PlannerOpenRequest(target: .session(session.id))
+            ))
             let fire = session.end.addingTimeInterval(5 * 60)
             guard fire > now else { continue }
             // "Lekcia" and an own name have their own gender, so the title stays neutral.
@@ -149,6 +195,13 @@ enum PlannerNotifications {
                 open: PlannerOpenRequest(target: .session(session.id)),
                 center: center
             )
+        }
+
+        // The next training appears as the Lock Screen card an hour before; the others get the notification.
+        let next = trainings.filter { $0.end > now }.min { $0.start < $1.start }
+        let shownAsCard = await TrainingActivity.show(next)
+        for training in trainings where !(shownAsCard && training.reminderId == next?.reminderId) {
+            addReminder(training, now: now, center: center)
         }
 
         for comp in competitions where comp.intent == .going {
@@ -169,20 +222,23 @@ enum PlannerNotifications {
         }
     }
 
-    /// An hour before a training. On Plus it says what to focus on: the open Top 3 of the dances trained that day.
-    private static func addReminder(id: String, title: String, start: Date, category: String,
-                                    priorities: [LessonPriority], now: Date, center: UNUserNotificationCenter) {
-        let fire = start.addingTimeInterval(-60 * 60)
+    /// An hour before a training.
+    private static func addReminder(_ training: UpcomingTraining, now: Date, center: UNUserNotificationCenter) {
+        let fire = training.start.addingTimeInterval(-60 * 60)
         guard fire > now else { return }
-        let focus = priorities
+        add(id: training.reminderId, title: training.headline,
+            body: training.focus.isEmpty ? "Tréning začína o hodinu." : training.focus,
+            at: fire, center: center)
+    }
+
+    /// On Plus a reminder says what to focus on: the open Top 3 of the dances trained that day.
+    private static func focus(category: String, priorities: [LessonPriority]) -> String {
+        let texts = priorities
             .filter { $0.isOpen && matches(dance: $0.danceName, category: category) }
             .sorted { ($0.createdAt, -$0.rank) > ($1.createdAt, -$1.rank) }
             .prefix(3)
             .map(\.text)
-        add(id: id,
-            title: "Dnes \(start.formatted(date: .omitted, time: .shortened)) · \(title)",
-            body: focus.isEmpty ? "Tréning začína o hodinu." : "Zameraj sa na: " + focus.joined(separator: " · "),
-            at: fire, center: center)
+        return texts.isEmpty ? "" : "Zameraj sa na: " + texts.joined(separator: " · ")
     }
 
     /// "Standard" and "Latin" trainings remind only their dances; a mixed one all of them.
