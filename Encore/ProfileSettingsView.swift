@@ -26,6 +26,7 @@ struct ProfileSettingsView: View {
     @State private var exportError: String?
     @State private var storageBytes: Int64?
     @State private var changeCount = 0
+    @State private var sharingError: String?
 
     var body: some View {
         ZStack {
@@ -36,6 +37,7 @@ struct ProfileSettingsView: View {
                     accountSection
                     signInSection
                     notificationsSection
+                    sharingSection
                     playbackSection
                     dataSection
                     helpSection
@@ -158,6 +160,35 @@ struct ProfileSettingsView: View {
                     }
                 )
             )
+        }
+    }
+
+    // MARK: Sharing results
+    private var sharingSection: some View {
+        HomeRowGroup(title: "SPOJENIA") {
+            toggleRow(
+                icon: "person.2.fill",
+                title: "Ukazovať moje výsledky spojeniam",
+                subtitle: "Ľudia, s ktorými si spojený, uvidia triedu, body a uložené súťaže tvojho páru z KSIS.",
+                isOn: Binding(
+                    get: { profileStore.sharesResults },
+                    set: { isOn in
+                        Task {
+                            do {
+                                try await profileStore.setSharesResults(isOn)
+                                changeCount += 1
+                            } catch {
+                                sharingError = "Nastavenie sa nepodarilo uložiť. Skontroluj pripojenie a skús to znova."
+                            }
+                        }
+                    }
+                )
+            )
+        }
+        .alert("Nepodarilo sa", isPresented: Binding(get: { sharingError != nil }, set: { if !$0 { sharingError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sharingError ?? "")
         }
     }
 

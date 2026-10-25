@@ -7,6 +7,8 @@ struct KSISResultDetailView: View {
     let result: CompetitionResult
     /// Opens a KSIS page in the app (the comparison sheet closes first).
     let onOpenKSIS: (URL) -> Void
+    /// False for a connection's result: it can be read, not removed.
+    var isOwn = true
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var manager = CompetitionManager.shared
@@ -54,10 +56,12 @@ struct KSISResultDetailView: View {
                         } label: {
                             Label("Hodnotenie v KSIS", systemImage: "xmark.square")
                         }
-                        Button(role: .destructive) {
-                            confirmDelete = true
-                        } label: {
-                            Label("Odstrániť z denníka", systemImage: "trash")
+                        if isOwn {
+                            Button(role: .destructive) {
+                                confirmDelete = true
+                            } label: {
+                                Label("Odstrániť z denníka", systemImage: "trash")
+                            }
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")

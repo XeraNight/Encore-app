@@ -126,7 +126,7 @@ public struct LegalComplianceView: View {
             
             legalSection(
                 title: "6. Verejné športové dáta (SZTŠ / ksis.eu)",
-                body: "Keď v appke otvoríš stránku KSIS, appka ju pošle na náš server, ktorý z nej prečíta údaje tvojho prepojeného páru. Uloží len ich: triedu, body, finále, umiestnenia a krížiky porotcov pri tvojich súťažiach. Mená ostatných párov sa neukladajú. Pár prepojíš len so súhlasom partnera alebo partnerky a kedykoľvek ho odpojíš, tým sa zmažú aj uložené výsledky. Ľudia, s ktorými si v appke spojený, vidia triedu a body tvojho prepojeného páru, nič iné. Právny základ: oprávnený záujem (čl. 6 ods. 1 písm. f GDPR), evidencia vlastnej športovej výkonnosti. Jediným oficiálnym zdrojom výsledkov je SZTŠ."
+                body: "Keď v appke otvoríš stránku KSIS, appka ju pošle na náš server, ktorý z nej prečíta údaje tvojho prepojeného páru. Uloží len ich: triedu, body, finále, umiestnenia a krížiky porotcov pri tvojich súťažiach. Mená ostatných párov sa neukladajú. Pár prepojíš len so súhlasom partnera alebo partnerky a kedykoľvek ho odpojíš, tým sa zmažú aj uložené výsledky. Ak v nastaveniach zapneš Ukazovať moje výsledky spojeniam, ľudia, s ktorými si v appke spojený, uvidia triedu, body a uložené súťaže tvojho prepojeného páru. Predvolene je to vypnuté. Právny základ: oprávnený záujem (čl. 6 ods. 1 písm. f GDPR), evidencia vlastnej športovej výkonnosti. Jediným oficiálnym zdrojom výsledkov je SZTŠ."
             )
             
             legalSection(

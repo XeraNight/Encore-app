@@ -40,6 +40,8 @@ struct FriendsListView: View {
     @State private var blockTarget: DancerConnection?
     @State private var actionCount = 0
     @State private var partnerToEnd: DancerConnection?
+    /// A connection who shares results, opened to read them.
+    @State private var resultsOf: DancerConnection?
     @State private var errorText: String?
     @Environment(\.openURL) private var openURL
 
@@ -118,6 +120,11 @@ struct FriendsListView: View {
             Button("Ponechať", role: .cancel) {}
         } message: { _ in
             Text("Ostanete spojení, ale prestanete vidieť a upravovať si navzájom zostavy.")
+        }
+        .sheet(item: $resultsOf) { conn in
+            if let couple = connectionManager.couplesByUser[conn.otherUserId] {
+                ConnectionResultsSheet(connection: conn, couple: couple)
+            }
         }
         .alert("Nepodarilo sa", isPresented: Binding(get: { errorText != nil }, set: { if !$0 { errorText = nil } })) {
             Button("OK", role: .cancel) {}
@@ -511,11 +518,17 @@ struct FriendsListView: View {
                     .foregroundColor(.white.opacity(0.65))
                     .lineLimit(1)
                 if let ksis = ksisLine(for: conn) {
-                    Text(ksis)
+                    Label(ksis, systemImage: "chevron.right")
+                        .labelStyle(TrailingIconLabel())
                         .font(.caption.weight(.semibold))
                         .foregroundColor(Color.gold300)
                         .lineLimit(2)
                 }
+            }
+            // Someone who shares results opens them; the others have nothing more to show.
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if connectionManager.couplesByUser[conn.otherUserId] != nil { resultsOf = conn }
             }
 
             Spacer(minLength: 4)
@@ -779,6 +792,16 @@ private extension FriendsListView {
         }
         openURL(url) { accepted in
             if !accepted { showReportFallback = true }
+        }
+    }
+}
+
+/// Text first, then a small icon: "A ŠTT 120 b ›".
+private struct TrailingIconLabel: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 4) {
+            configuration.title
+            configuration.icon.font(.caption2.weight(.bold))
         }
     }
 }

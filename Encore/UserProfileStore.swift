@@ -24,6 +24,8 @@ final class UserProfileStore: ObservableObject {
     /// "dancer" or "coach" – what the user does (self-declared). It is a label, not a permission:
     /// coach powers come only from an accepted coach–student connection on the server.
     @Published var danceRole: String = "dancer"
+    /// Whether connections may see the couple's KSIS class, points and saved competitions (off by default).
+    @Published private(set) var sharesResults = false
 
     /// Coach tools are held back for a later version; until then everybody is a dancer in the app.
     var isCoach: Bool { AppFeatures.coachTools && danceRole == "coach" }
@@ -160,10 +162,11 @@ final class UserProfileStore: ObservableObject {
                 let ksis_id: String?
                 let dancer_groups: [String]?
                 let dance_role: String?
+                let shares_results: Bool?
             }
             let res: ProfileCloudDTO = try await SupabaseConfig.client
                 .from("profiles")
-                .select("name, club, invite_code, dancer_code, ksis_id, dancer_groups, dance_role")
+                .select("name, club, invite_code, dancer_code, ksis_id, dancer_groups, dance_role, shares_results")
                 .eq("id", value: uuid)
                 .single()
                 .execute()
@@ -205,6 +208,7 @@ final class UserProfileStore: ObservableObject {
             }
             danceRole = res.dance_role == "coach" ? "coach" : "dancer"
             UserDefaults.standard.set(danceRole, forKey: "profileDanceRole_\(uid)")
+            sharesResults = res.shares_results ?? false
         } catch {
             Logger.general.notice("fetchProfileCloudData: \(error.localizedDescription, privacy: .public)")
         }
@@ -249,6 +253,18 @@ final class UserProfileStore: ObservableObject {
         }
     }
     
+    /// A privacy switch, so it shows only what the server holds: on failure it stays as it was and says so.
+    func setSharesResults(_ on: Bool) async throws {
+        guard let uuid = UUID(uuidString: activeUserId) else { return }
+        struct SharingUpdate: Encodable { let shares_results: Bool }
+        try await SupabaseConfig.client
+            .from("profiles")
+            .update(SharingUpdate(shares_results: on))
+            .eq("id", value: uuid)
+            .execute()
+        sharesResults = on
+    }
+
     /// Saves name and club on this phone and on the server (card, friends search, coach lists).
     func saveProfile(name: String, club: String) {
         let uid = activeUserId
