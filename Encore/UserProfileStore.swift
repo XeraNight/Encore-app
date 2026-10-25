@@ -17,7 +17,6 @@ final class UserProfileStore: ObservableObject {
     @Published var currentAvatarPath: String? = nil
     @Published var currentInviteCode: String = ""
     @Published var dancerCode: String = "DNC-0000"
-    @Published var currentKsisId: String = ""
     @Published var dancerGroups: [String] = ["Štandardné tance", "Latinskoamerické tance"]
     @Published var cardTheme: String = "carmine_gold"
     @Published var currentPlaybackRate: Double = 1.0
@@ -31,14 +30,6 @@ final class UserProfileStore: ObservableObject {
     var isCoach: Bool { AppFeatures.coachTools && danceRole == "coach" }
 
     static let clubMaxLength = 80
-    
-    var publicCardId: String {
-        let cleanKsis = currentKsisId.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !cleanKsis.isEmpty {
-            return "KSIS ID: \(cleanKsis)"
-        }
-        return "ID TANEČNÍKA: \(dancerCode)"
-    }
     
     private var cancellables = Set<AnyCancellable>()
     /// The last profile download (account and time): a return to the app or to Profile reads the server at
@@ -129,8 +120,6 @@ final class UserProfileStore: ObservableObject {
         if let dc = savedDancerCode, !dc.isEmpty {
             dancerCode = dc
         }
-        let savedKsis = defaults.string(forKey: "profileKsisId_\(uid)")
-        currentKsisId = savedKsis ?? ""
         if let groups = defaults.stringArray(forKey: "profileDancerGroups_\(uid)"), !groups.isEmpty {
             dancerGroups = groups
         }
@@ -159,14 +148,13 @@ final class UserProfileStore: ObservableObject {
                 let club: String?
                 let invite_code: String?
                 let dancer_code: String?
-                let ksis_id: String?
                 let dancer_groups: [String]?
                 let dance_role: String?
                 let shares_results: Bool?
             }
             let res: ProfileCloudDTO = try await SupabaseConfig.client
                 .from("profiles")
-                .select("name, club, invite_code, dancer_code, ksis_id, dancer_groups, dance_role, shares_results")
+                .select("name, club, invite_code, dancer_code, dancer_groups, dance_role, shares_results")
                 .eq("id", value: uuid)
                 .single()
                 .execute()
@@ -189,11 +177,6 @@ final class UserProfileStore: ObservableObject {
             if let code = res.invite_code, !code.isEmpty {
                 self.currentInviteCode = code
                 UserDefaults.standard.set(code, forKey: "profileInviteCode_\(uid)")
-            }
-            
-            if let ksis = res.ksis_id, !ksis.isEmpty {
-                self.currentKsisId = ksis
-                UserDefaults.standard.set(ksis, forKey: "profileKsisId_\(uid)")
             }
             
             if let groups = res.dancer_groups, !groups.isEmpty {

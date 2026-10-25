@@ -14,7 +14,7 @@ begin
     raise notice '--- STARTING RLS SECURITY VERIFICATION ---';
 
     -- 1. Verify RLS is ENABLED on all 4 tables
-    perform 1 from pg_tables where schemaname = 'public' and tablename in ('user_couples', 'competition_results', 'advancement_rules', 'import_cooldowns') and rowsecurity = true;
+    perform 1 from pg_tables where schemaname = 'public' and tablename in ('user_couples', 'competition_results', 'ksis_dancers', 'import_cooldowns') and rowsecurity = true;
     get diagnostics v_err_count = row_count;
     if v_err_count != 4 then
         raise exception 'RLS is not enabled on all 4 KSIS tables! Found only %', v_err_count;
@@ -55,13 +55,12 @@ begin
         raise notice 'PASS: anon INSERT into competition_results denied.';
     end;
 
-    -- advancement_rules
+    -- ksis_dancers
     begin
-        insert into public.advancement_rules (category, from_class, to_class, required_points, required_finals)
-        values ('Fake', 'A', 'B', 1, 1);
-        raise exception 'FAIL: anon was able to insert into advancement_rules';
+        insert into public.ksis_dancers (user_id, person_number, name) values (gen_random_uuid(), 1, 'Fake');
+        raise exception 'FAIL: anon was able to insert into ksis_dancers';
     exception when insufficient_privilege then
-        raise notice 'PASS: anon INSERT into advancement_rules denied.';
+        raise notice 'PASS: anon INSERT into ksis_dancers denied.';
     end;
 
     -- import_cooldowns
@@ -121,12 +120,12 @@ begin
         raise notice 'PASS: authenticated direct DELETE on competition_results denied.';
     end;
 
-    -- advancement_rules
+    -- ksis_dancers: only the ksis-page server function writes who a dancer is
     begin
-        update public.advancement_rules set required_points = 0 where true;
-        raise exception 'FAIL: authenticated was able to update advancement_rules';
+        update public.ksis_dancers set status = 'verified' where true;
+        raise exception 'FAIL: authenticated was able to update ksis_dancers';
     exception when insufficient_privilege then
-        raise notice 'PASS: authenticated direct UPDATE on advancement_rules denied.';
+        raise notice 'PASS: authenticated direct UPDATE on ksis_dancers denied.';
     end;
 
     -- import_cooldowns

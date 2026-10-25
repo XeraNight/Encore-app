@@ -22,7 +22,7 @@ from (
         has_table_privilege('authenticated', 'public.' || t.tablename, 'DELETE') as auth_can_delete
     from pg_tables t
     left join pg_policies p on p.schemaname = t.schemaname and p.tablename = t.tablename
-    where t.schemaname = 'public' and t.tablename in ('user_couples', 'competition_results', 'advancement_rules', 'import_cooldowns')
+    where t.schemaname = 'public' and t.tablename in ('user_couples', 'competition_results', 'ksis_dancers', 'import_cooldowns')
     group by t.tablename, t.rowsecurity
 ) c
 order by c.table_name;
