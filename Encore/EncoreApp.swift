@@ -153,6 +153,7 @@ struct RootAppView: View {
     @ObservedObject private var remoteConfig = RemoteConfigManager.shared
     @ObservedObject private var friendManager = FriendManager.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
+    @ObservedObject private var profileStore = UserProfileStore.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var dismissMaintenanceOffline = false
     @State private var isSplashActive = true
@@ -226,6 +227,13 @@ struct RootAppView: View {
         }
         .sheet(isPresented: $authManager.showPasswordRecoverySheet) {
             PasswordUpdateSheet(mode: .recovery)
+        }
+        // Not over the Face ID lock or the login screen.
+        .sheet(isPresented: Binding(
+            get: { profileStore.asksBirthYear && authManager.isAuthenticated && !authManager.isAppLocked },
+            set: { profileStore.asksBirthYear = $0 }
+        )) {
+            BirthYearSheet()
         }
         .task {
             await PlannerNotifications.rescheduleFromStore()

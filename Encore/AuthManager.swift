@@ -312,7 +312,7 @@ final class AuthManager: ObservableObject {
     }
 
     // MARK: - Sign Up (Email & Password)
-    func signUp(email: String, pass: String, name: String, danceRole: String = "dancer", ageConfirmed: Bool) async -> Bool {
+    func signUp(email: String, pass: String, name: String, danceRole: String = "dancer", birthYear: Int, parentConsent: Bool) async -> Bool {
         guard let client else {
             authErrorMessage = Self.missingConfigMessage
             return false
@@ -332,8 +332,8 @@ final class AuthManager: ObservableObject {
             authErrorMessage = issue
             return false
         }
-        guard ageConfirmed else {
-            authErrorMessage = "Potvrď vek, aby si mohol pokračovať."
+        guard BirthYear.isComplete(birthYear, parentConsent: parentConsent) else {
+            authErrorMessage = "Pod 16 rokov potvrď súhlas rodiča alebo zákonného zástupcu."
             return false
         }
 
@@ -351,7 +351,9 @@ final class AuthManager: ObservableObject {
                     "last_platform": .string("ios"),
                     "client_type": .string("ios_native"),
                     "dance_role": .string(danceRole == "coach" ? "coach" : "dancer"),
-                    "age_confirmed": .bool(true)
+                    "birth_year": .integer(birthYear),
+                    // A record that the parent's consent was confirmed at sign-up (under 16).
+                    "parent_consent": .bool(BirthYear.needsParentConsent(birthYear) && parentConsent)
                 ],
                 redirectTo: Self.authCallbackURL
             )

@@ -25,6 +25,8 @@ final class UserProfileStore: ObservableObject {
     @Published var danceRole: String = "dancer"
     /// Whether connections may see the couple's KSIS class, points and saved competitions (off by default).
     @Published private(set) var sharesResults = false
+    /// The account has no birth year yet (Apple, Google, accounts from before): asked once per launch (BirthYearSheet).
+    @Published var asksBirthYear = false
 
     /// Coach tools are held back for a later version; until then everybody is a dancer in the app.
     var isCoach: Bool { AppFeatures.coachTools && danceRole == "coach" }
@@ -151,10 +153,11 @@ final class UserProfileStore: ObservableObject {
                 let dancer_groups: [String]?
                 let dance_role: String?
                 let shares_results: Bool?
+                let birth_year: Int?
             }
             let res: ProfileCloudDTO = try await SupabaseConfig.client
                 .from("profiles")
-                .select("name, club, invite_code, dancer_code, dancer_groups, dance_role, shares_results")
+                .select("name, club, invite_code, dancer_code, dancer_groups, dance_role, shares_results, birth_year")
                 .eq("id", value: uuid)
                 .single()
                 .execute()
@@ -192,6 +195,7 @@ final class UserProfileStore: ObservableObject {
             danceRole = res.dance_role == "coach" ? "coach" : "dancer"
             UserDefaults.standard.set(danceRole, forKey: "profileDanceRole_\(uid)")
             sharesResults = res.shares_results ?? false
+            asksBirthYear = res.birth_year == nil
         } catch {
             Logger.general.notice("fetchProfileCloudData: \(error.localizedDescription, privacy: .public)")
         }
@@ -246,6 +250,18 @@ final class UserProfileStore: ObservableObject {
             .eq("id", value: uuid)
             .execute()
         sharesResults = on
+    }
+
+    /// The year is set once; the server refuses a change (protect_profile_privileged_columns).
+    func setBirthYear(_ year: Int) async throws {
+        guard let uuid = UUID(uuidString: activeUserId) else { return }
+        struct BirthYearUpdate: Encodable { let birth_year: Int }
+        try await SupabaseConfig.client
+            .from("profiles")
+            .update(BirthYearUpdate(birth_year: year))
+            .eq("id", value: uuid)
+            .execute()
+        asksBirthYear = false
     }
 
     /// Saves name and club on this phone and on the server (card, friends search, coach lists).

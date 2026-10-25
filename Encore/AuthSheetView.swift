@@ -82,7 +82,8 @@ struct AuthSheetView: View {
     @State private var legalTab: LegalComplianceView.LegalTab?
     @State private var showForgotPassword = false
     @State private var showCodeSheet = false
-    @State private var ageConfirmed = false
+    @State private var birthYear: Int?
+    @State private var parentConsent = false
     @State private var danceRole = "dancer"
     @State private var showBiometricButton = false
     @State private var tapFeedback = 0
@@ -267,14 +268,9 @@ struct AuthSheetView: View {
                 .transition(.opacity)
         }
 
-        PlannerToggleRow(
-            title: "Mám aspoň 16 rokov",
-            subtitle: "alebo súhlas rodiča či zákonného zástupcu",
-            systemImage: "person.crop.circle.badge.checkmark",
-            isOn: $ageConfirmed
-        )
-        .accessibilityIdentifier("auth.age")
-        .transition(.move(edge: .top).combined(with: .opacity))
+        BirthYearField(year: $birthYear, parentConsent: $parentConsent)
+            .accessibilityIdentifier("auth.age")
+            .transition(.move(edge: .top).combined(with: .opacity))
     }
 
     private func fieldPrompt(_ text: String) -> Text {
@@ -433,7 +429,7 @@ struct AuthSheetView: View {
             return EmailValidator.isValid(cleanEmail)
                 && PasswordPolicy.issue(for: password, email: cleanEmail) == nil
                 && !nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                && ageConfirmed
+                && BirthYear.isComplete(birthYear, parentConsent: parentConsent)
         }
         return !cleanEmail.isEmpty && !password.isEmpty
     }
@@ -447,7 +443,8 @@ struct AuthSheetView: View {
         if nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return "Doplň meno alebo prezývku." }
         if !EmailValidator.isValid(cleanEmail) { return "Zadaj platný e-mail, napr. meno@domena.sk." }
         if PasswordPolicy.issue(for: password, email: cleanEmail) != nil { return "Heslo ešte nespĺňa pravidlá vyššie." }
-        if !ageConfirmed { return "Potvrď vek alebo súhlas rodiča." }
+        if birthYear == nil { return "Vyber rok narodenia." }
+        if !BirthYear.isComplete(birthYear, parentConsent: parentConsent) { return "Pod 16 rokov potvrď súhlas rodiča." }
         return nil
     }
 
@@ -463,7 +460,10 @@ struct AuthSheetView: View {
         Task {
             let success: Bool
             if isSignUp {
-                success = await authManager.signUp(email: email, pass: password, name: nickname, danceRole: danceRole, ageConfirmed: ageConfirmed)
+                // canSubmit already asked for the year.
+                guard let birthYear else { return }
+                success = await authManager.signUp(email: email, pass: password, name: nickname, danceRole: danceRole,
+                                                   birthYear: birthYear, parentConsent: parentConsent)
             } else {
                 success = await authManager.signIn(email: email, pass: password)
             }
