@@ -302,7 +302,7 @@ struct FriendsListView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(partners) { conn in
-                    connectionRow(conn: conn, badgeTitle: "Partner")
+                    connectionRow(conn: conn)
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
@@ -311,7 +311,7 @@ struct FriendsListView: View {
                     .padding(.horizontal, 4)
                     .padding(.top, partners.isEmpty ? 0 : 8)
                 ForEach(plain) { conn in
-                    connectionRow(conn: conn, badgeTitle: nil)
+                    connectionRow(conn: conn)
                         .transition(.opacity.combined(with: .scale(scale: 0.97)))
                 }
             }
@@ -488,7 +488,8 @@ struct FriendsListView: View {
     }
 
     // MARK: Rows
-    private func connectionRow(conn: DancerConnection, badgeTitle: String?) -> some View {
+    /// Coaches and students carry their role; connections and the partner the Spojenie / Pár tag.
+    private func connectionRow(conn: DancerConnection, badgeTitle: String? = nil) -> some View {
         HStack(spacing: 12) {
             Image(systemName: conn.relationshipType.badgeIcon)
                 .font(.subheadline.weight(.bold))
@@ -509,6 +510,8 @@ struct FriendsListView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(Color.gold500.opacity(0.16), in: Capsule())
+                    } else {
+                        pairTag(conn)
                     }
                 }
                 Text([conn.otherUserDancerCode, conn.otherUserClub].filter { !$0.isEmpty }.joined(separator: " · "))
@@ -532,18 +535,6 @@ struct FriendsListView: View {
             Spacer(minLength: 4)
 
             Menu {
-                if conn.relationshipType == .connection {
-                    Button {
-                        run { try await connectionManager.sendRequest(targetUserId: conn.otherUserId, type: .partner) }
-                    } label: {
-                        Label("Je to môj partner / moja partnerka", systemImage: "figure.dance")
-                    }
-                    .disabled(!connectionManager.activePartners.isEmpty)
-                } else if conn.relationshipType == .partner {
-                    Button { partnerToEnd = conn } label: {
-                        Label("Zmeniť na spojenie", systemImage: "person.2")
-                    }
-                }
                 Button(role: .destructive) {
                     connectionToRevoke = conn
                     showRevokeConfirmation = true
@@ -567,6 +558,41 @@ struct FriendsListView: View {
         }
         .padding(12)
         .homeCard(cornerRadius: 16)
+    }
+
+    /// "Spojenie" or "Pár", tap to pick. Pár asks the other person, who accepts it; there is only one partner.
+    private func pairTag(_ conn: DancerConnection) -> some View {
+        let isPair = conn.relationshipType == .partner
+        let asked = !isPair && connectionManager.outgoingRequests.contains {
+            $0.otherUserId == conn.otherUserId && $0.relationshipType == .partner
+        }
+        return Menu {
+            Button {
+                if isPair { partnerToEnd = conn }
+            } label: {
+                Label("Spojenie", systemImage: isPair ? "person.2" : "checkmark")
+            }
+            Button {
+                run { try await connectionManager.sendRequest(targetUserId: conn.otherUserId, type: .partner) }
+            } label: {
+                Label(asked ? "Pár · čaká na potvrdenie" : "Pár", systemImage: isPair ? "checkmark" : "figure.dance")
+            }
+            .disabled(isPair || asked || !connectionManager.activePartners.isEmpty)
+        } label: {
+            HStack(spacing: 3) {
+                Text(isPair ? "Pár" : asked ? "Pár · čaká" : "Spojenie")
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+            }
+            .font(.caption2.weight(.bold))
+            .foregroundColor(isPair ? Color.obsidian900 : Color.gold300)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(isPair ? Color.gold400 : Color.gold500.opacity(0.16), in: Capsule())
+            .contentTransition(.opacity)
+        }
+        .accessibilityLabel(isPair ? "Pár" : "Spojenie")
+        .accessibilityHint("Vyber, či je to tvoj tanečný pár")
     }
 
     private func incomingRequestCard(req: DancerConnection) -> some View {
