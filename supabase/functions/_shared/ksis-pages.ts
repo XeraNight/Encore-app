@@ -212,6 +212,52 @@ export function parseCouplesList(html: string): KsisCoupleListRow[] {
   });
 }
 
+/** KSIS numbers a couple with the partner's personal number; a partnerka is found by her name. */
+export function sideInCouple(member: KsisMemberRow, couple: KsisCoupleListRow): "partner" | "partnerka" | null {
+  const name = normalizeDancerName(member.name);
+  if (couple.pairNumber === member.personNumber || normalizeDancerName(couple.partner) === name) return "partner";
+  return normalizeDancerName(couple.partnerka) === name ? "partnerka" : null;
+}
+
+// ── Members list (menu.php?akcia=CZ) ─────────────────────────────────────────────────────────────
+
+export interface KsisMemberRow {
+  /** "Č.pr", the personal number from the member's card. */
+  personNumber: number;
+  /** "Priezvisko Meno" as KSIS writes it. */
+  name: string;
+  club: string;
+  section: string;
+  /** "" when the member has no class in that discipline. */
+  sttClass: string;
+  latClass: string;
+  /** KSIS writes "Aktívny"; a member who stopped has an empty status but keeps the last classes. */
+  active: boolean;
+}
+
+const MEMBERS_LIST = "zoznam členov";
+
+export function parseMembersList(html: string): KsisMemberRow[] {
+  const $ = load(html, MEMBERS_LIST);
+  expectColumns(MEMBERS_LIST, columnTitles($, "table"),
+    ["Č.pr", "Meno", "Klub", "Sekcia", "ŠTT", "LAT", "ROZ", "FUN", "SCIT", "Tréner", "Čestný člen", "Stav"]);
+  return $("table").first().find("tbody tr").toArray().flatMap((tr) => {
+    const cells = $(tr).find("td").toArray().map((td) => clean($(td).text()));
+    if (cells.length === 0) return [];
+    const personNumber = intOrNull(cells[0]);
+    if (cells.length < 12 || personNumber === null) throw layoutChanged(MEMBERS_LIST, "member row");
+    return [{
+      personNumber,
+      name: cells[1],
+      club: cells[2],
+      section: cells[3],
+      sttClass: cells[4],
+      latClass: cells[5],
+      active: cells[11] === "Aktívny",
+    }];
+  });
+}
+
 // ── Couple detail (detail_paru.php) ──────────────────────────────────────────────────────────────
 
 export interface KsisPersonName {

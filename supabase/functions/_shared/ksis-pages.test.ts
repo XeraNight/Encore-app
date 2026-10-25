@@ -14,12 +14,14 @@ import {
   parseCouplesList,
   parseEarned,
   parseMarks,
+  parseMembersList,
   parsePlace,
   parseRegistrations,
   parseResults,
   parseSlpStandings,
   parseStanding,
   registeredCategories,
+  sideInCouple,
   splitPair,
 } from "./ksis-pages.ts";
 
@@ -77,6 +79,49 @@ Deno.test("couples list: the couple found by its pair number", () => {
     latClass: "D",
     status: "Aktívny",
   }]);
+});
+
+Deno.test("couples list: a couple that no longer dances has no status and no classes", () => {
+  assertEquals(parseCouplesList(fixture("couples_list_ended.html")), [{
+    pairNumber: 90001,
+    partner: "Bývalý Tanečník",
+    partnerka: "Bývalá Tanečnica",
+    club: "TK ELLEGANCE Košice",
+    ageCategory: "Mládež",
+    sttClass: "-",
+    latClass: "-",
+    status: "",
+  }]);
+});
+
+Deno.test("members list: personal number, name, club and both classes, also for members who stopped", () => {
+  const members = parseMembersList(fixture("members_list.html"));
+  assertEquals(members.length, 4);
+  assertEquals(members[0], {
+    personNumber: PAIR_NUMBER,
+    name: "Tanečný Adam",
+    club: "TK ELLEGANCE Košice",
+    section: "Sekcia TŠ",
+    sttClass: "D",
+    latClass: "D",
+    active: true,
+  });
+  assertEquals(members[1].sttClass, "C");
+  assertEquals(members[1].latClass, "D");
+  assertEquals(members[2].active, false);
+  assertEquals([members[2].sttClass, members[2].latClass], ["B", "B"]);
+  assertEquals([members[3].section, members[3].sttClass], ["Sekcia IDO", ""]);
+});
+
+Deno.test("the side in a couple comes from the pair number or the partnerka's name", () => {
+  const [adam, eva, former, other] = parseMembersList(fixture("members_list.html"));
+  const [couple] = parseCouplesList(fixture("couples_list_95397.html"));
+  const [ended] = parseCouplesList(fixture("couples_list_ended.html"));
+  assertEquals(sideInCouple(adam, couple), "partner");
+  assertEquals(sideInCouple(eva, couple), "partnerka");
+  assertEquals(sideInCouple({ ...eva, name: "TANECNA  Eva" }, couple), "partnerka");
+  assertEquals(sideInCouple(former, ended), "partner");
+  assertEquals(sideInCouple(other, couple), null);
 });
 
 Deno.test("couple detail: class, points, finals and last change for both disciplines", () => {
@@ -262,6 +307,7 @@ Deno.test("a changed page is reported instead of guessed", () => {
   assertLayoutChanged(() => parseSlpStandings(fixture("slp_standings_dospeli_stt.html").replace("2 (30)", "2 30")));
   assertLayoutChanged(() => parseCoupleDetail(fixture("couple_detail_95397.html").replace('id="body_STT"', 'id="points_STT"')));
   assertLayoutChanged(() => parseCouplesList(fixture("couples_list_95397.html").replace(">Partnerka<", ">Tanečnica<")));
+  assertLayoutChanged(() => parseMembersList(fixture("members_list.html").replace(">Sekcia</th>", ">Oddiel</th>")));
 });
 
 // ── Registrations ────────────────────────────────────────────────────────────────────────────────
