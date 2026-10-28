@@ -390,7 +390,7 @@ final class NoteEditorController: ObservableObject {
         guard let textView else { return }
         let storage = textView.textStorage
         let location = min(max(0, index), storage.length)
-        let piece = NSAttributedString(attachment: VoiceTextAttachment(
+        let piece = NoteTextBridge.attachment(VoiceTextAttachment(
             token: VoiceTokenModel(ref: ref), player: player, onStopRecording: {}))
         storage.insert(piece, at: location)
         recordedFiles.insert(ref.fileName)
@@ -433,7 +433,7 @@ final class NoteEditorController: ObservableObject {
         let newline = NSAttributedString(string: "\n", attributes: NoteTextBridge.uikit(AttributeContainer()))
         let piece = NSMutableAttributedString()
         if location > 0, string.character(at: location - 1) != 10 { piece.append(newline) }
-        piece.append(NSAttributedString(attachment: VideoTextAttachment(ref: ref, controller: self)))
+        piece.append(NoteTextBridge.attachment(VideoTextAttachment(ref: ref, controller: self)))
         piece.append(newline)
         storage.insert(piece, at: location)
         textView.selectedRange = NSRange(location: location + piece.length, length: 0)
@@ -493,7 +493,7 @@ final class NoteEditorController: ObservableObject {
         let selection = textView.selectedRange
         let location = selection.location + selection.length
         let typing = textView.typingAttributes
-        textView.textStorage.insert(NSAttributedString(attachment: attachment), at: location)
+        textView.textStorage.insert(NoteTextBridge.attachment(attachment), at: location)
         textView.selectedRange = NSRange(location: location + 1, length: 0)
         textView.typingAttributes = typing
         textView.setNeedsLayout()
@@ -845,14 +845,22 @@ enum NoteTextBridge {
         return result
     }
 
+    /// A voice note or video in the text, in the plain note style: what is typed right after it looks like the
+    /// rest of the note, not UIKit's small black default.
+    static func attachment(_ attachment: NSTextAttachment) -> NSAttributedString {
+        let piece = NSMutableAttributedString(attachment: attachment)
+        piece.addAttributes(uikit(AttributeContainer()), range: NSRange(location: 0, length: piece.length))
+        return piece
+    }
+
     static func attributed(_ model: AttributedString, controller: NoteEditorController) -> NSAttributedString {
         let result = NSMutableAttributedString()
         for run in model.runs {
             if let ref = run.voiceNote {
-                result.append(NSAttributedString(attachment: VoiceTextAttachment(
+                result.append(attachment(VoiceTextAttachment(
                     token: VoiceTokenModel(ref: ref), player: controller.player, onStopRecording: {})))
             } else if let ref = run.videoNote {
-                result.append(NSAttributedString(attachment: VideoTextAttachment(ref: ref, controller: controller)))
+                result.append(attachment(VideoTextAttachment(ref: ref, controller: controller)))
             } else {
                 result.append(NSAttributedString(string: String(model[run.range].characters), attributes: uikit(run.attributes)))
             }
