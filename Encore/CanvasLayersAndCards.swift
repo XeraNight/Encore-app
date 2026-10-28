@@ -525,13 +525,13 @@ extension CanvasNodeCardView {
             }
     }
 
-    /// A frame of the figure's video, or the dance's colour with the figure's initials; gold ring, number on top.
+    /// A frame of the figure's video, or crimson with the figure's initials; gold ring, number on top.
     fileprivate var circle: some View {
         ZStack {
             if let video = node.displayVideoPath {
                 MediaThumbnailView(path: video, cornerRadius: 0, showsFormatBadge: false)
             } else {
-                danceColor
+                pinColor
                     .overlay {
                         Text(initials)
                             .font(.system(.footnote, design: .rounded).weight(.heavy))
@@ -583,9 +583,8 @@ extension CanvasNodeCardView {
         isTranslucent ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.obsidian900.opacity(0.85))
     }
 
-    fileprivate var danceColor: Color {
-        (node.routine?.isLatin ?? false) ? Color.latinCrimson : Color.standardBlue
-    }
+    /// Encore crimson for every dance: one routine is one dance, so the floor needs no dance colours.
+    fileprivate var pinColor: Color { Color.encoreCrimsonLight }
 
     /// "NT" for Natural Turn, "Wh" for Whisk.
     fileprivate var initials: String {
