@@ -27,10 +27,10 @@ final class SubscriptionManager: ObservableObject {
     
     // Product IDs for Apple App Store (StoreKit 2)
     public enum ProductID {
-        static let plusMonthly = "com.jakub.encore.plus.monthly"
-        static let plusAnnual = "com.jakub.encore.plus.annual"
-        static let premiumMonthly = "com.jakub.encore.premium.monthly"
-        static let premiumAnnual = "com.jakub.encore.premium.annual"
+        static let plusMonthly = "com.jakub.encore.sub.plus.monthly"
+        static let plusAnnual = "com.jakub.encore.sub.plus.annual"
+        static let premiumMonthly = "com.jakub.encore.sub.premium.monthly"
+        static let premiumAnnual = "com.jakub.encore.sub.premium.annual"
         
         static let all: [String] = [plusMonthly, plusAnnual, premiumMonthly, premiumAnnual]
     }

@@ -50,7 +50,7 @@
               "locale" : "sk"
             }
           ],
-          "productID" : "com.jakub.encore.plus.monthly",
+          "productID" : "com.jakub.encore.sub.plus.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Encore Plus Monthly",
           "subscriptionGroupID" : "21487693",
@@ -78,7 +78,7 @@
               "locale" : "sk"
             }
           ],
-          "productID" : "com.jakub.encore.plus.annual",
+          "productID" : "com.jakub.encore.sub.plus.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Encore Plus Annual",
           "subscriptionGroupID" : "21487693",
@@ -106,7 +106,7 @@
               "locale" : "sk"
             }
           ],
-          "productID" : "com.jakub.encore.premium.monthly",
+          "productID" : "com.jakub.encore.sub.premium.monthly",
           "recurringSubscriptionPeriod" : "P1M",
           "referenceName" : "Encore Premium Monthly",
           "subscriptionGroupID" : "21487693",
@@ -134,7 +134,7 @@
               "locale" : "sk"
             }
           ],
-          "productID" : "com.jakub.encore.premium.annual",
+          "productID" : "com.jakub.encore.sub.premium.annual",
           "recurringSubscriptionPeriod" : "P1Y",
           "referenceName" : "Encore Premium Annual",
           "subscriptionGroupID" : "21487693",
