@@ -117,6 +117,9 @@ struct RoutineCanvasView: View {
     
     @State private var showFiguresDrawer = false
     @State private var selectedNodeForEdit: CanvasNode?
+    /// "Vymazať figúru" from a figure's menu asks here, in the middle of the screen: asked from the figure itself,
+    /// the question opened at the top left of the zoomed floor.
+    @State private var nodeToDelete: CanvasNode?
     @State private var figureIsWriting = false
     @State private var selectedConnectionForEdit: CanvasConnection?
     
@@ -272,7 +275,7 @@ struct RoutineCanvasView: View {
                                 selectedNodeForEdit = node
                                 updateLiveActivity(with: node)
                             } onDelete: {
-                                deleteNode(node)
+                                nodeToDelete = node
                             } onDrag: { liveX, liveY in
                                 liveNodePositions[node.id] = CGPoint(x: liveX, y: liveY)
                                 realtimeManager.broadcastNodeMove(nodeId: node.id, x: liveX, y: liveY)
@@ -584,6 +587,7 @@ struct RoutineCanvasView: View {
         .sheet(isPresented: $showQRExport) {
             QRExportSheet(routine: routine)
         }
+        .modifier(DeleteFigureAlert(node: $nodeToDelete, onDelete: deleteNode))
         .confirmationDialog("Zmazať celú kresbu?", isPresented: $confirmClearSketch, titleVisibility: .visible) {
             Button("Zmazať kresbu", role: .destructive) {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { sketch.removeAll() }
@@ -1218,4 +1222,21 @@ struct RoutineCanvasView: View {
 private struct PendingFigureDelete: Equatable {
     let id: UUID
     let name: String
+}
+
+/// "Vymazať túto figúru zo zostavy?" in the middle of the screen (kept apart: the canvas body is long for the compiler).
+private struct DeleteFigureAlert: ViewModifier {
+    @Binding var node: CanvasNode?
+    let onDelete: (CanvasNode) -> Void
+
+    func body(content: Content) -> some View {
+        content.alert("Vymazať túto figúru zo zostavy?",
+                      isPresented: Binding(get: { node != nil }, set: { if !$0 { node = nil } }),
+                      presenting: node) { node in
+            Button("Vymazať", role: .destructive) { onDelete(node) }
+            Button("Zrušiť", role: .cancel) {}
+        } message: { node in
+            Text("„\(node.figureName)“ zmizne zo zostavy. Hneď potom ju ešte môžeš vrátiť.")
+        }
+    }
 }

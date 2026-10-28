@@ -54,7 +54,7 @@ Tento dokument definuje oficiálnu vizuálnu identitu, farebnú paletu, typograf
 * **Prepínač režimov a filtrov:** rad kapsúl, vybraná výplň sa presúva (`matchedGeometryEffect`), zlatý lem 45 %.
 * **Výber tanca:** `DanceMenuCapsule` – menu rozdelené na Štandard / Latina, vybraný tanec má bodku vo farbe disciplíny (modrá Štandard, karmínová Latina).
 * **Sekundárne a ikonové akcie:** sklenené kruhy 36–44 pt → `.glassEffect(.regular.interactive(), in: .circle)`.
-* **Deštruktívne akcie:** text v `latinRed` s ikonou, vždy s potvrdením. Kde sa dá zmazanie na pár sekúnd vrátiť („Vrátiť“, napr. figúra na plátne), otázka vopred odpadá.
+* **Deštruktívne akcie:** text v `latinRed` s ikonou, vždy s potvrdením.
 * **Dotyková plocha:** min. 44 × 44 pt.
 
 ### Dizajn nesmie rozbiť logiku (pravidlá pre dotyk)

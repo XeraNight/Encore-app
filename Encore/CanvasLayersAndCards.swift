@@ -454,7 +454,7 @@ struct CanvasNodeCardView: View {
             .contextMenu {
                 Button(action: onTap) { Label("Otvoriť figúru", systemImage: "arrow.up.right.square") }
                 if !isLockedByPartner {
-                    // No question first: the canvas shows "Vrátiť" for a few seconds instead.
+                    // The canvas asks first, in the middle of the screen.
                     Button(role: .destructive, action: onDelete) { Label("Vymazať figúru", systemImage: "trash") }
                 }
             }
