@@ -430,7 +430,6 @@ struct CanvasNodeCardView: View {
     
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var showDeleteConfirm = false
     
     private var isLockedByPartner: Bool {
         lockedByUserName != nil
@@ -455,7 +454,8 @@ struct CanvasNodeCardView: View {
             .contextMenu {
                 Button(action: onTap) { Label("Otvoriť figúru", systemImage: "arrow.up.right.square") }
                 if !isLockedByPartner {
-                    Button(role: .destructive) { showDeleteConfirm = true } label: { Label("Vymazať figúru", systemImage: "trash") }
+                    // No question first: the canvas shows "Vrátiť" for a few seconds instead.
+                    Button(role: .destructive, action: onDelete) { Label("Vymazať figúru", systemImage: "trash") }
                 }
             }
             .highPriorityGesture(
@@ -487,10 +487,6 @@ struct CanvasNodeCardView: View {
                     }
             )
             .position(x: node.x + dragOffset.width, y: node.y + dragOffset.height)
-            .confirmationDialog("Vymazať túto figúru zo zostavy?", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
-                Button("Vymazať", role: .destructive) { onDelete() }
-                Button("Zrušiť", role: .cancel) {}
-            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityText)
             .accessibilityHint("Otvorí figúru")
