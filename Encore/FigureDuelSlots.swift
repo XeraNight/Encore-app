@@ -248,7 +248,8 @@ private struct DuelSlot: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.88)
+            // Glass like the figure's page (§1A), not a black screen.
+            Color.white.opacity(0.07)
             if let image {
                 Image(uiImage: image).resizable().scaledToFit()
             } else if let player {
@@ -266,6 +267,7 @@ private struct DuelSlot: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
         .overlay(alignment: .topLeading) {
             Text(title.uppercased())
                 .font(.system(.caption2, design: .rounded).weight(.black))

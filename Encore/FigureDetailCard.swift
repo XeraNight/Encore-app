@@ -45,8 +45,6 @@ struct FigureDetailCard: View {
     @State private var videoUnavailable = false
     /// Width ÷ height of the playing video as filmed, nil until known.
     @State private var videoAspect: CGFloat? = nil
-    @State private var videoHeightOverride: CGFloat? = nil
-    @State private var dragStartHeight: CGFloat? = nil
     @State private var showCamera = false
     @State private var showMediaPicker = false
     @State private var showDuelComparison = false
@@ -192,7 +190,6 @@ struct FigureDetailCard: View {
         // Placing takes the whole screen like writing: the tab bar goes away.
         .onChange(of: placing) { onWritingChange?(isWriting || placing != nil) }
         .onChange(of: node.displayVideoPath) { _, newValue in
-            videoHeightOverride = nil
             setupPlayer(for: newValue)
         }
         .onChange(of: showCamera) { _, isShowing in
@@ -381,14 +378,16 @@ struct FigureDetailCard: View {
     private func videoSection(width: CGFloat, screenHeight: CGFloat) -> some View {
         let maxHeight = screenHeight * 0.72
         let defaultHeight = isPortraitLayout ? min(screenHeight * 0.55, width * 1.25) : width * 9 / 16
-        let height = min(max(videoHeightOverride ?? defaultHeight, 150), maxHeight)
-        // The frame hugs a playing video, so an upright one has no black bars at its sides.
+        // A fixed size; the whole screen is the system player (fullScreenButton).
+        let height = min(max(defaultHeight, 150), maxHeight)
+        // The frame hugs a playing video, so it has no bars at its sides.
         let shownAspect = playback.nodeId == node.id ? videoAspect.map { rotation % 180 == 0 ? $0 : 1 / $0 } : nil
         let boxWidth = shownAspect.map { min(width, height * $0) } ?? width
 
         VStack(spacing: 6) {
             ZStack {
-                Color.black.opacity(0.88)
+                // Glass like the rest of the screen (§1A); a playing video fills the frame, so no black bars.
+                Color.white.opacity(0.07)
 
                 if let path = node.displayVideoPath {
                     if MediaResolver.isImagePath(path: path), let image = MediaResolver.resolveImage(path: path) {
@@ -400,6 +399,7 @@ struct FigureDetailCard: View {
                     } else if playback.nodeId == node.id, let player = playback.player {
                         RotatableVideoView(player: player, rotation: rotation, size: CGSize(width: boxWidth, height: height))
                             .overlay(alignment: .bottomTrailing) { soundButton }
+                            .overlay(alignment: .bottomLeading) { fullScreenButton(player) }
                     } else if videoUnavailable {
                         unavailableVideo(path: path)
                     } else {
@@ -411,15 +411,13 @@ struct FigureDetailCard: View {
             }
             .frame(width: boxWidth, height: height)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Color.white.opacity(0.10), lineWidth: 1))
             .overlay(alignment: .topTrailing) {
                 if node.displayVideoPath != nil { videoMenu }
             }
             .overlay(alignment: .topLeading) { shareBadge }
             .animation(.spring(response: 0.35, dampingFraction: 0.8), value: shareBadgeText)
 
-            if node.displayVideoPath != nil {
-                resizeHandle(currentHeight: height, maxHeight: maxHeight)
-            }
             if node.videoPath != nil {
                 timelineChip
             }
@@ -446,6 +444,33 @@ struct FigureDetailCard: View {
         .padding(.bottom, 8)
         .sensoryFeedback(.selection, trigger: playback.isMuted)
         .accessibilityLabel(playback.isMuted ? "Zapnúť zvuk" : "Vypnúť zvuk")
+    }
+
+    /// The whole screen is the iPhone's own player, as in Fotky: its controls, scrubbing, close and swipe down.
+    /// It shows the video as recorded ("Otočiť video" turns only the picture here).
+    private func fullScreenButton(_ player: AVPlayer) -> some View {
+        Button {
+            guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
+                  var top = scene.keyWindow?.rootViewController else { return }
+            while let presented = top.presentedViewController { top = presented }
+            let controller = AVPlayerViewController()
+            controller.player = player
+            controller.modalPresentationStyle = .fullScreen
+            top.present(controller, animated: true) { player.play() }
+        } label: {
+            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 40, height: 40)
+                .glassEffect(.regular, in: .circle)
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.pressable(scale: 0.85))
+        .padding(.leading, 6)
+        .padding(.bottom, 8)
+        .accessibilityLabel("Na celú obrazovku")
+        .accessibilityIdentifier("figure.fullScreen")
     }
 
     /// The figure has a video, but it cannot be played here (deleted from Fotky, no access, offline).
@@ -508,7 +533,6 @@ struct FigureDetailCard: View {
         Menu {
             Button {
                 node.videoRotation = (rotation + 90) % 360
-                videoHeightOverride = nil
                 try? node.modelContext?.save()
             } label: { Label("Otočiť video", systemImage: "rotate.right") }
             if node.videoPath != nil {
@@ -613,28 +637,6 @@ struct FigureDetailCard: View {
         if let old = node.videoPath, old != path { node.recordTake(old, in: modelContext) }
         node.videoPath = path
         node.recordTake(path, in: modelContext)
-    }
-
-    private func resizeHandle(currentHeight: CGFloat, maxHeight: CGFloat) -> some View {
-        Capsule()
-            .fill(Color.white.opacity(0.35))
-            .frame(width: 44, height: 5)
-            .frame(maxWidth: .infinity, minHeight: 22)
-            .contentShape(Rectangle())
-            .gesture(
-                DragGesture(minimumDistance: 2)
-                    .onChanged { value in
-                        if dragStartHeight == nil { dragStartHeight = currentHeight }
-                        videoHeightOverride = min(max((dragStartHeight ?? currentHeight) + value.translation.height, 150), maxHeight)
-                    }
-                    .onEnded { _ in dragStartHeight = nil }
-            )
-            .accessibilityLabel("Zmeniť výšku videa")
-            .accessibilityAdjustableAction { direction in
-                let step: CGFloat = 40
-                let base = videoHeightOverride ?? currentHeight
-                videoHeightOverride = min(max(direction == .increment ? base + step : base - step, 150), maxHeight)
-            }
     }
 
     // MARK: - Notes
