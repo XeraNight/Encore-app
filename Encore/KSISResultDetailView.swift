@@ -192,7 +192,8 @@ struct KSISResultDetailView: View {
                         .foregroundColor(Color.textSecondary)
                 }
             }
-            HStack(spacing: 6) {
+            // Chips narrow to share the width, so a big panel (13 judges) stays on screen.
+            HStack(spacing: 4) {
                 ForEach(Array(dance.marks.enumerated()), id: \.offset) { _, mark in
                     markChip(mark, isFinal: isFinal)
                 }
@@ -210,7 +211,9 @@ struct KSISResultDetailView: View {
             Text(isFinal ? mark.mark : (isCross ? "✕" : "·"))
                 .font(.system(.subheadline, design: .rounded).weight(.heavy))
                 .foregroundColor(highlighted ? Color.obsidian900 : .white.opacity(0.5))
-                .frame(width: 30, height: 30)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+                .frame(maxWidth: 30, minHeight: 30, maxHeight: 30)
                 .background(highlighted ? Color.gold400 : Color.white.opacity(0.06),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
