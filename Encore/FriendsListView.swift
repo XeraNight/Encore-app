@@ -71,7 +71,7 @@ struct FriendsListView: View {
                 Button { showAddConnectionSheet = true } label: {
                     Image(systemName: "plus")
                 }
-                .accessibilityLabel("Pridať prepojenie")
+                .accessibilityLabel("Pridať spojenie")
             }
         }
         .sheet(isPresented: $showMyCard) {
@@ -441,8 +441,8 @@ struct FriendsListView: View {
             emptyStateView(
                 icon: "tray",
                 title: "Žiadne žiadosti",
-                subtitle: "Keď ti niekto pošle žiadosť o prepojenie, uvidíš ju tu.",
-                actionTitle: "Pridať prepojenie"
+                subtitle: "Keď ti niekto pošle žiadosť o spojenie, uvidíš ju tu.",
+                actionTitle: "Pridať spojenie"
             )
         }
 
