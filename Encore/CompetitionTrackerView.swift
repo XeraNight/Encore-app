@@ -398,7 +398,7 @@ struct CompetitionTrackerView: View {
 
                 HStack(spacing: 10) {
                     Button {
-                        if let pair = couple.pairNumber, let url = URL(string: "https://\(KSISBrowserView.host)/detail_paru.php?cp=\(pair)") {
+                        if let pair = couple.pairNumber, let url = KSISBrowserView.coupleDetail(pair) {
                             browser = KSISBrowserTarget(url: url)
                         }
                     } label: {

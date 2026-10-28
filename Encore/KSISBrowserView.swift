@@ -268,7 +268,7 @@ struct KSISBrowserView: View {
             if mine.contains(where: { !$0.isLinked }) {
                 consentToggle
                 primaryButton(mine.count == 1 ? "Uložiť môj pár" : "Uložiť moje páry (\(mine.count))", isEnabled: consent, action: { save() })
-            } else if let current = mine.first(where: \.isActive), let url = Self.page("detail_paru.php?cp=\(current.pairNumber)") {
+            } else if let current = mine.first(where: \.isActive), let url = Self.coupleDetail(current.pairNumber) {
                 hint("Páry sú uložené. Trieda a body aktuálneho páru sú v jeho detaile.")
                 primaryButton("Trieda a body aktuálneho páru") { web.load(url) }
             } else {
@@ -714,6 +714,11 @@ struct KSISBrowserView: View {
 
     static func page(_ path: String) -> URL? {
         URL(string: "https://\(host)/\(path)")
+    }
+
+    /// KSIS keys couples by a five-digit pair number ("05595"); without the leading zero the detail comes back empty.
+    static func coupleDetail(_ pairNumber: Int) -> URL? {
+        page("detail_paru.php?cp=\(String(format: "%05d", pairNumber))")
     }
 
     /// Members list search, members who stopped too: a number goes to "Č.pr", anything else to the name search.
