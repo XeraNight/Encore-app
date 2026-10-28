@@ -3,8 +3,9 @@
 <!--
   Encore privacy manifest. Keep it in line with the App Privacy answers in App Store Connect
   (docs/V1_LAUNCH_CHECKLIST.md, section E). No tracking, no ads, no analytics SDK.
-  Collected = leaves the iPhone and is stored on our servers (Supabase, Cloudflare R2).
-  Videos in Fotky, voice notes and Home notes stay on the iPhone and are not "collected".
+  Collected = leaves the iPhone and is stored on our servers (Supabase).
+  Videos in Fotky, voice notes and photos stay on the iPhone and are not "collected". Purchases go to Apple only;
+  photos and videos come back with AppFeatures.sharedVideos (Cloudflare R2).
 -->
 <plist version="1.0">
 <dict>
@@ -51,20 +52,8 @@
 			</array>
 		</dict>
 		<dict>
-			<!-- Profile photo and the 720p copies of videos shared with partner and coach -->
-			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
-			<key>NSPrivacyCollectedDataTypeLinked</key>
-			<true/>
-			<key>NSPrivacyCollectedDataTypeTracking</key>
-			<false/>
-			<key>NSPrivacyCollectedDataTypePurposes</key>
-			<array>
-				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
-			</array>
-		</dict>
-		<dict>
-			<!-- Routines, figures, notes, coach notes, KSIS couples and results -->
+			<!-- Routines, figures, the text of the diary, plan and Home notes (DeviceBackup), KSIS dancer, couples
+			     and results -->
 			<key>NSPrivacyCollectedDataType</key>
 			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
@@ -77,9 +66,9 @@
 			</array>
 		</dict>
 		<dict>
-			<!-- The active plan, so it works on every device -->
+			<!-- Birth year only (BirthYear.swift): parental consent under 16 and no name search for them -->
 			<key>NSPrivacyCollectedDataType</key>
-			<string>NSPrivacyCollectedDataTypePurchaseHistory</string>
+			<string>NSPrivacyCollectedDataTypeOtherDataTypes</string>
 			<key>NSPrivacyCollectedDataTypeLinked</key>
 			<true/>
 			<key>NSPrivacyCollectedDataTypeTracking</key>
