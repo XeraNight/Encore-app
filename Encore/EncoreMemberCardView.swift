@@ -131,8 +131,7 @@ struct EncoreMemberCardView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
-                                .background(walletControlShape.fill(Color.obsidian800))
-                                .overlay(walletControlShape.stroke(Color.gold500.opacity(0.4), lineWidth: 1))
+                                .homeCard(cornerRadius: 14)
                             }
                             .buttonStyle(.pressable(scale: 0.97))
 
@@ -149,8 +148,7 @@ struct EncoreMemberCardView: View {
                                     }
                                 }
                                 .frame(width: 50, height: 48)
-                                .background(walletControlShape.fill(Color.obsidian800))
-                                .overlay(walletControlShape.stroke(Color.gold500.opacity(0.4), lineWidth: 1))
+                                .homeCard(cornerRadius: 14)
                             }
                             .buttonStyle(.pressable(scale: 0.92))
                             .disabled(walletManager.isLoadingPass)
@@ -222,8 +220,6 @@ struct EncoreMemberCardView: View {
         }
     }
     
-    private var walletControlShape: RoundedRectangle { RoundedRectangle(cornerRadius: 14, style: .continuous) }
-
     private func cardAction(_ title: String, icon: String, isBusy: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 5) {
