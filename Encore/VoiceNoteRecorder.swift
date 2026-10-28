@@ -160,9 +160,12 @@ final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     private var timer: Timer?
 
     func load(fileName: String) {
-        guard self.fileName != fileName, MediaStorageManager.fileExists(fileName) else { return }
+        guard self.fileName != fileName else { return }
         halt()
-        player = try? AVAudioPlayer(contentsOf: MediaStorageManager.url(for: fileName))
+        // A recording that is not on this iPhone loads nothing: the one loaded before must not play in its place.
+        player = MediaStorageManager.fileExists(fileName)
+            ? try? AVAudioPlayer(contentsOf: MediaStorageManager.url(for: fileName))
+            : nil
         player?.delegate = self
         player?.enableRate = true
         player?.rate = rate
@@ -175,6 +178,8 @@ final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     /// Loads the note when it is another one and plays it.
     func play(fileName: String) {
         load(fileName: fileName)
+        // Nothing to play: "Počúvať" goes on with the next note.
+        guard player != nil else { onFinish?(); return }
         if !isPlaying { toggle() }
     }
 
