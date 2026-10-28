@@ -228,12 +228,13 @@ struct PlacementOverlay: View {
                         .allowsHitTesting(false)
                 }
                 if let center {
+                    // The voice chip plays on a tap and would keep the finger: only the layer on top takes it.
                     preview
+                        .allowsHitTesting(false)
+                        .overlay { Color.clear.contentShape(Rectangle()).gesture(drag) }
                         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { previewWidth = $0 }
                         .scaleEffect(dragStart == nil ? 1 : 1.08)
                         .shadow(color: .black.opacity(0.5), radius: 10, y: 6)
-                        .contentShape(Rectangle())
-                        .gesture(drag)
                         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: dragStart == nil)
                         .position(x: center.x - frame.minX, y: center.y - frame.minY)
                 }
@@ -265,10 +266,10 @@ struct PlacementOverlay: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.white)
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .frame(maxWidth: 220, minHeight: 36)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: 220, minHeight: 40)
                 .fixedSize()
-                .background(Color.obsidian900.opacity(0.92), in: Capsule())
+                .glassEffect(.regular.tint(Color.encoreBurgundy.opacity(0.82)), in: Capsule())
                 .overlay(Capsule().stroke(Color.gold400.opacity(0.6), lineWidth: 1))
         case .voice(let ref):
             InlineVoiceToken(ref: ref, player: controller.player)
