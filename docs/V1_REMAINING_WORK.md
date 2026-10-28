@@ -52,13 +52,45 @@ tém. Pripravím ich, ty ich schváliš.
 - **Overenie nákupov na serveri** + App Store Server Notifications (C5). Bez toho si ktokoľvek zapne
   Premium.
 - **Peňaženka:** karta člena (C8), neskôr motívy karty.
-- **App Store Connect:**
-  - texty a snímky obrazovky,
-  - predplatné,
-  - vekové hodnotenie,
-  - štítky súkromia,
-  - 2 demo účty pre review.
 - **TestFlight:** celý zoznam testov (`docs/V1_LAUNCH_CHECKLIST.md` F).
+
+### App Store Connect (stav 28. 10. 2026)
+**Hotové:**
+- zmluva Paid Apps, W-8BEN, Certificate of Foreign Status, DSA;
+- 4 predplatné so slovenskými textami a úrovňami, review screenshot;
+- vekové hodnotenie (7 krokov).
+
+ID predplatného sú `com.jakub.encore.sub.*`. Staré ID sú zmazané a znova sa použiť nedajú.
+
+**Na tebe:**
+- App Privacy: 5× Set Up podľa `Encore/PrivacyInfo.xcprivacy`, potom Publish.
+- Prihláška do Small Business Program (provízia 15 %).
+- Predplatné do stavu Ready to Submit. Odošlú sa spolu s prvou verziou.
+- Availability: odškrtnúť China mainland (treba ICP).
+- Stránka verzie 1.0:
+  - screenshoty;
+  - popis (bez úprav s partnerom naživo);
+  - kľúčové slová;
+  - URL podpory a marketingu;
+  - copyright;
+  - demo účet a poznámky pre review;
+  - build.
+
+**Ďalej so mnou:**
+- **Screenshoty 1320×2868** (iPhone 17 Pro Max v simulátore, čistý status bar) pre App Store aj web.
+  - Demo dáta zadávaš ty, lebo nástroj na písanie v simulátore kazí diakritiku.
+  - Zostavu valčíka polož tak, ako ju tancuješ. Ak sa figúra volá inak, pridaj ju cez „+ Figúra“ s vaším názvom.
+- **StoreKit súbor sa v simulátore nenačíta** (ceny „…“). Screenshoty preto robíme bez cien, oprava príde neskôr.
+- **Ponúknuté, čaká na tvoje áno:**
+  - veta o rozpoznávaní reči do právneho textu v appke (sk-SK nie je vynútene v iPhone, zvuk môže ísť do Apple);
+  - scenár ukážky pre trénera;
+  - plán TestFlight bety.
+
+**Web (Antigravity, zadanie už má):**
+- vrátiť Formspree na kontaktný formulár;
+- rozpoznávanie reči neopisovať ako lokálne.
+
+**SZTŠ:** e-mail `docs/KSIS_SZTS_EMAIL.md` pošli až po rozhovore s trénerom. Dovtedy zváž, či v ňom nevynechať klub.
 
 ## 3. Po odpovedi SZTŠ (`docs/KSIS_SZTS_EMAIL.md`)
 - Serverové sledovanie: ranná obnova, súťaže z prihlášok samy v Pláne.
