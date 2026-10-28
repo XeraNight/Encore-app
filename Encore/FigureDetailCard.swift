@@ -173,6 +173,8 @@ struct FigureDetailCard: View {
             persistNotes()
             removeDeletedVoiceNotes()
             playerGeneration += 1
+            // Closed while writing: isWriting never turns false here, so the canvas gets its tab bar back now.
+            onWritingChange?(false)
             // With the sound on, the video plays on in the mini player above the tab bar.
             playback.cardDidClose(nodeId: node.id)
         }
