@@ -84,6 +84,18 @@ Zapnutie (vždy novou verziou cez App Review, nikdy zo servera, pravidlo 2.3.1):
    Cloudflare ako úložisko videí v `privacy/page.tsx`.
 4. App Store: popis, popisy predplatného, štítky súkromia (zdieľané videá), poznámky pre review.
 
+### Nápady na neskôr (28. 10. 2026, nerozhodnuté)
+Možno po v1. Každý nápad mení vekové hodnotenie alebo štítky súkromia v App Store Connect, a to v tej istej verzii,
+ktorá ho prinesie.
+- **Cviky a strečing podľa svalových skupín** (platený plán), aby tanečník vedel, čo naťahovať. Dotazník:
+  Health or Wellness Topics → 9+. Obsah od odborníka (tréner, fyzioterapeut) a upozornenie, že nenahrádza lekára.
+- **Komunikácia**: poznámky od trénera aj zo zahraničia, prípadne chat. Dotazník: Messaging and Chat (ostáva 4+).
+  Pravidlo 1.2: nahlásenie a blokovanie používateľa, kontakt. Neplnoletí, limity Supabase Realtime.
+  Nadväzuje na odložené `coachTools`.
+- **Feed s videami sponzorov** (napríklad technika vrchnej časti tela alebo nôh z ich Instagramu). Dotazník:
+  Advertising (4+), sponzorovaný obsah označiť, videá s právami od autorov. Ak by pridával hocikto a boli lajky
+  a zdieľania: User-Generated Content a Social Media → 13+ a moderovanie (pravidlo 1.2). Úložisko videí (R2) stojí peniaze.
+
 ## Hotové a overené (9. 10.)
 - C9, C13, C14 opravené, C20 už v appke bolo (`docs/V1_LAUNCH_CHECKLIST.md`). Na tebe: spustiť SQL `20261009_app_config.sql`.
 - Export „Stiahnuť moje dáta“ vrátane zdieľaných videí je nasadený.
