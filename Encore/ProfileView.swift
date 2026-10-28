@@ -18,7 +18,6 @@ struct ProfileView: View {
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @ObservedObject private var connectionManager = ConnectionManager.shared
     @ObservedObject private var competitionManager = CompetitionManager.shared
-    @ObservedObject private var friendManager = FriendManager.shared
 
     @State private var showEditProfile = false
     @State private var showPaywall = false
@@ -68,14 +67,6 @@ struct ProfileView: View {
             .sheet(isPresented: $showEditProfile) { ProfileEditSheet() }
             .sheet(isPresented: $showPaywall) { SubscriptionPaywallView() }
             .manageSubscriptionsSheet(isPresented: $showManageSubscriptions)
-            .sheet(isPresented: $friendManager.showInviteSheet) {
-                if let invite = friendManager.incomingInvite {
-                    FriendInviteSheetView(invite: invite) {
-                        friendManager.showInviteSheet = false
-                        friendManager.incomingInvite = nil
-                    }
-                }
-            }
             .onAppear {
                 profileStore.refreshForActiveUser()
                 libraryCounts = ProfileLibraryCounts(context: modelContext)

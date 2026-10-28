@@ -195,7 +195,7 @@ struct EncoreMemberCardView: View {
                         }
                     }
 
-                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 7 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a karta v Peňaženke ho dostane sama" : "").")
+                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o spojenie. Kód platí 7 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a karta v Peňaženke ho dostane sama" : "").")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -204,9 +204,6 @@ struct EncoreMemberCardView: View {
                 }
                 .frame(maxWidth: 360)
             }
-        }
-        .sheet(isPresented: $friendManager.showInviteSheet) {
-            FriendInviteModalSheet()
         }
         // Why the card could not go to Apple Wallet; the card itself only ever lives in Wallet and here.
         .alert(walletManager.alertTitle, isPresented: $walletManager.showErrorAlert) {

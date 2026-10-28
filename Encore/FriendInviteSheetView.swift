@@ -1,176 +1,122 @@
 import SwiftUI
 
-// MARK: - Friend Invite Modal Sheet (Presented on QR scan or deep link)
+// MARK: - Invite from a scanned QR code or a link (the only sheet for it, presented from EncoreApp)
+/// Shows who invites (name, club and ID from the link, never this account's own card) and sends them a request;
+/// they confirm it on their side (BRAND_GUIDELINES §1A).
 struct FriendInviteSheetView: View {
     let invite: FriendInvitePayload
     let onDismiss: () -> Void
-    
-    @State private var isAccepted = false
+
+    @State private var isSent = false
     @ObservedObject private var friendManager = FriendManager.shared
-    
+
     var body: some View {
         ZStack {
-            Color.obsidian900.ignoresSafeArea()
-            
-            // Ambient Ruby Glow
-            RadialGradient(
-                colors: [Color(red: 0.62, green: 0.03, blue: 0.10).opacity(0.35), Color.clear],
-                center: .top,
-                startRadius: 20,
-                endRadius: 360
-            )
-            .ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                // Header Drag Indicator
-                Capsule()
-                    .fill(Color.white.opacity(0.2))
-                    .frame(width: 36, height: 4)
-                    .padding(.top, 12)
-                
-                if !isAccepted {
-                    VStack(spacing: 8) {
-                        Text("TANEČNÉ SPOJENIE")
-                            .font(.system(size: 11, weight: .black, design: .rounded))
-                            .tracking(1.4)
-                            .foregroundColor(Color.gold400)
-                        
-                        Text("Pozvánka do priateľov")
-                            .font(.system(size: 24, weight: .black, design: .rounded))
-                            .foregroundColor(.white)
-                    }
-                    
-                    // Display the Friend's Luxury Member Card
-                    EncoreMemberCardView(
-                        name: invite.name,
-                        club: invite.club,
-                        allowInteractiveTilt: true,
-                        showActionButtons: false
-                    )
-                    .padding(.horizontal, 20)
-                    
-                    VStack(spacing: 6) {
-                        Text(invite.name)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                        
-                        if !invite.club.isEmpty {
-                            Text("Tanečný klub: \(invite.club)")
-                                .font(.system(size: 13, weight: .medium))
-                                .foregroundColor(Color.gold300.opacity(0.8))
-                        }
-                        
-                        Text("Chce sa s tebou spojiť v Encore.")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.65))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                            .padding(.top, 4)
-                    }
-                    
-                    Spacer()
-                    
-                    // Action Buttons
-                    VStack(spacing: 12) {
-                        if let error = friendManager.inviteErrorMessage {
-                            Text(error)
-                                .font(.footnote.weight(.medium))
-                                .foregroundColor(Color.latinRed)
-                                .multilineTextAlignment(.center)
-                                .transition(.opacity)
-                        }
-
-                        Button {
-                            Task {
-                                if await friendManager.respondToIncomingInvite(accept: true) {
-                                    withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { isAccepted = true }
-                                }
-                            }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if friendManager.isProcessingInvite {
-                                    ProgressView().tint(.black)
-                                } else {
-                                    Image(systemName: "person.badge.plus.fill")
-                                        .font(.system(size: 16, weight: .bold))
-                                    Text("Poslať žiadosť o prepojenie")
-                                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                                }
-                            }
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(
-                                LinearGradient(
-                                    colors: [Color.gold400, Color.gold500],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .shadow(color: Color.gold500.opacity(0.35), radius: 10, y: 3)
-                        }
-                        .buttonStyle(.plain)
-                        
-                        Button {
-                            onDismiss()
-                        } label: {
-                            Text("Neskôr")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(Color.textSecondary)
-                                .padding(.vertical, 10)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 20)
+            EllegancePageBackground()
+            VStack(spacing: 22) {
+                if isSent {
+                    sentContent
+                        .transition(.scale(scale: 0.96).combined(with: .opacity))
                 } else {
-                    // Success View
-                    VStack(spacing: 20) {
-                        Spacer()
-                        
-                        ZStack {
-                            Circle()
-                                .fill(Color.gold500.opacity(0.18))
-                                .frame(width: 90, height: 90)
-                            
-                            Image(systemName: "checkmark.seal.fill")
-                                .font(.system(size: 54, weight: .bold))
-                                .foregroundColor(Color.gold400)
-                        }
-                        
-                        VStack(spacing: 8) {
-                            Text("Žiadosť odoslaná")
-                                .font(.system(size: 24, weight: .black, design: .rounded))
-                                .foregroundColor(.white)
-                            
-                            Text("Keď ju \(invite.name) potvrdí, budete spojení.")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundColor(Color.gold300.opacity(0.75))
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 36)
-                        }
-                        
-                        Spacer()
-                        
-                        Button {
-                            onDismiss()
-                        } label: {
-                            Text("Rozumiem")
-                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(Color.gold400)
-                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                    }
-                    .transition(.scale.combined(with: .opacity))
+                    inviteContent
+                        .transition(.opacity)
                 }
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 28)
+            .padding(.bottom, 20)
+        }
+        .presentationDragIndicator(.visible)
+        .sensoryFeedback(.success, trigger: isSent)
+    }
+
+    // MARK: Invite
+    private var inviteContent: some View {
+        VStack(spacing: 22) {
+            HomeSectionHeader(title: "NOVÉ SPOJENIE", systemImage: "person.2.fill")
+
+            VStack(spacing: 10) {
+                ProfileAvatarView(name: invite.name, imagePath: nil, avatarURL: invite.avatarURL, size: 76)
+                Text(invite.name)
+                    .font(.title2.weight(.bold))
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+                if !invite.club.isEmpty {
+                    Text(invite.club)
+                        .font(.subheadline)
+                        .foregroundColor(Color.textSecondary)
+                        .multilineTextAlignment(.center)
+                }
+                Text(invite.displayId)
+                    .font(.caption.weight(.bold).monospaced())
+                    .foregroundColor(Color.gold300)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.gold500.opacity(0.12), in: Capsule())
+                if !invite.dancerGroups.isEmpty {
+                    HStack(spacing: 8) {
+                        ForEach(invite.dancerGroups, id: \.self) { group in
+                            Text(group)
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.white.opacity(0.85))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .homeCard(cornerRadius: 10)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(20)
+            .homeCard()
+
+            Text("Pošli žiadosť o spojenie. Keď ju potvrdí, budete spojení.")
+                .font(.footnote)
+                .foregroundColor(Color.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+
+            if let error = friendManager.inviteErrorMessage {
+                SheetBanner(text: error, isError: true)
+            }
+            PrimarySheetButton(title: "Poslať žiadosť o spojenie", isLoading: friendManager.isProcessingInvite, isEnabled: true) {
+                Task {
+                    if await friendManager.respondToIncomingInvite(accept: true) {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { isSent = true }
+                    }
+                }
+            }
+            .accessibilityIdentifier("invite.send")
+            Button(action: onDismiss) {
+                Text("Neskôr")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundColor(Color.textSecondary)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.pressable)
+        }
+    }
+
+    // MARK: Sent
+    private var sentContent: some View {
+        VStack(spacing: 18) {
+            Spacer(minLength: 0)
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 54, weight: .bold))
+                .foregroundColor(Color.gold400)
+                .symbolEffect(.bounce, value: isSent)
+            Text("Žiadosť odoslaná")
+                .font(.title2.weight(.bold))
+                .foregroundColor(.white)
+            Text("Keď ju \(invite.name) potvrdí, budete spojení.")
+                .font(.subheadline)
+                .foregroundColor(Color.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            PrimarySheetButton(title: "Hotovo", isLoading: false, isEnabled: true, action: onDismiss)
         }
     }
 }
