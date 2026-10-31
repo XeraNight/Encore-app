@@ -121,6 +121,50 @@ final class CompetitionManager: ObservableObject {
         partnerWaiting = nil
     }
 
+    // MARK: Verification in person
+    /// A new verification QR for the pending dancer; it replaces the one before.
+    func openVerifyCode() async throws -> KSISVerifyCode {
+        do {
+            return try await SupabaseConfig.client.rpc("open_verify_code").execute().value
+        } catch {
+            throw Self.verificationError(error)
+        }
+    }
+
+    /// Whom the scanned code asks for; the server already says here when the scanner may not vouch.
+    func peekVerifyCode(_ code: String) async throws -> KSISVouchPreview {
+        struct Params: Encodable { let p_code: String }
+        do {
+            return try await SupabaseConfig.client.rpc("peek_verify_code", params: Params(p_code: code)).execute().value
+        } catch {
+            throw Self.verificationError(error)
+        }
+    }
+
+    func vouch(_ code: String) async throws {
+        struct Params: Encodable { let p_code: String }
+        do {
+            try await SupabaseConfig.client.rpc("vouch_dancer", params: Params(p_code: code)).execute()
+        } catch {
+            throw Self.verificationError(error)
+        }
+    }
+
+    /// The server names each refusal (20261029b_ksis_vouch_in_person.sql).
+    private static func verificationError(_ error: Error) -> ActionError {
+        guard let error = error as? PostgrestError else { return .network }
+        if error.code == "23505" { return .server("Tohto tanečníka už má overený iný účet.") }
+        switch error.message {
+        case "not_pending": return .server("Kód si otvoríš, len kým čakáš na overenie.")
+        case "not_verified": return .server("Overovať môže len overený tanečník. Najprv sa over sám.")
+        case "expired": return .server("Kód už neplatí. Nech si otvorí nový.")
+        case "already_verified": return .server("Tento tanečník je už overený.")
+        case "not_eligible": return .server("Overiť ho môže len overený tanečník z jeho klubu podľa KSIS alebo jeho partner.")
+        case "limit": return .server("Za 30 dní si overil už 10 ľudí. Ďalšieho over neskôr.")
+        default: return .server("Overenie sa nepodarilo. Skús to znova.")
+        }
+    }
+
     func results(for couple: UserCouple) -> [CompetitionResult] {
         guard let coupleId = couple.coupleId else { return [] }
         return results.filter { $0.coupleId == coupleId }

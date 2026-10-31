@@ -92,7 +92,12 @@ struct EncoreApp: App {
                         GuestCoachService.shared.pendingToken = token
                         return
                     }
-                    // 6. Friend invites / profile links
+                    // 6. A pending dancer's verification QR, scanned with the iPhone Camera (encore://verify?c=…)
+                    if let code = KSISVouchLink.code(from: url.absoluteString) {
+                        KSISVouchRouter.shared.pendingCode = code
+                        return
+                    }
+                    // 7. Friend invites / profile links
                     Task { _ = FriendManager.shared.handleIncomingURL(url) }
                 }
                 .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { userActivity in

@@ -17,6 +17,7 @@ struct CompetitionTrackerView: View {
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
+    @State private var showVerifyCode = false
     @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
     @Namespace private var resultsModeNamespace
     @FocusState private var searchFocused: Bool
@@ -93,6 +94,7 @@ struct CompetitionTrackerView: View {
         }
         .task { await manager.loadAllData() }
         .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
+        .sheet(isPresented: $showVerifyCode) { KSISVerifyCodeSheet() }
         .preferredColorScheme(.dark)
     }
 
@@ -203,10 +205,18 @@ struct CompetitionTrackerView: View {
                             .foregroundColor(dancer.isVerified ? Color.syncEmerald : Color.gold300)
                     }
                     if !dancer.isVerified {
-                        Text("Svoje páry a súťaže vidíš hneď. Spojeniam sa ukážu, keď ťa overíme my alebo tvoj overený partner.")
+                        Text("Svoje páry a súťaže vidíš hneď. Spojeniam sa ukážu, keď ťa naživo overí niekto overený z tvojho klubu alebo tvoj partner.")
                             .font(.footnote)
                             .foregroundColor(.white.opacity(0.7))
                             .fixedSize(horizontal: false, vertical: true)
+                        Button { showVerifyCode = true } label: {
+                            Label("Overiť naživo", systemImage: "qrcode")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(Color.obsidian900)
+                                .frame(maxWidth: .infinity, minHeight: 44)
+                                .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        }
+                        .buttonStyle(.pressable)
                     }
                     if manager.couples.isEmpty {
                         Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")

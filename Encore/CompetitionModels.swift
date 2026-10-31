@@ -394,6 +394,30 @@ struct KSISPartnerWaiting: Decodable, Equatable, Sendable, Identifiable {
     }
 }
 
+/// The verification QR a pending dancer shows (`open_verify_code`): random, five minutes, no personal data.
+struct KSISVerifyCode: Decodable, Equatable, Sendable {
+    let code: String
+    let expiresAt: Date
+
+    enum CodingKeys: String, CodingKey {
+        case code, expiresAt = "expires_at"
+    }
+}
+
+/// Whom a scanned verification QR asks for (`peek_verify_code`), shown before the verified dancer vouches.
+struct KSISVouchPreview: Decodable, Equatable, Sendable {
+    let name: String
+    let club: String?
+    let personNumber: Int
+    let accountName: String
+    let avatarURL: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, club
+        case personNumber = "person_number", accountName = "account_name", avatarURL = "avatar_url"
+    }
+}
+
 // MARK: - Slovenský pohár standings (read live from KSIS, cached on the iPhone)
 nonisolated struct SlovakCupRound: Codable, Equatable, Sendable {
     /// Among Slovak couples; "9-12" for a shared place.
