@@ -3,7 +3,8 @@ import Supabase
 import OSLog
 
 // MARK: - Owner Admin Console
-/// Gift a plan, find a dancer, ban or unban an account or delete it. Only the owner sees it (server `is_app_owner()`),
+/// Gift a plan, find a dancer, ban or unban an account or delete it, see one account's support card
+/// (OwnerUserDetailsView), the overview and the record of owner actions. Only the owner sees it (server `is_app_owner()`),
 /// and every action is checked again on the server (RLS and owner functions), so the screen grants nothing
 /// by itself. Moderation tool for App Review 1.2; described in the review notes (2.5.19).
 struct OwnerAdminConsoleView: View {
@@ -36,6 +37,10 @@ struct OwnerAdminConsoleView: View {
     @State private var dancersToVerify: [KSISDancer] = []
     /// Account name and e-mail of each of them, to compare with the KSIS name.
     @State private var accounts: [UUID: String] = [:]
+    @State private var overview: OwnerOverview?
+    /// The latest owner actions, newest first; the first few show until the owner opens all.
+    @State private var record: [OwnerAction] = []
+    @State private var showsWholeRecord = false
 
     private var selectedUser: AdminUserSearchItem? {
         searchResults.first { $0.id == selectedUserId }
@@ -48,6 +53,7 @@ struct OwnerAdminConsoleView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         ownerHeader
+                        if let overview { overviewSection(overview) }
                         if !dancersToVerify.isEmpty { dancersSection }
                         PlannerChoice(options: [(Mode.search, "Hľadať človeka"), (Mode.email, "Podľa e-mailu")],
                                       selection: $mode)
@@ -57,6 +63,7 @@ struct OwnerAdminConsoleView: View {
                                 userCard(user)
                                     .transition(.move(edge: .bottom).combined(with: .opacity))
                             }
+                            if !record.isEmpty { recordSection }
                         } else {
                             emailGrantSection
                                 .transition(.opacity)
@@ -101,7 +108,11 @@ struct OwnerAdminConsoleView: View {
                     Task { await search() }
                 }
             }
-            .task { await loadDancersToVerify() }
+            // Loads again after every owner action, so counts, waiting dancers and the record stay current.
+            .task(id: successCount) {
+                await loadDancersToVerify()
+                await loadOverviewAndRecord()
+            }
             .task(id: searchQuery) {
                 // Searches as you type, after a short pause (a new letter cancels the previous search).
                 try? await Task.sleep(for: .milliseconds(350))
@@ -211,6 +222,8 @@ struct OwnerAdminConsoleView: View {
                     .textSelection(.enabled)
             }
 
+            OwnerUserDetailsView(userId: user.id, reload: successCount, isBusy: isActionInProgress, run: perform)
+
             HomeSectionHeader(title: "DAROVAŤ PLÁN", systemImage: "gift.fill")
             grantForm(actionTitle: "Udeliť \(user.name)") { grant(to: user) }
 
@@ -304,6 +317,70 @@ struct OwnerAdminConsoleView: View {
             .background(color.opacity(0.14), in: Capsule())
     }
 
+    // MARK: Overview
+    private func overviewSection(_ overview: OwnerOverview) -> some View {
+        HStack(spacing: 10) {
+            statTile("\(overview.users)", "Používatelia", note: overview.newThisWeek > 0 ? "+\(overview.newThisWeek) za týždeň" : nil)
+            statTile("\(overview.verified)", "Overení")
+            statTile("\(overview.plus)", "Plus")
+            statTile("\(overview.premium)", "Premium")
+        }
+    }
+
+    private func statTile(_ value: String, _ title: String, note: String? = nil) -> some View {
+        VStack(spacing: 2) {
+            Text(value)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundColor(.white)
+                .contentTransition(.numericText())
+            Text(title)
+                .font(.caption2.weight(.semibold))
+                .foregroundColor(Color.textSecondary)
+            if let note {
+                Text(note)
+                    .font(.caption2)
+                    .foregroundColor(Color.gold300)
+            }
+        }
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+        .frame(maxWidth: .infinity, minHeight: 64)
+        .padding(.vertical, 6)
+        .homeCard(cornerRadius: 16)
+    }
+
+    // MARK: Record
+    private var recordSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "ZÁZNAM ZÁSAHOV", systemImage: "list.bullet.rectangle") {
+                if record.count > 6 {
+                    Button(showsWholeRecord ? "Menej" : "Všetky") { showsWholeRecord.toggle() }
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(Color.gold400)
+                }
+            }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(showsWholeRecord ? record : Array(record.prefix(6))) { action in
+                    OwnerActionRow(action: action, showsTarget: true)
+                }
+            }
+            .padding(14)
+            .homeCard(cornerRadius: 18)
+        }
+        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsWholeRecord)
+    }
+
+    /// Extras: the console works without them when they fail.
+    private func loadOverviewAndRecord() async {
+        let client = SupabaseConfig.client
+        do {
+            overview = try await client.rpc("owner_overview").execute().value
+            record = try await client.rpc("owner_recent_actions").execute().value
+        } catch {
+            Logger.general.error("Owner overview failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     // MARK: - KSIS verification
     private var dancersSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -384,7 +461,6 @@ struct OwnerAdminConsoleView: View {
             } catch let error as PostgrestError where error.code == "23505" {
                 throw OwnerConsoleError.dancerTaken
             }
-            await loadDancersToVerify()
             return approve ? "\(dancer.name) je overený." : "Žiadosť je zamietnutá."
         }
     }
@@ -504,11 +580,6 @@ struct OwnerAdminConsoleView: View {
             }
         }
     }
-}
-
-private enum OwnerConsoleError: LocalizedError {
-    case dancerTaken
-    var errorDescription: String? { "tohto tanečníka už má overený iný účet." }
 }
 
 // MARK: - Admin User Search Item
