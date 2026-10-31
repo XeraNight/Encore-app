@@ -399,38 +399,16 @@ final class SubscriptionManager: ObservableObject {
         notes: String
     ) async throws {
         guard isAppOwner else { throw NSError(domain: "EncoreAdmin", code: 403, userInfo: [NSLocalizedDescriptionKey: "Nemáš oprávnenie majiteľa aplikácie."]) }
-        let client = SupabaseConfig.client
-        
-        var expiresAtString: String? = nil
-        if let months = durationMonths, months > 0 {
-            let future = Calendar.current.date(byAdding: .month, value: months, to: Date()) ?? Date()
-            let iso = ISO8601DateFormatter()
-            expiresAtString = iso.string(from: future)
+        struct GrantParams: Encodable {
+            let p_user: UUID
+            let p_tier: String
+            let p_duration_months: Int?
+            let p_note: String
         }
-        
-        struct UpsertPayload: Encodable {
-            let user_id: UUID
-            let tier: String
-            let source: String
-            let expires_at: String?
-            let granted_by: UUID?
-            let notes: String
-            let updated_at: String
-        }
-        
-        let payload = UpsertPayload(
-            user_id: targetUserId,
-            tier: tier.serverValue,
-            source: EntitlementSource.ownerGrant.rawValue,
-            expires_at: expiresAtString,
-            granted_by: AuthManager.shared.currentUser?.id,
-            notes: notes,
-            updated_at: ISO8601DateFormatter().string(from: Date())
-        )
-        
-        try await client
-            .from("user_entitlements")
-            .upsert(payload)
+        // The server sets the expiry and writes the gift to the owner record.
+        try await SupabaseConfig.client
+            .rpc("owner_grant_plan", params: GrantParams(
+                p_user: targetUserId, p_tier: tier.serverValue, p_duration_months: durationMonths, p_note: notes))
             .execute()
     }
     

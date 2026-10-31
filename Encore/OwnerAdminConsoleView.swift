@@ -375,10 +375,11 @@ struct OwnerAdminConsoleView: View {
 
     private func decide(_ dancer: KSISDancer, approve: Bool) {
         perform {
-            struct Params: Encodable { let p_user: UUID; let p_approve: Bool }
+            struct Params: Encodable { let p_user: UUID; let p_status: String }
             do {
+                // A refused dancer is unlinked and can find themselves again.
                 try await SupabaseConfig.client
-                    .rpc("owner_decide_dancer", params: Params(p_user: dancer.userId, p_approve: approve))
+                    .rpc("owner_set_dancer", params: Params(p_user: dancer.userId, p_status: approve ? "verified" : "none"))
                     .execute()
             } catch let error as PostgrestError where error.code == "23505" {
                 throw OwnerConsoleError.dancerTaken
