@@ -93,7 +93,7 @@ export default function PrivacyPolicyPage() {
                 <strong>Tréningové videá a porovnanie so vzorom:</strong> Videá sú uložené vo Fotkách na zariadení používateľa. Pri porovnaní so vzorom kreslí čiary a sklon používateľ sám; aplikácia nerozpoznáva postavu ani tvár, videá nepoužíva na biometrickú identifikáciu a nevykonáva žiadnu automatickú analýzu postoja. Tréningové videá sa na servery neukladajú.
               </li>
               <li>
-                <strong>Mikrofón a hlasový prepis:</strong> Hlasové nahrávky slúžia na okamžitý lokálny prepis pokynov trénera cez systémový Apple Speech Recognition do textu poznámky figúry priamo v iPhone. Samotné zvukové súbory sa na server neukladajú.
+                <strong>Mikrofón a hlasový prepis:</strong> Hlasové pokyny trénera prepisuje do textu rozpoznávanie reči od Apple. Zvuk pri tom môže spracovať Apple podľa svojich zásad ochrany súkromia. Encore zvukové nahrávky na svoj server neukladá, uloží sa len výsledný text poznámky.
               </li>
               <li>
                 <strong>Verejné súťažné dáta (SZTŠ / ksis.eu):</strong> Súťažné dáta z verejného systému KSIS (szts.ksis.eu), ktoré si používateľ uloží zo stránky KSIS otvorenej v aplikácii: kto ste v KSIS (osobné číslo z preukazu, meno, klub, triedy), Vaše páry a pri Vašich súťažiach trieda, body, finále a výsledky vrátane krížikov porotcov. Mená ostatných tanečníkov a párov sa neukladajú.
@@ -149,7 +149,7 @@ export default function PrivacyPolicyPage() {
               <li><strong>Apple</strong> a <strong>Google</strong>: prihlásenie cez Apple alebo Google, ak si ho zvolíte; platby predplatného spracúva výhradne Apple (App Store).</li>
               <li><strong>Vercel</strong>: hosting a prevádzka tejto webovej stránky a anonymná technická prevádzka.</li>
               <li><strong>PostHog</strong> (EÚ): súhrnná anonymná štatistika používania webovej stránky bez cookies a bez profilovania návštevníkov. Upozorňujeme, že PostHog sa týka výlučne tejto webstránky – mobilná aplikácia Encore žiadnu analytiku, telemetriu ani PostHog neobsahuje a nepoužíva.</li>
-              <li><strong>Formspree</strong>: doručenie správy z kontaktného formulára na stránke Podpora.</li>
+              <li><strong>Formspree</strong>: spracúva správy z kontaktného formulára na tejto webstránke (meno, e-mail, text správy).</li>
             </ul>
           </section>
 
