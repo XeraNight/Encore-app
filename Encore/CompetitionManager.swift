@@ -20,8 +20,6 @@ final class CompetitionManager: ObservableObject {
 
     /// Who the user picked in the KSIS members list; nil until they do.
     @Published private(set) var dancer: KSISDancer?
-    /// Someone waits to be confirmed as the partner of the user's current couple (only a verified dancer sees it).
-    @Published private(set) var partnerWaiting: KSISPartnerWaiting?
 
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
     var previousCouples: [UserCouple] { couples.filter { !$0.isCurrent } }
@@ -57,7 +55,6 @@ final class CompetitionManager: ObservableObject {
 
     func resetState() {
         dancer = nil
-        partnerWaiting = nil
         couples = []
         results = []
         loadFailed = false
@@ -72,7 +69,7 @@ final class CompetitionManager: ObservableObject {
             let client = SupabaseConfig.client
             async let loadedDancers: [KSISDancer] = client
                 .from("ksis_dancers")
-                .select("user_id, person_number, name, club, status, created_at")
+                .select("person_number, name, club")
                 .eq("user_id", value: myId)
                 .execute()
                 .value
@@ -96,72 +93,10 @@ final class CompetitionManager: ObservableObject {
             dancer = try await loadedDancers.first
             couples = try await loadedCouples
             results = try await loadedResults
-            partnerWaiting = dancer?.isVerified == true ? await waitingPartner() : nil
             loadFailed = false
         } catch {
             loadFailed = true
             Logger.sync.error("Loading KSIS diary failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    /// Extra: the diary still shows when this fails.
-    private func waitingPartner() async -> KSISPartnerWaiting? {
-        let rows: [KSISPartnerWaiting]? = try? await SupabaseConfig.client.rpc("my_partner_waiting").execute().value
-        return rows?.first
-    }
-
-    /// The verified dancer confirms the partner of their current couple; the server checks both sides of the couple.
-    func confirmPartner(_ waiting: KSISPartnerWaiting) async throws {
-        struct Params: Encodable { let p_partner: UUID }
-        do {
-            try await SupabaseConfig.client.rpc("confirm_partner", params: Params(p_partner: waiting.userId)).execute()
-        } catch {
-            throw ActionError.server("Potvrdenie sa nepodarilo. Skús to znova.")
-        }
-        partnerWaiting = nil
-    }
-
-    // MARK: Verification in person
-    /// A new verification QR for the pending dancer; it replaces the one before.
-    func openVerifyCode() async throws -> KSISVerifyCode {
-        do {
-            return try await SupabaseConfig.client.rpc("open_verify_code").execute().value
-        } catch {
-            throw Self.verificationError(error)
-        }
-    }
-
-    /// Whom the scanned code asks for; the server already says here when the scanner may not vouch.
-    func peekVerifyCode(_ code: String) async throws -> KSISVouchPreview {
-        struct Params: Encodable { let p_code: String }
-        do {
-            return try await SupabaseConfig.client.rpc("peek_verify_code", params: Params(p_code: code)).execute().value
-        } catch {
-            throw Self.verificationError(error)
-        }
-    }
-
-    func vouch(_ code: String) async throws {
-        struct Params: Encodable { let p_code: String }
-        do {
-            try await SupabaseConfig.client.rpc("vouch_dancer", params: Params(p_code: code)).execute()
-        } catch {
-            throw Self.verificationError(error)
-        }
-    }
-
-    /// The server names each refusal (20261029b_ksis_vouch_in_person.sql).
-    private static func verificationError(_ error: Error) -> ActionError {
-        guard let error = error as? PostgrestError else { return .network }
-        if error.code == "23505" { return .server("Tohto tanečníka už má overený iný účet.") }
-        switch error.message {
-        case "not_pending": return .server("Kód si otvoríš, len kým čakáš na overenie.")
-        case "not_verified": return .server("Overovať môže len overený tanečník. Najprv sa over sám.")
-        case "expired": return .server("Kód už neplatí. Nech si otvorí nový.")
-        case "already_verified": return .server("Tento tanečník je už overený.")
-        case "not_eligible": return .server("Overiť ho môže len overený tanečník z jeho klubu podľa KSIS alebo jeho partner.")
-        case "limit": return .server("Za 30 dní si overil už 10 ľudí. Ďalšieho over neskôr.")
-        default: return .server("Overenie sa nepodarilo. Skús to znova.")
         }
     }
 

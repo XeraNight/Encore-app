@@ -217,7 +217,7 @@ struct KSISBrowserView: View {
             hint("Nikoho som nenašiel. Skús priezvisko bez diakritiky alebo číslo z preukazu.")
         } else {
             if manager.dancer == nil {
-                hint("Kto z nich si? Svoje dáta uvidíš hneď len ty, spojeniam sa ukážu po overení.")
+                hint("Kto z nich si? Ťukni Som to ja pri svojom mene a appka spozná tvoje páry.")
             }
             ForEach(members) { member in
                 HStack(alignment: .center, spacing: 10) {
@@ -234,7 +234,7 @@ struct KSISBrowserView: View {
                         Label("To si ty", systemImage: "checkmark.seal.fill")
                             .font(.caption.weight(.bold))
                             .foregroundColor(Color.syncEmerald)
-                    } else if manager.dancer?.isVerified != true {
+                    } else {
                         smallButton("Som to ja") {
                             if manager.dancer == nil { save(personNumber: member.personNumber) } else { dancerToReplace = member }
                         }

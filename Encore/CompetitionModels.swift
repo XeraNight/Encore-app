@@ -362,59 +362,16 @@ struct KSISPageReply: Decodable, Sendable {
 }
 
 // MARK: - Who the account is in KSIS (`ksis_dancers`)
-/// Picked in the members list. Private until the owner or the verified partner confirms it.
-struct KSISDancer: Decodable, Equatable, Sendable, Identifiable {
-    let userId: UUID
+/// Picked in the members list, without verification: the owner unlinks a fake account on a report.
+struct KSISDancer: Decodable, Equatable, Sendable {
     let personNumber: Int
     /// "Priezvisko Meno" as KSIS writes it.
     let name: String
     let club: String?
-    let status: String
-    let createdAt: Date
-
-    var id: UUID { userId }
-    var isVerified: Bool { status == "verified" }
-
-    enum CodingKeys: String, CodingKey {
-        case name, club, status
-        case userId = "user_id", personNumber = "person_number", createdAt = "created_at"
-    }
-}
-
-/// The account waiting to be confirmed as the partner of the verified dancer's current couple.
-struct KSISPartnerWaiting: Decodable, Equatable, Sendable, Identifiable {
-    let userId: UUID
-    let accountName: String
-    let ksisName: String
-
-    var id: UUID { userId }
-
-    enum CodingKeys: String, CodingKey {
-        case userId = "user_id", accountName = "account_name", ksisName = "ksis_name"
-    }
-}
-
-/// The verification QR a pending dancer shows (`open_verify_code`): random, five minutes, no personal data.
-struct KSISVerifyCode: Decodable, Equatable, Sendable {
-    let code: String
-    let expiresAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case code, expiresAt = "expires_at"
-    }
-}
-
-/// Whom a scanned verification QR asks for (`peek_verify_code`), shown before the verified dancer vouches.
-struct KSISVouchPreview: Decodable, Equatable, Sendable {
-    let name: String
-    let club: String?
-    let personNumber: Int
-    let accountName: String
-    let avatarURL: String?
 
     enum CodingKeys: String, CodingKey {
         case name, club
-        case personNumber = "person_number", accountName = "account_name", avatarURL = "avatar_url"
+        case personNumber = "person_number"
     }
 }
 

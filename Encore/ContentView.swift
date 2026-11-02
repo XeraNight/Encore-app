@@ -293,10 +293,6 @@ struct ContentView: View {
     
     // MARK: - Routine import
     private func handleScannedCode(_ rawCode: String) {
-        if let code = KSISVouchLink.code(from: rawCode) {
-            KSISVouchRouter.shared.pendingCode = code
-            return
-        }
         if AppFeatures.coachTools, let token = GuestCoachLink.token(from: rawCode) {
             guestService.pendingToken = token
             return

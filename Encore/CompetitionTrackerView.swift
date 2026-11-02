@@ -17,7 +17,6 @@ struct CompetitionTrackerView: View {
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
-    @State private var showVerifyCode = false
     @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
     @Namespace private var resultsModeNamespace
     @FocusState private var searchFocused: Bool
@@ -94,7 +93,6 @@ struct CompetitionTrackerView: View {
         }
         .task { await manager.loadAllData() }
         .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
-        .sheet(isPresented: $showVerifyCode) { KSISVerifyCodeSheet() }
         .preferredColorScheme(.dark)
     }
 
@@ -182,41 +180,20 @@ struct CompetitionTrackerView: View {
     }
 
     // MARK: Dancer
-    /// Who the user is in KSIS: found by name or the personal number, private until verified.
+    /// Who the user is in KSIS: found by name or the personal number.
     @ViewBuilder
     private var dancerSection: some View {
         if let dancer = manager.dancer {
             VStack(alignment: .leading, spacing: 12) {
                 HomeSectionHeader(title: "TANEČNÍK V KSIS", systemImage: "person.text.rectangle")
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(alignment: .firstTextBaseline) {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(dancer.name)
-                                .font(.system(.title3, design: .rounded).weight(.bold))
-                                .foregroundColor(.white)
-                            Text([dancer.club, "č. \(dancer.personNumber)"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                                .font(.footnote)
-                                .foregroundColor(Color.textSecondary)
-                        }
-                        Spacer(minLength: 8)
-                        Label(dancer.isVerified ? "Overený" : "Čaká na overenie",
-                              systemImage: dancer.isVerified ? "checkmark.seal.fill" : "hourglass")
-                            .font(.caption.weight(.bold))
-                            .foregroundColor(dancer.isVerified ? Color.syncEmerald : Color.gold300)
-                    }
-                    if !dancer.isVerified {
-                        Text("Svoje páry a súťaže vidíš hneď. Spojeniam sa ukážu, keď ťa naživo overí niekto overený z tvojho klubu alebo tvoj partner.")
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(dancer.name)
+                            .font(.system(.title3, design: .rounded).weight(.bold))
+                            .foregroundColor(.white)
+                        Text([dancer.club, "č. \(dancer.personNumber)"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
                             .font(.footnote)
-                            .foregroundColor(.white.opacity(0.7))
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button { showVerifyCode = true } label: {
-                            Label("Overiť naživo", systemImage: "qrcode")
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundColor(Color.obsidian900)
-                                .frame(maxWidth: .infinity, minHeight: 44)
-                                .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                        }
-                        .buttonStyle(.pressable)
+                            .foregroundColor(Color.textSecondary)
                     }
                     if manager.couples.isEmpty {
                         Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")
@@ -239,10 +216,6 @@ struct CompetitionTrackerView: View {
                 }
                 .padding(16)
                 .homeCard(cornerRadius: 20)
-
-                if let waiting = manager.partnerWaiting {
-                    partnerWaitingCard(waiting)
-                }
             }
         } else {
             findYourselfSection
@@ -280,32 +253,6 @@ struct CompetitionTrackerView: View {
         if let url = KSISBrowserView.membersSearchURL(for: searchText) {
             browser = KSISBrowserTarget(url: url)
         }
-    }
-
-    /// The verified dancer confirms the partner of their current couple; the server checks both are in that couple.
-    private func partnerWaitingCard(_ waiting: KSISPartnerWaiting) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(waiting.accountName.isEmpty ? "Niekto" : waiting.accountName) sa v Encore hlási ako \(waiting.ksisName) z vášho páru.")
-                .font(.subheadline.weight(.semibold))
-                .foregroundColor(.white)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Potvrď to, iba ak je to naozaj tvoj partner alebo partnerka.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.7))
-            PrimarySheetButton(title: "Áno, potvrdiť", isLoading: false, isEnabled: true) {
-                Task {
-                    do {
-                        try await manager.confirmPartner(waiting)
-                        refreshCount += 1
-                    } catch {
-                        errorText = error.localizedDescription
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .homeCard(cornerRadius: 20)
-        .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     // MARK: Couples before

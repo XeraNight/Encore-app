@@ -13,8 +13,8 @@
 // Kinds: members_list, couples_list, couple_detail, couple_page, results, marks, registrations, slp_standings,
 // blocked, unsupported.
 // Only the user's own couples are stored; other couples and members on the page are read and forgotten.
-// Who the account is: the dancer picks themselves in the members list (ksis_dancers, pending until the owner or the
-// verified partner confirms, migration 20261025_ksis_dancer_identity). Their couples follow from KSIS: the couple's
+// Who the account is: the dancer picks themselves in the members list (ksis_dancers; no verification since
+// 20261031_ksis_without_verification, the owner unlinks a fake on a report). Their couples follow from KSIS: the couple's
 // number is the partner's personal number, a partnerka is found by her name. Couples are a history with one current.
 // Errors: { error, message } with a Slovak message the app shows as is.
 
@@ -77,7 +77,6 @@ interface LinkedCouple {
 interface Dancer {
   person_number: number;
   name: string;
-  status: "pending" | "verified";
 }
 
 // deno-lint-ignore no-explicit-any
@@ -213,7 +212,7 @@ async function linkedCouples(admin: Admin, userId: string): Promise<LinkedCouple
 async function dancerOf(admin: Admin, userId: string): Promise<Dancer | null> {
   const { data, error } = await admin
     .from("ksis_dancers")
-    .select("person_number, name, status")
+    .select("person_number, name")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -223,7 +222,7 @@ async function dancerOf(admin: Admin, userId: string): Promise<Dancer | null> {
 const asMember = (dancer: Dancer) => ({ personNumber: dancer.person_number, name: dancer.name });
 
 const dancerReply = (dancer: Dancer | null) =>
-  dancer ? { personNumber: dancer.person_number, name: dancer.name, status: dancer.status } : null;
+  dancer ? { personNumber: dancer.person_number, name: dancer.name } : null;
 
 /** A couple is its number and its partnerka: a partner who changes partnerka may keep the number. */
 function coupleKey(pairNumber: number, partnerka: string): string {
@@ -298,20 +297,6 @@ async function membersList(
 
   const member = members.find((candidate) => candidate.personNumber === Number(personNumber));
   if (!member) return errorResponse("invalid_input", "Tohto tanečníka na stránke nevidím. Vyhľadaj ho znova.", 400);
-  if (dancer?.status === "verified" && dancer.person_number !== member.personNumber) {
-    return errorResponse("conflict", `Si overený ako ${dancer.name}. Ak je to chyba, napíš nám na podporu.`, 409);
-  }
-  const { count: taken, error: takenError } = await admin
-    .from("ksis_dancers")
-    .select("user_id", { count: "exact", head: true })
-    .eq("person_number", member.personNumber)
-    .eq("status", "verified")
-    .neq("user_id", userId);
-  if (takenError) throw takenError;
-  if ((taken ?? 0) > 0) {
-    return errorResponse("conflict", "Tohto tanečníka už má overený iný účet v Encore. Ak si to ty, napíš nám na podporu.", 409);
-  }
-
   if (dancer && dancer.person_number !== member.personNumber) {
     // The couples and results of the dancer picked before are not this dancer's.
     const { error: resultsError } = await admin.from("competition_results").delete().eq("user_id", userId);
@@ -319,7 +304,6 @@ async function membersList(
     const { error: couplesError } = await admin.from("user_couples").delete().eq("user_id", userId);
     if (couplesError) throw couplesError;
   }
-  // Without a status the upsert keeps the one there is: picking yourself again does not undo a verification.
   const { error } = await admin.from("ksis_dancers").upsert({
     user_id: userId,
     person_number: member.personNumber,
@@ -330,7 +314,7 @@ async function membersList(
     updated_at: new Date().toISOString(),
   }, { onConflict: "user_id" });
   if (error) throw error;
-  const current: Dancer = { person_number: member.personNumber, name: member.name, status: dancer?.status ?? "pending" };
+  const current: Dancer = { person_number: member.personNumber, name: member.name };
   return jsonResponse({ ...reply(current), saved: 1 });
 }
 

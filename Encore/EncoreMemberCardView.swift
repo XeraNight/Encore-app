@@ -21,15 +21,9 @@ struct EncoreMemberCardView: View {
     
     @ObservedObject private var walletManager = AppleWalletPassManager.shared
     @ObservedObject private var friendManager = FriendManager.shared
-    @ObservedObject private var competitionManager = CompetitionManager.shared
 
-    /// The KSIS number only once it is verified (Súťaže); until then the Encore dancer ID.
-    private var publicCardId: String {
-        if let dancer = competitionManager.dancer, dancer.isVerified {
-            return "KSIS: \(dancer.personNumber)"
-        }
-        return "ID TANEČNÍKA: \(UserProfileStore.shared.dancerCode)"
-    }
+    /// The Encore dancer ID: a KSIS number on the card would look confirmed, and nobody confirms it.
+    private var publicCardId: String { "ID TANEČNÍKA: \(UserProfileStore.shared.dancerCode)" }
     
     // Custom Carmine & Wine Leather Palette
     

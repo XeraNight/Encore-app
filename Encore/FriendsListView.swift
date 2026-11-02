@@ -777,9 +777,7 @@ struct FriendsListView: View {
 
     private func handleScannedQRCode(_ code: String) {
         let clean = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let vouchCode = KSISVouchLink.code(from: clean) {
-            KSISVouchRouter.shared.pendingCode = vouchCode
-        } else if clean.starts(with: "DNC-") {
+        if clean.starts(with: "DNC-") {
             // A scanned ID tanečníka
             Task {
                 try? await connectionManager.sendRequestByDancerCode(code: clean, type: .connection)

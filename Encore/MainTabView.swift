@@ -9,7 +9,6 @@ struct MainTabView: View {
     @ObservedObject private var authManager = AuthManager.shared
     @ObservedObject private var plannerRouter = PlannerRouter.shared
     @ObservedObject private var quickActions = QuickActionRouter.shared
-    @ObservedObject private var vouchRouter = KSISVouchRouter.shared
     @State private var ksisBrowser: KSISBrowserTarget?
     @State private var showResults = false
     @State private var offerBiometricLogin = false
@@ -61,15 +60,6 @@ struct MainTabView: View {
         }
         .fullScreenCover(item: $ksisBrowser) { KSISBrowserView(startURL: $0.url) }
         .sheet(isPresented: $showResults) { NavigationStack { CompetitionTrackerView() } }
-        // A verification QR scanned with the Camera or Encore's scanner, also one opened before signing in.
-        .sheet(isPresented: Binding(
-            get: { vouchRouter.pendingCode != nil },
-            set: { if !$0 { vouchRouter.pendingCode = nil } }
-        )) {
-            if let code = vouchRouter.pendingCode {
-                KSISVouchSheet(code: code) { vouchRouter.pendingCode = nil }
-            }
-        }
         .task {
             // Once per account, a moment after the first sign-in on this iPhone.
             try? await Task.sleep(for: .seconds(1.5))

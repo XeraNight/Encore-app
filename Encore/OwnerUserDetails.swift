@@ -3,7 +3,7 @@ import Supabase
 import OSLog
 
 // MARK: - Owner console: one account for support
-/// What support needs about one account: sign-in, KSIS (verify both ways, unlink), couples and connections to remove,
+/// What support needs about one account: sign-in, KSIS (unlink a fake), couples and connections to remove,
 /// what is in the cloud and the owner's earlier actions. State and counts only, never the content of notes or diaries.
 /// Every action is an owner function on the server (`owner_*`), which checks the owner again and writes the record.
 struct OwnerUserDetailsView: View {
@@ -81,23 +81,18 @@ struct OwnerUserDetailsView: View {
                     Text("\(dancer.name) · č. \(dancer.personNumber)")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
-                    Text([dancer.club, dancer.verificationText].compactMap { $0 }.joined(separator: " · "))
-                        .font(.caption)
-                        .foregroundColor(dancer.isVerified ? Color.syncEmerald : Color.gold300)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                HStack(spacing: 10) {
-                    if dancer.isVerified {
-                        actionButton("Zrušiť overenie", systemImage: "arrow.uturn.backward") {
-                            setDancer(status: "pending", done: "Overenie \(dancer.name) je zrušené.")
-                        }
-                    } else {
-                        actionButton("Overiť", systemImage: "checkmark.seal.fill") {
-                            setDancer(status: "verified", done: "\(dancer.name) je overený.")
-                        }
+                    if let club = dancer.club {
+                        Text(club)
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
                     }
-                    actionButton("Odpojiť", systemImage: "link", destructive: true) { removal = .unlink(dancer) }
                 }
+                // Another account with the same number is where a fake shows up.
+                if dancer.otherAccounts > 0 {
+                    line("Toto číslo si vybral ešte iný účet (\(dancer.otherAccounts)).",
+                         systemImage: "exclamationmark.triangle.fill")
+                }
+                actionButton("Odpojiť od KSIS", systemImage: "link", destructive: true) { removal = .unlink(dancer) }
             } else {
                 line("Nie je prepojený s KSIS.", systemImage: "minus.circle")
             }
@@ -223,7 +218,7 @@ struct OwnerUserDetailsView: View {
     private func removalMessage(_ removal: Removal) -> String {
         switch removal {
         case .unlink(let dancer):
-            "Účet už nebude \(dancer.name). Overenie zmizne a v KSIS sa môže nájsť znova."
+            "Účet už nebude \(dancer.name). Zmiznú aj jeho páry a súťaže. V KSIS sa môže nájsť znova."
         case .couple(let couple):
             "\(couple.numberText ?? "Pár") zmizne aj so súťažami (\(couple.results)). Zo stránky KSIS si ho môže uložiť znova."
         case .connection(let connection):
@@ -244,23 +239,14 @@ struct OwnerUserDetailsView: View {
         }
     }
 
-    private func setDancer(status: String, done: String) {
-        run {
-            struct Params: Encodable { let p_user: UUID; let p_status: String }
-            do {
-                try await SupabaseConfig.client
-                    .rpc("owner_set_dancer", params: Params(p_user: userId, p_status: status)).execute()
-            } catch let error as PostgrestError where error.code == "23505" {
-                throw OwnerConsoleError.dancerTaken
-            }
-            return done
-        }
-    }
-
     private func remove(_ removal: Removal) {
         switch removal {
         case .unlink:
-            setDancer(status: "none", done: "Účet je odpojený od KSIS.")
+            run {
+                struct Params: Encodable { let p_user: UUID }
+                try await SupabaseConfig.client.rpc("owner_unlink_dancer", params: Params(p_user: userId)).execute()
+                return "Účet je odpojený od KSIS."
+            }
         case .couple(let couple):
             run {
                 struct Params: Encodable { let p_user: UUID; let p_couple: UUID }
@@ -304,8 +290,6 @@ struct OwnerAction: Decodable, Equatable, Identifiable {
         case "grant_plan": "Plán"
         case "ban": "Zablokovaný"
         case "unban": "Odblokovaný"
-        case "verify_dancer": "Overený v KSIS"
-        case "unverify_dancer": "Overenie zrušené"
         case "unlink_dancer": "Odpojený od KSIS"
         case "remove_connection": "Zrušené spojenie"
         case "remove_couple": "Odobratý pár"
@@ -358,28 +342,12 @@ struct OwnerUserCard: Decodable, Equatable {
         let personNumber: Int
         let name: String
         let club: String?
-        let status: String
-        let verifiedHow: String?
-        let verifiedAt: Date?
-        let verifiedByName: String?
-
-        var isVerified: Bool { status == "verified" }
-
-        var verificationText: String {
-            guard isVerified else { return "čaká na overenie" }
-            let how = switch verifiedHow {
-            case "owner": "overil majiteľ"
-            case "partner": "overil partner \(verifiedByName ?? "")"
-            case "vouch": "overený naživo: \(verifiedByName ?? "")"
-            default: "overený"
-            }
-            return how.trimmingCharacters(in: .whitespaces) + (verifiedAt.map { " \(OwnerUserDetailsView.date($0))" } ?? "")
-        }
+        /// Other accounts that picked the same KSIS number.
+        let otherAccounts: Int
 
         enum CodingKeys: String, CodingKey {
-            case name, club, status
-            case personNumber = "person_number", verifiedHow = "verified_how", verifiedAt = "verified_at",
-                 verifiedByName = "verified_by_name"
+            case name, club
+            case personNumber = "person_number", otherAccounts = "other_accounts"
         }
     }
 
@@ -451,17 +419,13 @@ struct OwnerUserCard: Decodable, Equatable {
 struct OwnerOverview: Decodable, Equatable {
     let users: Int
     let newThisWeek: Int
-    let verified: Int
+    /// Accounts linked to a KSIS dancer.
+    let dancers: Int
     let plus: Int
     let premium: Int
 
     enum CodingKeys: String, CodingKey {
-        case users, verified, plus, premium
+        case users, dancers, plus, premium
         case newThisWeek = "new_this_week"
     }
-}
-
-enum OwnerConsoleError: LocalizedError {
-    case dancerTaken
-    var errorDescription: String? { "tohto tanečníka už má overený iný účet." }
 }
