@@ -3,7 +3,6 @@ import AVKit
 import Speech
 import SwiftData
 import Combine
-import UniformTypeIdentifiers
 import OSLog
 
 
@@ -1300,60 +1299,6 @@ class SpeechRecognizerHelper: ObservableObject {
     }
 }
 
-// MARK: - Native Video Camera Recorder (Apple Standard)
-struct VideoRecorderView: UIViewControllerRepresentable {
-    @Environment(\.dismiss) private var dismiss
-    var onRecordComplete: (String) -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    func makeUIViewController(context: Context) -> UIImagePickerController {
-        let picker = UIImagePickerController()
-        if UIImagePickerController.isSourceTypeAvailable(.camera) {
-            picker.sourceType = .camera
-            picker.mediaTypes = [UTType.movie.identifier]
-            picker.cameraCaptureMode = .video
-            picker.videoQuality = .typeHigh
-            picker.cameraDevice = .rear
-            picker.allowsEditing = false
-            if UIImagePickerController.isFlashAvailable(for: .rear) {
-                picker.cameraFlashMode = .off
-            }
-        }
-        picker.delegate = context.coordinator
-        return picker
-    }
-
-    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
-
-    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let parent: VideoRecorderView
-
-        init(_ parent: VideoRecorderView) {
-            self.parent = parent
-        }
-
-        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
-            if let videoURL = info[.mediaURL] as? URL {
-                do {
-                    let filename = try MediaStorageManager.moveIntoDocuments(from: videoURL, fileExtension: "mp4")
-                    parent.onRecordComplete(filename)
-                } catch {
-                    Logger.camera.error("Moving recorded video failed: \(error.localizedDescription, privacy: .public)")
-                    parent.dismiss()
-                }
-            } else {
-                parent.dismiss()
-            }
-        }
-
-        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
-            parent.dismiss()
-        }
-    }
-}
 /// Notes captured on Home that are not in any figure yet; one tap copies the text or uses the video.
 /// Deleting notes belongs to the Notes screen, not here.
 struct InstantNotesInboxSection: View {
