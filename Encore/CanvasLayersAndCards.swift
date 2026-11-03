@@ -403,13 +403,28 @@ struct ConnectionLineShape: Shape {
     func path(in rect: CGRect) -> Path {
         var path = Path()
         path.move(to: from)
-        let dx = to.x - from.x
-        path.addCurve(
-            to: to,
-            control1: CGPoint(x: from.x + dx * 0.5, y: from.y),
-            control2: CGPoint(x: from.x + dx * 0.5, y: to.y)
-        )
+        let (control1, control2) = Self.controls(from: from, to: to)
+        path.addCurve(to: to, control1: control1, control2: control2)
         return path
+    }
+
+    /// Across first, then along: the curve every line on the floor follows.
+    private static func controls(from: CGPoint, to: CGPoint) -> (CGPoint, CGPoint) {
+        let middleX = from.x + (to.x - from.x) * 0.5
+        return (CGPoint(x: middleX, y: from.y), CGPoint(x: middleX, y: to.y))
+    }
+
+    /// Points along the curve, so figure names can keep off it (`CanvasLabelLayout`).
+    static func samples(from: CGPoint, to: CGPoint, count: Int = 8) -> [CGPoint] {
+        let (control1, control2) = controls(from: from, to: to)
+        return (0...count).map { step in
+            let t = CGFloat(step) / CGFloat(count), u = 1 - t
+            let a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t
+            return CGPoint(
+                x: a * from.x + b * control1.x + c * control2.x + d * to.x,
+                y: a * from.y + b * control1.y + c * control2.y + d * to.y
+            )
+        }
     }
 }
 
@@ -420,7 +435,8 @@ struct CanvasNodeCardView: View {
     var number: Int? = nil
     let scale: CGFloat
     var cardScale: CGFloat = 1.0
-    var isTranslucent: Bool = false
+    /// Where the name goes from the circle's centre, in screen points (`CanvasLabelLayout`); nil when it has no room.
+    var labelOffset: CGPoint? = nil
     var lockedByUserName: String? = nil
     var onTap: () -> Void
     var onDelete: () -> Void
@@ -435,18 +451,14 @@ struct CanvasNodeCardView: View {
         lockedByUserName != nil
     }
 
-    /// The figure's circle on screen at the standard size. The pin keeps its size at any zoom, like a place on
-    /// a map, so the name is always readable and the floor stays visible.
-    private let circleSize: CGFloat = 38
-    private let labelWidth: CGFloat = 150
-    /// Undoes the canvas zoom for the pin and applies the chosen figure size.
-    private var pinScale: CGFloat { cardScale / max(scale, 0.05) }
-    /// On the right half of the floor the name goes to the left of the circle, so it stays on the floor.
-    private var labelOnLeft: Bool { node.x > Double(BallroomFloorConfig.centerPoint.x) }
+    /// The pin keeps its size at any zoom, like a place on a map, so the floor stays visible; the figure size
+    /// menu changes only the circle.
+    private var circleSize: CGFloat { CanvasLabelLayout.circleSize * cardScale }
+    /// Undoes the canvas zoom, so the pin is drawn in screen points.
+    private var pinScale: CGFloat { 1 / max(scale, 0.05) }
 
     var body: some View {
         pin
-            .dynamicTypeSize(...DynamicTypeSize.xxLarge)
             .scaleEffect(pinScale)
             .scaleEffect(isDragging ? 1.12 : 1)
             .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isDragging)
@@ -515,82 +527,83 @@ struct CanvasNodeCardView: View {
 }
 
 extension CanvasNodeCardView {
-    /// The circle exactly on the figure's spot, its name in a pill beside it.
+    /// The circle exactly on the figure's spot, its name on the side `CanvasLabelLayout` picked. A name without
+    /// room fades out and comes back when a pinch makes room.
     fileprivate var pin: some View {
         circle
-            .overlay(alignment: labelOnLeft ? .trailing : .leading) {
+            .overlay {
                 label
-                    .frame(width: labelWidth, alignment: labelOnLeft ? .trailing : .leading)
-                    .offset(x: labelOnLeft ? -(circleSize + 6) : circleSize + 6)
+                    .frame(width: labelSize.width, height: labelSize.height, alignment: labelAlignment)
+                    .offset(x: labelOffset?.x ?? 0, y: labelOffset?.y ?? 0)
+                    .opacity(labelOffset == nil ? 0 : 1)
+                    .allowsHitTesting(labelOffset != nil)
+                    .animation(.easeOut(duration: 0.2), value: labelOffset)
             }
     }
 
-    /// A frame of the figure's video, or crimson with the figure's initials; gold ring, number on top.
+    /// A frame of the figure's video, or Encore crimson; the figure's number in the middle, gold ring.
     fileprivate var circle: some View {
         ZStack {
             if let video = node.displayVideoPath {
                 MediaThumbnailView(path: video, cornerRadius: 0, showsFormatBadge: false)
+                    .overlay(Color.black.opacity(0.35))
             } else {
-                pinColor
-                    .overlay {
-                        Text(initials)
-                            .font(.system(.footnote, design: .rounded).weight(.heavy))
-                            .foregroundStyle(.white)
-                    }
+                // One routine is one dance, so the floor needs no dance colours.
+                Color.encoreCrimsonLight
             }
+            Text("\(number ?? node.orderIndex + 1)")
+                .font(.system(size: 13 * cardScale, weight: .black, design: .rounded))
+                .foregroundStyle(.white)
+                .minimumScaleFactor(0.7)
         }
         .frame(width: circleSize, height: circleSize)
         .clipShape(Circle())
         .overlay(Circle().stroke(isLockedByPartner ? Color.white : Color.gold400, lineWidth: 2))
         .shadow(color: Color.black.opacity(0.45), radius: 6, y: 3)
         .overlay(alignment: .topTrailing) {
-            Text("\(number ?? node.orderIndex + 1)")
-                .font(.system(.caption2, design: .rounded).weight(.black))
-                .foregroundColor(Color.obsidian900)
-                .padding(.horizontal, 4)
-                .frame(minWidth: 18, minHeight: 18)
-                .background(Color.gold400, in: Capsule())
-                .offset(x: 6, y: -6)
-        }
-    }
-
-    fileprivate var label: some View {
-        HStack(spacing: 4) {
-            if let lockedBy = lockedByUserName {
-                Image(systemName: "lock.fill").foregroundStyle(Color.gold400)
-                Text(lockedBy).foregroundStyle(Color.gold300)
-            } else {
-                Text(node.figureName).foregroundStyle(.white)
-                if let bars = node.bars {
-                    Text("· \(bars) t.").foregroundStyle(Color.gold300)
-                }
-                if let remark = node.coachNotes, !remark.isEmpty {
-                    Image(systemName: "person.badge.shield.checkmark.fill").foregroundStyle(Color.gold400)
-                }
+            if let remark = node.coachNotes, !remark.isEmpty {
+                Image(systemName: "person.badge.shield.checkmark.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(Color.obsidian900)
+                    .padding(3)
+                    .background(Color.gold400, in: Circle())
+                    .offset(x: 5, y: -5)
             }
         }
-        .font(.system(.caption, design: .rounded).weight(.bold))
-        .lineLimit(1)
-        .padding(.horizontal, 9)
-        .padding(.vertical, 5)
-        .background(labelBackground, in: Capsule())
-        .overlay(Capsule().stroke(Color.gold400.opacity(0.25), lineWidth: 0.5))
-        .shadow(color: Color.black.opacity(0.3), radius: 4, y: 2)
     }
 
-    /// Frosted glass shows the parquet through; the dark pill reads on any floor.
-    fileprivate var labelBackground: AnyShapeStyle {
-        isTranslucent ? AnyShapeStyle(.ultraThinMaterial) : AnyShapeStyle(Color.obsidian900.opacity(0.85))
+    /// Dark text straight on the parquet; the light halo keeps it readable where a line runs under it.
+    fileprivate var label: some View {
+        Group {
+            if let lockedBy = lockedByUserName {
+                Label(lockedBy, systemImage: "lock.fill")
+            } else {
+                Text(labelText)
+            }
+        }
+        .font(Font(CanvasLabelLayout.font as CTFont))
+        .foregroundStyle(Color.obsidian900)
+        .multilineTextAlignment(labelTextAlignment)
+        .lineLimit(CanvasLabelLayout.maxLines)
+        .truncationMode(.tail)
+        .shadow(color: Color.white.opacity(0.85), radius: 1.5)
     }
 
-    /// Encore crimson for every dance: one routine is one dance, so the floor needs no dance colours.
-    fileprivate var pinColor: Color { Color.encoreCrimsonLight }
+    fileprivate var labelText: String { CanvasLabelLayout.text(name: node.figureName, bars: node.bars) }
+    fileprivate var labelSize: CGSize { CanvasLabelLayout.size(of: labelText) }
 
-    /// "NT" for Natural Turn, "Wh" for Whisk.
-    fileprivate var initials: String {
-        let words = node.figureName.split(separator: " ")
-        if words.count >= 2 { return words.prefix(2).compactMap(\.first).map(String.init).joined().uppercased() }
-        return String(node.figureName.prefix(2))
+    /// A name to the right of the circle starts at it, one to the left ends at it, one above or below is centred.
+    fileprivate var labelTextAlignment: TextAlignment {
+        guard let x = labelOffset?.x, x != 0 else { return .center }
+        return x > 0 ? .leading : .trailing
+    }
+
+    fileprivate var labelAlignment: Alignment {
+        switch labelTextAlignment {
+        case .leading: return .leading
+        case .trailing: return .trailing
+        default: return .center
+        }
     }
 }
 

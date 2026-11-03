@@ -111,10 +111,8 @@ struct RoutineCanvasView: View {
     @State private var activeZoom: CGFloat = 1.0
     @State private var liveNodePositions: [UUID: CGPoint] = [:]
     
-    // Card Customization States (Requested by User)
     @State private var cardScaleMode: CanvasCardScaleMode = .normal
-    @State private var isFiguresTranslucent: Bool = false
-    
+
     @State private var showFiguresDrawer = false
     @State private var selectedNodeForEdit: CanvasNode?
     /// "Vymazať figúru" from a figure's menu asks here, in the middle of the screen: asked from the figure itself,
@@ -262,6 +260,17 @@ struct RoutineCanvasView: View {
                             selectedConnectionForEdit = CanvasConnection(from: prevNode, to: nextNode)
                         }
                         
+                        let labelOffsets = CanvasLabelLayout.place(
+                            visibleNodes.sorted(by: { $0.orderIndex < $1.orderIndex }).map { node in
+                                CanvasLabelLayout.Pin(
+                                    id: node.id,
+                                    center: liveNodePositions[node.id] ?? CGPoint(x: node.x, y: node.y),
+                                    text: CanvasLabelLayout.text(name: node.figureName, bars: node.bars)
+                                )
+                            },
+                            scale: effectiveScale,
+                            figureScale: cardScaleMode.scale
+                        )
                         ForEach(visibleNodes) { node in
                             let lockedBy = realtimeManager.partnerPresences.values.first(where: { $0.draggingNodeId == node.id.uuidString })?.userName
                             CanvasNodeCardView(
@@ -269,7 +278,7 @@ struct RoutineCanvasView: View {
                                 number: numbers[node.id] ?? node.orderIndex + 1,
                                 scale: effectiveScale,
                                 cardScale: cardScaleMode.scale,
-                                isTranslucent: isFiguresTranslucent,
+                                labelOffset: labelOffsets[node.id],
                                 lockedByUserName: lockedBy
                             ) {
                                 selectedNodeForEdit = node
@@ -903,7 +912,7 @@ struct RoutineCanvasView: View {
         .accessibilityLabel("Pridať figúru")
     }
 
-    /// Card size and see-through cards, in one menu instead of two buttons.
+    /// The size of the figures' circles.
     private var viewOptionsMenu: some View {
         Menu {
             Picker("Veľkosť figúr", selection: $cardScaleMode) {
@@ -911,14 +920,10 @@ struct RoutineCanvasView: View {
                     Label(mode.rawValue, systemImage: mode.icon).tag(mode)
                 }
             }
-            Toggle(isOn: $isFiguresTranslucent) {
-                Label("Priesvitné mená figúr", systemImage: "square.2.layers.3d")
-            }
         } label: {
             GlassCircleLabel(icon: "slider.horizontal.3")
         }
         .sensoryFeedback(.selection, trigger: cardScaleMode)
-        .sensoryFeedback(.selection, trigger: isFiguresTranslucent)
         .accessibilityLabel("Zobrazenie figúr")
     }
 
