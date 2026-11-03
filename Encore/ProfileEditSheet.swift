@@ -14,6 +14,7 @@ struct ProfileEditSheet: View {
     @State private var selectedPhotoItem: PhotosPickerItem?
     @State private var isSavingPhoto = false
     @State private var imageToCrop: UIImage?
+    @State private var showCamera = false
     @State private var savedCount = 0
     @FocusState private var focusedField: Field?
 
@@ -93,6 +94,19 @@ struct ProfileEditSheet: View {
                     onCancel: { imageToCrop = nil }
                 )
             }
+            .fullScreenCover(isPresented: $showCamera) {
+                ProfilePhotoCamera { photo in
+                    showCamera = false
+                    // The cropper opens once the camera is gone.
+                    if let photo {
+                        Task {
+                            try? await Task.sleep(for: .milliseconds(450))
+                            imageToCrop = photo
+                        }
+                    }
+                }
+                .ignoresSafeArea()
+            }
             .sensoryFeedback(.success, trigger: savedCount)
         }
         .preferredColorScheme(.dark)
@@ -118,30 +132,29 @@ struct ProfileEditSheet: View {
                 }
             }
 
+            // From Fotky or a photo right now; either goes through the cropper.
             HStack(spacing: 10) {
                 PhotosPicker(selection: $selectedPhotoItem, matching: .images) {
-                    Label(isSavingPhoto ? "Ukladám…" : "Zmeniť fotku", systemImage: "photo.on.rectangle")
-                        .font(.footnote.weight(.bold))
-                        .foregroundColor(Color.gold400)
-                        .padding(.horizontal, 16)
-                        .frame(minHeight: 40)
-                        .background(Color.gold500.opacity(0.14), in: Capsule())
+                    photoAction(isSavingPhoto ? "Ukladám…" : "Z Fotiek", icon: "photo.on.rectangle")
                 }
                 .buttonStyle(.pressable)
                 .disabled(isSavingPhoto)
 
-                if let path = profileStore.currentAvatarPath,
-                   let current = MediaResolver.resolveImage(path: path) {
-                    Button { imageToCrop = current } label: {
-                        Label("Upraviť výrez", systemImage: "crop")
-                            .font(.footnote.weight(.bold))
-                            .foregroundColor(Color.gold400)
-                            .padding(.horizontal, 16)
-                            .frame(minHeight: 40)
-                            .background(Color.gold500.opacity(0.14), in: Capsule())
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    Button { showCamera = true } label: {
+                        photoAction("Odfotiť", icon: "camera.fill")
                     }
                     .buttonStyle(.pressable)
+                    .disabled(isSavingPhoto)
                 }
+            }
+
+            if let path = profileStore.currentAvatarPath,
+               let current = MediaResolver.resolveImage(path: path) {
+                Button { imageToCrop = current } label: {
+                    photoAction("Upraviť výrez", icon: "crop")
+                }
+                .buttonStyle(.pressable)
             }
 
             if profileStore.currentAvatarPath != nil {
@@ -156,6 +169,15 @@ struct ProfileEditSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
+    }
+
+    private func photoAction(_ title: String, icon: String) -> some View {
+        Label(title, systemImage: icon)
+            .font(.footnote.weight(.bold))
+            .foregroundColor(Color.gold400)
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .background(Color.gold500.opacity(0.14), in: Capsule())
     }
 
     // MARK: Actions
@@ -487,6 +509,41 @@ struct AvatarCropperSheet: View {
                 width: displayedW * ratio,
                 height: displayedH * ratio
             ))
+        }
+    }
+}
+
+// MARK: - Profile photo camera
+/// The system photo camera, front lens first for a selfie; `done` gets the photo, or nil when cancelled.
+private struct ProfilePhotoCamera: UIViewControllerRepresentable {
+    let done: (UIImage?) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .camera
+        picker.cameraCaptureMode = .photo
+        if UIImagePickerController.isCameraDeviceAvailable(.front) { picker.cameraDevice = .front }
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator { Coordinator(done: done) }
+
+    final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let done: (UIImage?) -> Void
+
+        init(done: @escaping (UIImage?) -> Void) {
+            self.done = done
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            done(info[.originalImage] as? UIImage)
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            done(nil)
         }
     }
 }
