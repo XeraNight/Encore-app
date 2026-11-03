@@ -14,6 +14,8 @@ extension Color {
     static let encoreCrimsonLight = Color(red: 154/255, green: 13/255, blue: 31/255)  // #9A0D1F Bright Crimson
     static let encoreBurgundy     = Color(red: 82/255, green: 2/255, blue: 13/255)    // #52020D Deep Burgundy Shadow
     static let encoreGold         = Color(red: 220/255, green: 165/255, blue: 30/255) // #DCA51E Satin Gold
+    /// The Lock Screen Live Activity's red (the widget's `ActivityStyle.tint`), at 50 % under Liquid Glass.
+    static let activityRed        = Color(red: 138/255, green: 16/255, blue: 34/255)  // #8A1022
     
     // MARK: - Theme Aliases (Dark Obsidian Luxury Default)
     static let themeBg = Color(red: 5/255, green: 5/255, blue: 5/255)                 // #050505 Pure Obsidian

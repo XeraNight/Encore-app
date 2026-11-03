@@ -16,10 +16,17 @@ enum CountdownDuration: Int, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .off: return "Vypnuté"
-        case .threeSeconds: return "3s"
-        case .fiveSeconds: return "5s"
-        case .tenSeconds: return "10s"
+        case .threeSeconds: return "3 s"
+        case .fiveSeconds: return "5 s"
+        case .tenSeconds: return "10 s"
         }
+    }
+
+    /// The timer chip steps Vypnuté → 3 s → 5 s → 10 s → Vypnuté, like the system camera.
+    var next: CountdownDuration {
+        let all = Self.allCases
+        let index = all.firstIndex(of: self) ?? 0
+        return all[(index + 1) % all.count]
     }
 }
 
@@ -33,9 +40,9 @@ enum CameraZoomFactor: Double, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .wide: return "0.5x"
-        case .standard: return "1x"
-        case .telephoto: return "2x"
+        case .wide: return "0,5×"
+        case .standard: return "1×"
+        case .telephoto: return "2×"
         }
     }
 }
@@ -59,6 +66,7 @@ struct DanceCameraView: View {
     @State private var level = HorizonLevel()
 
     @State private var bookmarkToastText: String? = nil
+    @State private var focusMark: FocusMark? = nil
     @State private var showGridAndLevel: Bool = true
 
     // Ghost / Onion Skinning
@@ -71,16 +79,26 @@ struct DanceCameraView: View {
     @State private var showSaveDetailsSheet: Bool = false
     @State private var showTrimmerSheet: Bool = false
     @State private var showFullMetronomeSheet: Bool = false
+    @State private var showMetronomeTray: Bool = false
+
+    @Namespace private var zoomSelection
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            CameraPreviewRepresentable(session: camera.session)
-                .ignoresSafeArea()
-                .onTapGesture { location in
-                    camera.focus(at: location)
-                }
+            CameraPreviewRepresentable(session: camera.session) { devicePoint, screenPoint in
+                camera.focus(at: devicePoint)
+                focusMark = FocusMark(point: screenPoint)
+            }
+            .ignoresSafeArea()
+            
+            if let focusMark {
+                CameraFocusSquare(mark: focusMark)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+            }
 
             if showGhostOverlay, let player = ghostPlayer {
                 GhostPlayerRepresentable(player: player)
@@ -111,20 +129,15 @@ struct DanceCameraView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "bookmark.fill")
                             .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(Color(red: 0.98, green: 0.88, blue: 0.20))
+                            .foregroundColor(Color.amberGold)
                         Text(toast)
                             .font(.system(size: 13, weight: .bold))
                             .foregroundColor(.white)
                     }
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 9)
-                    .background(Color.black.opacity(0.88))
-                    .cornerRadius(20)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 20)
-                            .stroke(Color(red: 0.98, green: 0.88, blue: 0.20).opacity(0.5), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.6), radius: 10, x: 0, y: 4)
+                    .padding(.vertical, 10)
+                    .cameraGlass(in: Capsule())
+                    .overlay(Capsule().stroke(Color.amberGold.opacity(0.45), lineWidth: 1))
                     .transition(.move(edge: .top).combined(with: .opacity))
 
                     Spacer()
@@ -133,38 +146,30 @@ struct DanceCameraView: View {
                 .zIndex(100)
             }
 
+            // Top: only the recording clock. Everything else is in one glass deck in the thumb's reach.
             VStack(spacing: 0) {
-                topHeaderBar
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-
-                Spacer()
-
-                VStack(spacing: 8) {
-                    CameraMetronomeStatusPill(isRecording: camera.isRecording)
-                    actionControlStrip
+                if camera.isRecording {
+                    CameraRecordingPill(camera: camera)
+                        .padding(.top, 8)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 6)
-
+                
+                Spacer()
+                
+                CameraMetronomeStatusPill(isRecording: camera.isRecording)
+                    .padding(.bottom, 10)
+                
                 if showGhostOverlay && ghostVideoPath != nil {
                     ghostControlsBar
                         .padding(.horizontal, 24)
-                        .padding(.bottom, 6)
+                        .padding(.bottom, 10)
                 }
-
-                if camera.isRecording {
-                    CameraRecordingPill(camera: camera)
-                        .padding(.bottom, 8)
-                }
-
-                zoomSwitcherBar
-                    .padding(.bottom, 12)
-
-                bottomControlsDeck
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 28)
+                
+                controlDeck
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
             }
+            .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: camera.isRecording)
         }
         .statusBarHidden()
         // The Lock Screen's recording buttons (RecordingLiveActivityIntent runs in the app).
@@ -264,100 +269,87 @@ struct DanceCameraView: View {
         }
     }
 
-    // MARK: - Top Header Bar (Safe from Dynamic Island)
-    private var topHeaderBar: some View {
-        HStack {
-            Button {
-                dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 42, height: 42)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
+    // MARK: - Control deck
+    /// The chips, the zoom and the shutter row in one glass panel; while recording only the shutter stays, so
+    /// the picture is clear and nothing closes the camera mid-take.
+    private var controlDeck: some View {
+        VStack(spacing: 14) {
+            if !camera.isRecording {
+                if showMetronomeTray {
+                    CameraMetronomeTray { showFullMetronomeSheet = true }
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                chipRow
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                zoomPicker
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
             }
-
-            Spacer()
-
-            Button {
-                camera.toggleTorch()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            } label: {
-                Image(systemName: camera.isTorchOn ? "bolt.fill" : "bolt.slash.fill")
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(camera.isTorchOn ? Color.amberGold : .white)
-                    .frame(width: 42, height: 42)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(camera.isTorchOn ? Color.amberGold : Color.white.opacity(0.18), lineWidth: 1))
-            }
+            shutterRow
+        }
+        .padding(.horizontal, 10)
+        .padding(.top, 12)
+        .padding(.bottom, 14)
+        .frame(maxWidth: .infinity)
+        .cameraGlass(in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+    }
+    
+    /// One row of chips: with names when they fit, icons only on a narrower iPhone, scrolling as the last resort.
+    private var chipRow: some View {
+        ViewThatFits(in: .horizontal) {
+            chips(named: true)
+            chips(named: false)
+            ScrollView(.horizontal, showsIndicators: false) { chips(named: false) }
         }
     }
-
-    // MARK: - Action Control Strip
-    private var actionControlStrip: some View {
+    
+    private func chips(named: Bool) -> some View {
         HStack(spacing: 8) {
-            CameraMetronomeChip { showFullMetronomeSheet = true }
-
+            CameraMetronomeChip(isOpen: showMetronomeTray) {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)) {
+                    showMetronomeTray.toggle()
+                }
+            }
+            
             Button {
                 showGridAndLevel.toggle()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
             } label: {
                 HStack(spacing: 5) {
-                    Image(systemName: showGridAndLevel ? "grid" : "grid.slash")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Mriežka")
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                    Image(systemName: "grid")
+                    if named { Text("Mriežka") }
                 }
-                .foregroundColor(showGridAndLevel ? Color.amberGold : .white.opacity(0.85))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(showGridAndLevel ? Color.amberGold.opacity(0.24) : Color.black.opacity(0.68))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(showGridAndLevel ? Color.amberGold : Color.white.opacity(0.22), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
+                .cameraChip(isOn: showGridAndLevel)
             }
-
-            Menu {
-                ForEach(CountdownDuration.allCases) { duration in
-                    Button {
-                        camera.countdown = duration
-                    } label: {
-                        HStack {
-                            Text(duration.title)
-                            if camera.countdown == duration {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
+            .accessibilityLabel(showGridAndLevel ? "Skryť mriežku a vodováhu" : "Ukázať mriežku a vodováhu")
+            .buttonStyle(.pressable)
+            .sensoryFeedback(.selection, trigger: showGridAndLevel)
+            
+            Button {
+                camera.countdown = camera.countdown.next
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "timer")
-                        .font(.system(size: 13, weight: .bold))
-                    Text(camera.countdown == .off ? "Spúšť" : camera.countdown.title)
-                        .font(.system(size: 13, weight: .bold, design: .rounded))
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 9, weight: .black))
-                        .opacity(0.65)
+                    if camera.countdown != .off {
+                        Text(camera.countdown.title)
+                            .contentTransition(.numericText())
+                    } else if named {
+                        Text("Spúšť")
+                    }
                 }
-                .foregroundColor(camera.countdown != .off ? Color.amberGold : .white.opacity(0.85))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(camera.countdown != .off ? Color.amberGold.opacity(0.24) : Color.black.opacity(0.68))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(camera.countdown != .off ? Color.amberGold : Color.white.opacity(0.22), lineWidth: 1)
-                )
-                .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
+                .cameraChip(isOn: camera.countdown != .off)
             }
-
+            .buttonStyle(.pressable)
+            .sensoryFeedback(.selection, trigger: camera.countdown)
+            .accessibilityLabel("Samospúšť: \(camera.countdown.title)")
+            
+            Button(action: camera.toggleTorch) {
+                Image(systemName: camera.isTorchOn ? "flashlight.on.fill" : "flashlight.off.fill")
+                    .contentTransition(.symbolEffect(.replace))
+                    .cameraChip(isOn: camera.isTorchOn)
+            }
+            .buttonStyle(.pressable)
+            .sensoryFeedback(.impact(weight: .light), trigger: camera.isTorchOn)
+            .accessibilityLabel(camera.isTorchOn ? "Vypnúť svetlo" : "Zapnúť svetlo")
+            
             if ghostVideoPath != nil {
                 Button {
                     showGhostOverlay.toggle()
@@ -367,27 +359,16 @@ struct DanceCameraView: View {
                         ghostPlayer?.pause()
                     }
                 } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "person.2.wave.2.fill")
-                            .font(.system(size: 13, weight: .bold))
-                        Text("Ghost")
-                            .font(.system(size: 13, weight: .bold, design: .rounded))
-                    }
-                    .foregroundColor(showGhostOverlay ? Color.amberGold : .white.opacity(0.85))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(showGhostOverlay ? Color.amberGold.opacity(0.24) : Color.black.opacity(0.68))
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule()
-                            .stroke(showGhostOverlay ? Color.amberGold : Color.white.opacity(0.22), lineWidth: 1)
-                    )
-                    .shadow(color: Color.black.opacity(0.4), radius: 6, y: 2)
+                    Image(systemName: "person.2.wave.2.fill")
+                        .cameraChip(isOn: showGhostOverlay)
                 }
+                .buttonStyle(.pressable)
+                .sensoryFeedback(.selection, trigger: showGhostOverlay)
+                .accessibilityLabel(showGhostOverlay ? "Skryť porovnávacie video" : "Ukázať porovnávacie video")
             }
         }
     }
-
+    
     // MARK: - Ghost Controls Bar
     private var ghostControlsBar: some View {
         HStack(spacing: 12) {
@@ -403,95 +384,113 @@ struct DanceCameraView: View {
                 .foregroundColor(.white)
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, 7)
-        .background(Color.black.opacity(0.65))
-        .cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.15), lineWidth: 1))
+        .padding(.vertical, 8)
+        .cameraGlass(in: Capsule())
     }
 
-    // MARK: - Zoom Switcher Bar (0.5x, 1x, 2x)
-    private var zoomSwitcherBar: some View {
-        HStack(spacing: 6) {
+    // MARK: - Zoom
+    /// The gold fill slides to the chosen zoom (BRAND_GUIDELINES §1A mode switcher).
+    private var zoomPicker: some View {
+        HStack(spacing: 4) {
             ForEach(CameraZoomFactor.allCases) { zoom in
                 Button {
-                    camera.setZoom(zoom)
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
+                        camera.setZoom(zoom)
+                    }
                 } label: {
                     Text(zoom.label)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(camera.zoom == zoom ? Color.black : Color.white)
-                        .frame(width: 44, height: 32)
-                        .background(camera.zoom == zoom ? Color.amberGold : Color.clear)
-                        .clipShape(Capsule())
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(camera.zoom == zoom ? Color.obsidian900 : .white)
+                        .frame(width: 56, height: 36)
+                        .background {
+                            if camera.zoom == zoom {
+                                Capsule()
+                                    .fill(Color.amberGold)
+                                    .matchedGeometryEffect(id: "zoom", in: zoomSelection)
+                            }
+                        }
+                        .contentShape(Capsule())
                 }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Priblíženie \(zoom.label)")
             }
         }
         .padding(4)
-        .background(Color.black.opacity(0.6))
-        .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
+        .background(Color.white.opacity(0.12), in: Capsule())
+        .sensoryFeedback(.selection, trigger: camera.zoom)
     }
-
-    // MARK: - Bottom Controls Deck
-    private var bottomControlsDeck: some View {
+    
+    // MARK: - Shutter row
+    /// Close, shutter, flip. While recording only the shutter, so a take is never lost to a stray tap.
+    private var shutterRow: some View {
         HStack {
-            Color.clear
-                .frame(width: 52, height: 52)
-
+            if camera.isRecording {
+                Color.clear.frame(width: 48, height: 48)
+            } else {
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 48, height: 48)
+                        .background(Color.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Zavrieť kameru")
+            }
+            
             Spacer()
-
+            
             Button(action: camera.shutter) {
                 ZStack {
                     Circle()
                         .stroke(Color.white, lineWidth: 4)
                         .frame(width: 76, height: 76)
-
-                    if camera.isRecording {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.red)
-                            .frame(width: 32, height: 32)
-                    } else if camera.isCountingDown {
-                        Circle()
-                            .fill(Color.amberGold)
-                            .frame(width: 62, height: 62)
-                    } else {
-                        Circle()
-                            .fill(Color.red)
-                            .frame(width: 62, height: 62)
-                    }
+                    // The red circle becomes a stop square, the way the system camera does it.
+                    RoundedRectangle(cornerRadius: camera.isRecording ? 8 : 31, style: .continuous)
+                        .fill(camera.isCountingDown ? Color.amberGold : Color.red)
+                        .frame(width: camera.isRecording ? 32 : 62, height: camera.isRecording ? 32 : 62)
                 }
+                .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.7), value: camera.isRecording)
             }
-
+            .buttonStyle(.pressable(scale: 0.92))
+            .sensoryFeedback(.impact(weight: .medium), trigger: camera.isRecording)
+            .accessibilityLabel(camera.isRecording ? "Zastaviť nahrávanie" : (camera.isCountingDown ? "Zrušiť odpočet" : "Nahrávať"))
+            
             Spacer()
-
-            // Front camera records mirrored, like a dance-studio mirror.
-            Button {
-                camera.flipCamera()
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            } label: {
-                Image(systemName: "camera.rotate.fill")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: 52, height: 52)
-                    .background(Color.black.opacity(0.6))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.18), lineWidth: 1))
+            
+            if camera.isRecording {
+                Color.clear.frame(width: 48, height: 48)
+            } else {
+                // The front camera records mirrored, like a dance-studio mirror.
+                Button(action: camera.flipCamera) {
+                    Image(systemName: "arrow.triangle.2.circlepath.camera.fill")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(.white)
+                        .symbolEffect(.rotate, value: camera.isFront)
+                        .frame(width: 48, height: 48)
+                        .background(Color.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.pressable)
+                .disabled(camera.isCountingDown)
+                .sensoryFeedback(.impact(weight: .medium), trigger: camera.isFront)
+                .accessibilityLabel("Otočiť kameru")
             }
-            .disabled(camera.isRecording || camera.isCountingDown)
         }
     }
-
+    
     // MARK: - Bookmark from the Lock Screen
     private func saveInstantMemoryBookmark() {
         let metronome = DanceMetronomeEngine.shared
         let durationString = DanceCameraModel.clockText(camera.recordingDuration)
-        let danceName = metronome.selectedPreset != .off ? "\(metronome.selectedPreset.shortCode) Tréning" : "Dance Training Hall 4"
-        modelContext.insert(InstantNote(text: "Značka \(durationString) – \(danceName)"))
+        let text = metronome.selectedPreset != .off
+            ? "Značka \(durationString) – \(metronome.selectedPreset.shortCode) tréning"
+            : "Značka v nahrávke \(durationString)"
+        modelContext.insert(InstantNote(text: text))
         try? modelContext.save()
 
         UINotificationFeedbackGenerator().notificationOccurred(.success)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-            bookmarkToastText = "Značka [\(durationString)] uložená do Instant Memory"
+            bookmarkToastText = "Značka \(durationString) je v Denníku"
         }
         Task {
             try? await Task.sleep(for: .seconds(2.2))

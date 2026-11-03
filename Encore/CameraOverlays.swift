@@ -241,17 +241,41 @@ struct FlowLayout: Layout {
 }
 
 // MARK: - AVCapture Video Preview Layer Representable
+/// The live picture. A tap focuses there: the preview layer turns the tap into the camera's own coordinates
+/// (0 to 1, rotated and cropped like the picture), which a point on the screen is not.
 struct CameraPreviewRepresentable: UIViewRepresentable {
     let session: AVCaptureSession
-    
+    /// The tap in the camera's coordinates, and where it is on the screen (for the focus square).
+    var onFocus: (_ devicePoint: CGPoint, _ screenPoint: CGPoint) -> Void = { _, _ in }
+
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        // A UIKit tap on the preview alone: a SwiftUI tap gesture across the screen took the menus' taps.
+        view.addGestureRecognizer(UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:))))
         return view
     }
-    
-    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {}
+
+    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
+        context.coordinator.onFocus = onFocus
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(onFocus: onFocus) }
+
+    final class Coordinator: NSObject {
+        var onFocus: (CGPoint, CGPoint) -> Void
+
+        init(onFocus: @escaping (CGPoint, CGPoint) -> Void) {
+            self.onFocus = onFocus
+        }
+
+        @objc func tapped(_ gesture: UITapGestureRecognizer) {
+            guard let view = gesture.view as? CameraPreviewUIView else { return }
+            let point = gesture.location(in: view)
+            onFocus(view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point), point)
+        }
+    }
 }
 
 class CameraPreviewUIView: UIView {

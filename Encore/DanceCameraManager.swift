@@ -22,6 +22,7 @@ actor CaptureService {
     private var videoInput: AVCaptureDeviceInput?
     private var isConfigured = false
     private var recordingDelegate: RecordingDelegate?
+    private var subjectAreaWatch: Task<Void, Never>?
 
     func start() {
         configureAudioSession()
@@ -97,15 +98,55 @@ actor CaptureService {
         }
     }
 
+    /// Focuses and exposes where the dancer tapped (a point in the camera's own 0–1 coordinates). When the
+    /// scene changes, the camera goes back to following the whole picture by itself.
     func focus(at point: CGPoint) {
-        guard let device = videoInput?.device, device.isFocusPointOfInterestSupported else { return }
+        guard let device = videoInput?.device else { return }
         do {
             try device.lockForConfiguration()
-            device.focusPointOfInterest = point
-            device.focusMode = .autoFocus
+            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.autoFocus) {
+                device.focusPointOfInterest = point
+                device.focusMode = .autoFocus
+            }
+            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.autoExpose) {
+                device.exposurePointOfInterest = point
+                device.exposureMode = .autoExpose
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = true
             device.unlockForConfiguration()
         } catch {
             Logger.camera.error("Focus failed: \(error.localizedDescription, privacy: .public)")
+        }
+        watchSubjectArea(of: device)
+    }
+
+    /// After a tap the focus holds until the picture changes (the couple moves away); then it follows again.
+    private func watchSubjectArea(of device: AVCaptureDevice) {
+        subjectAreaWatch?.cancel()
+        subjectAreaWatch = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: AVCaptureDevice.subjectAreaDidChangeNotification, object: device) {
+                await self?.followWholePicture(device)
+                return
+            }
+        }
+    }
+
+    private func followWholePicture(_ device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            let center = CGPoint(x: 0.5, y: 0.5)
+            if device.isFocusPointOfInterestSupported, device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusPointOfInterest = center
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isExposurePointOfInterestSupported, device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposurePointOfInterest = center
+                device.exposureMode = .continuousAutoExposure
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = false
+            device.unlockForConfiguration()
+        } catch {
+            Logger.camera.error("Resetting focus failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -343,7 +384,8 @@ private enum RecordingActivity {
         let on = metronome.selectedPreset != .off
         return RecordingActivityAttributes.ContentState(
             startDate: Date().addingTimeInterval(-Double(elapsed)),
-            sessionTitle: on ? "\(metronome.selectedPreset.shortCode) Tréning" : "Dance Training Hall 4",
+            // Empty: the Lock Screen says "Nahrávam".
+            sessionTitle: on ? "\(metronome.selectedPreset.shortCode) tréning" : "",
             metronomeName: on ? metronome.selectedPreset.shortCode : "",
             bpm: metronome.effectiveBpm,
             beatsPerMeasure: on ? metronome.beatsPerMeasure : 0,
