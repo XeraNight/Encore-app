@@ -1,244 +1,358 @@
-import Foundation
-import Combine
+import AudioToolbox
 import AVFoundation
-import CoreMotion
-import SwiftUI
+import Combine
+import Foundation
+import Observation
 import OSLog
+import UIKit
+#if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+import ActivityKit
+#endif
 
-// MARK: - Dance Camera Manager (AVFoundation + CoreMotion)
-final class DanceCameraManager: NSObject, ObservableObject, @unchecked Sendable, AVCaptureFileOutputRecordingDelegate {
-    let session = AVCaptureSession()
+// MARK: - Capture pipeline
+/// The camera pipeline: session, lens, focus, zoom, torch and recording. An actor whose executor is the session
+/// queue, so no AVFoundation call runs on the main thread (as in Apple's AVCam).
+actor CaptureService {
+    /// The preview layer shows this session; only the actor configures it.
+    nonisolated let session = AVCaptureSession()
+    private let queue = DispatchSerialQueue(label: "com.encore.camera.session")
+    nonisolated var unownedExecutor: UnownedSerialExecutor { queue.asUnownedSerialExecutor() }
+
     private let movieOutput = AVCaptureMovieFileOutput()
-    private var videoDeviceInput: AVCaptureDeviceInput?
-    private let sessionQueue = DispatchQueue(label: "com.encore.camera.sessionQueue")
-    
-    // State
-    @Published var isRecording: Bool = false
-    @Published var recordingDuration: Int = 0
-    @Published var recordedVideoURL: URL? = nil
-    @Published var audioLevel: Float = 0.0
-    
-    // CoreMotion Gyroscope Level State (Funkcia 2)
-    @Published var deviceRollAngle: Double = 0.0
-    @Published var isDeviceLevel: Bool = false
-    @Published var isDeviceFlat: Bool = false
-    @Published var flatOffset: CGPoint = .zero
-    private var wasLevelBefore: Bool = false
-    private let motionManager = CMMotionManager()
-    
-    private var isConfigured: Bool = false
-    private var durationTimer: Timer? = nil
-    
-    override init() {
-        super.init()
-    }
-    
+    private var videoInput: AVCaptureDeviceInput?
+    private var isConfigured = false
+    private var recordingDelegate: RecordingDelegate?
+
     func start() {
-        // Pre-configure unified audio session BEFORE camera session starts
-        // This eliminates category conflict (err=-19224 / err=-17281) with simultaneous metronome audio
+        configureAudioSession()
+        if !isConfigured {
+            configure()
+            isConfigured = true
+        }
+        if !session.isRunning { session.startRunning() }
+    }
+
+    func stop() {
+        if session.isRunning { session.stopRunning() }
+    }
+
+    /// One audio session for the camera and the metronome, set before the camera starts, so the two never fight
+    /// over the category (err -19224 / -17281).
+    private func configureAudioSession() {
         do {
-            let audioSession = AVAudioSession.sharedInstance()
-            try audioSession.setCategory(
+            let audio = AVAudioSession.sharedInstance()
+            try audio.setCategory(
                 .playAndRecord,
                 mode: .videoRecording,
                 options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
             )
-            try audioSession.setActive(true)
+            try audio.setActive(true)
         } catch {
-            Logger.camera.warning("AudioSession pre-configuration warning: \(error.localizedDescription)")
+            Logger.camera.warning("Audio session setup failed: \(error.localizedDescription, privacy: .public)")
         }
+    }
 
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            if !self.isConfigured {
-                self.setupSessionDirect()
-                self.isConfigured = true
-            }
-            if !self.session.isRunning {
-                self.session.startRunning()
-            }
-            DispatchQueue.main.async {
-                self.startMotionUpdates()
-            }
+    private func configure() {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        session.sessionPreset = .high
+        if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+           let input = try? AVCaptureDeviceInput(device: camera),
+           session.canAddInput(input) {
+            session.addInput(input)
+            videoInput = input
+        }
+        if let microphone = AVCaptureDevice.default(for: .audio),
+           let input = try? AVCaptureDeviceInput(device: microphone),
+           session.canAddInput(input) {
+            session.addInput(input)
+        }
+        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
+    }
+
+    func switchCamera(front: Bool) {
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        if let current = videoInput { session.removeInput(current) }
+        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back),
+              let input = try? AVCaptureDeviceInput(device: camera),
+              session.canAddInput(input) else { return }
+        session.addInput(input)
+        videoInput = input
+        // The front camera records mirrored, like a dance-studio mirror.
+        if let connection = movieOutput.connection(with: .video), connection.isVideoMirroringSupported {
+            connection.isVideoMirrored = front
         }
     }
-    
-    func stop() {
-        stopMotionUpdates()
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            if self.session.isRunning {
-                self.session.stopRunning()
-            }
-        }
-    }
-    
-    private func setupSessionDirect() {
-        self.session.beginConfiguration()
-        self.session.sessionPreset = .high
-        
-        // Video Input (Default back camera)
-        if let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
-           let input = try? AVCaptureDeviceInput(device: backCamera),
-           self.session.canAddInput(input) {
-            self.session.addInput(input)
-            self.videoDeviceInput = input
-        }
-        
-        // Audio Input (Microphone)
-        if let audioDevice = AVCaptureDevice.default(for: .audio),
-           let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
-           self.session.canAddInput(audioInput) {
-            self.session.addInput(audioInput)
-        }
-        
-        // Movie File Output (Čistý audio a video záznam bez konfliktných audio bufferov)
-        if self.session.canAddOutput(self.movieOutput) {
-            self.session.addOutput(self.movieOutput)
-        }
-        
-        self.session.commitConfiguration()
-    }
-    
-    func switchCamera(isFront: Bool) {
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            self.session.beginConfiguration()
-            
-            if let currentInput = self.videoDeviceInput {
-                self.session.removeInput(currentInput)
-            }
-            
-            let position: AVCaptureDevice.Position = isFront ? .front : .back
-            if let newCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-               let newInput = try? AVCaptureDeviceInput(device: newCamera),
-               self.session.canAddInput(newInput) {
-                self.session.addInput(newInput)
-                self.videoDeviceInput = newInput
-                
-                // Set mirroring for front camera (Funkcia 5)
-                if let connection = self.movieOutput.connection(with: .video) {
-                    if connection.isVideoMirroringSupported {
-                        connection.isVideoMirrored = isFront
-                    }
-                }
-            }
-            
-            self.session.commitConfiguration()
-        }
-    }
-    
+
     func setZoom(_ factor: Double) {
-        guard let device = videoDeviceInput?.device else { return }
+        guard let device = videoInput?.device else { return }
         do {
             try device.lockForConfiguration()
             let clamped = max(1.0, min(factor, device.activeFormat.videoMaxZoomFactor))
             device.ramp(toVideoZoomFactor: CGFloat(clamped), withRate: 4.0)
             device.unlockForConfiguration()
         } catch {
-            Logger.camera.error("Failed to set zoom: \(error.localizedDescription, privacy: .public)")
+            Logger.camera.error("Zoom failed: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
+
     func focus(at point: CGPoint) {
-        guard let device = videoDeviceInput?.device, device.isFocusPointOfInterestSupported else { return }
+        guard let device = videoInput?.device, device.isFocusPointOfInterestSupported else { return }
         do {
             try device.lockForConfiguration()
             device.focusPointOfInterest = point
             device.focusMode = .autoFocus
             device.unlockForConfiguration()
         } catch {
-            Logger.camera.error("Failed to focus: \(error.localizedDescription, privacy: .public)")
+            Logger.camera.error("Focus failed: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
-    func toggleTorch(on: Bool) {
-        guard let device = videoDeviceInput?.device, device.hasTorch else { return }
+
+    func setTorch(_ on: Bool) {
+        guard let device = videoInput?.device, device.hasTorch else { return }
         do {
             try device.lockForConfiguration()
             device.torchMode = on ? .on : .off
             device.unlockForConfiguration()
         } catch {
-            Logger.camera.error("Failed to toggle torch: \(error.localizedDescription, privacy: .public)")
+            Logger.camera.error("Torch failed: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
-    func startRecording() {
-        guard !isRecording else { return }
-        let tempURL = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("\(UUID().uuidString).mp4")
-        
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
-            self.movieOutput.startRecording(to: tempURL, recordingDelegate: self)
-            DispatchQueue.main.async {
-                self.isRecording = true
-                self.recordingDuration = 0
-                self.durationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-                    guard let self = self else { return }
-                    DispatchQueue.main.async {
-                        self.recordingDuration += 1
-                    }
-                }
-            }
+
+    /// Records to a temporary file; `finished` gets it when the recording stops, or nil when it failed.
+    func startRecording(finished: @escaping @Sendable (URL?) -> Void) {
+        guard !movieOutput.isRecording else { return }
+        let url = URL.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+        let delegate = RecordingDelegate(finished: finished)
+        recordingDelegate = delegate
+        movieOutput.startRecording(to: url, recordingDelegate: delegate)
+    }
+
+    func stopRecording() {
+        if movieOutput.isRecording { movieOutput.stopRecording() }
+    }
+}
+
+/// AVFoundation calls this on its own queue when a recording ends.
+nonisolated private final class RecordingDelegate: NSObject, AVCaptureFileOutputRecordingDelegate {
+    private let finished: @Sendable (URL?) -> Void
+
+    init(finished: @escaping @Sendable (URL?) -> Void) {
+        self.finished = finished
+    }
+
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        if let error {
+            Logger.camera.error("Recording failed: \(error.localizedDescription, privacy: .public)")
+        }
+        finished(error == nil ? outputFileURL : nil)
+    }
+}
+
+// MARK: - Camera screen state
+/// What the camera screen shows and does. Views read only the properties they draw (Observation), so the
+/// recording clock or a metronome beat never redraws the whole screen and a tap is never lost to a redraw.
+@Observable
+final class DanceCameraModel {
+    private(set) var isRecording = false
+    private(set) var recordingDuration = 0
+    private(set) var countdownRemaining = 0
+    var isCountingDown: Bool { countdownRemaining > 0 }
+    /// The finished take, until the screen picks it up.
+    var recordedVideoURL: URL?
+    var countdown: CountdownDuration = .off
+    private(set) var zoom: CameraZoomFactor = .standard
+    private(set) var isTorchOn = false
+    private(set) var isFront = false
+
+    @ObservationIgnored private let capture = CaptureService()
+    @ObservationIgnored private var clock: Task<Void, Never>?
+    @ObservationIgnored private var countdownTask: Task<Void, Never>?
+    @ObservationIgnored private var metronomeChanges: AnyCancellable?
+
+    nonisolated var session: AVCaptureSession { capture.session }
+
+    /// "01:05" for 65 seconds.
+    static func clockText(_ seconds: Int) -> String {
+        String(format: "%02d:%02d", seconds / 60, seconds % 60)
+    }
+
+    func start() {
+        Task { await capture.start() }
+    }
+
+    func stop() {
+        cancelCountdown()
+        clock?.cancel()
+        metronomeChanges = nil
+        RecordingActivity.end()
+        Task { await capture.stop() }
+    }
+
+    /// The shutter: stops a recording, cancels a countdown, or starts one (with the self-timer, after it).
+    func shutter() {
+        if isRecording {
+            stopRecording()
+        } else if isCountingDown {
+            cancelCountdown()
+        } else if countdown == .off {
+            startRecording()
+        } else {
+            startCountdown(seconds: countdown.rawValue)
         }
     }
-    
+
     func stopRecording() {
         guard isRecording else { return }
-        DispatchQueue.main.async { [weak self] in
-            self?.durationTimer?.invalidate()
-            self?.durationTimer = nil
-            self?.isRecording = false
-        }
-        
-        sessionQueue.async { [weak self] in
-            self?.movieOutput.stopRecording()
-        }
+        isRecording = false
+        clock?.cancel()
+        metronomeChanges = nil
+        RecordingActivity.end()
+        Task { await capture.stopRecording() }
     }
-    
-    // MARK: - AVCaptureFileOutputRecordingDelegate
-    nonisolated func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        if error == nil {
-            DispatchQueue.main.async {
-                self.recordedVideoURL = outputFileURL
+
+    func setZoom(_ factor: CameraZoomFactor) {
+        zoom = factor
+        Task { await capture.setZoom(factor.rawValue) }
+    }
+
+    func focus(at point: CGPoint) {
+        Task { await capture.focus(at: point) }
+    }
+
+    func toggleTorch() {
+        isTorchOn.toggle()
+        let on = isTorchOn
+        Task { await capture.setTorch(on) }
+    }
+
+    func flipCamera() {
+        isFront.toggle()
+        let front = isFront
+        Task { await capture.switchCamera(front: front) }
+    }
+
+    private func startRecording() {
+        isRecording = true
+        recordingDuration = 0
+        clock = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.recordingDuration += 1
+            }
+        }
+        RecordingActivity.start()
+        // The Lock Screen shows the tempo; it follows a change made while recording.
+        let metronome = DanceMetronomeEngine.shared
+        metronomeChanges = metronome.$selectedPreset.combineLatest(metronome.$tempoMultiplier)
+            .dropFirst()
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                RecordingActivity.update(elapsed: self.recordingDuration)
+            }
+        Task {
+            await capture.startRecording { url in
+                Task { @MainActor [weak self] in self?.recordedVideoURL = url }
             }
         }
     }
-    
-    // MARK: - CoreMotion Gyroscope Level (Apple Measure & Camera Style)
-    private func startMotionUpdates() {
-        guard motionManager.isDeviceMotionAvailable else { return }
-        motionManager.deviceMotionUpdateInterval = 0.05
-        motionManager.startDeviceMotionUpdates(to: .main) { [weak self] motion, _ in
-            guard let self = self, let motion = motion else { return }
-            let gx = motion.gravity.x
-            let gy = motion.gravity.y
-            let gz = motion.gravity.z
-            
-            // Check if phone is placed flat (like on a table or tripod pointing down)
-            let isFlat = abs(gz) > 0.85
-            
-            // Calculate 2D screen tilt angle relative to upright gravity
-            let angle = atan2(gx, -gy) * (180.0 / .pi)
-            let isLevel = abs(angle) < 0.8
-            
-            DispatchQueue.main.async {
-                self.deviceRollAngle = angle
-                self.isDeviceLevel = isLevel
-                self.isDeviceFlat = isFlat
-                self.flatOffset = CGPoint(x: gx * 35.0, y: -gy * 35.0)
-                
-                // Trigger subtle haptic snap on entering level
-                if isLevel && !self.wasLevelBefore {
-                    let gen = UIImpactFeedbackGenerator(style: .rigid)
-                    gen.impactOccurred()
+
+    private func startCountdown(seconds: Int) {
+        countdownRemaining = seconds
+        CameraSounds.tick()
+        countdownTask = Task { [weak self] in
+            while true {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                if self.countdownRemaining > 1 {
+                    self.countdownRemaining -= 1
+                    CameraSounds.tick()
+                } else {
+                    self.countdownRemaining = 0
+                    CameraSounds.start()
+                    self.startRecording()
+                    return
                 }
-                self.wasLevelBefore = isLevel
             }
         }
     }
-    
-    private func stopMotionUpdates() {
-        motionManager.stopDeviceMotionUpdates()
+
+    private func cancelCountdown() {
+        countdownTask?.cancel()
+        countdownTask = nil
+        countdownRemaining = 0
     }
+}
+
+/// The self-timer: the system camera's tick and start sounds, with a haptic.
+private enum CameraSounds {
+    static func tick() {
+        AudioServicesPlaySystemSound(1057)
+        UINotificationFeedbackGenerator().notificationOccurred(.warning)
+    }
+
+    static func start() {
+        AudioServicesPlaySystemSound(1117)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+    }
+}
+
+// MARK: - The recording on the Lock Screen and in the Dynamic Island
+private enum RecordingActivity {
+    #if canImport(ActivityKit) && !targetEnvironment(macCatalyst)
+    static func start() {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        let state = state(elapsed: 0)
+        Task {
+            for activity in Activity<RecordingActivityAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            do {
+                _ = try Activity.request(
+                    attributes: RecordingActivityAttributes(recordingName: "Tanečné nahrávanie"),
+                    content: .init(state: state, staleDate: nil, relevanceScore: 100),
+                    pushType: nil
+                )
+            } catch {
+                Logger.camera.error("Recording Live Activity failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    static func update(elapsed: Int) {
+        let state = state(elapsed: elapsed)
+        Task {
+            for activity in Activity<RecordingActivityAttributes>.activities {
+                await activity.update(.init(state: state, staleDate: nil, relevanceScore: 100))
+            }
+        }
+    }
+
+    static func end() {
+        Task {
+            for activity in Activity<RecordingActivityAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
+    }
+
+    private static func state(elapsed: Int) -> RecordingActivityAttributes.ContentState {
+        let metronome = DanceMetronomeEngine.shared
+        let on = metronome.selectedPreset != .off
+        return RecordingActivityAttributes.ContentState(
+            startDate: Date().addingTimeInterval(-Double(elapsed)),
+            sessionTitle: on ? "\(metronome.selectedPreset.shortCode) Tréning" : "Dance Training Hall 4",
+            metronomeName: on ? metronome.selectedPreset.shortCode : "",
+            bpm: metronome.effectiveBpm,
+            beatsPerMeasure: on ? metronome.beatsPerMeasure : 0,
+            audioLevel: 0
+        )
+    }
+    #else
+    static func start() {}
+    static func update(elapsed: Int) {}
+    static func end() {}
+    #endif
 }

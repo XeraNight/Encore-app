@@ -2,51 +2,16 @@ import SwiftUI
 import AVFoundation
 import AVKit
 
-// MARK: - Live Audio VU Meter (Funkcia 7)
-struct CameraVUMeterView: View {
-    let audioLevel: Float // 0.0 to 1.0
-    
-    var body: some View {
-        HStack(spacing: 2.5) {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 9))
-                .foregroundColor(.white.opacity(0.75))
-                .padding(.trailing, 2)
-            
-            ForEach(0..<8, id: \.self) { idx in
-                let threshold = Float(idx) / 8.0
-                Rectangle()
-                    .fill(barColor(for: idx, isActive: audioLevel > threshold))
-                    .frame(width: 3, height: 9 + CGFloat(idx))
-                    .cornerRadius(1)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(Color.black.opacity(0.65))
-        .cornerRadius(14)
-        .overlay(Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1))
-    }
-    
-    private func barColor(for index: Int, isActive: Bool) -> Color {
-        guard isActive else { return Color.white.opacity(0.18) }
-        if index < 5 {
-            return Color.green
-        } else if index < 7 {
-            return Color.amberGold
-        } else {
-            return Color.red
-        }
-    }
-}
-
 // MARK: - Grid & Gyroscope Level Overlay (Apple Camera & Measure Style)
 struct CameraGridAndLevelOverlay: View {
-    let tiltAngle: Double // in degrees
-    let isLevel: Bool
-    let isFlat: Bool
-    let flatOffset: CGPoint
-    
+    /// Read only here, so the level's readings redraw the overlay alone.
+    let level: HorizonLevel
+
+    private var tiltAngle: Double { level.rollAngle }
+    private var isLevel: Bool { level.isLevel }
+    private var isFlat: Bool { level.isFlat }
+    private var flatOffset: CGPoint { level.flatOffset }
+
     var body: some View {
         ZStack {
             // 3x3 Composition Grid
