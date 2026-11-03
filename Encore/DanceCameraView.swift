@@ -45,6 +45,13 @@ enum CameraZoomFactor: Double, CaseIterable, Identifiable {
         case .telephoto: return "2×"
         }
     }
+
+    /// "1,7×" during a pinch, "2×" on a whole number.
+    static func text(_ zoom: Double) -> String {
+        let rounded = (zoom * 10).rounded() / 10
+        let number = rounded == rounded.rounded() ? String(Int(rounded)) : String(format: "%.1f", rounded).replacingOccurrences(of: ".", with: ",")
+        return number + "×"
+    }
 }
 
 // MARK: - DanceCameraView
@@ -88,9 +95,11 @@ struct DanceCameraView: View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            CameraPreviewRepresentable(session: camera.session) { devicePoint, screenPoint in
-                camera.focus(at: devicePoint)
-                focusMark = FocusMark(point: screenPoint)
+            CameraPreviewRepresentable(session: camera.session) { devicePoint, screenPoint, lock in
+                camera.focus(at: devicePoint, lock: lock)
+                focusMark = FocusMark(point: screenPoint, isLock: lock)
+            } onPinch: { began, scale in
+                began ? camera.pinchBegan() : camera.pinchChanged(scale: scale)
             }
             .ignoresSafeArea()
             
@@ -262,7 +271,7 @@ struct DanceCameraView: View {
             }
         }
         do {
-            onRecordComplete(try MediaStorageManager.moveIntoDocuments(from: url, fileExtension: "mp4"))
+            onRecordComplete(try MediaStorageManager.moveIntoDocuments(from: url, fileExtension: "mov"))
             dismiss()
         } catch {
             Logger.camera.error("Saving the clip failed: \(error.localizedDescription, privacy: .public)")
@@ -389,21 +398,25 @@ struct DanceCameraView: View {
     }
 
     // MARK: - Zoom
-    /// The gold fill slides to the chosen zoom (BRAND_GUIDELINES §1A mode switcher).
+    /// The gold fill slides to the nearest zoom (BRAND_GUIDELINES §1A mode switcher); during a pinch it shows the
+    /// exact value, like the system camera.
     private var zoomPicker: some View {
-        HStack(spacing: 4) {
-            ForEach(CameraZoomFactor.allCases) { zoom in
+        let presets = CameraZoomFactor.allCases.filter { $0 != .wide || camera.hasUltraWide }
+        let nearest = presets.min { abs($0.rawValue - camera.zoom) < abs($1.rawValue - camera.zoom) } ?? .standard
+        return HStack(spacing: 4) {
+            ForEach(presets) { zoom in
                 Button {
                     withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
                         camera.setZoom(zoom)
                     }
                 } label: {
-                    Text(zoom.label)
+                    Text(zoom == nearest ? CameraZoomFactor.text(camera.zoom) : zoom.label)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(camera.zoom == zoom ? Color.obsidian900 : .white)
+                        .foregroundStyle(zoom == nearest ? Color.obsidian900 : .white)
+                        .contentTransition(.numericText())
                         .frame(width: 56, height: 36)
                         .background {
-                            if camera.zoom == zoom {
+                            if zoom == nearest {
                                 Capsule()
                                     .fill(Color.amberGold)
                                     .matchedGeometryEffect(id: "zoom", in: zoomSelection)
@@ -417,7 +430,8 @@ struct DanceCameraView: View {
         }
         .padding(4)
         .background(Color.white.opacity(0.12), in: Capsule())
-        .sensoryFeedback(.selection, trigger: camera.zoom)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: nearest)
+        .sensoryFeedback(.selection, trigger: nearest)
     }
     
     // MARK: - Shutter row

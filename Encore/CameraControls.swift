@@ -224,6 +224,8 @@ struct CameraBeatFlash: View {
 struct FocusMark: Equatable {
     let id = UUID()
     let point: CGPoint
+    /// A long press: focus and exposure stay put until the next tap.
+    var isLock = false
 }
 
 /// The gold focus square: lands a little big, settles with a spring, then fades.
@@ -238,14 +240,28 @@ struct CameraFocusSquare: View {
             .stroke(Color.amberGold, lineWidth: 1.5)
             .frame(width: 76, height: 76)
             .scaleEffect(settled || reduceMotion ? 1 : 1.35)
+            .overlay(alignment: .top) {
+                if mark.isLock {
+                    Text("ZÁMOK ZAOSTRENIA")
+                        .font(.system(size: 10, weight: .black, design: .rounded))
+                        .tracking(1)
+                        .foregroundStyle(Color.obsidian900)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(Color.amberGold, in: Capsule())
+                        .fixedSize()
+                        .offset(y: -26)
+                }
+            }
             .opacity(visible ? 1 : 0)
             .position(mark.point)
-            .sensoryFeedback(.impact(weight: .light), trigger: mark.id)
+            .sensoryFeedback(.impact(weight: mark.isLock ? .heavy : .light), trigger: mark.id)
             .task(id: mark.id) {
                 settled = false
                 visible = true
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { settled = true }
-                try? await Task.sleep(for: .seconds(1.2))
+                // A lock stays on screen a while longer, so it is read.
+                try? await Task.sleep(for: .seconds(mark.isLock ? 2.5 : 1.2))
                 withAnimation(.easeOut(duration: 0.3)) { visible = false }
             }
     }

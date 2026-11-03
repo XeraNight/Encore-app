@@ -8,6 +8,7 @@ struct CameraGridAndLevelOverlay: View {
     let level: HorizonLevel
 
     private var tiltAngle: Double { level.rollAngle }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private var isLevel: Bool { level.isLevel }
     private var isFlat: Bool { level.isFlat }
     private var flatOffset: CGPoint { level.flatOffset }
@@ -48,7 +49,9 @@ struct CameraGridAndLevelOverlay: View {
                             .fill(Color.white.opacity(0.35))
                             .frame(width: 24, height: 1.5)
                     }
-                    
+                    // Along the edge the phone is held by, upright or on its side.
+                    .rotationEffect(.degrees(-level.reference))
+
                     // Dynamic Rotating Horizon Line
                     HStack(spacing: 8) {
                         Rectangle()
@@ -71,7 +74,8 @@ struct CameraGridAndLevelOverlay: View {
                         Spacer()
                             .frame(height: 52)
                         
-                        Text(isLevel ? "0°" : String(format: "%+.1f°", -tiltAngle))
+                        // Turned with the phone, so it reads the right way up on its side too.
+                        Text(isLevel ? "0°" : HorizonLevel.text(-level.tilt))
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundColor(isLevel ? .black : .white)
                             .padding(.horizontal, 6)
@@ -80,6 +84,8 @@ struct CameraGridAndLevelOverlay: View {
                             .cornerRadius(6)
                             .animation(.easeInOut(duration: 0.2), value: isLevel)
                     }
+                    .rotationEffect(.degrees(-level.reference))
+                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.8), value: level.reference)
                 }
             } else {
                 // Flat Table / Bullseye Measure Mode
@@ -241,39 +247,63 @@ struct FlowLayout: Layout {
 }
 
 // MARK: - AVCapture Video Preview Layer Representable
-/// The live picture. A tap focuses there: the preview layer turns the tap into the camera's own coordinates
-/// (0 to 1, rotated and cropped like the picture), which a point on the screen is not.
+/// The live picture and its gestures, in UIKit on the preview alone: a tap focuses, a long press locks focus and
+/// exposure, a pinch zooms. The preview layer turns a touch into the camera's own coordinates (0 to 1, rotated
+/// and cropped like the picture), which a point on the screen is not.
 struct CameraPreviewRepresentable: UIViewRepresentable {
     let session: AVCaptureSession
-    /// The tap in the camera's coordinates, and where it is on the screen (for the focus square).
-    var onFocus: (_ devicePoint: CGPoint, _ screenPoint: CGPoint) -> Void = { _, _ in }
+    /// The touch in the camera's coordinates, where it is on the screen (for the focus square), and whether
+    /// it was a long press.
+    var onFocus: (_ devicePoint: CGPoint, _ screenPoint: CGPoint, _ lock: Bool) -> Void = { _, _, _ in }
+    /// `began` at the start of a pinch, then the scale since it began.
+    var onPinch: (_ began: Bool, _ scale: CGFloat) -> Void = { _, _ in }
 
     func makeUIView(context: Context) -> CameraPreviewUIView {
         let view = CameraPreviewUIView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
-        // A UIKit tap on the preview alone: a SwiftUI tap gesture across the screen took the menus' taps.
-        view.addGestureRecognizer(UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:))))
+        let coordinator = context.coordinator
+        view.addGestureRecognizer(UITapGestureRecognizer(target: coordinator, action: #selector(Coordinator.tapped(_:))))
+        let press = UILongPressGestureRecognizer(target: coordinator, action: #selector(Coordinator.pressed(_:)))
+        press.minimumPressDuration = 0.5
+        view.addGestureRecognizer(press)
+        view.addGestureRecognizer(UIPinchGestureRecognizer(target: coordinator, action: #selector(Coordinator.pinched(_:))))
         return view
     }
 
     func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
-        context.coordinator.onFocus = onFocus
+        context.coordinator.parent = self
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(onFocus: onFocus) }
+    func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
     final class Coordinator: NSObject {
-        var onFocus: (CGPoint, CGPoint) -> Void
+        var parent: CameraPreviewRepresentable
 
-        init(onFocus: @escaping (CGPoint, CGPoint) -> Void) {
-            self.onFocus = onFocus
+        init(parent: CameraPreviewRepresentable) {
+            self.parent = parent
         }
 
         @objc func tapped(_ gesture: UITapGestureRecognizer) {
+            focus(from: gesture, lock: false)
+        }
+
+        @objc func pressed(_ gesture: UILongPressGestureRecognizer) {
+            if gesture.state == .began { focus(from: gesture, lock: true) }
+        }
+
+        @objc func pinched(_ gesture: UIPinchGestureRecognizer) {
+            switch gesture.state {
+            case .began: parent.onPinch(true, 1)
+            case .changed: parent.onPinch(false, gesture.scale)
+            default: break
+            }
+        }
+
+        private func focus(from gesture: UIGestureRecognizer, lock: Bool) {
             guard let view = gesture.view as? CameraPreviewUIView else { return }
             let point = gesture.location(in: view)
-            onFocus(view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point), point)
+            parent.onFocus(view.videoPreviewLayer.captureDevicePointConverted(fromLayerPoint: point), point, lock)
         }
     }
 }

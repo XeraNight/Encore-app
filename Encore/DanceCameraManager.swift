@@ -23,6 +23,16 @@ actor CaptureService {
     private var isConfigured = false
     private var recordingDelegate: RecordingDelegate?
     private var subjectAreaWatch: Task<Void, Never>?
+    /// Turns a recording made with the iPhone on its side into a landscape video (the app itself stays portrait).
+    private var rotation: AVCaptureDevice.RotationCoordinator?
+    /// The device zoom factor of 1× on a virtual camera: its own 1 is the ultra wide, the main lens starts at 2.
+    private var wideZoomFactor: CGFloat = 1
+
+    /// What the lens can do, for the zoom buttons.
+    struct Lens: Sendable {
+        var hasUltraWide: Bool
+        var maxZoom: Double
+    }
 
     func start() {
         configureAudioSession()
@@ -56,8 +66,7 @@ actor CaptureService {
     private func configure() {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
-        session.sessionPreset = .high
-        if let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
+        if let camera = Self.camera(front: false),
            let input = try? AVCaptureDeviceInput(device: camera),
            session.canAddInput(input) {
             session.addInput(input)
@@ -69,38 +78,108 @@ actor CaptureService {
             session.addInput(input)
         }
         if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
+        prepareCurrentCamera(front: false)
+    }
+
+    /// The back camera that films a whole couple best: a virtual camera with the ultra wide (0.5×) when the
+    /// iPhone has one, then the main lens alone.
+    private static func camera(front: Bool) -> AVCaptureDevice? {
+        let types: [AVCaptureDevice.DeviceType] = front
+            ? [.builtInWideAngleCamera]
+            : [.builtInTripleCamera, .builtInDualWideCamera, .builtInDualCamera, .builtInWideAngleCamera]
+        for type in types {
+            if let device = AVCaptureDevice.default(type, for: .video, position: front ? .front : .back) { return device }
+        }
+        return nil
+    }
+
+    /// 1080p at up to 60 frames a second (smooth for slow motion, a third of 4K's size), HEVC, stabilised, with
+    /// smooth focus so a moving couple does not make the picture "breathe".
+    private func prepareCurrentCamera(front: Bool) {
+        guard let device = videoInput?.device else { return }
+        let ultraWide = device.constituentDevices.contains { $0.deviceType == .builtInUltraWideCamera }
+        wideZoomFactor = ultraWide ? device.virtualDeviceSwitchOverVideoZoomFactors.first.map { CGFloat(truncating: $0) } ?? 2 : 1
+        rotation = AVCaptureDevice.RotationCoordinator(device: device, previewLayer: nil)
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+            if let format = Self.videoFormat(of: device) {
+                device.activeFormat = format
+                device.activeVideoMinFrameDuration = CMTime(value: 1, timescale: 60)
+                // Down to 30 frames in a dim hall, for a brighter picture.
+                device.activeVideoMaxFrameDuration = CMTime(value: 1, timescale: 30)
+            }
+            if device.isSmoothAutoFocusSupported { device.isSmoothAutoFocusEnabled = true }
+            if device.isFocusModeSupported(.continuousAutoFocus) { device.focusMode = .continuousAutoFocus }
+            if device.isExposureModeSupported(.continuousAutoExposure) { device.exposureMode = .continuousAutoExposure }
+            device.videoZoomFactor = min(max(wideZoomFactor, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
+        } catch {
+            Logger.camera.error("Camera setup failed: \(error.localizedDescription, privacy: .public)")
+        }
+        guard let connection = movieOutput.connection(with: .video) else { return }
+        if connection.isVideoStabilizationSupported { connection.preferredVideoStabilizationMode = .auto }
+        // The front camera records mirrored, like a dance-studio mirror.
+        if connection.isVideoMirroringSupported { connection.isVideoMirrored = front }
+        if movieOutput.availableVideoCodecTypes.contains(.hevc) {
+            movieOutput.setOutputSettings([AVVideoCodecKey: AVVideoCodecType.hevc], for: connection)
+        }
+    }
+
+    private static func videoFormat(of device: AVCaptureDevice) -> AVCaptureDevice.Format? {
+        let eightBit: Set<FourCharCode> = [kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange, kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
+        return device.formats.first { format in
+            let size = CMVideoFormatDescriptionGetDimensions(format.formatDescription)
+            return size.width == 1920 && size.height == 1080
+                && eightBit.contains(CMFormatDescriptionGetMediaSubType(format.formatDescription))
+                && format.videoSupportedFrameRateRanges.contains { $0.maxFrameRate >= 60 }
+        }
+    }
+
+    func lens() -> Lens {
+        guard let device = videoInput?.device else { return Lens(hasUltraWide: false, maxZoom: 1) }
+        let limit = min(device.maxAvailableVideoZoomFactor / wideZoomFactor, 10)
+        return Lens(hasUltraWide: wideZoomFactor > 1, maxZoom: Double(limit))
     }
 
     func switchCamera(front: Bool) {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
-        if let current = videoInput { session.removeInput(current) }
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back),
+        let previous = videoInput
+        if let previous { session.removeInput(previous) }
+        guard let camera = Self.camera(front: front),
               let input = try? AVCaptureDeviceInput(device: camera),
-              session.canAddInput(input) else { return }
+              session.canAddInput(input) else {
+            if let previous, session.canAddInput(previous) { session.addInput(previous) }
+            return
+        }
         session.addInput(input)
         videoInput = input
-        // The front camera records mirrored, like a dance-studio mirror.
-        if let connection = movieOutput.connection(with: .video), connection.isVideoMirroringSupported {
-            connection.isVideoMirrored = front
-        }
+        prepareCurrentCamera(front: front)
     }
 
-    func setZoom(_ factor: Double) {
+    /// `level` as dancers read it: 1 is the main lens, 0.5 the ultra wide. A button glides there, a pinch follows
+    /// the fingers.
+    func setZoom(_ level: Double, smoothly: Bool) {
         guard let device = videoInput?.device else { return }
+        let factor = min(max(CGFloat(level) * wideZoomFactor, device.minAvailableVideoZoomFactor), device.maxAvailableVideoZoomFactor)
         do {
             try device.lockForConfiguration()
-            let clamped = max(1.0, min(factor, device.activeFormat.videoMaxZoomFactor))
-            device.ramp(toVideoZoomFactor: CGFloat(clamped), withRate: 4.0)
+            if smoothly {
+                device.ramp(toVideoZoomFactor: factor, withRate: 8)
+            } else {
+                device.cancelVideoZoomRamp()
+                device.videoZoomFactor = factor
+            }
             device.unlockForConfiguration()
         } catch {
             Logger.camera.error("Zoom failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
-    /// Focuses and exposes where the dancer tapped (a point in the camera's own 0–1 coordinates). When the
-    /// scene changes, the camera goes back to following the whole picture by itself.
-    func focus(at point: CGPoint) {
+    /// Focuses and exposes where the dancer tapped (a point in the camera's own 0–1 coordinates). After a tap,
+    /// the camera follows the whole picture again when the scene changes; a long press (`lock`) keeps it, for a
+    /// camera on a tripod and a couple dancing at the same distance.
+    func focus(at point: CGPoint, lock: Bool) {
         guard let device = videoInput?.device else { return }
         do {
             try device.lockForConfiguration()
@@ -112,17 +191,17 @@ actor CaptureService {
                 device.exposurePointOfInterest = point
                 device.exposureMode = .autoExpose
             }
-            device.isSubjectAreaChangeMonitoringEnabled = true
+            device.isSubjectAreaChangeMonitoringEnabled = !lock
             device.unlockForConfiguration()
         } catch {
             Logger.camera.error("Focus failed: \(error.localizedDescription, privacy: .public)")
         }
-        watchSubjectArea(of: device)
+        subjectAreaWatch?.cancel()
+        if !lock { watchSubjectArea(of: device) }
     }
 
     /// After a tap the focus holds until the picture changes (the couple moves away); then it follows again.
     private func watchSubjectArea(of device: AVCaptureDevice) {
-        subjectAreaWatch?.cancel()
         subjectAreaWatch = Task { [weak self] in
             for await _ in NotificationCenter.default.notifications(named: AVCaptureDevice.subjectAreaDidChangeNotification, object: device) {
                 await self?.followWholePicture(device)
@@ -164,7 +243,13 @@ actor CaptureService {
     /// Records to a temporary file; `finished` gets it when the recording stops, or nil when it failed.
     func startRecording(finished: @escaping @Sendable (URL?) -> Void) {
         guard !movieOutput.isRecording else { return }
-        let url = URL.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mp4")
+        if let connection = movieOutput.connection(with: .video),
+           let angle = rotation?.videoRotationAngleForHorizonLevelCapture,
+           connection.isVideoRotationAngleSupported(angle) {
+            connection.videoRotationAngle = angle
+        }
+        // The movie output writes QuickTime, so the file says .mov.
+        let url = URL.temporaryDirectory.appendingPathComponent("\(UUID().uuidString).mov")
         let delegate = RecordingDelegate(finished: finished)
         recordingDelegate = delegate
         movieOutput.startRecording(to: url, recordingDelegate: delegate)
@@ -203,7 +288,13 @@ final class DanceCameraModel {
     /// The finished take, until the screen picks it up.
     var recordedVideoURL: URL?
     var countdown: CountdownDuration = .off
-    private(set) var zoom: CameraZoomFactor = .standard
+    /// The zoom as dancers read it: 1 is the main lens, 0.5 the ultra wide.
+    private(set) var zoom: Double = 1
+    /// Until the camera reports its lens; the front camera has no ultra wide.
+    private(set) var hasUltraWide = false
+    private(set) var maxZoom: Double = 2
+    /// A long press holds focus and exposure where it was; a tap lets them follow again.
+    private(set) var isFocusLocked = false
     private(set) var isTorchOn = false
     private(set) var isFront = false
 
@@ -211,6 +302,7 @@ final class DanceCameraModel {
     @ObservationIgnored private var clock: Task<Void, Never>?
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var metronomeChanges: AnyCancellable?
+    @ObservationIgnored private var pinchStartZoom: Double = 1
 
     nonisolated var session: AVCaptureSession { capture.session }
 
@@ -220,7 +312,17 @@ final class DanceCameraModel {
     }
 
     func start() {
-        Task { await capture.start() }
+        Task {
+            await capture.start()
+            await readLens()
+        }
+    }
+
+    private func readLens() async {
+        let lens = await capture.lens()
+        hasUltraWide = lens.hasUltraWide
+        maxZoom = lens.maxZoom
+        zoom = 1
     }
 
     func stop() {
@@ -253,13 +355,24 @@ final class DanceCameraModel {
         Task { await capture.stopRecording() }
     }
 
-    func setZoom(_ factor: CameraZoomFactor) {
-        zoom = factor
-        Task { await capture.setZoom(factor.rawValue) }
+    func setZoom(_ preset: CameraZoomFactor) {
+        zoom = preset.rawValue
+        Task { await capture.setZoom(preset.rawValue, smoothly: true) }
     }
 
-    func focus(at point: CGPoint) {
-        Task { await capture.focus(at: point) }
+    func pinchBegan() {
+        pinchStartZoom = zoom
+    }
+
+    func pinchChanged(scale: CGFloat) {
+        let level = min(max(pinchStartZoom * Double(scale), hasUltraWide ? 0.5 : 1), maxZoom)
+        zoom = level
+        Task { await capture.setZoom(level, smoothly: false) }
+    }
+
+    func focus(at point: CGPoint, lock: Bool) {
+        isFocusLocked = lock
+        Task { await capture.focus(at: point, lock: lock) }
     }
 
     func toggleTorch() {
@@ -270,8 +383,12 @@ final class DanceCameraModel {
 
     func flipCamera() {
         isFront.toggle()
+        isFocusLocked = false
         let front = isFront
-        Task { await capture.switchCamera(front: front) }
+        Task {
+            await capture.switchCamera(front: front)
+            await readLens()
+        }
     }
 
     private func startRecording() {
