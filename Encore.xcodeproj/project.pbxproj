@@ -80,6 +80,13 @@
 			);
 			target = 3BD4422A2FF3134A00C5BCB4 /* Encore */;
 		};
+		3BE7622E309A345B00B71A1A /* Exceptions for "EncoreWigdet" folder in "Encore" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				EncoreControls.swift,
+			);
+			target = 3BD4422A2FF3134A00C5BCB4 /* Encore */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -87,6 +94,7 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				3B1C943C300D1EDC00DBA704 /* Exceptions for "EncoreWigdet" folder in "EncoreWigdetExtension" target */,
+				3BE7622E309A345B00B71A1A /* Exceptions for "EncoreWigdet" folder in "Encore" target */,
 			);
 			path = EncoreWigdet;
 			sourceTree = "<group>";
