@@ -27,6 +27,10 @@ struct DebriefSheet: View {
     @State private var dictationBase = ""
     @State private var confirmDiscard = false
     @State private var isSaving = false
+    /// The Top 3 is folded until tapped.
+    @State private var showsPriorities = false
+    /// The feeling whose dance is being changed.
+    @State private var momentPickingDance: String?
 
     /// The one-off training this reflection is for, when it had a goal.
     private var sessionWithGoal: PlannedSession? {
@@ -114,27 +118,22 @@ struct DebriefSheet: View {
                     .plannerCard()
                     .animation(.easeOut(duration: 0.2), value: speech.errorMessage)
 
+                    // The 20-second part first: what, which dance, how it felt. The goal and the coach's Top 3
+                    // follow, the Top 3 folded until tapped, so the first look is not all the information at once.
+                    VStack(alignment: .leading, spacing: 10) {
+                        plannerSectionTitle("TANEC")
+                        danceChips(selected: danceName) { name in
+                            danceName = (danceName == name) ? nil : name
+                        }
+                    }
+
+                    feelingsSection
+
                     if let session = sessionWithGoal {
                         goalSection(session)
                     }
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        plannerSectionTitle("TANEC")
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(dances) { dance in
-                                    chip(dance.name, isOn: danceName == dance.name) {
-                                        danceName = (danceName == dance.name) ? nil : dance.name
-                                    }
-                                }
-                            }
-                        }
-                        .scrollClipDisabled()
-                    }
-
                     prioritiesSection
-
-                    feelingsSection
 
                     Button(action: save) {
                         Text("Uložiť reflexiu")
@@ -226,41 +225,88 @@ struct DebriefSheet: View {
     }
 
     // MARK: Top 3
+    /// One line until tapped: how many corrections there are for the dance, or a short PLUS line.
     @ViewBuilder
     private var prioritiesSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            plannerSectionTitle("TOP 3 OD TRÉNERA")
-            if canWritePriorities {
-                LessonPriorityFields(texts: $priorityTexts, isEnabled: danceName != nil)
-                if danceName == nil {
-                    Text("Vyber tanec a zapíš 3 hlavné korekcie. Uvidíš ich na Domove, kým ich nezvládneš.")
-                        .font(.caption)
-                        .foregroundColor(Color.textSecondary)
-                }
-            } else {
+        if canWritePriorities {
+            VStack(alignment: .leading, spacing: 12) {
                 Button {
-                    showPaywall = true
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { showsPriorities.toggle() }
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "lock.fill")
+                        plannerSectionTitle("TOP 3 OD TRÉNERA")
+                        Spacer(minLength: 8)
+                        Text(prioritiesSummary)
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(Color.textSecondary)
+                            .lineLimit(1)
+                        Image(systemName: "chevron.down")
+                            .font(.caption.weight(.bold))
                             .foregroundColor(Color.gold400)
-                        Text("Zapíš si 3 hlavné korekcie trénera pre tanec. Budú na Domove, kým ich nezvládneš.")
-                            .font(.footnote)
-                            .foregroundColor(Color.white.opacity(0.8))
-                            .multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
-                        Text("PLUS")
-                            .font(.system(.caption2, design: .rounded).weight(.black))
-                            .foregroundColor(Color.obsidian900)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 3)
-                            .background(Color.gold400, in: Capsule())
+                            .rotationEffect(.degrees(showsPriorities ? 180 : 0))
                     }
-                    .plannerCard(cornerRadius: 14)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.pressable(scale: 0.98))
+                .sensoryFeedback(.selection, trigger: showsPriorities)
+                .accessibilityHint(showsPriorities ? "Zbalí Top 3" : "Ukáže Top 3")
+
+                if showsPriorities {
+                    LessonPriorityFields(texts: $priorityTexts, isEnabled: danceName != nil)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    if danceName == nil {
+                        Text("Najprv vyber tanec hore.")
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
+                    }
+                }
+            }
+        } else {
+            Button {
+                showPaywall = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "lock.fill")
+                        .foregroundColor(Color.gold400)
+                    Text("Top 3 od trénera")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Color.white.opacity(0.8))
+                    Spacer(minLength: 0)
+                    Text("PLUS")
+                        .font(.system(.caption2, design: .rounded).weight(.black))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.gold400, in: Capsule())
+                }
+                .frame(minHeight: 44)
+                .plannerCard(cornerRadius: 14)
+            }
+            .buttonStyle(.pressable)
+            .accessibilityHint("Tri hlavné korekcie trénera, na Domove, kým ich nezvládneš")
+        }
+    }
+
+    /// "2 korekcie · Waltz", "Zapíš 3 korekcie", "Vyber tanec".
+    private var prioritiesSummary: String {
+        guard let danceName else { return "Vyber tanec" }
+        switch cleanedPriorities.count {
+        case 0: return "Zapíš 3 korekcie"
+        case 1: return "1 korekcia · \(danceName)"
+        case let count: return "\(count) korekcie · \(danceName)"
+        }
+    }
+
+    private func danceChips(selected: String?, pick: @escaping (String) -> Void) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(dances) { dance in
+                    chip(dance.name, isOn: selected == dance.name) { pick(dance.name) }
+                }
             }
         }
+        .scrollClipDisabled()
     }
 
     private func chip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
@@ -331,22 +377,37 @@ struct DebriefSheet: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: moments.map(\.feelingRaw))
     }
 
+    /// The feeling and what happened; its dance is the reflection's, another one only after "Iný tanec".
     private func momentCard(_ moment: Binding<TrainingMoment>) -> some View {
         let feeling = moment.wrappedValue.feeling
+        let picksDance = momentPickingDance == moment.wrappedValue.feelingRaw
         return VStack(alignment: .leading, spacing: 10) {
-            Label(feeling?.title ?? "", systemImage: feeling?.symbol ?? "circle")
-                .font(.footnote.weight(.bold))
-                .foregroundColor(Color.gold300)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(dances) { dance in
-                        chip(dance.name, isOn: moment.wrappedValue.danceName == dance.name) {
-                            moment.wrappedValue.danceName = moment.wrappedValue.danceName == dance.name ? nil : dance.name
-                        }
+            HStack(spacing: 8) {
+                Label(feeling?.title ?? "", systemImage: feeling?.symbol ?? "circle")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(Color.gold300)
+                Spacer(minLength: 8)
+                Button {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
+                        momentPickingDance = picksDance ? nil : moment.wrappedValue.feelingRaw
                     }
+                } label: {
+                    Text(moment.wrappedValue.danceName ?? "Iný tanec")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(Color.gold400)
+                        .frame(minHeight: 44)
+                        .contentShape(Rectangle())
                 }
+                .buttonStyle(.pressable)
+                .accessibilityLabel("Tanec pre tento pocit: \(moment.wrappedValue.danceName ?? "žiadny")")
             }
-            .scrollClipDisabled()
+            if picksDance {
+                danceChips(selected: moment.wrappedValue.danceName) { name in
+                    moment.wrappedValue.danceName = moment.wrappedValue.danceName == name ? nil : name
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) { momentPickingDance = nil }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
             TextField("", text: moment.note, prompt: Text(feeling?.notePrompt ?? "").foregroundColor(Color.white.opacity(0.35)), axis: .vertical)
                 .font(.callout)
                 .foregroundColor(.white)
