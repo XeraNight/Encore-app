@@ -2,9 +2,18 @@ import Testing
 import Foundation
 @testable import Encore
 
-/// Lock Screen buttons open https://www.encore-sk.com/quick/<action>; nothing else may be read as one.
+/// Quick links https://www.encore-sk.com/quick/<action> open a screen; nothing else may be read as one.
 @MainActor
 struct QuickActionTests {
+    @Test func everyLockScreenControlOpensAScreen() async throws {
+        for target in QuickControlTarget.allCases {
+            QuickActionRouter.shared.pending = nil
+            _ = try await OpenQuickActionIntent(target).perform()
+            #expect(QuickActionRouter.shared.pending?.rawValue == target.rawValue)
+        }
+        QuickActionRouter.shared.pending = nil
+    }
+
     private func action(_ text: String) -> QuickAction? {
         URL(string: text).flatMap(QuickAction.init(url:))
     }

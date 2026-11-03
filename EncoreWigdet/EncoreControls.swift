@@ -3,17 +3,41 @@ import SwiftUI
 import WidgetKit
 
 // MARK: - Controls (Lock Screen, Control Center, Action button)
-/// One tap from the Lock Screen into Encore. Each control opens a universal link, the only way Apple supports
-/// for opening an app from a control; the app (`QuickAction`) turns it into the camera, a voice note, a text
-/// note or KSIS.
-private func quickURL(_ action: String) -> URL {
-    URL(string: "https://www.encore-sk.com/quick/\(action)") ?? URL(filePath: "/")
+/// One tap from the Lock Screen into Encore. Apple opens an app from a control only through an `OpenIntent`
+/// that is in both the app and the widget extension, so this file is in both targets. The system opens Encore and
+/// runs the intent there; the app's `perform()` (QuickActions.swift) takes it to the camera, a voice note, a text
+/// note or KSIS. A universal link returned from the intent is dropped, so the intent names the screen itself.
+
+/// What a control opens; the raw values are the `QuickAction` cases.
+enum QuickControlTarget: String, AppEnum {
+    case video, voice, text, ksis
+
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Obrazovka Encore"
+    static var caseDisplayRepresentations: [QuickControlTarget: DisplayRepresentation] = [
+        .video: "Natočiť video",
+        .voice: "Hlasová poznámka",
+        .text: "Poznámka",
+        .ksis: "Kalendár súťaží",
+    ]
+}
+
+struct OpenQuickActionIntent: OpenIntent {
+    static var title: LocalizedStringResource = "Otvoriť Encore"
+
+    @Parameter(title: "Obrazovka")
+    var target: QuickControlTarget
+
+    init() {}
+
+    init(_ target: QuickControlTarget) {
+        self.target = target
+    }
 }
 
 struct EncoreVideoControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.jakub.encore.control.video") {
-            ControlWidgetButton(action: OpenURLIntent(quickURL("video"))) {
+            ControlWidgetButton(action: OpenQuickActionIntent(.video)) {
                 Label("Natočiť video", systemImage: "video.fill")
             }
         }
@@ -25,7 +49,7 @@ struct EncoreVideoControl: ControlWidget {
 struct EncoreVoiceControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.jakub.encore.control.voice") {
-            ControlWidgetButton(action: OpenURLIntent(quickURL("voice"))) {
+            ControlWidgetButton(action: OpenQuickActionIntent(.voice)) {
                 Label("Hlasová poznámka", systemImage: "mic.fill")
             }
         }
@@ -37,7 +61,7 @@ struct EncoreVoiceControl: ControlWidget {
 struct EncoreTextControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.jakub.encore.control.text") {
-            ControlWidgetButton(action: OpenURLIntent(quickURL("text"))) {
+            ControlWidgetButton(action: OpenQuickActionIntent(.text)) {
                 Label("Poznámka", systemImage: "square.and.pencil")
             }
         }
@@ -49,7 +73,7 @@ struct EncoreTextControl: ControlWidget {
 struct EncoreKSISControl: ControlWidget {
     var body: some ControlWidgetConfiguration {
         StaticControlConfiguration(kind: "com.jakub.encore.control.ksis") {
-            ControlWidgetButton(action: OpenURLIntent(quickURL("ksis"))) {
+            ControlWidgetButton(action: OpenQuickActionIntent(.ksis)) {
                 Label("Kalendár súťaží", systemImage: "trophy.fill")
             }
         }

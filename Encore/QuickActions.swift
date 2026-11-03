@@ -1,10 +1,12 @@
+import AppIntents
 import Combine
 import Foundation
 
 // MARK: - Lock Screen and Control Center buttons
-/// What a control from the widget extension (`EncoreControls`) opens. A control opens
-/// `https://www.encore-sk.com/quick/<action>`: Apple supports only universal links for opening an app from a
-/// control. `encore://quick/<action>` works too. Without Encore installed the web sends the link to the download page.
+/// What a control from the widget extension (`EncoreControls`) or a quick link opens. A control runs
+/// `OpenQuickActionIntent` in the app (below); `https://www.encore-sk.com/quick/<action>` and
+/// `encore://quick/<action>` open the same screens from the Apple Wallet card and the web. Without Encore installed
+/// the web sends the link to the download page.
 enum QuickAction: String, CaseIterable {
     /// `results` is the Apple Wallet card's "membership benefits" action: Súťaže a body.
     case video, voice, text, ksis, results
@@ -33,4 +35,14 @@ final class QuickActionRouter: ObservableObject {
     static let shared = QuickActionRouter()
     @Published var pending: QuickAction?
     private init() {}
+}
+
+/// The system has opened Encore for a control; the widget extension keeps OpenIntent's own `perform()`, which
+/// never runs there.
+extension OpenQuickActionIntent {
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        QuickActionRouter.shared.pending = QuickAction(rawValue: target.rawValue)
+        return .result()
+    }
 }
