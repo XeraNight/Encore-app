@@ -194,13 +194,6 @@ struct RootAppView: View {
                 .zIndex(190)
             }
             
-            // Face ID app lock (only while signed in and the splash is gone)
-            if !isSplashActive && authManager.isAuthenticated && authManager.isAppLocked {
-                AppLockView()
-                    .transition(.opacity)
-                    .zIndex(150)
-            }
-
             // Account Banned / Suspended Interceptor
             if subscriptionManager.isAccountBanned {
                 AccountBannedNoticeView(reason: subscriptionManager.banReason) {
@@ -216,7 +209,6 @@ struct RootAppView: View {
         .animation(.easeInOut(duration: 0.32), value: isSplashActive)
         .animation(.easeInOut(duration: 0.32), value: subscriptionManager.isAccountBanned)
         .animation(.easeInOut(duration: 0.32), value: authManager.isAuthenticated)
-        .animation(.easeInOut(duration: 0.3), value: authManager.isAppLocked)
         .animation(.easeInOut(duration: 0.28), value: remoteConfig.needsForceUpdate)
         .animation(.easeInOut(duration: 0.28), value: remoteConfig.isMaintenanceMode)
         .sheet(isPresented: $friendManager.showInviteSheet) {
@@ -239,6 +231,11 @@ struct RootAppView: View {
             set: { profileStore.asksBirthYear = $0 }
         )) {
             BirthYearSheet()
+        }
+        // The Face ID lock lives in its own window above everything, from the end of the splash on.
+        .onChange(of: isSplashActive) { _, splash in
+            guard !splash, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
+            AppLockWindow.shared.start(in: scene)
         }
         .task {
             await PlannerNotifications.rescheduleFromStore()
