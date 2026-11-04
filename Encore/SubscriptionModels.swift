@@ -113,10 +113,3 @@ public struct UserEntitlementRecord: Codable, Sendable {
         case notes
     }
 }
-
-// MARK: - Account Moderation Status
-public enum AccountModerationStatus: String, Codable, Sendable {
-    case active = "active"
-    case suspended = "suspended"
-    case banned = "banned"
-}

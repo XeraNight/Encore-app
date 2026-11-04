@@ -132,7 +132,6 @@ public final class DanceMetronomeEngine: ObservableObject {
     @Published public var customBpm: Int = 120
     @Published public var isSoundEnabled: Bool = true
     @Published public var isHapticEnabled: Bool = true
-    @Published public var isFlashEnabled: Bool = false
     @Published public var volume: Float = 1.0
     
     // Effective calculated BPM

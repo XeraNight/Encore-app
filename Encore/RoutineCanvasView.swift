@@ -633,7 +633,6 @@ struct RoutineCanvasView: View {
             AppDelegate.orientationLock = .allButUpsideDown
             UIApplication.shared.isIdleTimerDisabled = true
             sketch = CanvasSketch(data: routine.sketchData).strokes
-            NavDepth.shared.push()   // hide floating dock while canvas is displayed for full screen ballroom view
             connectIfShared()
             startLiveActivity()
             
@@ -743,7 +742,6 @@ struct RoutineCanvasView: View {
             remoteMoveSaveTask?.cancel()
             try? modelContext.save()
             commitPendingDelete()
-            NavDepth.shared.pop()    // restore floating dock when leaving canvas
             realtimeManager.disconnect()
             stopLiveActivity()
         }

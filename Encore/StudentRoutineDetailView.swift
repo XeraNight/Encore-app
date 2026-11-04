@@ -15,7 +15,6 @@ struct StudentRoutineDetailView: View {
     
     @State private var editingNode: DBCanvasNodeRow? = nil
     @State private var editedNotesText: String = ""
-    @State private var showEditNotesDialog: Bool = false
     
     var body: some View {
         ZStack {

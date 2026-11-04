@@ -14,8 +14,6 @@ struct EncoreMemberCardView: View {
     @State private var flipRotation: Double = 0
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
-    @State private var showShareSheet = false
-    @State private var renderedCardImage: UIImage? = nil
     /// Made once per link, not on every redraw (the card redraws on every tilt frame).
     @State private var qrImage: UIImage?
     
@@ -523,20 +521,6 @@ struct EncoreMemberCardView: View {
             return Font.custom("Zapfino", size: 18)
         }
         return Font.system(size: 21, weight: .medium, design: .serif).italic()
-    }
-    
-    // MARK: - Share Card Helper
-    private func shareCardImage() {
-        let cardToRender = isFlipped ? AnyView(cardBackView) : AnyView(cardFrontView)
-        let renderer = ImageRenderer(content: cardToRender.frame(width: 360, height: 210).clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous)))
-        renderer.scale = 3.0
-        if let image = renderer.uiImage {
-            let av = UIActivityViewController(activityItems: [image, targetQRString], applicationActivities: nil)
-            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let root = scene.windows.first?.rootViewController {
-                root.present(av, animated: true)
-            }
-        }
     }
     
     // MARK: - Proximity AirDrop & Universal Link Share (iOS 17 Proximity Gesture)

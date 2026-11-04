@@ -41,7 +41,6 @@ public enum ConnectionStatus: String, Codable, Sendable {
     case revoked = "revoked"       // Zrušené prepojenie (bývalý partner / ukončený tréning)
     
     public var isPending: Bool { self == .pending }
-    public var isAccepted: Bool { self == .accepted }
     
     public var displayTitle: String {
         switch self {
@@ -109,26 +108,6 @@ public struct DancerConnection: Identifiable, Codable, Sendable, Equatable {
         self.otherUserDancerCode = otherUserDancerCode
         self.otherUserAvatarURL = otherUserAvatarURL
     }
-    
-    /// Určí, či je táto žiadosť prichádzajúca pre daného používateľa
-    public func isIncoming(for myUserId: UUID) -> Bool {
-        return status == .pending && initiatedBy != myUserId && (userAId == myUserId || userBId == myUserId)
-    }
-    
-    /// Určí, či je táto žiadosť odchádzajúca od daného používateľa
-    public func isOutgoing(for myUserId: UUID) -> Bool {
-        return status == .pending && initiatedBy == myUserId
-    }
-    
-    /// Určí, či vystupujem ako tréner v tomto prepojení
-    public func amICoach(myUserId: UUID) -> Bool {
-        return relationshipType == .coachStudent && userBId == myUserId
-    }
-    
-    /// Určí, či vystupujem ako zverenec v tomto prepojení
-    public func amIStudent(myUserId: UUID) -> Bool {
-        return relationshipType == .coachStudent && userAId == myUserId
-    }
 }
 
 // MARK: - Dancer Search Result (from RPC search_dancers)
@@ -172,22 +151,3 @@ public struct DancerSearchResult: Identifiable, Codable, Sendable, Equatable {
     }
 }
 
-// MARK: - Connection Invite Payload (pre QR kód a Deep link)
-public struct ConnectionInvitePayload: Codable, Equatable, Sendable {
-    public let dancerCode: String
-    public let name: String
-    public let club: String
-    public let relationshipType: ConnectionRelationshipType
-    
-    public init(
-        dancerCode: String,
-        name: String,
-        club: String = "",
-        relationshipType: ConnectionRelationshipType = .partner
-    ) {
-        self.dancerCode = dancerCode
-        self.name = name
-        self.club = club
-        self.relationshipType = relationshipType
-    }
-}

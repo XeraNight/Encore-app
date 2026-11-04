@@ -81,24 +81,9 @@ final class SubscriptionManager: ObservableObject {
     }
     
     // MARK: - Capability Matrix
-    /// Tanečník si môže sledovať svoje vlastné body a históriu zo súťaží (Plus & Premium)
-    public var canTrackOwnPoints: Bool {
-        isAppOwner || currentTier == .plus || currentTier == .premium
-    }
-    
-    /// Tréner / pokročilý môže sledovať body a súťaže cudzích párov a zverencov (Iba Premium)
-    public var canTrackRosterPoints: Bool {
-        isAppOwner || currentTier == .premium
-    }
-    
     /// Prístup k trénerskej sekcii Štúdio (Roster párov, hromadné figúry, video anotácie)
     public var canAccessStudioRoster: Bool {
         isAppOwner || currentTier == .premium
-    }
-    
-    /// Maximálny počet vytvorených zostáv na jeden tanec (Free = 1 na tanec, Plus/Premium = neobmedzene)
-    public var maxRoutinesPerDanceAllowed: Int {
-        (isAppOwner || currentTier == .plus || currentTier == .premium) ? 9999 : 1
     }
     
     /// Kontrola, či používateľ môže vytvoriť novú zostavu pre daný tanec.

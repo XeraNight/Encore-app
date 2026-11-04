@@ -17,8 +17,6 @@ struct AnalysisGuides: Equatable {
 
     static let maxAngle: Double = 45
 
-    var isVisible: Bool { showsPlumb || showsLevel }
-
     /// The tilt in whole degrees, as the label and the correction note show it.
     var roundedAngle: Int { Int(abs(levelAngle).rounded()) }
 

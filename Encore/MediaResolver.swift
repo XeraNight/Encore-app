@@ -14,11 +14,6 @@ public struct MediaResolver {
         return cache
     }()
     
-    /// Vráti cestu k lokálnemu adresáru dokumentov aplikácie
-    public static func getDocumentsDirectory() -> URL {
-        MediaStorageManager.documentsDirectory
-    }
-    
     /// Overí, či cesta reprezentuje obrázok (podľa prípony)
     public static func isImagePath(path: String) -> Bool {
         let ext = (path as NSString).pathExtension.lowercased()

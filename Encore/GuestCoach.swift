@@ -284,14 +284,6 @@ final class GuestCoachService: ObservableObject {
         }
     }
 
-    func deleteNote(_ noteId: UUID) async throws {
-        do {
-            try await client.from("guest_coach_notes").delete().eq("id", value: noteId).execute()
-        } catch {
-            throw Self.translate(error)
-        }
-    }
-
     /// Server reasons → one Slovak sentence.
     private static func translate(_ error: Error) -> Failure {
         let text = String(describing: error)
