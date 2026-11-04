@@ -30,7 +30,7 @@ SET tier = 'studio',
 3. Keď kamarát otvorí appku, `SubscriptionManager.refreshEntitlements()` ihneď načíta tento záznam a odomkne mu **Studio tier** (všetky funkcie, neobmedzené zostavy, radar súperov, posture linky).
 
 ### B. Automatický God Mode pre teba (Majiteľ aplikácie):
-V [SubscriptionManager.swift](./Encore/SubscriptionManager.swift) je výlučne tvoj hlavný e-mail:
+V [SubscriptionManager.swift](./Encore/Subscriptions/SubscriptionManager.swift) je výlučne tvoj hlavný e-mail:
 ```swift
 public static let ownerEmails: Set<String> = [
     "jakubkalina05@gmail.com"

@@ -129,7 +129,7 @@ graph TD
 
 ### 3.2 Dátová Vrstva, Modely & Úložisko
 
-#### `Encore/Models.swift`
+#### `Encore/Sync/Models.swift`
 - **Účel:** Definuje kompletnú doménovú schému SwiftData a počiatočné dáta (seeding).
 - **Dátové entity (`@Model`):**
   1. `Dance`: Reprezentuje tanečnú disciplínu (Waltz, Tango, Samba, Cha-Cha...) s kategóriou (Standard/Latin), tempom (MPM/BPM), metodickým popisom, fotkou a videom.
@@ -139,13 +139,13 @@ graph TD
   5. `InstantNote`: Rýchla poznámka v schránke (vytvorená cez `CaptureModeView`), ktorá obsahuje text a voliteľné video/obrázok pripravené na neskoršie priradenie k figúre.
 - **Predvolený Seeding:** Obsahuje kompletnú databázu 100+ oficiálnych medzinárodných figúr pre 10 tancov (Standard & Latin) s presnou rytmizáciou.
 
-#### `Encore/MediaResolver.swift`
+#### `Encore/Media/MediaResolver.swift`
 - **Účel:** Inteligentný hybridný resolver obrázkov a videí (Local Cache First -> Remote Supabase Fallback).
 - **Kľúčové funkcie:**
   - `resolveVideoURL(path:)`: Ak je video lokálne, vráti lokálne `file://` URL. Ak nie, vygeneruje Supabase Storage verejnú URL a na pozadí spustí sťahovanie do lokálneho sandboxu.
   - `resolveImage(path:)`: Používa dvojúrovňovú vyrovnávaciu pamäť (`NSCache` v RAM + lokálny disk). Automaticky optimalizuje a downscaluje obrázky na max 1400px pomocou `preparingForDisplay()`, aby nedochádzalo k preťaženiu pamäte GPU.
 
-#### `Encore/KeychainHelper.swift`
+#### `Encore/Account/KeychainHelper.swift`
 - **Účel:** Bezpečné ukladanie citlivých prihlasovacích údajov do hardvérového iOS Keychain.
 - **Kľúčové funkcie:** `saveCredentials()`, `readCredentials()`, `deleteCredentials()`. Používa `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` na ochranu údajov pred neoprávneným prístupom a umožňuje biometrické prihlásenie cez Face ID.
 
@@ -156,7 +156,7 @@ graph TD
 #### `Encore/SupabaseConfig.swift`
 - **Účel:** Bezpečné dynamické načítanie `SUPABASE_URL` a `SUPABASE_ANON_KEY` z runtime `Info.plist` (ktoré ich preberá z `Secrets.xcconfig`).
 
-#### `Encore/AuthManager.swift`
+#### `Encore/Account/AuthManager.swift`
 - **Účel:** Reaktivný manažér používateľských účtov a relácií (Singleton `@MainActor`).
 - **Kľúčové funkcie:**
   - `authStateChanges`: Počúva zmeny stavu autentifikácie bez blokovania UI vlákna.
@@ -164,11 +164,11 @@ graph TD
   - `authenticateWithBiometrics()`: Autentifikácia cez LocalAuthentication (Face ID / Touch ID) s automatickým fallbackom na uložené Keychain heslo.
   - `handleDeepLink(url:)`: Spracovanie potvrdzovacích e-mailových odkazov.
 
-#### `Encore/AuthSheetView.swift`
+#### `Encore/Account/AuthSheetView.swift`
 - **Účel:** Vizuálny dialóg na prihlásenie a registráciu v dizajnovom štýle Warm Cream & Neubrutalism.
 - **Funkcie:** Prepínanie medzi prihlásením a registráciou, validácia vstupov, tlačidlo Face ID s haptickou odozvou.
 
-#### `Encore/SupabaseSyncManager.swift`
+#### `Encore/Sync/SupabaseSyncManager.swift`
 - **Účel:** Obojsmerná synchronizácia dát na úrovni databázy a súborového úložiska.
 - **Kľúčové komponenty:**
   - `@globalActor actor SyncActor`: Serializuje sieťové požiadavky na databázu mimo hlavného vlákna.
@@ -176,7 +176,7 @@ graph TD
   - `syncRoutine()`: Atomický upsert zostavy a jej uzlov s inteligentným mazaním osirotených uzlov.
   - `uploadFileAsync()`: Upload lokálne natočeného videa alebo fotky do Supabase Storage bucketu `encore-media`.
 
-#### `Encore/CanvasRealtimeManager.swift`
+#### `Encore/Routines/CanvasRealtimeManager.swift`
 - **Účel:** Nízko-latentná WebSocket synchronizácia v reálnom čase (Broadcast + Presence + Postgres Changes).
 - **Kľúčové funkcie:**
   - **Broadcast (`node_moved`):** Okamžitý prenos pozície figúry pri ťahaní prstom (latencia < 50ms, nezaťažuje SQL databázu).
@@ -192,32 +192,32 @@ graph TD
 
 ### 3.4 Jadro UI, Navigácia & Dizajnový Systém
 
-#### `Encore/EncoreApp.swift`
+#### `Encore/App/EncoreApp.swift`
 - **Účel:** Vstupný bod iOS aplikácie (`@main`).
 - **Funkcie:**
   - Inicializuje SwiftData `ModelContainer` s automatickým volaním `DatabaseRecoveryManager` pri chybe.
   - Spúšťa seeding predvolených tancov a figúr na skutočnom pozadí (`Task.detached(priority: .background)`), čím garantuje 0ms blokovanie prvého snímku.
   - Obsahuje obsluhu deep linkov pre `AuthManager`.
 
-#### `Encore/MainTabView.swift`
+#### `Encore/App/MainTabView.swift`
 - **Účel:** Hlavný kontajner aplikácie s horizontálnym stránkovaním a plávajúcim dokom.
 - **Funkcie:**
   - Používa natívny SwiftUI `ScrollView(.horizontal)` s `.scrollTargetBehavior(.paging)` namiesto `TabView(.page)` pre stopercentnú kontrolu nad zamykaním gest.
   - **AppSplashView Overlay:** Zobrazuje uvítaciu obrazovku a plynule zakrýva načítanie SwiftData.
   - **NativeLiquidGlassDock:** Plávajúci dock s iOS Liquid Glass dizajnom (Home, Knižnica, Profil + stredové tlačidlo pre rýchle video).
 
-#### `Encore/AppSplashView.swift`
+#### `Encore/App/AppSplashView.swift`
 - **Účel:** Elegantná úvodná obrazovka s animovaným tanečným logom, rotujúcim zlatým gradientom a personalizovaným privítaním používateľa. Po ~1.1s sa plynule odanimuje cez opacity.
 
 #### `Encore/NavDepth.swift`
 - **Účel:** Globálny stavový manažér navigačnej hĺbky (`@MainActor NavDepth.shared`).
 - **Funkcie:** Keď používateľ vstúpi na `RoutineCanvasView`, `push()` nastaví `isLocked = true`, čo automaticky skryje plávajúci dock a zamkne gestá horizontálneho stránkovania.
 
-#### `Encore/SwipeBackFix.swift`
+#### `Encore/App/SwipeBackFix.swift`
 - **Účel:** Rozšírenie `UINavigationController` s implementáciou `UIGestureRecognizerDelegate`.
 - **Funkcie:** Deaktivuje systémové swipe-back gesto na hrane obrazovky počas práce na canvase, aby nedochádzalo ku kolízii s posúvaním tancodromu.
 
-#### `Encore/Colors.swift`
+#### `Encore/DesignSystem/Colors.swift`
 - **Účel:** Kompletná farebná paleta aplikácie:
   - `themeBg` (#F6F2E9 - Warm Cream)
   - `themeCard` (#FFFFFF - Pure White)
@@ -243,7 +243,7 @@ graph TD
 
 ### 3.5 Hlavné Obrazovky & Funkcionality
 
-#### `Encore/ContentView.swift`
+#### `Encore/Home/ContentView.swift`
 - **Účel:** Domovská obrazovka so zoznamom choreografií a kategórií tancov.
 - **Funkcie:**
   - Prehľad vytvorených zostáv s indikátormi počtu figúr a dátumu úpravy.
@@ -251,7 +251,7 @@ graph TD
   - Integrácia importu zostáv cez QR kód (`handleScannedCode`) alebo textový JSON reťazec.
   - Detail jednotlivých tancov s možnosťou úpravy tempa, popisu a ukážkových médií (`DanceCategoryView`, `DanceDetailView`).
 
-#### `Encore/RoutineCanvasView.swift`
+#### `Encore/Routines/RoutineCanvasView.swift`
 - **Účel:** Najdôležitejšia a najkomplexnejšia obrazovka aplikácie — 2D Vizuálny Choreografický Canvas (Tancodrom).
 - **Architektúra & Komponenty:**
   - `CanvasGestureView`: Natívny UIKit `UIViewRepresentable` koordinujúci 2-prstový Pan & Pinch zoom bez sekania SwiftUI.
@@ -265,14 +265,14 @@ graph TD
   - `PartnerCursorView`: Živé zobrazenie kurzora a mena pripojeného partnera.
   - `Live Activity Integration`: Automatické spúšťanie a aktualizácia Dynamic Islandu podľa aktuálne cvičenej figúry.
 
-#### `Encore/GlobalLibraryView.swift`
+#### `Encore/Figures/GlobalLibraryView.swift`
 - **Účel:** Globálna encyklopédia tanečných figúr.
 - **Funkcie:**
   - Vyhľadávanie v reálnom čase a horizontálny filter podľa tancov.
   - Možnosť pridávať vlastné figúry s rytmizáciou a popisom techniky.
   - `LibraryFigureDetailSheet`: Detail figúry s možnosťou priradenia fotky z galérie (`PhotosPicker`), nahrávania videa cez kameru a importu z rýchlej schránky (`InstantNotesInboxSection`).
 
-#### `Encore/ProfileView.swift`
+#### `Encore/Profile/ProfileView.swift`
 - **Účel:** Profil tanečníka, štatistiky tréningu, predvoľby a údržba dát.
 - **Funkcie:**
   - Výpočet štatistík (počet zostáv, videí, hlasových poznámok, najviac trénovaný tanec, obsadené úložisko na disku).
@@ -288,7 +288,7 @@ graph TD
 
 ### 3.6 Audio, Kamera, Rozpoznávanie Reči & QR
 
-#### `Encore/AudioSessionCoordinator.swift`
+#### `Encore/Voice/AudioSessionCoordinator.swift`
 - **Účel:** Globálny centrálny arbiter (`actor`) pre celú zvukovú vrstvu aplikácie.
 - **Riešený problém:** Zabraňuje konfliktom o singleton `AVAudioSession` medzi nahrávaním videa (kamera), prehrávaním videa (AVPlayer) a rozpoznávaním reči (Speech Recognizer).
 - **Správa klientov:**
@@ -296,7 +296,7 @@ graph TD
   - `.player`: Nastavuje kategóriu `.playback`, mód `.moviePlayback`.
   - `.speech`: Nastavuje kategóriu `.record`, mód `.measurement`, options `[.duckOthers]`.
 
-#### `Encore/FigureDetailCard.swift` (Kamera & Audio Podsystémy)
+#### `Encore/Figures/FigureDetailCard.swift` (Kamera & Audio Podsystémy)
 - **Komponenty v súbore:**
   - `FigureDetailCard`: Karta detailu figúry s videom, poznámkami, diktovaním a schránkou.
   - `VideoRecorderView` (`UIViewControllerRepresentable`): Natívny Apple štandard cez `UIImagePickerController(sourceType: .camera)`. 
@@ -306,7 +306,7 @@ graph TD
   - `LoopingPlayerUIView` & `LoopingVideoPlayer`: Hardvérovo akcelerovaný bezstratový prehrávač videa pomocou `AVPlayerLooper` a `AVQueuePlayer` s ovládaním rýchlosti (0.5x až 1.5x) a automatickou registráciou cez `AudioSessionCoordinator`.
   - `SpeechRecognizerHelper`: Manažér pre rečové rozpoznávanie cez `SFSpeechRecognizer` (lokalizácia `sk-SK` a fallback) s reaktívnym prepisom hovoreného slova do textu a bezpečnou aktiváciou kategórie `.speech`.
 
-#### `Encore/QRGenerator.swift` & `Encore/QRScannerView.swift`
+#### `Encore/Routines/QRGenerator.swift` & `Encore/Camera/QRScannerView.swift`
 - **Účel:** Offline prenos a zdieľanie choreografií medzi zariadeniami.
 - **Funkcie:**
   - `QRGenerator`: Komprimuje kompletnú choreografiu (uzly, súradnice, rytmus, poznámky) do minifikovaného JSON reťazca a generuje vektorový QR kód cez CoreImage filter `CIQRCodeGenerator`.
@@ -316,7 +316,7 @@ graph TD
 
 ### 3.7 iOS Widget & Live Activity (Dynamic Island)
 
-#### `Encore/EncoreAttributes.swift` & `EncoreWigdet/EncoreAttributes.swift`
+#### `Encore/LiveActivities/EncoreAttributes.swift` & `EncoreWigdet/EncoreAttributes.swift`
 - **Účel:** Dátový kontrakt pre Apple ActivityKit.
 - **Štruktúra:**
   - Statické atribúty: `routineName`, `danceName`.

@@ -7,6 +7,10 @@ Premium SwiftUI app for competitive ballroom dancers, couples, coaches and studi
 - `web/` is reworked elsewhere (Antigravity). Do not read or edit it unless asked.
 - `.archive/` is dead code. Never read or edit.
 
+## Where code lives (`Encore/`, one folder per part of the app)
+App (start, tabs, routing, logging) · DesignSystem (colors, `.pressable`, glass cards, `HomeRow`) · Account (sign-in, Face ID lock) · Profile (profile, settings, card, Wallet, privacy, data export) · Home (Home, capture, Denník, notes) · Routines (routines, canvas) · Figures (figures, library, video compare) · Camera (camera, level, QR scanner, mirror) · Media (videos, Fotky, trim, vault) · Voice · Tools (Nástroje, metronome, AirPlay, lesson split) · Planner (Kalendár, reflection, Top 3, trends) · Competitions (KSIS, results, season) · Connections · Coach · Subscriptions · Owner · Sync (Supabase, sync, SwiftData models, backup) · LiveActivities.
+At the `Encore/` root only what the project or `.gitignore` names by path: `Info.plist`, `Encore.entitlements`, `Secrets.xcconfig`, `SupabaseConfig.swift` (git-ignored, holds a key), `EncoreProducts.storekit`, `PrivacyInfo.xcprivacy`, `Assets.xcassets`.
+
 ## Commands
 Xcode is not the active developer dir, so prefix with `DEVELOPER_DIR`:
 - Build: `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -project Encore.xcodeproj -scheme Encore -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
@@ -16,7 +20,7 @@ Xcode is not the active developer dir, so prefix with `DEVELOPER_DIR`:
 - Touching more than 2 files, or any structural change: write an outline first and wait for approval (Apple docs as the reference).
 - Small steps. Build after each change. Don't say "done" without a build.
 - Never change DB schema, RLS or migrations without showing the SQL first.
-- Don't rename or move files or targets. New files in `Encore/` and `EncoreTests/` appear in Xcode and build automatically (synchronized folders), so just create them. Don't hand-edit `project.pbxproj` (targets, build settings).
+- A new file goes into the folder of its part of the app. Rename or move files only with approval, and never the root files above or targets (moving `SupabaseConfig.swift` would take it out of `.gitignore`). Files in `Encore/` (any folder) and `EncoreTests/` appear in Xcode and build automatically (synchronized folders), so just create them. Don't hand-edit `project.pbxproj` (targets, build settings).
 - One change per commit. Never force-push.
 
 ## Code rules

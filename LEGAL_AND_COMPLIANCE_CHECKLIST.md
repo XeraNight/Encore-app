@@ -68,7 +68,7 @@ V assetoch aplikácie sa nachádzajú obrázkové pozadia (`bg_fluid`, `EncoreSt
 
 ### 1.2 Sign in with Apple (Guideline 4.8) — STAV: VYRIEŠENÉ ✅
 - [x] Apple striktne vyžaduje, že ak appka ponúka Google Sign-In, **musí** ponúkať aj Sign in with Apple ako rovnocennú možnosť.
-- [x] V súbore `Encore/AuthSheetView.swift` je `SignInWithAppleButton` implementovaný hneď pod Google Sign-In s rovnakou veľkosťou a natívnym Apple štýlom.
+- [x] V súbore `Encore/Account/AuthSheetView.swift` je `SignInWithAppleButton` implementovaný hneď pod Google Sign-In s rovnakou veľkosťou a natívnym Apple štýlom.
 
 ### 1.3 Zmazanie účtu používateľom (Guideline 5.1.1(v)) — STAV: VYRIEŠENÉ ✅
 - [x] Apple vyžaduje možnosť zmazať účet priamo v aplikácii, pričom musí ísť o úplné zmazanie dát.

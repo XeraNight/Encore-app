@@ -409,7 +409,7 @@ GID_CLIENT_ID
 ### Kill-Switches (Vypínače funkcií)
 
 **Endpoint:** `https://encore-app.vercel.app/api/app-config`  
-**Súbory:** `web/src/app/api/app-config/route.ts` + `Encore/RemoteConfigManager.swift`
+**Súbory:** `web/src/app/api/app-config/route.ts` + `Encore/App/RemoteConfigManager.swift`
 
 ```json
 {

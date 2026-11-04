@@ -84,10 +84,10 @@ Tento dokument definuje oficiálnu vizuálnu identitu, farebnú paletu, typograf
 * Chyby sa VoiceOveru oznamujú (`AccessibilityNotification.Announcement`).
 
 ### Kde sú spoločné komponenty
-* `Encore/HomeSections.swift` – `homeCard`, `HomeSectionHeader`, `DanceMenuCapsule`, `HomeRecentRoutineCard`
-* `Encore/PasswordSheets.swift` – `PrimarySheetButton`, `SheetBanner`, `AuthFieldChrome`
-* `Encore/LuxuryUIComponents.swift` – `EncoreWordmark`, pozadia
-* `Encore/PressableStyle.swift`, `Encore/FieldEdgeSweep.swift`
+* `Encore/DesignSystem/HomeSections.swift` – `homeCard`, `HomeSectionHeader`, `DanceMenuCapsule`, `HomeRecentRoutineCard`
+* `Encore/Account/PasswordSheets.swift` – `PrimarySheetButton`, `SheetBanner`, `AuthFieldChrome`
+* `Encore/DesignSystem/LuxuryUIComponents.swift` – `EncoreWordmark`, pozadia
+* `Encore/DesignSystem/PressableStyle.swift`, `Encore/DesignSystem/FieldEdgeSweep.swift`
 
 ---
 

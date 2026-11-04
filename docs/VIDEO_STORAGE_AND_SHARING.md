@@ -132,17 +132,17 @@ API token: Object Read & Write iba pre `encore-media`.
 ## 7. Súbory
 
 **iOS**
-- `Encore/PhotoLibraryVideoStore.swift`: ukladanie do Fotiek, prehrávanie a náhľady z Fotiek.
-- `Encore/SharedVideoStore.swift`: zdieľanie (720p kópia, nahranie, potvrdenie), stiahnutie, zrušenie,
+- `Encore/Media/PhotoLibraryVideoStore.swift`: ukladanie do Fotiek, prehrávanie a náhľady z Fotiek.
+- `Encore/Media/SharedVideoStore.swift`: zdieľanie (720p kópia, nahranie, potvrdenie), stiahnutie, zrušenie,
   cache; `ShareableVideoEncoder` robí HEVC 720p ~2,5 Mbit/s.
-- `Encore/MediaResolver.swift`: `videoURL(path:)` vie `photos:`, `r2:` aj staré súbory.
-- `Encore/FigureDetailCard.swift`: menu ⋯ (Zdieľať, Zrušiť zdieľanie, Uložiť do mojich Fotiek),
+- `Encore/Media/MediaResolver.swift`: `videoURL(path:)` vie `photos:`, `r2:` aj staré súbory.
+- `Encore/Figures/FigureDetailCard.swift`: menu ⋯ (Zdieľať, Zrušiť zdieľanie, Uložiť do mojich Fotiek),
   odznak, dialógy s vysvetlením.
-- `Encore/Models.swift`: `CanvasNode.videoPath`, `sharedVideoPath`, `displayVideoPath`.
-- `Encore/SupabaseSyncManager.swift`: `RoutineSnapshot` (posiela iba `r2:`), `apply(row:)`,
+- `Encore/Sync/Models.swift`: `CanvasNode.videoPath`, `sharedVideoPath`, `displayVideoPath`.
+- `Encore/Sync/SupabaseSyncManager.swift`: `RoutineSnapshot` (posiela iba `r2:`), `apply(row:)`,
   `replaceSharedVideoPath`, `syncRoutineNow`.
-- `Encore/VideoGuideView.swift`: návod pre používateľov.
-- `Encore/DanceCameraView.swift`: `savesToPhotos`.
+- `Encore/Profile/VideoGuideView.swift`: návod pre používateľov.
+- `Encore/Camera/DanceCameraView.swift`: `savesToPhotos`.
 
 **Server**
 - `supabase/functions/media-share/index.ts`: akcie upload, confirm, download, remove.

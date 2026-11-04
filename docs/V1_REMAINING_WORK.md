@@ -102,7 +102,7 @@ ID predplatného sú `com.jakub.encore.sub.*`. Staré ID sú zmazané a znova sa
 - Poznámky a Plán aj na server (dnes len v telefóne).
 
 ### Odložené: tréner a zdieľané videá (rozhodnuté 16. 10. 2026)
-v1 je pre tanečníka a jeho partnera. Kód, tabuľky aj serverové funkcie ostali, vypína ich `Encore/AppFeatures.swift`:
+v1 je pre tanečníka a jeho partnera. Kód, tabuľky aj serverové funkcie ostali, vypína ich `Encore/App/AppFeatures.swift`:
 - `coachTools`: rola Tréner pri registrácii a v Nastaveniach, karty Tréneri a Zverenci, „Moji zverenci“,
   zápis lekcií („čo sme robili naposledy“), poznámky trénera pri figúre, kľúče pre hosťujúcich trénerov a Požičané zostavy.
 - `sharedVideos`: „Zdieľať s partnerom a trénerom“ pri videu figúry (kópia 720p na Cloudflare R2). Videá ostávajú vo Fotkách.
