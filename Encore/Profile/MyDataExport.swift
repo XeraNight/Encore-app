@@ -120,6 +120,7 @@ private nonisolated struct DeviceData: Encodable, Sendable {
         let intent: String
         let isTarget: Bool
         let ksisCompetitionId: String?
+        let ksisPropId: Int?
     }
 
     struct OneOffTraining: Encodable, Sendable {
@@ -258,7 +259,8 @@ private extension DeviceData {
                     categories: $0.targetCategories,
                     intent: $0.intentRaw,
                     isTarget: $0.isTargetCompetition,
-                    ksisCompetitionId: $0.ksisCompetitionId
+                    ksisCompetitionId: $0.ksisCompetitionId,
+                    ksisPropId: $0.ksisPropId
                 )
             }
 

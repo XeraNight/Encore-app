@@ -162,12 +162,14 @@ enum CompetitionIntent: String, CaseIterable, Identifiable {
     }
 }
 
-/// A competition the dancer tracks. Entered by hand until a KSIS source is available.
+/// A competition the dancer tracks: entered by hand or sent here from the KSIS calendar with Idem.
 @Model
 final class PlannedCompetition {
     @Attribute(.unique) var id: UUID
-    /// Reserved for the future KSIS link; nil for manually entered competitions.
+    /// The danced KSIS competition (`sutaz_id`), linked once its result is saved.
     var ksisCompetitionId: String? = nil
+    /// `id_prop` in the KSIS calendar: its propositions, entries and timetable. Nil when entered by hand.
+    var ksisPropId: Int? = nil
     var name: String = ""
     var city: String = ""
     var date: Date = Date()

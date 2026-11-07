@@ -271,6 +271,7 @@ extension PlannedCompetition: BackedUp {
     nonisolated struct Backup: Codable {
         let id: UUID
         let ksisCompetitionId: String?
+        let ksisPropId: Int?
         let name: String
         let city: String
         let date: Date
@@ -283,13 +284,14 @@ extension PlannedCompetition: BackedUp {
     static var backupKind: String { "planned_competition" }
 
     var backup: Backup {
-        Backup(id: id, ksisCompetitionId: ksisCompetitionId, name: name, city: city, date: date, entryDeadline: entryDeadline,
+        Backup(id: id, ksisCompetitionId: ksisCompetitionId, ksisPropId: ksisPropId, name: name, city: city, date: date, entryDeadline: entryDeadline,
                targetCategories: targetCategories, intentRaw: intentRaw, isTargetCompetition: isTargetCompetition)
     }
 
     convenience init(backup b: Backup) {
         self.init(id: b.id, name: b.name, city: b.city, date: b.date)
         ksisCompetitionId = b.ksisCompetitionId
+        ksisPropId = b.ksisPropId
         entryDeadline = b.entryDeadline
         targetCategories = b.targetCategories
         intentRaw = b.intentRaw
