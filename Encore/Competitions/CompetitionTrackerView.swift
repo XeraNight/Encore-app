@@ -1,25 +1,34 @@
 import SwiftUI
+import SwiftData
 
 // MARK: - Súťaže
-/// Who the user is in KSIS, the current couple with class, points and finals, the couples before, every competition
-/// with the crosses of each judge, and KSIS in the app for saving and following a competition live (BRAND_GUIDELINES §1A).
-/// Free for everyone. Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár places from
-/// the competition rules (SlovakCup).
+/// The current couple with class, points and finals, the couples before when there are any, every competition with
+/// the crosses of each judge, and one tap to bring it all up to date from KSIS (BRAND_GUIDELINES §1A). The competitions
+/// the dancer goes to stay in Kalendár; here they only tie in: "Postupujete?" on their day, a reminder when one is
+/// not saved yet. Free for everyone. Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár
+/// places from the competition rules (SlovakCup).
 struct CompetitionTrackerView: View {
     @ObservedObject private var manager = CompetitionManager.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @ObservedObject private var cupStore = SlovakCupStore.shared
+    @Query(sort: \PlannedCompetition.date, order: .reverse) private var planned: [PlannedCompetition]
     @State private var showPaywall = false
 
     @State private var browser: KSISBrowserTarget?
+    @State private var updateJob: KSISUpdateJob?
+    @State private var resultsFilter: ResultsFilter?
     @State private var searchText = ""
     @State private var selectedResult: CompetitionResult?
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
     @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
-    @Namespace private var resultsModeNamespace
     @FocusState private var searchFocused: Bool
+
+    private enum ResultsFilter: Hashable {
+        case discipline(String)
+        case category(String)
+    }
 
     var body: some View {
         ZStack {
@@ -30,16 +39,21 @@ struct CompetitionTrackerView: View {
                     dancerSection
                     if let couple = manager.activeCouple {
                         coupleSection(couple)
-                        slovakCupSection(couple)
                     }
                     if !manager.previousCouples.isEmpty {
                         previousCouplesSection
                     }
+                    unsavedSection
+                    if let competition = todaysCompetition {
+                        competitionDaySection(competition)
+                    }
+                    if let couple = manager.activeCouple {
+                        slovakCupSection(couple)
+                    }
+                    quickLinks
                     if !manager.results.isEmpty {
                         mySeasonCard
                     }
-
-                    liveSection
 
                     if !manager.couples.isEmpty {
                         resultsSection
@@ -67,6 +81,7 @@ struct CompetitionTrackerView: View {
         .fullScreenCover(item: $browser) { target in
             KSISBrowserView(startURL: target.url)
         }
+        .fullScreenCover(item: $updateJob) { KSISUpdateSheet(job: $0) }
         .sheet(item: $selectedResult) { result in
             KSISResultDetailView(result: result) { url in
                 selectedResult = nil
@@ -159,7 +174,7 @@ struct CompetitionTrackerView: View {
                     .foregroundColor(.white.opacity(0.7))
             }
             Button { openCupStandings(group: group, discipline: discipline) } label: {
-                Label(saved == nil ? "Pozrieť poradie v KSIS" : "Aktualizovať z KSIS", systemImage: "arrow.clockwise")
+                Label("Poradie v KSIS", systemImage: "list.number")
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(Color.gold400)
                     .frame(maxWidth: .infinity, minHeight: 44)
@@ -180,45 +195,64 @@ struct CompetitionTrackerView: View {
     }
 
     // MARK: Dancer
-    /// Who the user is in KSIS: found by name or the personal number.
+    /// Who the user is in KSIS: found by name or the personal number. One line once the couples are saved.
     @ViewBuilder
     private var dancerSection: some View {
         if let dancer = manager.dancer {
-            VStack(alignment: .leading, spacing: 12) {
-                HomeSectionHeader(title: "TANEČNÍK V KSIS", systemImage: "person.text.rectangle")
-                VStack(alignment: .leading, spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(dancer.name)
-                            .font(.system(.title3, design: .rounded).weight(.bold))
-                            .foregroundColor(.white)
-                        Text([dancer.club, "č. \(dancer.personNumber)"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.footnote)
-                            .foregroundColor(Color.textSecondary)
-                    }
-                    if manager.couples.isEmpty {
-                        Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")
-                            .font(.footnote)
-                            .foregroundColor(Color.gold300)
-                    }
-                    Button {
-                        if let url = KSISBrowserView.couplesURL(surname: KSISBrowserView.surname(of: dancer.name)) {
-                            browser = KSISBrowserTarget(url: url)
-                        }
-                    } label: {
-                        Label("Moje páry v KSIS", systemImage: "person.2.fill")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(manager.couples.isEmpty ? Color.obsidian900 : Color.gold400)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(manager.couples.isEmpty ? Color.gold400 : Color.white.opacity(0.06),
-                                        in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
+            if manager.couples.isEmpty {
+                findCouplesSection(dancer)
+            } else {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.text.rectangle")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(Color.gold400)
+                        .accessibilityHidden(true)
+                    Text(dancer.name)
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                    Text("č. \(dancer.personNumber)")
+                        .font(.caption)
+                        .foregroundColor(Color.textSecondary)
                 }
-                .padding(16)
-                .homeCard(cornerRadius: 20)
+                .accessibilityElement(children: .combine)
             }
         } else {
             findYourselfSection
+        }
+    }
+
+    private func findCouplesSection(_ dancer: KSISDancer) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "TANEČNÍK V KSIS", systemImage: "person.text.rectangle")
+            VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(dancer.name)
+                        .font(.system(.title3, design: .rounded).weight(.bold))
+                        .foregroundColor(.white)
+                    Text([dancer.club, "č. \(dancer.personNumber)"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.footnote)
+                        .foregroundColor(Color.textSecondary)
+                }
+                Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")
+                    .font(.footnote)
+                    .foregroundColor(Color.gold300)
+                Button { openCouples(of: dancer) } label: {
+                    Label("Moje páry v KSIS", systemImage: "person.2.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundColor(Color.obsidian900)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+                .buttonStyle(.pressable)
+            }
+            .padding(16)
+            .homeCard(cornerRadius: 20)
+        }
+    }
+
+    private func openCouples(of dancer: KSISDancer) {
+        if let url = KSISBrowserView.couplesURL(surname: KSISBrowserView.surname(of: dancer.name)) {
+            browser = KSISBrowserTarget(url: url)
         }
     }
 
@@ -316,6 +350,11 @@ struct CompetitionTrackerView: View {
         VStack(alignment: .leading, spacing: 12) {
             HomeSectionHeader(title: "NÁŠ PÁR", systemImage: "person.2.fill") {
                 Menu {
+                    if let dancer = manager.dancer {
+                        Button { openCouples(of: dancer) } label: {
+                            Label("Moje páry v KSIS", systemImage: "person.2.fill")
+                        }
+                    }
                     Button(role: .destructive) {
                         coupleToUnlink = couple
                     } label: {
@@ -354,12 +393,8 @@ struct CompetitionTrackerView: View {
                 }
 
                 HStack(spacing: 10) {
-                    Button {
-                        if let pair = couple.pairNumber, let url = KSISBrowserView.coupleDetail(pair) {
-                            browser = KSISBrowserTarget(url: url)
-                        }
-                    } label: {
-                        Label("Aktualizovať", systemImage: "arrow.clockwise")
+                    Button { updateJob = .everything } label: {
+                        Label("Aktualizovať z KSIS", systemImage: "arrow.clockwise")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(Color.obsidian900)
                             .frame(maxWidth: .infinity, minHeight: 44)
@@ -374,10 +409,11 @@ struct CompetitionTrackerView: View {
                             browser = KSISBrowserTarget(url: url)
                         }
                     } label: {
-                        Label(couple.coupleId == nil ? "Otvoriť KSIS" : "História", systemImage: "list.bullet.rectangle")
+                        Label(couple.coupleId == nil ? "KSIS" : "História", systemImage: "list.bullet.rectangle")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.white)
-                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
                             .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .buttonStyle(.pressable)
@@ -425,12 +461,17 @@ struct CompetitionTrackerView: View {
         .accessibilityElement(children: .combine)
     }
 
-    // MARK: Live
-    private var liveSection: some View {
+    // MARK: Competition day
+    /// A competition set to Idem for today. "Postupujete?" belongs to it; on any other day it has nothing to say.
+    private var todaysCompetition: PlannedCompetition? {
+        planned.first { $0.intent == .going && PlannerCalendar.calendar.isDate($0.date, inSameDayAs: Date()) }
+    }
+
+    private func competitionDaySection(_ competition: PlannedCompetition) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "V DEŇ SÚŤAŽE", systemImage: "dot.radiowaves.left.and.right")
+            HomeSectionHeader(title: "DNES SÚŤAŽÍTE", systemImage: "dot.radiowaves.left.and.right")
             Button {
-                if let url = URL(string: "https://\(KSISBrowserView.host)/") {
+                if let url = KSISBrowserView.page("menu.php?akcia=S") {
                     browser = KSISBrowserTarget(url: url)
                 }
             } label: {
@@ -440,9 +481,10 @@ struct CompetitionTrackerView: View {
                         .foregroundColor(Color.gold400)
                         .symbolEffect(.pulse)
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Postupujete? Pozri hneď")
+                        Text("Postupujete? \(competition.name)")
                             .font(.subheadline.weight(.bold))
                             .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
                         Text("Otvor v KSIS hodnotenie svojej kategórie a potiahni stránku nadol. Encore ukáže, či postupujete, a krížiky od každého porotcu.")
                             .font(.footnote)
                             .foregroundColor(.white.opacity(0.65))
@@ -461,26 +503,169 @@ struct CompetitionTrackerView: View {
         }
     }
 
+    // MARK: What is not saved yet
+    /// Idem competitions of the last month with no result saved for their day.
+    private var unsavedCompetitions: [PlannedCompetition] {
+        guard !manager.couples.isEmpty, !manager.loadFailed else { return [] }
+        let today = PlannerCalendar.startOfDay(Date())
+        let monthAgo = PlannerCalendar.calendar.date(byAdding: .day, value: -30, to: today) ?? today
+        return planned.filter {
+            $0.intent == .going && $0.date < today && $0.date >= monthAgo && $0.dancedResults(in: manager.results).isEmpty
+        }
+    }
+
+    @ViewBuilder
+    private var unsavedSection: some View {
+        if let latest = unsavedCompetitions.first {
+            let others = unsavedCompetitions.count - 1
+            Button { updateJob = .everything } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "tray.and.arrow.down.fill")
+                        .foregroundColor(Color.gold400)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(latest.name) ešte nie je uložená")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(.leading)
+                        Text(others > 0 ? "Aktualizovať · čakajú ďalšie: \(others)" : "Aktualizovať")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(Color.gold300)
+                    }
+                    Spacer(minLength: 0)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.bold))
+                        .foregroundColor(.white.opacity(0.4))
+                }
+                .padding(14)
+                .homeCard(cornerRadius: 20)
+            }
+            .buttonStyle(.pressable(scale: 0.98))
+        }
+    }
+
+    // MARK: Quick links
+    private var quickLinks: some View {
+        HStack(spacing: 10) {
+            NavigationLink { KSISCalendarView() } label: { quickLink("Kalendár súťaží", icon: "calendar") }
+                .buttonStyle(.pressable(scale: 0.96))
+            Button {
+                if let url = KSISBrowserView.page("menu.php?akcia=S") { browser = KSISBrowserTarget(url: url) }
+            } label: {
+                quickLink("Výsledky", icon: "trophy.fill")
+            }
+            .buttonStyle(.pressable(scale: 0.96))
+            Button(action: openCup) { quickLink("Pohár", icon: "rosette") }
+                .buttonStyle(.pressable(scale: 0.96))
+        }
+    }
+
+    private func quickLink(_ title: String, icon: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.headline)
+                .foregroundColor(Color.gold400)
+            Text(title)
+                .font(.caption.weight(.bold))
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity, minHeight: 76)
+        .padding(.horizontal, 6)
+        .homeCard(cornerRadius: 18)
+    }
+
+    /// The couple's table when it is in the cup, otherwise the year's page with all the tables.
+    private func openCup() {
+        let year = Calendar.current.component(.year, from: Date())
+        if let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory),
+           let discipline = SlovakCup.disciplines(for: couple).first {
+            openCupStandings(group: group, discipline: discipline)
+        } else if let url = SlovakCup.overviewURL(year: year) {
+            browser = KSISBrowserTarget(url: url)
+        }
+    }
+
     // MARK: Results
+    private var filteredResults: [CompetitionResult] {
+        switch resultsFilter {
+        case nil: return manager.results
+        case .discipline(let discipline): return manager.results.filter { $0.discipline == discipline }
+        case .category(let category): return manager.results.filter { $0.categoryName == category }
+        }
+    }
+
+    /// The dancer's categories, the latest first.
+    private var resultCategories: [String] {
+        var seen = Set<String>()
+        return manager.results.map(\.categoryName).filter { seen.insert($0).inserted }
+    }
+
+    private var resultsFilters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                resultsChip("Všetko", nil)
+                resultsChip("ŠTT", .discipline("STT"))
+                resultsChip("LAT", .discipline("LAT"))
+                ForEach(resultCategories, id: \.self) { resultsChip($0, .category($0)) }
+            }
+        }
+        .scrollClipDisabled()
+        .sensoryFeedback(.selection, trigger: resultsFilter)
+    }
+
+    private func resultsChip(_ title: String, _ value: ResultsFilter?) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { resultsFilter = value }
+        } label: {
+            FilterChip(title: title, isOn: resultsFilter == value)
+        }
+        .buttonStyle(.pressable)
+    }
+
+    /// One line for the crosses still to come, so it is clear what the empty mark in the rows means.
+    @ViewBuilder
+    private var missingMarksLine: some View {
+        let missing = manager.results.filter(manager.isMissingMarks).count
+        if missing > 0 {
+            Button { updateJob = .everything } label: {
+                Label("Krížiky chýbajú: \(missing) · Aktualizovať", systemImage: "square.dashed")
+                    .font(.caption.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                    .frame(minHeight: 34)
+            }
+            .buttonStyle(.pressable)
+        }
+    }
+
     private var resultsSection: some View {
-        let years = Dictionary(grouping: manager.results) { String($0.date.prefix(4)) }
+        let results = filteredResults
+        let years = Dictionary(grouping: results) { String($0.date.prefix(4)) }
         let sortedYears = years.keys.sorted(by: >)
         return VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill", count: manager.results.count) {
-                if !manager.results.isEmpty { resultsModeSwitch }
+            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill", count: results.count) {
+                if !manager.results.isEmpty {
+                    GoldModeSwitch(isSecond: $showsCalendar, first: ("list.bullet", "Zoznam"), second: ("calendar", "Kalendár"))
+                }
+            }
+            if !manager.results.isEmpty {
+                resultsFilters
+                missingMarksLine
             }
 
             if manager.results.isEmpty {
                 Text(manager.loadFailed
                      ? "Výsledky sa nepodarilo načítať. Potiahni obrazovku nadol a skús znova."
-                     : "Zatiaľ žiadne. Otvor v KSIS stránku svojho páru a ulož históriu jedným ťuknutím.")
+                     : "Zatiaľ žiadne. Ťukni Aktualizovať z KSIS a uložia sa všetky vaše súťaže.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .homeCard(cornerRadius: 20)
             } else if showsCalendar {
-                CompetitionCalendarView(results: manager.results) { selectedResult = $0 }
+                CompetitionCalendarView(results: results) { selectedResult = $0 }
                     .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
             } else {
                 ForEach(sortedYears, id: \.self) { year in
@@ -493,7 +678,7 @@ struct CompetitionTrackerView: View {
                             Button {
                                 selectedResult = result
                             } label: {
-                                CompetitionResultRow(result: result)
+                                CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
                             }
                             .buttonStyle(.pressable(scale: 0.98))
                             if result.id != years[year]?.last?.id {
@@ -505,36 +690,6 @@ struct CompetitionTrackerView: View {
                 }
             }
         }
-    }
-
-    private var resultsModeSwitch: some View {
-        HStack(spacing: 2) {
-            ForEach([false, true], id: \.self) { asCalendar in
-                let isOn = showsCalendar == asCalendar
-                Button {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { showsCalendar = asCalendar }
-                } label: {
-                    Image(systemName: asCalendar ? "calendar" : "list.bullet")
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.6))
-                        .frame(width: 34, height: 26)
-                        .background {
-                            if isOn {
-                                Capsule()
-                                    .fill(Color.gold400)
-                                    .matchedGeometryEffect(id: "resultsMode", in: resultsModeNamespace)
-                            }
-                        }
-                }
-                .buttonStyle(.pressable(scale: 0.9))
-                .accessibilityLabel(asCalendar ? "Kalendár" : "Zoznam")
-                .accessibilityAddTraits(isOn ? .isSelected : [])
-            }
-        }
-        .padding(2)
-        .background(Color.white.opacity(0.07), in: Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
-        .sensoryFeedback(.selection, trigger: showsCalendar)
     }
 
     private func unlink(_ couple: UserCouple) {
@@ -564,6 +719,8 @@ struct KSISBrowserTarget: Identifiable {
 /// One saved competition: date, category, event, place and points. Used in the list and in the calendar.
 struct CompetitionResultRow: View {
     let result: CompetitionResult
+    /// Crosses not saved yet that KSIS may still have.
+    var isMissingMarks = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -599,6 +756,11 @@ struct CompetitionResultRow: View {
                             .font(.caption2)
                             .foregroundColor(Color.gold400)
                             .accessibilityLabel("Krížiky uložené")
+                    } else if isMissingMarks {
+                        Image(systemName: "square.dashed")
+                            .font(.caption2)
+                            .foregroundColor(Color.gold300)
+                            .accessibilityLabel("Krížiky chýbajú")
                     }
                     Text("+\(result.pointsEarned) b")
                         .font(.caption.weight(.semibold))

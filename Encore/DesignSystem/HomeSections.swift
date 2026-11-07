@@ -233,6 +233,47 @@ func slovakCount(_ n: Int, one: String, few: String, many: String) -> String {
     }
 }
 
+// MARK: - Two views of the same thing
+/// A small gold switch between two icons, such as a list and a calendar.
+struct GoldModeSwitch: View {
+    @Binding var isSecond: Bool
+    let first: (icon: String, label: String)
+    let second: (icon: String, label: String)
+
+    @Namespace private var namespace
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach([false, true], id: \.self) { value in
+                let isOn = isSecond == value
+                let mode = value ? second : first
+                Button {
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { isSecond = value }
+                } label: {
+                    Image(systemName: mode.icon)
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.6))
+                        .frame(width: 34, height: 26)
+                        .background {
+                            if isOn {
+                                Capsule()
+                                    .fill(Color.gold400)
+                                    .matchedGeometryEffect(id: "mode", in: namespace)
+                            }
+                        }
+                }
+                .buttonStyle(.pressable(scale: 0.9))
+                .accessibilityLabel(mode.label)
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Color.white.opacity(0.07), in: Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
+        .sensoryFeedback(.selection, trigger: isSecond)
+    }
+}
+
 // MARK: - Routine card
 /// One routine (BRAND_GUIDELINES §1A): name, dance, its length and the figures as a strip in time. Each piece
 /// of the strip is as wide as the figure's bars and gold when the figure has a video, so the length and what is

@@ -9,8 +9,9 @@ import OSLog
 /// page loads, the panel below says what that page means for the dancer and offers one action: "Som to ja" in the
 /// members list, save the couples, a result with its crosses or the history, put a registration into Plán. Every
 /// panel ends with the pages worth going to next.
-/// The app never opens KSIS pages on its own and never refreshes in the background: pulling the page
-/// down is the live view on competition day (docs/KSIS_SAMPLES_NEEDED.md §1).
+/// KSIS pages open only after the dancer's tap, here or in the visible Aktualizovať window (KSISUpdateSheet), and
+/// nothing refreshes in the background: pulling the page down is the live view on competition day
+/// (docs/KSIS_SAMPLES_NEEDED.md §1).
 struct KSISBrowserView: View {
     static let host = "szts.ksis.eu"
 
@@ -151,10 +152,7 @@ struct KSISBrowserView: View {
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
-        .padding(16)
-        .glassEffect(.regular.tint(Color.encoreBurgundy.opacity(0.82)), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.gold400.opacity(0.28), lineWidth: 1))
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        .ksisPanel()
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: notice)
         .animation(.spring(response: 0.35, dampingFraction: 0.85), value: panelContentHeight)
     }
@@ -301,14 +299,7 @@ struct KSISBrowserView: View {
         .homeCard(cornerRadius: 14)
     }
 
-    private var consentToggle: some View {
-        Toggle(isOn: $consent) {
-            Text("Partner(ka) súhlasí, aby sme v Encore videli naše spoločné výsledky.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.85))
-        }
-        .tint(Color.gold500)
-    }
+    private var consentToggle: some View { KSISConsentToggle(isOn: $consent) }
 
     @ViewBuilder
     private func coupleDetail(_ reply: KSISPageReply) -> some View {
@@ -495,12 +486,7 @@ struct KSISBrowserView: View {
         Button {
             if let url { web.load(url) }
         } label: {
-            Label(title, systemImage: icon)
-                .font(.caption.weight(.bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 12)
-                .frame(minHeight: 34)
-                .background(Color.white.opacity(0.08), in: Capsule())
+            KSISLinkChip(title: title, icon: icon)
         }
         .buttonStyle(.pressable)
     }
@@ -681,18 +667,8 @@ struct KSISBrowserView: View {
 
     private func addToPlan(event: KSISPageReply.Event, categories: [String]) {
         guard let date = event.date.flatMap({ Self.isoDay.date(from: $0) }) else { return }
-        let name = event.name
-        let sameName = (try? modelContext.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.name == name }))) ?? []
-        if let existing = sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
-            existing.targetCategories = categories
-            existing.intent = .going
-        } else {
-            let competition = PlannedCompetition(name: name, city: event.venue ?? "", date: date)
-            competition.targetCategories = categories
-            competition.intent = .going
-            modelContext.insert(competition)
-        }
-        try? modelContext.save()
+        PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue ?? "", date: date, categories: categories,
+                                         context: modelContext)
         successTick += 1
         notice = "Súťaž je v kalendári aj s vašimi kategóriami."
     }
@@ -749,6 +725,30 @@ struct KSISBrowserView: View {
     /// KSIS writes "Priezvisko Meno".
     static func surname(of name: String) -> String {
         name.split(separator: " ").first.map(String.init) ?? name
+    }
+}
+
+/// Saving a new couple shows both dancers' results in Encore, so the partner's yes comes first.
+struct KSISConsentToggle: View {
+    @Binding var isOn: Bool
+
+    var body: some View {
+        Toggle(isOn: $isOn) {
+            Text("Partner(ka) súhlasí, aby sme v Encore videli naše spoločné výsledky.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.85))
+        }
+        .tint(Color.gold500)
+    }
+}
+
+extension View {
+    /// The glass panel floating over a KSIS page.
+    func ksisPanel() -> some View {
+        padding(16)
+            .glassEffect(.regular.tint(Color.encoreBurgundy.opacity(0.82)), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 26, style: .continuous).stroke(Color.gold400.opacity(0.28), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
 }
 
@@ -823,6 +823,8 @@ struct KSISWebView: UIViewRepresentable {
     let startURL: URL
     let controller: KSISWebController
     let onPageLoaded: (URL, String) -> Void
+    /// A page that did not load (no internet). A navigation replaced by another one is not a failure.
+    var onPageFailed: (() -> Void)? = nil
 
     func makeCoordinator() -> Coordinator { Coordinator(controller: controller, onPageLoaded: onPageLoaded) }
 
@@ -842,11 +844,13 @@ struct KSISWebView: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.onPageLoaded = onPageLoaded
+        context.coordinator.onPageFailed = onPageFailed
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
         let controller: KSISWebController
         var onPageLoaded: (URL, String) -> Void
+        var onPageFailed: (() -> Void)?
 
         init(controller: KSISWebController, onPageLoaded: @escaping (URL, String) -> Void) {
             self.controller = controller
@@ -893,11 +897,16 @@ struct KSISWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            finished(webView)
+            failed(webView, error)
         }
 
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            failed(webView, error)
+        }
+
+        private func failed(_ webView: WKWebView, _ error: Error) {
             finished(webView)
+            if (error as NSError).code != NSURLErrorCancelled { onPageFailed?() }
         }
 
         private func finished(_ webView: WKWebView) {

@@ -1,0 +1,514 @@
+import SwiftUI
+import SwiftData
+
+// MARK: - Kalendár súťaží
+/// The KSIS calendar: what is coming, filtered as on KSIS, in a list or on the map of Slovakia. Reading only: the
+/// competitions the dancer goes to live in Kalendár, sent there with Idem. The last read stays on the iPhone.
+struct KSISCalendarView: View {
+    @ObservedObject private var store = KSISCalendarStore.shared
+    @ObservedObject private var manager = CompetitionManager.shared
+    @Query private var planned: [PlannedCompetition]
+
+    @State private var filter = KSISCalendarFilter()
+    @State private var selected: KSISEvent?
+    @State private var job: KSISUpdateJob?
+    @AppStorage("ksisCalendarAsMap") private var showsMap = false
+
+    private var couple: UserCouple? { manager.activeCouple }
+
+    /// Competitions from today on: the cached read goes stale day by day.
+    private var upcoming: [KSISEvent] {
+        let today = PlannerCalendar.startOfDay(Date())
+        return store.events.filter { ($0.dateValue ?? today) >= today }
+    }
+
+    /// Everything but the town: the map shows where the other filters leave something.
+    private var beforeCity: [KSISEvent] {
+        var others = filter
+        others.city = nil
+        return upcoming.filter { others.matches($0, couple: couple) }
+    }
+
+    private var cityCounts: [String: Int] {
+        Dictionary(grouping: beforeCity.compactMap(\.city)) { $0 }.mapValues(\.count)
+    }
+
+    private var shown: [KSISEvent] { beforeCity.filter { filter.city == nil || $0.city == filter.city } }
+
+    /// Months in calendar order, as KSIS lists them.
+    private var months: [(title: String, events: [KSISEvent])] {
+        let groups = Dictionary(grouping: shown) { String($0.date.prefix(7)) }
+        return groups.keys.sorted().map { key in
+            let events = (groups[key] ?? []).sorted { $0.date < $1.date }
+            let title = events.first?.dateValue?.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "sk"))) ?? key
+            return (title.uppercased(), events)
+        }
+    }
+
+    var body: some View {
+        ZStack {
+            EllegancePageBackground()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    if store.readAt == nil {
+                        firstRead
+                    } else {
+                        statusLine
+                        filters
+                        if showsMap { map }
+                        list
+                    }
+                    Text("Zdroj: KSIS (szts.ksis.eu). Propozície, prihlášky a termíny vždy over v KSIS.")
+                        .font(.caption)
+                        .foregroundColor(.white.opacity(0.45))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 8)
+                .padding(.bottom, 120)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: filter)
+                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsMap)
+            }
+        }
+        .navigationTitle("Kalendár súťaží")
+        .navigationBarTitleDisplayMode(.inline)
+        .fullScreenCover(item: $job) { KSISUpdateSheet(job: $0) }
+        .sheet(item: $selected) { event in
+            KSISEventSheet(event: event, couple: couple)
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    // MARK: First read
+    private var firstRead: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Súťaže sa načítajú z KSIS. Ostanú v iPhone, takže kalendár potom otvoríš hneď a aj bez internetu.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+            PrimarySheetButton(title: "Načítať kalendár z KSIS", isLoading: false, isEnabled: true) { job = .calendar }
+        }
+        .padding(16)
+        .homeCard(cornerRadius: 20)
+    }
+
+    // MARK: Status
+    private var statusLine: some View {
+        HStack(spacing: 10) {
+            if let readAt = store.readAt {
+                Text("Načítané \(EncoreTime.dayAndClock(readAt))")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+            }
+            Spacer(minLength: 8)
+            Button { job = .calendar } label: {
+                Label("Aktualizovať", systemImage: "arrow.clockwise")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 34)
+            }
+            .buttonStyle(.pressable)
+            GoldModeSwitch(isSecond: $showsMap, first: ("list.bullet", "Zoznam"), second: ("map", "Mapa"))
+        }
+    }
+
+    // MARK: Filters
+    private var filters: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                if couple != nil {
+                    Button {
+                        filter.onlyMine.toggle()
+                    } label: {
+                        FilterChip(title: "Moja kategória", isOn: filter.onlyMine)
+                    }
+                    .buttonStyle(.pressable)
+                }
+                menu("Vek", selection: $filter.age, options: KSISCalendarFilter.ages.map { ($0, $0) })
+                menu("Trieda", selection: $filter.className, options: KSISCalendarFilter.classes.map { ($0, $0) })
+                menu("ŠTT / LAT", selection: $filter.discipline, options: KSISCalendarFilter.disciplines.map { ($0, $0) })
+                menu("Typ", selection: kindFilter, options: [(.slovakCup, "Slovenský pohár"), (.championship, "MSR"), (.wdsf, "WDSF")])
+                menu("Mesto", selection: $filter.city, options: cityCounts.keys.sorted { $0.compare($1, locale: Locale(identifier: "sk")) == .orderedAscending }.map { ($0, $0) })
+            }
+        }
+        .scrollClipDisabled()
+        .sensoryFeedback(.selection, trigger: filter)
+    }
+
+    /// A type is its own list: who may start at MSR or WDSF is in the rules, not in the couple's class.
+    private var kindFilter: Binding<KSISEvent.Kind?> {
+        Binding {
+            filter.kind
+        } set: { kind in
+            filter.kind = kind
+            if kind != nil { filter.onlyMine = false }
+        }
+    }
+
+    private func menu<Value: Hashable>(_ title: String, selection: Binding<Value?>, options: [(value: Value, title: String)]) -> some View {
+        Menu {
+            Button("Všetko") { selection.wrappedValue = nil }
+            ForEach(options, id: \.value) { option in
+                Button(option.title) { selection.wrappedValue = option.value }
+            }
+        } label: {
+            FilterChip(title: options.first { $0.value == selection.wrappedValue }?.title ?? title,
+                       isOn: selection.wrappedValue != nil, hasMenu: true)
+        }
+    }
+
+    // MARK: Map
+    private var map: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SlovakiaMapView(counts: cityCounts, selected: $filter.city)
+            let unplaced = beforeCity.count - cityCounts.values.reduce(0, +)
+            if unplaced > 0 {
+                Text("Bez miesta na mape: \(unplaced). Sú v zozname nižšie.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+            }
+        }
+        .padding(12)
+        .homeCard(cornerRadius: 20)
+        .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+    }
+
+    // MARK: List
+    @ViewBuilder
+    private var list: some View {
+        if shown.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Pre tento výber KSIS nemá žiadnu súťaž.")
+                    .font(.footnote)
+                    .foregroundColor(Color.textSecondary)
+                if filter != KSISCalendarFilter(onlyMine: false) {
+                    Button("Zobraziť všetky súťaže") { filter = KSISCalendarFilter(onlyMine: false) }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Color.gold400)
+                        .frame(minHeight: 44)
+                        .buttonStyle(.pressable)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .homeCard(cornerRadius: 20)
+        } else {
+            ForEach(months, id: \.title) { month in
+                VStack(alignment: .leading, spacing: 10) {
+                    HomeSectionHeader(title: month.title, count: month.events.count)
+                    VStack(spacing: 0) {
+                        ForEach(month.events) { event in
+                            Button { selected = event } label: {
+                                KSISEventRow(event: event, couple: couple, isGoing: isGoing(to: event))
+                            }
+                            .buttonStyle(.pressable(scale: 0.98))
+                            if event.id != month.events.last?.id { HomeRowDivider() }
+                        }
+                    }
+                    .homeCard(cornerRadius: 20)
+                }
+            }
+        }
+    }
+
+    private func isGoing(to event: KSISEvent) -> Bool {
+        planned.contains { $0.ksisPropId != nil && $0.ksisPropId == event.propId && $0.intent == .going }
+    }
+}
+
+// MARK: - One competition in the list
+private struct KSISEventRow: View {
+    let event: KSISEvent
+    let couple: UserCouple?
+    let isGoing: Bool
+
+    private var myCategories: [String] { couple.map(event.categories(for:)) ?? [] }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 0) {
+                Text(event.dateValue?.formatted(.dateTime.day()) ?? "")
+                    .font(.system(.headline, design: .rounded).weight(.heavy))
+                    .foregroundColor(.white)
+                Text(event.dateValue?.formatted(.dateTime.month(.abbreviated).locale(Locale(identifier: "sk"))) ?? "")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundColor(Color.textSecondary)
+            }
+            .frame(width: 40)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(event.name)
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(event.isCancelled ? .white.opacity(0.5) : .white)
+                    .strikethrough(event.isCancelled)
+                    .multilineTextAlignment(.leading)
+                Text(event.city ?? event.venue)
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+                    .lineLimit(1)
+                if !myCategories.isEmpty {
+                    Text(myCategories.joined(separator: " · "))
+                        .font(.caption2.weight(.semibold))
+                        .foregroundColor(Color.gold300)
+                }
+                if event.isCancelled {
+                    Text("Zrušené")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.white.opacity(0.75))
+                } else if let note = event.note {
+                    KSISEventNote(text: note)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 6)
+
+            if isGoing {
+                Text("Idem")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(Color.obsidian900)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.gold400, in: Capsule())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// KSIS's warning on a competition. Red in KSIS, gold here: red text is lost on the crimson background.
+private struct KSISEventNote: View {
+    let text: String
+
+    var body: some View {
+        Label {
+            Text(text)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle.fill")
+        }
+        .foregroundColor(Color.gold300)
+    }
+}
+
+// MARK: - One competition
+/// Everything KSIS says about a competition, Idem, and its pages. Idem sends it to Kalendár, the one place for
+/// the competitions the dancer goes to.
+struct KSISEventSheet: View {
+    let event: KSISEvent
+    let couple: UserCouple?
+
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var planned: [PlannedCompetition]
+    @State private var browser: KSISBrowserTarget?
+    @State private var goingTick = 0
+
+    private var plannedHere: PlannedCompetition? { planned.first { $0.ksisPropId != nil && $0.ksisPropId == event.propId } }
+    private var isGoing: Bool { plannedHere?.intent == .going }
+    private var myCategories: [String] { couple.map(event.categories(for:)) ?? [] }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                EllegancePageBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        header
+                        facts
+                        if !event.isCancelled, event.dateValue != nil { goingButton }
+                        KSISEventLinks(propId: event.propId, registered: event.registered, hasTimetable: event.hasTimetable,
+                                       venue: event.venue) { browser = KSISBrowserTarget(url: $0) }
+                        categories
+                    }
+                    .padding(20)
+                }
+            }
+            .navigationTitle(event.dateValue?.formatted(.dateTime.day().month(.wide).year().locale(Locale(identifier: "sk"))) ?? "")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Zavrieť") { dismiss() }
+                        .foregroundColor(Color.gold400)
+                }
+            }
+        }
+        .sensoryFeedback(.success, trigger: goingTick)
+        .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
+        .preferredColorScheme(.dark)
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(event.name)
+                .font(.system(.title3, design: .rounded).weight(.bold))
+                .foregroundColor(.white)
+                .strikethrough(event.isCancelled)
+            if event.isCancelled {
+                Text("Zrušené")
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(.white.opacity(0.75))
+            } else if let note = event.note {
+                KSISEventNote(text: note)
+                    .font(.footnote.weight(.semibold))
+            }
+        }
+    }
+
+    private var facts: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if !event.venue.isEmpty { fact("mappin.and.ellipse", event.venue) }
+            if !event.organizer.isEmpty { fact("person.2", event.organizer) }
+            if let deadline = event.entryDeadlineValue {
+                let day = deadline.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "sk")))
+                fact("clock", deadline < PlannerCalendar.startOfDay(Date()) ? "Termín prihlášok bol \(day)" : "Prihlášky do \(day)")
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .homeCard(cornerRadius: 18)
+    }
+
+    private func fact(_ icon: String, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundColor(Color.gold400)
+                .frame(width: 22)
+                .accessibilityHidden(true)
+            Text(text)
+                .foregroundColor(.white.opacity(0.85))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.footnote)
+    }
+
+    @ViewBuilder
+    private var goingButton: some View {
+        if isGoing {
+            HStack(spacing: 10) {
+                Label("V Kalendári: Idem", systemImage: "checkmark.circle.fill")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(Color.gold300)
+                Spacer(minLength: 8)
+                Button("Neidem") { plannedHere?.setIntent(.declined, context: modelContext) }
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.white.opacity(0.7))
+                    .frame(minHeight: 44)
+                    .buttonStyle(.pressable)
+            }
+            .transition(.opacity)
+        } else {
+            PrimarySheetButton(title: "Idem", isLoading: false, isEnabled: true, action: go)
+                .transition(.opacity)
+        }
+    }
+
+    private func go() {
+        guard let date = event.dateValue else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+            PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
+                                             entryDeadline: event.entryDeadlineValue, propId: event.propId, context: modelContext)
+        }
+        goingTick += 1
+    }
+
+    private var categories: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HomeSectionHeader(title: "KATEGÓRIE", systemImage: "list.bullet", count: event.categories.count)
+            if !myCategories.isEmpty {
+                Text(myCategories.joined(separator: " · "))
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(Color.gold300)
+            }
+            Text(event.categories.filter { !myCategories.contains($0) }.joined(separator: ", "))
+                .font(.footnote)
+                .foregroundColor(Color.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+// MARK: - Pages of a competition
+/// Propozície, entries, the timetable once KSIS has it, and the place in Google Maps. Also on the competition in Kalendár.
+struct KSISEventLinks: View {
+    /// Nil until KSIS publishes the propositions; the place is known before that.
+    let propId: Int?
+    let registered: Int?
+    let hasTimetable: Bool
+    let venue: String
+    let open: (URL) -> Void
+
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible())], spacing: 8) {
+            if let propId {
+                link("Propozície", icon: "doc.text", url: KSISEvent.propositionsURL(propId))
+                link(registered.map { "Prihlásení (\($0))" } ?? "Prihlásení", icon: "person.3", url: KSISEvent.entriesURL(propId))
+                if hasTimetable {
+                    link("Harmonogram", icon: "clock", url: KSISEvent.timetableURL(propId))
+                }
+            }
+            if !venue.isEmpty, let maps = KSISEvent.mapsURL(venue: venue) {
+                Button { openURL(maps) } label: { KSISLinkChip(title: "Mapa", icon: "map", fills: true) }
+                    .buttonStyle(.pressable)
+            }
+        }
+    }
+
+    private func link(_ title: String, icon: String, url: URL?) -> some View {
+        Button {
+            if let url { open(url) }
+        } label: {
+            KSISLinkChip(title: title, icon: icon, fills: true)
+        }
+        .buttonStyle(.pressable)
+    }
+}
+
+/// A link to a KSIS page.
+struct KSISLinkChip: View {
+    let title: String
+    let icon: String
+    /// As wide as its place in a grid.
+    var fills = false
+
+    var body: some View {
+        Label(title, systemImage: icon)
+            .font(.caption.weight(.bold))
+            .foregroundColor(.white)
+            .lineLimit(1)
+            .padding(.horizontal, 12)
+            .frame(maxWidth: fills ? .infinity : nil, minHeight: 38)
+            .background(Color.white.opacity(0.08), in: Capsule())
+    }
+}
+
+// MARK: - Filter chip
+/// One filter; gold when it is on.
+struct FilterChip: View {
+    let title: String
+    let isOn: Bool
+    var hasMenu = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(title)
+            if hasMenu {
+                Image(systemName: "chevron.down")
+                    .font(.caption2.weight(.bold))
+            }
+        }
+        .font(.caption.weight(.bold))
+        .foregroundColor(isOn ? Color.obsidian900 : .white)
+        .padding(.horizontal, 12)
+        .frame(minHeight: 34)
+        .background(isOn ? Color.gold400 : Color.white.opacity(0.08), in: Capsule())
+        .contentShape(Capsule())
+        .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+}

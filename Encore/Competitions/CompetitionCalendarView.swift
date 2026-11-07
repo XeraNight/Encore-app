@@ -86,7 +86,7 @@ struct CompetitionCalendarView: View {
             VStack(spacing: 0) {
                 ForEach(shown) { result in
                     Button { onSelect(result) } label: {
-                        CompetitionResultRow(result: result)
+                        CompetitionResultRow(result: result, isMissingMarks: CompetitionManager.shared.isMissingMarks(result))
                     }
                     .buttonStyle(.pressable(scale: 0.98))
                     if result.id != shown.last?.id {

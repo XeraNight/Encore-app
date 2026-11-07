@@ -1,12 +1,14 @@
 import SwiftUI
 import SwiftData
 
-/// "Súťaže" part of the planner: competitions the dancer tracks (entered by hand for now).
+/// "Súťaže" part of the planner: the competitions the dancer tracks, entered by hand or sent from the KSIS calendar.
 struct PlannerCompetitionsView: View {
     let competitions: [PlannedCompetition]
 
     @Environment(\.modelContext) private var modelContext
     @ObservedObject private var ksis = CompetitionManager.shared
+    @ObservedObject private var ksisCalendar = KSISCalendarStore.shared
+    @State private var browser: KSISBrowserTarget?
     @State private var editing: PlannedCompetition?
     @State private var showNew = false
     @State private var pendingDelete: PlannedCompetition?
@@ -37,7 +39,12 @@ struct PlannerCompetitionsView: View {
                     .plannerCard()
             }
 
-            ForEach(upcoming) { card($0) }
+            ForEach(upcoming) { competition in
+                VStack(alignment: .leading, spacing: 8) {
+                    card(competition)
+                    links(competition)
+                }
+            }
 
             Button { showNew = true } label: {
                 Label("Pridať súťaž", systemImage: "plus")
@@ -68,6 +75,7 @@ struct PlannerCompetitionsView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: competitions.map(\.id))
         .sheet(isPresented: $showNew) { CompetitionEditorSheet(competition: nil) }
         .sheet(item: $editing) { CompetitionEditorSheet(competition: $0) }
+        .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
         .confirmationDialog("Zmazať súťaž?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                             titleVisibility: .visible, presenting: pendingDelete) { competition in
             Button("Zmazať „\(competition.name)“", role: .destructive) {
@@ -75,6 +83,16 @@ struct PlannerCompetitionsView: View {
             }
         } message: { _ in
             Text("Zmizne z Encore aj z Apple Kalendára.")
+        }
+    }
+
+    /// The KSIS pages of a competition sent from the calendar; Harmonogram once the last calendar read has it.
+    @ViewBuilder
+    private func links(_ competition: PlannedCompetition) -> some View {
+        if let propId = competition.ksisPropId {
+            let event = ksisCalendar.event(propId: propId)
+            KSISEventLinks(propId: propId, registered: event?.registered, hasTimetable: event?.hasTimetable ?? false,
+                           venue: competition.city) { browser = KSISBrowserTarget(url: $0) }
         }
     }
 
@@ -342,6 +360,24 @@ extension PlannedCompetition {
             changed = true
         }
         if changed { try? context.save() }
+    }
+
+    /// A competition from KSIS as Idem: the one already planned for that day under that name, or a new one.
+    static func goingFromKSIS(name: String, venue: String, date: Date, categories: [String], entryDeadline: Date? = nil,
+                              propId: Int? = nil, context: ModelContext) {
+        let sameName = (try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.name == name }))) ?? []
+        let competition: PlannedCompetition
+        if let existing = sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
+            competition = existing
+        } else {
+            competition = PlannedCompetition(name: name, city: venue, date: date)
+            context.insert(competition)
+        }
+        if !categories.isEmpty { competition.targetCategories = categories }
+        competition.entryDeadline = entryDeadline ?? competition.entryDeadline
+        competition.ksisPropId = propId ?? competition.ksisPropId
+        competition.intent = .going
+        try? context.save()
     }
 
     /// Neidem also takes the competition out of Apple Calendar; switching back does not add it again on its own.

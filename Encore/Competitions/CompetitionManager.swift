@@ -21,18 +21,24 @@ final class CompetitionManager: ObservableObject {
     /// Who the user picked in the KSIS members list; nil until they do.
     @Published private(set) var dancer: KSISDancer?
 
+    /// Competitions whose crosses KSIS does not have for the couple: the update stops asking for them.
+    @Published private(set) var competitionsWithoutMarks: Set<Int>
+    private static let withoutMarksKey = "encore.ksisCompetitionsWithoutMarks"
+
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
     var previousCouples: [UserCouple] { couples.filter { !$0.isCurrent } }
 
     enum ActionError: LocalizedError {
         case server(String)
+        /// KSIS's page does not have what was asked for, for example the couple's crosses.
+        case notFound(String)
         /// The user has not picked themselves in the members list yet.
         case needsDancer(String)
         case network
 
         var errorDescription: String? {
             switch self {
-            case .server(let message), .needsDancer(let message): return message
+            case .server(let message), .notFound(let message), .needsDancer(let message): return message
             case .network: return "Nepodarilo sa spojiť so serverom. Skontroluj internet a skús to znova."
             }
         }
@@ -41,6 +47,7 @@ final class CompetitionManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
+        competitionsWithoutMarks = Set(UserDefaults.standard.array(forKey: Self.withoutMarksKey) as? [Int] ?? [])
         AuthManager.shared.$currentUser
             .receive(on: RunLoop.main)
             .sink { [weak self] user in
@@ -58,6 +65,8 @@ final class CompetitionManager: ObservableObject {
         couples = []
         results = []
         loadFailed = false
+        competitionsWithoutMarks = []
+        UserDefaults.standard.removeObject(forKey: Self.withoutMarksKey)
     }
 
     /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
@@ -105,6 +114,19 @@ final class CompetitionManager: ObservableObject {
         return results.filter { $0.coupleId == coupleId }
     }
 
+    /// The result has no crosses yet and KSIS may still have them.
+    func isMissingMarks(_ result: CompetitionResult) -> Bool {
+        result.rounds?.isEmpty != false && !competitionsWithoutMarks.contains(result.sutazId)
+    }
+
+    /// KSIS has no crosses for this result. A recent competition is asked again: KSIS may publish them later.
+    func noteNoMarks(_ result: CompetitionResult) {
+        let recent = PlannerCalendar.calendar.date(byAdding: .day, value: -14, to: Date()) ?? Date()
+        guard let date = result.dateValue, date < recent else { return }
+        competitionsWithoutMarks.insert(result.sutazId)
+        UserDefaults.standard.set(Array(competitionsWithoutMarks), forKey: Self.withoutMarksKey)
+    }
+
     // MARK: Pages
     /// What the open page says about the user's couple. Nothing is stored.
     func read(url: URL, html: String) async throws -> KSISPageReply {
@@ -112,11 +134,12 @@ final class CompetitionManager: ObservableObject {
     }
 
     /// Stores what the open page says about the user (who they are, their couples, a result), then reloads the diary.
-    func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil) async throws -> KSISPageReply {
+    /// `reloads` is false while an update saves many pages: it reloads once after them.
+    func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil, reloads: Bool = true) async throws -> KSISPageReply {
         let reply: KSISPageReply = try await call(
             KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber)
         )
-        await loadAllData()
+        if reloads { await loadAllData() }
         return reply
     }
 
@@ -135,7 +158,11 @@ final class CompetitionManager: ObservableObject {
             return try await EdgeFunctionClient.call("ksis-page", request)
         } catch EdgeFunctionClient.Failure.server(let code, let message) {
             let text = message ?? "Nepodarilo sa to. Skús to znova."
-            throw code == "needs_dancer" ? ActionError.needsDancer(text) : ActionError.server(text)
+            switch code {
+            case "needs_dancer": throw ActionError.needsDancer(text)
+            case "not_found": throw ActionError.notFound(text)
+            default: throw ActionError.server(text)
+            }
         } catch {
             throw ActionError.network
         }
