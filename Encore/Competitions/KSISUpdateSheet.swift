@@ -261,10 +261,14 @@ final class KSISUpdateRun {
         var lines: [String] = []
         if newResults > 0 { lines.append(slovakCount(newResults, one: "nová súťaž", few: "nové súťaže", many: "nových súťaží")) }
         if newMarks > 0 { lines.append("krížiky k \(slovakCount(newMarks, one: "súťaži", few: "súťažiam", many: "súťažiam"))") }
-        var text = lines.isEmpty ? "Všetko je aktuálne." : "Uložené: \(lines.joined(separator: ", "))."
+        let withoutHistory = manager.couples.filter { $0.coupleId == nil }.count
+        var text = lines.isEmpty ? (withoutHistory > 0 ? "" : "Všetko je aktuálne.") : "Uložené: \(lines.joined(separator: ", ")). "
+        if withoutHistory > 0 {
+            text += "História chýba pri \(slovakCount(withoutHistory, one: "páre", few: "pároch", many: "pároch")), pozri Moje výsledky."
+        }
         if marksLeft > 0 { text += " Ďalšie krížiky načítam pri ďalšom Aktualizovať (\(marksLeft))." }
         if failures > 0 { text += " Niektoré stránky sa nepodarilo uložiť, skús to znova." }
-        return text
+        return text.trimmingCharacters(in: .whitespaces)
     }
 }
 

@@ -16,19 +16,12 @@ struct CompetitionTrackerView: View {
 
     @State private var browser: KSISBrowserTarget?
     @State private var updateJob: KSISUpdateJob?
-    @State private var resultsFilter: ResultsFilter?
     @State private var searchText = ""
     @State private var selectedResult: CompetitionResult?
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
-    @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
     @FocusState private var searchFocused: Bool
-
-    private enum ResultsFilter: Hashable {
-        case discipline(String)
-        case category(String)
-    }
 
     var body: some View {
         ZStack {
@@ -55,8 +48,8 @@ struct CompetitionTrackerView: View {
                         mySeasonCard
                     }
 
-                    if !manager.couples.isEmpty {
-                        resultsSection
+                    if showsLatestResults {
+                        latestResultsSection
                     }
 
                     Text("Zdroj: KSIS (szts.ksis.eu). Oficiálne výsledky a body eviduje Slovenský zväz tanečného športu.")
@@ -385,7 +378,7 @@ struct CompetitionTrackerView: View {
                 }
 
                 if couple.coupleId == nil {
-                    Label("Ulož históriu: otvor v KSIS výsledky ktorejkoľvek vašej súťaže a ťukni na svoje meno.",
+                    Label("Ulož históriu: otvor v KSIS jednu vašu súťaž a ťukni Uložiť všetky súťaže páru.",
                           systemImage: "lightbulb.fill")
                         .font(.footnote)
                         .foregroundColor(Color.gold300)
@@ -549,12 +542,8 @@ struct CompetitionTrackerView: View {
         HStack(spacing: 10) {
             NavigationLink { KSISCalendarView() } label: { quickLink("Kalendár súťaží", icon: "calendar") }
                 .buttonStyle(.pressable(scale: 0.96))
-            Button {
-                if let url = KSISBrowserView.page("menu.php?akcia=S") { browser = KSISBrowserTarget(url: url) }
-            } label: {
-                quickLink("Výsledky", icon: "trophy.fill")
-            }
-            .buttonStyle(.pressable(scale: 0.96))
+            NavigationLink { MyResultsView() } label: { quickLink("Moje výsledky", icon: "trophy.fill") }
+                .buttonStyle(.pressable(scale: 0.96))
             Button(action: openCup) { quickLink("Pohár", icon: "rosette") }
                 .buttonStyle(.pressable(scale: 0.96))
         }
@@ -577,82 +566,43 @@ struct CompetitionTrackerView: View {
         .homeCard(cornerRadius: 18)
     }
 
-    /// The couple's table when it is in the cup, otherwise the year's page with all the tables.
+    /// The couple's live table when it is in the cup, otherwise KSIS's cup and MSR results.
     private func openCup() {
-        let year = Calendar.current.component(.year, from: Date())
         if let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory),
            let discipline = SlovakCup.disciplines(for: couple).first {
             openCupStandings(group: group, discipline: discipline)
-        } else if let url = SlovakCup.overviewURL(year: year) {
+        } else if let url = SlovakCup.resultsURL {
             browser = KSISBrowserTarget(url: url)
         }
     }
 
-    // MARK: Results
-    private var filteredResults: [CompetitionResult] {
-        switch resultsFilter {
-        case nil: return manager.results
-        case .discipline(let discipline): return manager.results.filter { $0.discipline == discipline }
-        case .category(let category): return manager.results.filter { $0.categoryName == category }
-        }
+    // MARK: Latest results
+    /// Before a couple's history is saved, the hint on its card says what to do and an empty list would add nothing.
+    private var showsLatestResults: Bool {
+        !manager.results.isEmpty || manager.loadFailed || manager.activeCouple?.coupleId != nil
     }
 
-    /// The dancer's categories, the latest first.
-    private var resultCategories: [String] {
-        var seen = Set<String>()
-        return manager.results.map(\.categoryName).filter { seen.insert($0).inserted }
+    /// The latest of the current couple, so this screen stays short; everything is in Moje výsledky.
+    private var latestResults: [CompetitionResult] {
+        let current = manager.activeCouple.map(manager.results(for:)) ?? []
+        return Array((current.isEmpty ? manager.results : current).prefix(3))
     }
 
-    private var resultsFilters: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                resultsChip("Všetko", nil)
-                resultsChip("ŠTT", .discipline("STT"))
-                resultsChip("LAT", .discipline("LAT"))
-                ForEach(resultCategories, id: \.self) { resultsChip($0, .category($0)) }
-            }
-        }
-        .scrollClipDisabled()
-        .sensoryFeedback(.selection, trigger: resultsFilter)
-    }
-
-    private func resultsChip(_ title: String, _ value: ResultsFilter?) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { resultsFilter = value }
-        } label: {
-            FilterChip(title: title, isOn: resultsFilter == value)
-        }
-        .buttonStyle(.pressable)
-    }
-
-    /// One line for the crosses still to come, so it is clear what the empty mark in the rows means.
-    @ViewBuilder
-    private var missingMarksLine: some View {
-        let missing = manager.results.filter(manager.isMissingMarks).count
-        if missing > 0 {
-            Button { updateJob = .everything } label: {
-                Label("Krížiky chýbajú: \(missing) · Aktualizovať", systemImage: "square.dashed")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color.gold300)
-                    .frame(minHeight: 34)
-            }
-            .buttonStyle(.pressable)
-        }
-    }
-
-    private var resultsSection: some View {
-        let results = filteredResults
-        let years = Dictionary(grouping: results) { String($0.date.prefix(4)) }
-        let sortedYears = years.keys.sorted(by: >)
-        return VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill", count: results.count) {
+    private var latestResultsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HomeSectionHeader(title: "POSLEDNÉ VÝSLEDKY", systemImage: "trophy.fill") {
                 if !manager.results.isEmpty {
-                    GoldModeSwitch(isSecond: $showsCalendar, first: ("list.bullet", "Zoznam"), second: ("calendar", "Kalendár"))
+                    NavigationLink { MyResultsView() } label: {
+                        HStack(spacing: 3) {
+                            Text("Všetky")
+                            Image(systemName: "chevron.right")
+                        }
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Color.gold400)
+                        .frame(minHeight: 32)
+                    }
+                    .buttonStyle(.pressable)
                 }
-            }
-            if !manager.results.isEmpty {
-                resultsFilters
-                missingMarksLine
             }
 
             if manager.results.isEmpty {
@@ -664,30 +614,21 @@ struct CompetitionTrackerView: View {
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .homeCard(cornerRadius: 20)
-            } else if showsCalendar {
-                CompetitionCalendarView(results: results) { selectedResult = $0 }
-                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
             } else {
-                ForEach(sortedYears, id: \.self) { year in
-                    Text(year)
-                        .font(.system(.footnote, design: .rounded).weight(.heavy))
-                        .foregroundColor(Color.textSecondary)
-                        .padding(.top, 4)
-                    VStack(spacing: 0) {
-                        ForEach(years[year] ?? []) { result in
-                            Button {
-                                selectedResult = result
-                            } label: {
-                                CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
-                            }
-                            .buttonStyle(.pressable(scale: 0.98))
-                            if result.id != years[year]?.last?.id {
-                                HomeRowDivider()
-                            }
+                VStack(spacing: 0) {
+                    ForEach(latestResults) { result in
+                        Button {
+                            selectedResult = result
+                        } label: {
+                            CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
+                        }
+                        .buttonStyle(.pressable(scale: 0.98))
+                        if result.id != latestResults.last?.id {
+                            HomeRowDivider()
                         }
                     }
-                    .homeCard(cornerRadius: 20)
                 }
+                .homeCard(cornerRadius: 20)
             }
         }
     }

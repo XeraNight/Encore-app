@@ -28,6 +28,9 @@ struct KSISBrowserView: View {
     @State private var dancerToReplace: KSISPageReply.ListedMember?
     /// "Uložiť do histórie" saved the result and opened its marks: they save themselves when they load.
     @State private var savesMarksNext = false
+    /// "Uložiť všetky súťaže páru" opened the couple's page: it saves itself when it loads.
+    @State private var savesHistoryNext = false
+    @State private var tab: KSISTab?
     @State private var isSaving = false
     @State private var notice: String?
     @State private var isPanelExpanded = true
@@ -36,6 +39,8 @@ struct KSISBrowserView: View {
     @State private var lastAdvancedRound: String?
     @State private var successTick = 0
     @State private var advanceTick = 0
+    @Namespace private var tabNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private enum ReadState {
         case idle
@@ -47,6 +52,7 @@ struct KSISBrowserView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            tabBar
             ZStack(alignment: .bottom) {
                 KSISWebView(startURL: startURL, controller: web) { url, html in
                     pageLoaded(url: url, html: html)
@@ -63,6 +69,11 @@ struct KSISBrowserView: View {
         .background(EllegancePageBackground())
         .sensoryFeedback(.success, trigger: successTick)
         .sensoryFeedback(.impact(weight: .heavy), trigger: advanceTick)
+        .sensoryFeedback(.selection, trigger: tab)
+        .onAppear { tab = KSISTab(url: startURL) }
+        .onChange(of: web.currentURL) { _, url in
+            if let opened = KSISTab(url: url) { select(opened) }
+        }
         .confirmationDialog(
             "Zmeniť tanečníka?",
             isPresented: Binding(get: { dancerToReplace != nil }, set: { if !$0 { dancerToReplace = nil } }),
@@ -107,6 +118,58 @@ struct KSISBrowserView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+    }
+
+    // MARK: Tabs
+    /// Výsledky, Kalendár, Pohár and the couples are always one tap away, whatever page is open.
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            ForEach(KSISTab.allCases) { item in
+                let isOn = tab == item
+                Button {
+                    select(item)
+                    if let url = url(of: item) { web.load(url) }
+                } label: {
+                    Label(item.title, systemImage: item.icon)
+                        .labelStyle(.titleAndIcon)
+                        .font(.caption.weight(.bold))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.8))
+                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .background {
+                            if isOn {
+                                Capsule()
+                                    .fill(Color.gold400)
+                                    .matchedGeometryEffect(id: "tab", in: tabNamespace)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.pressable(scale: 0.94))
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .padding(3)
+        .background(Color.white.opacity(0.08), in: Capsule())
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+    }
+
+    private func select(_ item: KSISTab) {
+        guard tab != item else { return }
+        withAnimation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.8)) { tab = item }
+    }
+
+    private func url(of item: KSISTab) -> URL? {
+        switch item {
+        case .results: return Self.page("menu.php?akcia=S")
+        case .calendar: return KSISEvent.calendarURL()
+        case .cup: return cupLinks.first?.url ?? SlovakCup.resultsURL
+        case .couples:
+            guard let dancer = manager.dancer else { return Self.membersSearchURL(for: "") }
+            return Self.couplesURL(surname: Self.surname(of: dancer.name))
+        }
     }
 
     // MARK: Panel
@@ -189,7 +252,6 @@ struct KSISBrowserView: View {
                 .frame(maxWidth: .infinity)
         case .failed(let message):
             hint(message)
-            navigation
         case .reply(let reply, let url, _):
             switch reply.kind {
             case .membersList: membersList(reply)
@@ -203,7 +265,6 @@ struct KSISBrowserView: View {
             case .blocked: hint("Dokonči overenie na stránke vyššie. Potom sa panel sám obnoví.")
             case .unsupported: guide(url)
             }
-            if reply.kind != .unsupported && reply.kind != .blocked { navigation }
         }
     }
 
@@ -349,6 +410,7 @@ struct KSISBrowserView: View {
                     }
                 }
                 primaryButton("Uložiť do histórie", action: saveResultAndMarks)
+                secondaryButton("Uložiť všetky súťaže páru") { saveHistory(parId: own.parId) }
                 if own.slp != nil, let url = cupURL(for: competition.category) {
                     secondaryButton("Poradie Slovenského pohára") { web.load(url) }
                 }
@@ -402,6 +464,22 @@ struct KSISBrowserView: View {
                      ? "Ulož svoje páry a appka tu ukáže vaše miesto a čo vám chýba."
                      : "Tvoj pár v tomto poradí zatiaľ nie je.")
             }
+            if cupLinks.count > 1 {
+                HStack(spacing: 8) {
+                    ForEach(cupLinks, id: \.title) { link in
+                        Button {
+                            if let url = link.url { web.load(url) }
+                        } label: {
+                            KSISLinkChip(title: link.title, icon: "rosette", fills: true)
+                        }
+                        .buttonStyle(.pressable)
+                    }
+                }
+            }
+            hint("Potiahni stránku nadol a poradie sa obnoví.")
+            if let url = SlovakCup.resultsURL {
+                secondaryButton("Výsledky pohára a MSR") { web.load(url) }
+            }
         }
     }
 
@@ -441,29 +519,11 @@ struct KSISBrowserView: View {
             hint("Ťukni na podujatie a potom na Prihlášky. Ukážem, či ste prihlásení, a pridáš si súťaž do kalendára.")
         } else if akcia == "S" {
             hint("Ťukni na súťaž, kde ste tancovali. Ukážem vaše miesto a uložíš ho do histórie jedným ťuknutím.")
+        } else if url?.lastPathComponent == "slp_msr.php" {
+            hint("Výsledky Slovenského pohára a MSR. Živé poradie otvoríš zeleným tlačidlom Priebežné poradie SLP.")
         } else {
             hint("Otvor výsledky súťaže, prihlášky alebo poradie pohára. Appka ich rozpozná sama.")
         }
-        navigation
-    }
-
-    /// The pages worth going to next, from any page.
-    private var navigation: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                if let dancer = manager.dancer {
-                    navButton("Moje páry", icon: "person.2.fill", url: Self.couplesURL(surname: Self.surname(of: dancer.name)))
-                } else {
-                    navButton("Zoznam členov", icon: "person.text.rectangle", url: Self.membersSearchURL(for: ""))
-                }
-                navButton("Výsledky", icon: "trophy.fill", url: Self.page("menu.php?akcia=S"))
-                navButton("Kalendár", icon: "calendar", url: Self.page("menu.php?akcia=KS"))
-                ForEach(cupLinks, id: \.title) { link in
-                    navButton(link.title, icon: "rosette", url: link.url)
-                }
-            }
-        }
-        .scrollClipDisabled()
     }
 
     /// The cup standings of the current couple, in the disciplines it dances the cup in.
@@ -480,15 +540,6 @@ struct KSISBrowserView: View {
         guard let group = SlovakCup.Group(ageCategory: category) else { return nil }
         let discipline: SlovakCup.Discipline = category.hasSuffix("LAT") ? .latin : .standard
         return SlovakCup.standingsURL(year: Calendar.current.component(.year, from: Date()), group: group, discipline: discipline)
-    }
-
-    private func navButton(_ title: String, icon: String, url: URL?) -> some View {
-        Button {
-            if let url { web.load(url) }
-        } label: {
-            KSISLinkChip(title: title, icon: icon)
-        }
-        .buttonStyle(.pressable)
     }
 
     // MARK: Pieces
@@ -595,6 +646,7 @@ struct KSISBrowserView: View {
                 noteAdvancement(reply)
                 if let standings = reply.standings { SlovakCupStore.shared.remember(standings) }
                 saveMarksIfAsked(reply)
+                saveHistoryIfAsked(reply)
             } catch {
                 guard generation == readGeneration else { return }
                 state = .failed(error.localizedDescription)
@@ -645,6 +697,19 @@ struct KSISBrowserView: View {
         } else {
             notice = "Výsledok je v histórii. Krížiky KSIS zatiaľ nezverejnil."
         }
+    }
+
+    /// One tap from any result of the couple: its page opens and every competition on it is saved.
+    private func saveHistory(parId: Int) {
+        guard let url = Self.page("par.php?id=\(parId)") else { return }
+        savesHistoryNext = true
+        web.load(url)
+    }
+
+    private func saveHistoryIfAsked(_ reply: KSISPageReply) {
+        guard savesHistoryNext else { return }
+        savesHistoryNext = false
+        if reply.kind == .couplePage, reply.isOwn == true { save() }
     }
 
     private func savedMessage(_ reply: KSISPageReply) -> String {
@@ -739,6 +804,51 @@ struct KSISConsentToggle: View {
                 .foregroundColor(.white.opacity(0.85))
         }
         .tint(Color.gold500)
+    }
+}
+
+// MARK: - Parts of KSIS
+/// The parts of KSIS a dancer moves between. A page opened from a link lights up the part it belongs to.
+enum KSISTab: String, CaseIterable, Identifiable {
+    case results, calendar, cup, couples
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .results: return "Výsledky"
+        case .calendar: return "Kalendár"
+        case .cup: return "Pohár"
+        case .couples: return "Moje páry"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .results: return "trophy.fill"
+        case .calendar: return "calendar"
+        case .cup: return "rosette"
+        case .couples: return "person.2.fill"
+        }
+    }
+
+    init?(url: URL?) {
+        guard let url else { return nil }
+        switch url.lastPathComponent {
+        case "sutaz.php", "hodnot_sut.php", "skating.php": self = .results
+        case "prop.php", "zoznam_prihl.php", "propharmonogram.php": self = .calendar
+        case "slp_poradie.php", "slp_msr.php": self = .cup
+        case "par.php", "detail_paru.php": self = .couples
+        case "menu.php":
+            let akcia = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "akcia" }?.value
+            switch akcia {
+            case "S": self = .results
+            case "KS": self = .calendar
+            case "CZ", "CZP": self = .couples
+            default: return nil
+            }
+        default: return nil
+        }
     }
 }
 

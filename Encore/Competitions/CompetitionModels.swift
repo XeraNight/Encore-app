@@ -71,6 +71,14 @@ struct UserCouple: Identifiable, Decodable, Equatable, Sendable {
         return partnerNames.replacingOccurrences(of: " - ", with: " & ")
     }
 
+    /// The other dancer of the couple, for telling a dancer's couples apart; the whole couple when that is unclear.
+    func partnerName(besides dancer: String?) -> String {
+        let names = title.components(separatedBy: " & ")
+        guard names.count == 2, let dancer else { return title }
+        let others = names.filter { $0.compare(dancer, options: [.caseInsensitive, .diacriticInsensitive]) != .orderedSame }
+        return others.count == 1 ? others[0] : title
+    }
+
     /// "ŠTT D · 89 b · 5 F · LAT D · 91 b · 5 F", only what KSIS shows.
     var standingsLine: String {
         [("ŠTT", stt), ("LAT", lat)]

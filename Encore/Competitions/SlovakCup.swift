@@ -78,10 +78,8 @@ nonisolated enum SlovakCup {
         URL(string: "https://szts.ksis.eu/slp_poradie.php?rok=\(year)&druh=\(group.rawValue)&s_l=\(discipline.rawValue)")
     }
 
-    /// The year's page with all four tables, for a couple not in the cup.
-    static func overviewURL(year: Int) -> URL? {
-        URL(string: "https://szts.ksis.eu/slp_poradie.php?rok=\(year)")
-    }
+    /// KSIS's page of the cup and MSR results, with the way to the standings.
+    static let resultsURL = URL(string: "https://szts.ksis.eu/slp_msr.php")
 
     /// The couple's row: by its KSIS couple id, or by both names when the id is not known yet.
     static func entry(in standings: SlovakCupStandings, for couple: UserCouple) -> SlovakCupStandings.Entry? {

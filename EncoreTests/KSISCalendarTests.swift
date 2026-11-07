@@ -204,3 +204,46 @@ struct GoingFromKSISTests {
         #expect(saved.first?.city == "Košice")
     }
 }
+
+/// The part of KSIS a page belongs to, for the tabs above it.
+struct KSISTabTests {
+    @Test(arguments: [
+        ("https://szts.ksis.eu/menu.php?akcia=S", KSISTab.results),
+        ("https://szts.ksis.eu/sutaz.php?sutaz_id=12094", .results),
+        ("https://szts.ksis.eu/hodnot_sut.php?sutaz_id=12094", .results),
+        ("https://szts.ksis.eu/menu.php?akcia=KS&dt_od=01.11.2026", .calendar),
+        ("https://szts.ksis.eu/zoznam_prihl.php?id_prop=2271", .calendar),
+        ("https://szts.ksis.eu/slp_poradie.php?rok=2026", .cup),
+        ("https://szts.ksis.eu/slp_msr.php", .cup),
+        ("https://szts.ksis.eu/menu.php?akcia=CZP&hladany_text=Kalina", .couples),
+        ("https://szts.ksis.eu/par.php?id=18967", .couples),
+    ])
+    func aPageLightsUpItsPart(url: String, tab: KSISTab) {
+        #expect(KSISTab(url: URL(string: url)) == tab)
+    }
+
+    @Test func aPageOfNoPartLightsUpNothing() {
+        #expect(KSISTab(url: URL(string: "https://szts.ksis.eu/menu.php?akcia=K")) == nil)
+        #expect(KSISTab(url: URL(string: "https://szts.ksis.eu/")) == nil)
+    }
+}
+
+/// A dancer's couples are told apart by the partner's name, written the way KSIS writes it.
+struct PartnerNameTests {
+    private func couple(_ names: String) throws -> UserCouple {
+        let json: [String: Any] = ["id": UUID().uuidString, "partner_names": names]
+        return try JSONDecoder().decode(UserCouple.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    @Test func thePartnerIsTheOtherDancer() throws {
+        let pair = try couple("Kalina Jakub - Kissová Nikoletta")
+        #expect(pair.partnerName(besides: "Kalina Jakub") == "Kissová Nikoletta")
+        #expect(pair.partnerName(besides: "KISSOVA Nikoletta") == "Kalina Jakub")
+    }
+
+    @Test func anUnknownDancerKeepsTheWholeCouple() throws {
+        let pair = try couple("Kalina Jakub - Kissová Nikoletta")
+        #expect(pair.partnerName(besides: nil) == "Kalina Jakub & Kissová Nikoletta")
+        #expect(pair.partnerName(besides: "Niekto Iný") == "Kalina Jakub & Kissová Nikoletta")
+    }
+}
