@@ -129,43 +129,101 @@ struct SlovakiaOutline: Shape {
 }
 
 // MARK: - Map
-/// The competitions on Slovakia: a gold point with the count in each town. A tap filters the list below.
+/// The competitions on Slovakia: a gold point with the count in each town. The border draws itself and the pins come
+/// in one by one; a tap moves in on the town and filters the list below, another tap steps back.
 struct SlovakiaMapView: View {
     /// Competitions per town, after the filters.
     let counts: [String: Int]
     @Binding var selected: String?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// How much of the border is drawn.
+    @State private var drawn: CGFloat = 0
+    @State private var pinsAreIn = false
 
     /// Pins stay this far apart, centre to centre, so each one can be tapped.
     private static let pinSpacing: CGFloat = 28
+    /// How far the map moves in on a picked town.
+    private static let zoom: CGFloat = 1.3
 
     private var cities: [SlovakCity] { SlovakCity.all.filter { counts[$0.name] != nil } }
+    private var spring: Animation? { reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.8) }
 
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
             let towns = cities.map { position(of: $0, in: size) }
             let pins = Self.spreadOut(towns, spacing: Self.pinSpacing, in: size)
+            let picked = cities.firstIndex { $0.name == selected }
             ZStack(alignment: .topLeading) {
-                SlovakiaOutline().fill(Color.white.opacity(0.08))
-                SlovakiaOutline().stroke(Color.gold400.opacity(0.55), style: StrokeStyle(lineWidth: 1, lineJoin: .round))
+                SlovakiaOutline().fill(Color.white.opacity(0.08 * drawn))
+                SlovakiaOutline()
+                    .trim(from: 0, to: drawn)
+                    .stroke(Color.gold400.opacity(0.55), style: StrokeStyle(lineWidth: 1, lineJoin: .round))
                 ties(from: towns, to: pins)
                 ForEach(landmarks(clearOf: pins, in: size)) { city in
-                    landmark(city).position(position(of: city, in: size))
+                    landmark(city)
+                        .position(position(of: city, in: size))
+                        .transition(.opacity)
                 }
                 ForEach(Array(cities.enumerated()), id: \.element.id) { index, city in
-                    pin(city).position(pins[index])
+                    pin(city, order: index)
+                        .position(pins[index])
+                        .transition(.scale(scale: 0.3).combined(with: .opacity))
+                }
+                if let picked {
+                    townTag(cities[picked].name)
+                        .position(tagPosition(for: pins[picked], in: size))
+                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                        .id(cities[picked].name)
                 }
             }
+            .scaleEffect(picked == nil ? 1 : Self.zoom, anchor: picked.map { anchor(pins[$0], in: size) } ?? .center)
         }
         .aspectRatio(SlovakiaOutline.aspectRatio, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .animation(spring, value: counts)
+        .animation(spring, value: selected)
+        .onAppear(perform: comeIn)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Mapa súťaží na Slovensku")
     }
 
     private func position(of city: SlovakCity, in size: CGSize) -> CGPoint {
         SlovakiaOutline.point(longitude: city.longitude, latitude: city.latitude, in: size)
+    }
+
+    private func comeIn() {
+        guard !reduceMotion else {
+            drawn = 1
+            pinsAreIn = true
+            return
+        }
+        withAnimation(.easeOut(duration: 0.8)) { drawn = 1 }
+        pinsAreIn = true
+    }
+
+    private func anchor(_ point: CGPoint, in size: CGSize) -> UnitPoint {
+        UnitPoint(x: point.x / max(size.width, 1), y: point.y / max(size.height, 1))
+    }
+
+    /// Above the pin, or under it at the top of the map; never past the side.
+    private func tagPosition(for pin: CGPoint, in size: CGSize) -> CGPoint {
+        CGPoint(x: min(max(pin.x, 54), size.width - 54), y: pin.y < 34 ? pin.y + 26 : pin.y - 26)
+    }
+
+    private func townTag(_ name: String) -> some View {
+        Text(name)
+            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .foregroundColor(Color.gold300)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.obsidian900.opacity(0.9), in: Capsule())
+            .overlay(Capsule().stroke(Color.gold400.opacity(0.6), lineWidth: 0.5))
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     /// Towns around Bratislava lie closer than a finger: their pins move apart just enough, each staying tied to its town.
@@ -231,26 +289,42 @@ struct SlovakiaMapView: View {
         .accessibilityHidden(true)
     }
 
-    private func pin(_ city: SlovakCity) -> some View {
+    private func pin(_ city: SlovakCity, order: Int) -> some View {
         let isSelected = selected == city.name
         return Button {
-            withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.75)) {
-                selected = isSelected ? nil : city.name
-            }
+            selected = isSelected ? nil : city.name
         } label: {
             Text("\(counts[city.name] ?? 0)")
                 .font(.system(size: 11, weight: .black, design: .rounded))
                 .foregroundColor(isSelected ? Color.obsidian900 : Color.gold300)
+                .contentTransition(.numericText())
                 .frame(width: 24, height: 24)
                 .background(isSelected ? Color.gold400 : Color.encoreCrimson, in: Circle())
                 .overlay(Circle().stroke(Color.gold400, lineWidth: 1.5))
-                .scaleEffect(isSelected ? 1.15 : 1)
+                .background {
+                    if isSelected && !reduceMotion { pulse }
+                }
+                .scaleEffect(isSelected ? 1.1 : 1)
                 .frame(width: Self.pinSpacing, height: Self.pinSpacing)
                 .contentShape(Circle())
         }
         .buttonStyle(.pressable)
+        .scaleEffect(pinsAreIn ? 1 : 0.2)
+        .opacity(pinsAreIn ? 1 : 0)
+        .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.65).delay(0.25 + Double(order) * 0.03), value: pinsAreIn)
         .zIndex(isSelected ? 1 : 0)
         .accessibilityLabel("\(city.name), súťaží: \(counts[city.name] ?? 0)")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// A ring leaving the picked town, so the eye finds it on the map.
+    private var pulse: some View {
+        Circle()
+            .stroke(Color.gold400, lineWidth: 1.5)
+            .phaseAnimator([false, true]) { ring, isOut in
+                ring.scaleEffect(isOut ? 1.9 : 1).opacity(isOut ? 0 : 0.8)
+            } animation: { isOut in
+                isOut ? .easeOut(duration: 1.3) : nil
+            }
     }
 }

@@ -13,8 +13,14 @@ struct KSISCalendarView: View {
     @State private var selected: KSISEvent?
     @State private var job: KSISUpdateJob?
     @AppStorage("ksisCalendarAsMap") private var showsMap = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var couple: UserCouple? { manager.activeCouple }
+    private var spring: Animation? { reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82) }
+
+    /// The couple whose categories can be told: before its class is saved, "Moja kategória" would hide everything.
+    private var couple: UserCouple? {
+        manager.activeCouple.flatMap { $0.stt.className != nil || $0.lat.className != nil ? $0 : nil }
+    }
 
     /// Competitions from today on: the cached read goes stale day by day.
     private var upcoming: [KSISEvent] {
@@ -55,6 +61,7 @@ struct KSISCalendarView: View {
                     } else {
                         statusLine
                         filters
+                        resultLine
                         if showsMap { map }
                         list
                     }
@@ -66,8 +73,8 @@ struct KSISCalendarView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 8)
                 .padding(.bottom, 120)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: filter)
-                .animation(.spring(response: 0.35, dampingFraction: 0.85), value: showsMap)
+                .animation(spring, value: filter)
+                .animation(spring, value: showsMap)
             }
         }
         .navigationTitle("Kalendár súťaží")
@@ -133,6 +140,27 @@ struct KSISCalendarView: View {
         }
         .scrollClipDisabled()
         .sensoryFeedback(.selection, trigger: filter)
+    }
+
+    /// How many competitions the filters leave, and the way back.
+    private var resultLine: some View {
+        HStack(spacing: 8) {
+            Text(slovakCount(shown.count, one: "súťaž", few: "súťaže", many: "súťaží"))
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.white.opacity(0.8))
+                .contentTransition(.numericText())
+            Spacer(minLength: 8)
+            if filter != KSISCalendarFilter() {
+                Button { filter = KSISCalendarFilter() } label: {
+                    Label("Zrušiť filtre", systemImage: "xmark")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(Color.gold400)
+                        .frame(minHeight: 30)
+                }
+                .buttonStyle(.pressable)
+                .transition(.opacity.combined(with: .scale(scale: 0.8, anchor: .trailing)))
+            }
+        }
     }
 
     /// A type is its own list: who may start at MSR or WDSF is in the rules, not in the couple's class.
@@ -202,11 +230,13 @@ struct KSISCalendarView: View {
                                 KSISEventRow(event: event, couple: couple, isGoing: isGoing(to: event))
                             }
                             .buttonStyle(.pressable(scale: 0.98))
+                            .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
                             if event.id != month.events.last?.id { HomeRowDivider() }
                         }
                     }
                     .homeCard(cornerRadius: 20)
                 }
+                .transition(.opacity)
             }
         }
     }
@@ -489,15 +519,23 @@ struct KSISLinkChip: View {
 }
 
 // MARK: - Filter chip
-/// One filter; gold when it is on.
+/// One filter. Turning it on fills it with gold and gives a small bounce; a menu chip shows what is picked.
 struct FilterChip: View {
     let title: String
     let isOn: Bool
     var hasMenu = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         HStack(spacing: 4) {
+            if isOn && !hasMenu {
+                Image(systemName: "checkmark")
+                    .font(.caption2.weight(.black))
+                    .transition(.scale(scale: 0.3).combined(with: .opacity))
+            }
             Text(title)
+                .contentTransition(.interpolate)
             if hasMenu {
                 Image(systemName: "chevron.down")
                     .font(.caption2.weight(.bold))
@@ -509,6 +547,9 @@ struct FilterChip: View {
         .frame(minHeight: 34)
         .background(isOn ? Color.gold400 : Color.white.opacity(0.08), in: Capsule())
         .contentShape(Capsule())
+        .scaleEffect(isOn && !reduceMotion ? 1.03 : 1)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.6), value: isOn)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8), value: title)
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 }
