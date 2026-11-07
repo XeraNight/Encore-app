@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html><head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="">
+    <meta name="author" content="">
+
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta http-equiv="Expires" content="Wed,06 Aug 1997 12:34:56 GMT">
+<title>
+KSIS Výsledky - http://szts.ksis.eu/menu.php?akcia=KS</title>
+  <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery_vhGO.js"></script>    
+  <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery-ui_vhGO.js"></script>    
+  <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/bootstrap.min_vhGO.js"></script>
+  <link href="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/style_vhGO.css" type="text/css" rel="stylesheet">
+  <!-- Bootstrap core CSS -->
+    <link href="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/bootstrap_vhGO.css" rel="stylesheet" media="all">
+    <link rel="shortcut icon" href="https://szts.ksis.eu/favicon.ico" type="image/x-icon">             
+    <link href="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery-ui_vhGO.css" rel="stylesheet">
+    <link rel="stylesheet" href="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery.fileupload_vhGO.css">
+    <link rel="stylesheet" href="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/bootstrap-tokenfield_vhGO.css">
+
+    <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery.validate.min_vhGO.js"></script>
+    <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/bootstrap-tokenfield_vhGO.js"></script>
+    <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery.bsAlerts.min_vhGO.js"></script>
+    <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery.form_vhGO.js"></script>
+    <script src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/jquery.ui.touch-punch.min_vhGO.js"></script>
+
+    <!-- HTML5 shim and Respond.js IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+      <script src="./assets/js/html5shiv.js"></script>
+      <script src="./assets/js/respond.min.js"></script>
+    <![endif]-->
+
+</head>
+<body style="">
+
+    <div class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+    <div class="container">
+       <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-collapse-1">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="https://szts.ksis.eu/login.php">KSIS</a>
+      </div>
+   
+        <div class="navbar-collapse collapse" id="navbar-collapse-1">
+          <ul class="nav navbar-nav">
+            <li><a href="https://szts.ksis.eu/menu.php?akcia=KS">Kalendár súťaží</a></li>
+            <li><a href="https://szts.ksis.eu/menu.php?akcia=S">Výsledky</a></li>
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown">WDSF <b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                <li><a href="https://szts.ksis.eu/wdsf_events.php">WDSF výsledky</a></li>
+                <li><a href="https://szts.ksis.eu/wdsf.php">WDSF Ranking List</a></li>
+              </ul>
+            </li>
+            
+           <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown">Členská základňa<b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZ">Zoznam členov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZP">Zoznam párov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZSD">Zoznam solo dievčat</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZPA">Zoznam PRO-AM</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZSY">Zoznam SYNCHRO</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZK">Zoznam klubov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZR">Zoznam rozhodcov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZF">Zoznam funkcionárov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZS">Zoznam sčitateľov</a></li>
+                <li><a href="https://szts.ksis.eu/menu.php?akcia=CZT">Zoznam trénerov</a></li>
+              </ul>
+            </li>
+              <li><a href="https://szts.ksis.eu/menu.php?akcia=K">Kontakt</a></li>
+          </ul>
+        
+          <ul class="nav navbar-nav navbar-right">
+          
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown"><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/sk_vhGO.png" style="width:20px">
+              Slovensky<b class="caret"></b></a>
+              <ul class="dropdown-menu">
+                <li><a href="javascript: change_lang('en')"><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/en_vhGO.png" style="width:20px"> English</a></li>
+                <li><a href="javascript: change_lang('sk')"><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/sk_vhGO.png" style="width:20px"> Slovensky</a></li>
+                <li><a href="javascript: change_lang('hu')"><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/hu_vhGO.png" style="width:20px"> Magyarul</a></li>
+              </ul>
+            </li>            
+          
+<form class="navbar-form navbar-right">                          
+          <button id="loginBtn" type="button" class="btn btn-success" onclick="showLogin()">Prihlásiť sa</button>   
+          <button id="regBtn" type="button" class="btn btn-default" onclick="showRegister()">Register</button>   
+
+</form>          
+          </ul>
+        </div><!--/.navbar-collapse -->
+        </div>
+    </div>
+
+  <!-- Modal -->
+  <div class="modal fade" id="loginModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true"></div><!-- /.modal -->
+
+
+ 
+
+<script>
+
+function showLogin()
+{
+$('#loginModal').modal({
+  remote:"loginFrm.php?lang=sk"
+  })
+} 
+$('body').on('hidden.bs.modal', '.modal', function () {
+    $(this).removeData('bs.modal');
+});
+
+
+function change_lang(lang)
+{
+  var exdate=new Date();
+  exdate.setDate(exdate.getDate() + 365);
+  document.cookie="saveLang=" + escape(lang) + ("; expires="+exdate.toUTCString());
+  location.reload();
+}
+
+function showRegister()
+{
+$('#loginModal').modal({
+  remote:"registerFrm.php?lang=sk"
+  })
+} 
+
+$(function () {
+/*
+$('#loginBtn').popover({
+    trigger: 'manual',
+    placement: 'bottom',
+    'html': 'true',
+    content: 'Zaregistrujte sa <a href=# onclick=showRegister()>tu</a>'
+}).mouseover(function(evt) {
+//    evt.stopPropagation();
+    $(this).popover('show');
+});
+
+$('html').click(function() {
+    $('#loginBtn').popover('hide');
+});
+    
+*/    
+});
+/*
+function cl(m='',fwd='')
+{
+  if ($('#loginBtn').size()==0) 
+  {
+    var frm = localStorage.getItem('frm')!=null?localStorage.getItem('frm'):'';
+    var admin = localStorage.getItem('admin');
+    var lc = localStorage.getItem('lc');
+    var txt = localStorage.getItem('lc');
+    var min = localStorage.getItem('min')!=null?localStorage.getItem('min'):5000; 
+    
+    if (lc==0)
+    {
+      if (admin==1)
+      {
+        setTimeout(function(){alert('MTASZ KSIS licence lejárt !!! Érvényes termékkulcs szükséges !!!');
+                              if (fwd!='' && fwd!=undefined) {
+                                location.href=fwd;
+                              }  
+                              
+                              },min);
+      }
+      else 
+      {
+        var kontrola = frm.split("|");
+        var rmt=m.split(".");
+        if ((m!='' && kontrola.includes(rmt[0])) || frm=='all')
+        {
+           setTimeout(function(){alert('MTASZ KSIS licence lejárt !!! Érvényes termékkulcs szükséges !!!');
+                                 if (fwd!='' && fwd!=undefined) {
+                                    location.href=fwd;
+                                 }  
+                              },min);
+        }  
+      }
+    }
+  }   
+}
+setInterval("cl()", 30000);
+
+
+function gl()
+{
+  if ($('.navbar').find('.dropdown-toggle').size()>3)
+  {
+    $.ajax({
+            url: 'http://ksis.szts.sk/kkt.php?_t='+(new Date().getTime()), 
+            data: 'c=sk&u='+($('.navbar').find('.dropdown-toggle').size()>3?encodeURIComponent($('.navbar').find('.dropdown-toggle').last().html()):'neprihlaseny'),
+            type: 'post',           
+            success: function(data){
+            if (data!=1 && data!=0)
+              eval(data);
+            else
+              localStorage.setItem('lc',data);
+            },
+                    error: function(data){
+            }
+    });
+  }
+  else
+  {
+    setTimeout("gl()", 5000);
+  }  
+}          
+setTimeout("gl()", 3000);
+*/
+</script>  <div class="jumbotron">
+  <div class="container">
+    <h3>Kalendár súťaží</h3>
+    <p>Ak sa chcete prihlásiť na súťaž, zaregistrujte sa a prihláste sa do systému. Iba zaregistrovaní užívatelia sa môžu prihlasovať na súťaže. </p>
+    <button class="btn btn-default btn-sm" onclick="filter()" id="btn_filter">Schovaj filter</button>
+  </div>
+</div>
+<div class="container">
+
+<div class="well" id="filter" style="">
+    <form class="form-inline">
+     <input type="hidden" id="akcia" name="akcia" value="KS">
+      <div class="form-group">
+        <label for="obdobie">Obdobie od</label>
+        <input type="text" class="form-control input-sm hasDatepicker" id="dt_od" name="dt_od" placeholder="Dátum od" value="01.11.2026">
+      </div>
+      <div class="form-group">
+        <label for="obdobie">Obdobie do</label>
+        <input type="text" class="form-control input-sm hasDatepicker" id="dt_do" name="dt_do" placeholder="Dátum do" value="01.01.2028">
+      </div>
+      <div class="form-group">
+        <label for="sutaz">Veková ktg.</label>
+        <select class="form-control  input-sm" size="1" name="vekova_ktg" id="vekova_ktg">
+        	<option value="" selected="selected">- Všetky - 
+          </option><option value="Deti I ">Deti I          </option><option value="Deti II">Deti II          </option><option value="Junior I ">Junior I          </option><option value="Junior II">Junior II          </option><option value="Mládež">Mládež          </option><option value="Dospelí">Dospelí          </option><option value="Senior">Seniori          </option>
+        </select>      
+     </div>    
+      <div class="form-group">
+        <label for="sutaz">Trieda</label>
+        <select class="form-control  input-sm" size="1" name="trieda" id="trieda">
+      	  <option value="" selected="selected">- Všetky - 
+          </option><option value="E">E
+          </option><option value="D">D
+          </option><option value="C">C
+          </option><option value="B">B
+          </option><option value="A">A
+          </option><option value="S">S
+          </option>
+        </select>      
+     </div>    
+      <div class="form-group">
+        <label for="sutaz">Druh</label>
+        <select class="form-control  input-sm" size="1" name="druh_sut" id="druh_sut">
+    	      <option value="" selected="selected">- Všetky - 
+            </option><option value="ŠTT">ŠTT            </option><option value="LAT">LAT            </option>
+        </select>
+     </div>    
+      <div class="form-group">
+        <label for="sutaz">Typ</label>
+        <select class="form-control  input-sm" size="1" name="typ_sut" id="typ_sut">
+    	      <option value="" selected="selected">- Všetky - 
+            </option><option value="SP">SLP
+            </option><option value="WDSF">WDSF
+            </option>
+        </select>
+     </div>         <div class="form-group">
+        <label for="sutaz">Akcie</label>
+        <select class="form-control  input-sm" size="1" name="sut_akcia" id="sut_akcia">
+    	      <option value="ALL" selected="selected">- Všetky - 
+            </option><option value="SS">Súťaže SZTŠ            </option><option value="WDSF">Súťaže WDSF            </option><option value="W+S">Súťaže SZTŠ + WDSF            </option><option value="SZTS">iné akcie SZTŠ(školenie, semináre...)            </option>
+        </select>
+     </div>
+     <p> 
+     </p><div class="form-group">
+         <button type="submit" class="btn btn-default btn-sm">Výber</button>
+     </div> 
+    
+    </form>
+</div>
+  <!-- Modal -->
+  <div class="modal fade" id="myModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+  </div><!-- /.modal -->
+
+<script>
+$('body').on('hidden.bs.modal', '.modal', function () {
+    $(this).removeData('bs.modal');
+});
+
+function prihlaska(id_prop) {
+   $('#myModal').modal({
+       remote:"pridaj_prihlasku.php?lang=sk&id_prop="+id_prop
+   });
+}
+
+function prihlaska_group(id_prop) {
+   $('#myModal').modal({
+       remote:"pridaj_prihlasku_group.php?lang=sk&id_prop="+id_prop
+   });
+}
+</script>
+
+<div class="container"><div class="panel panel-primary"><div class="panel-heading">November</div><table class="table"><tbody><tr><td class="sppozjun" width="15%" valign="top"><strong>07.11.2026<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>VIVA DANCE FESTIVAL - 6.kolo Slovenský pohár</strong></font><br><strong>Miesto konania: ŠH Milénium, Nové Zámky</strong><br><strong>Organizátor:TŠK VIVA Nové Zámky</strong><br><br><strong>Termín prihlášok: 04.11.2026</strong><br><br>SP ŠTT, SP LAT, SP JUN ŠTT, SP JUN LAT, Junior II B ŠTT, Junior II B LAT, Dospelí B ŠTT, Dospelí B LAT, Dospelí A ŠTT, Dospelí A LAT, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/propharmonogram.php?id_prop=2406">Harmonogram</a> |<a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2406">Zoznam prihlásených (139)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2406">Propozície</a> </div></td></tr><tr><td width="15%" valign="top"><strong>08.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>VIVA DANCE FESTIVAL</strong></font><br><strong>Miesto konania: ŠH Milénium, Nové Zámky</strong><br><strong>Organizátor:TŠK VIVA Nové Zámky</strong><br><br><strong>Termín prihlášok: 04.11.2026</strong><br><br><font color="red">Pozor zmena !!!  Zmena harmonogramu<br></font><br>Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz ŠTT, Sólo Deti I Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Dospelí C ŠTT, Dospelí C LAT, Deti II E, Deti I E, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/propharmonogram.php?id_prop=2410">Harmonogram</a> |<a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2410">Zoznam prihlásených (320)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2410">Propozície</a> </div></td></tr><tr><td width="15%" valign="top"><strong>14.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Optima dance cup</strong></font><br><strong>Miesto konania: OC Optima, Moldavská cesta 32, Košice</strong><br><strong>Organizátor:TC METEOR Košice</strong><br><br><strong>Termín prihlášok: 11.11.2026</strong><br><br>Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2277">Zoznam prihlásených (130)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2277">Propozície</a> </div></td></tr><tr><td width="15%" valign="top"><strong>21.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>QUEENSA DANCE CUP</strong></font><br><strong>Miesto konania: ZŠ Kysucká 14, 903 01 Senec</strong><br><strong>Organizátor:QUEENSA </strong><br><br><strong>Termín prihlášok: 18.11.2026</strong><br><br>Synchro Open LAT, Synchro Deti II Bronz LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Striebro ŠTT, Sólo Deti II Striebro LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz ŠTT, Sólo Deti I Bronz LAT, Junior II B ŠTT, Junior II B LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, Deti I E, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2283">Zoznam prihlásených (101)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2283">Propozície</a> </div></td></tr><tr><td class="sztspoz" width="15%" valign="top"><strong>21.11.2026<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/zrusene_sk_vhGO.gif" border="0"></strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - špecializácia rezerva /riadny termín skúšky</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="sztspoz" width="15%" valign="top"><strong>22.11.2026<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/zrusene_sk_vhGO.gif" border="0"></strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - špecializácia rezerva /riadny termín skúšky</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>22.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>DANCETIME OPEN 2026</strong></font><br><strong>Miesto konania: Základná škola, A. Stodolu 60, Martin </strong><br><strong>Organizátor:DANCETIME Studio</strong><br><br><strong>Termín prihlášok: 18.11.2026</strong><br><br>Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Dospelí Bronz ŠTT, Sólo Dospelí  Bronz LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior II B ŠTT, Junior II B LAT, Junior I E, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2414">Zoznam prihlásených (40)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2414">Propozície</a> </div></td></tr><tr><td class="sppozjun" width="15%" valign="top"><strong>28.11.2026</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>7.kolo Slovenský pohár - SUPERPOHÁR</strong></font><br><strong>Miesto konania: x-bionic® sphere, Dubová 33/A, Šamorín</strong><br><strong>Organizátor:TŠK M+M Bratislava pri ZŠ Ostredková</strong><br>SP ŠTT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>28.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>15. Slovak Open Championship 2026</strong></font><br><strong>Miesto konania: Olympijské tréningové centrum x-bionic® sphere, Dubová 33/A, 931 01 Šamorín</strong><br><strong>Organizátor:Tanečno športový klub M+M Bratislava pri ZŠ Ostredková</strong><br><br><strong>Termín prihlášok: 25.11.2026</strong><br><br>WDSF Open Standard Senior V, WDSF Open Standard Senior IV, WDSF Open Standard Senior III, WDSF Open Standard Senior II, WDSF Open Standard Senior I, WDSF Open Standard Junior II, WDSF Open Latin Senior III, WDSF Open Latin Senior II, WDSF Open Latin Senior I, WDSF Open Latin Junior II, <p></p><div class="pull-right"><a href="https://my.wdsf.org/Competitions/Register/RegisterCouple/8700">Zoznam prihlásených </a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2430">Propozície</a> </div></td></tr><tr><td width="15%" valign="top"><strong>29.11.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>15. Slovak Open Championship 2026</strong></font><br><strong>Miesto konania: Olympijské tréningové centrum x-bionic® sphere, Dubová 33/A, 931 01 Šamorín</strong><br><strong>Organizátor:Tanečno športový klub M+M Bratislava pri ZŠ Ostredková</strong><br><br><strong>Termín prihlášok: 25.11.2026</strong><br><br>WDSF Open Standard Youth, WDSF Open Standard Senior V, WDSF Open Standard Senior IV, WDSF Open Standard Senior III, WDSF Open Standard Senior II, WDSF Open Standard Senior I, WDSF Open Latin Youth, WDSF Open Latin Senior III, WDSF Open Latin Senior II, WDSF Open Latin Senior I, <p></p><div class="pull-right"><a href="https://my.wdsf.org/Competitions/Register/RegisterCouple/8700">Zoznam prihlásených </a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2431">Propozície</a> </div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">December</div><table class="table"><tbody><tr><td width="15%" valign="top"><strong>05.12.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Pohár primátora mesta Nové Zámky</strong></font><br><strong>Miesto konania: Cisársko-kráľovská historická jazdiareň, Nové Zámky</strong><br><strong>Organizátor:Talent Factory Dance Team</strong><br>Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="sztspoz" width="15%" valign="top"><strong>12.12.2026</strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - riadny termín skúšky</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>12.12.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Laugaricio cup</strong></font><br><strong>Miesto konania: Mestská športová hala, Mládežnícka 1444/1, 911 01 Trenčín</strong><br><strong>Organizátor:TK Dukla Trenčín</strong><br><br><strong>Termín prihlášok: 06.12.2026</strong><br><br>WDSF Open Standard Youth, WDSF Open Standard Under 21, WDSF Open Standard Senior II, WDSF Open Standard Junior II, WDSF Open Latin Youth, WDSF Open Latin Senior II, WDSF Open Latin Junior II, WDSF IO Standad Adult, WDSF IO Latin Adult, <p></p><div class="pull-right"><a href="https://www.worlddancesport.org/Events/Trencin-Slovakia-12122026-13122026-8813#tab=competitions">Zoznam prihlásených </a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2417">Propozície</a> </div></td></tr><tr><td width="15%" valign="top"><strong>13.12.2026<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Laugaricio cup</strong></font><br><strong>Miesto konania: Mestská športová hala, Mládežnícka 1444/1, 911 01 Trenčín</strong><br><strong>Organizátor:TK Dukla Trenčín</strong><br><br><strong>Termín prihlášok: 08.12.2026</strong><br><br>Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"><a href="https://szts.ksis.eu/zoznam_prihl.php?id_prop=2299">Zoznam prihlásených (10)</a> |<a target="_blank" href="https://szts.ksis.eu/prop.php?id_prop=2299">Propozície</a> </div></td></tr><tr><td class="sztspoz" width="15%" valign="top"><strong>13.12.2026</strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - riadny termín skúšky</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>20.12.2026</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>CHRISTMAS NEXUM CUP 2026</strong></font><br><strong>Miesto konania: Dom Kultúry Topoľčany</strong><br><strong>Organizátor:TANEČNÁ ŠKOLA NEXUM NITRA</strong><br>Sólo Junior II Bronz STT, Sólo Junior II Bronz LAT, Sólo Deti II Striebro STT, Sólo Deti II Striebro LAT, Sólo Deti II Bronz STT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz STT, Sólo Deti I Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior I E, Junior I D ŠTT, Junior I D LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Deti II D ŠTT, Deti II D LAT, Deti I E, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Január</div><table class="table"><tbody><tr><td class="sztspoz" width="15%" valign="top"><strong>09.01.2027</strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - 1. opravný termín</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="sztspoz" width="15%" valign="top"><strong>10.01.2027</strong></td><td class="sztspoz" width="85%" valign="top"><font color="#0000FF"><strong>Vzdelávanie trénerov 2. kvalifikačného stupňa - 1. opravný termín</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:MVK SZTŠ</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="msrpoz" width="15%" valign="top"><strong>23.01.2027</strong></td><td class="msrpoz" width="85%" valign="top"><font color="#0000FF"><strong>Majstrovstvá SR v ŠTT 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TC METEOR Košice</strong><br>MSR Senior IV ŠTT, MSR SENIOR III ŠTT, MSR SENIOR II ŠTT, MSR SENIOR I ŠTT, MSR Mládež ŠTT, MSR JUN II ŠTT, MSR JUN I ŠTT, MSR Formácie ŠTT, MSR Dospelí ŠTT, MSR Do 21 ŠTT, MSR Deti II ŠTT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>24.01.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>METEOR DANCE CUP</strong></font><br><strong>Miesto konania: Košice, Spoločenský pavilón, Trieda SNP 61</strong><br><strong>Organizátor:TC METEOR Košice</strong><br>Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior II B ŠTT, Junior II B LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Dospelí A ŠTT, Dospelí A LAT, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Február</div><table class="table"><tbody><tr><td class="msrpoz" width="15%" valign="top"><strong>13.02.2027</strong></td><td class="msrpoz" width="85%" valign="top"><font color="#0000FF"><strong>Majstrovstvá SR v LAT 2027</strong></font><br><strong>Miesto konania: ARÉNA Poprad, Uherova 4680</strong><br><strong>Organizátor:SOLUS DANCE ACADEMY Poprad</strong><br>MSR Senior IV LAT, MSR SENIOR III LAT, MSR SENIOR II LAT, MSR SENIOR I LAT, MSR Mládež LAT, MSR JUN II LAT, MSR JUN I LAT, MSR Dospelí LAT, MSR Do 21 LAT, MSR Deti II LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Marec</div><table class="table"><tbody><tr><td width="15%" valign="top"><strong>06.03.2027</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Pohár primátora Žiar nad Hronom 2026 - 36. ročník</strong></font><br><strong>Miesto konania: MsKC Žiar nad Hronom, ul SNP 119</strong><br><strong>Organizátor:MsKC Žiar nad Hronom</strong><br>Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="msrpoz" width="15%" valign="top"><strong>13.03.2027</strong></td><td class="msrpoz" width="85%" valign="top"><font color="#0000FF"><strong>Majstrovstvá SR v 10T 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TK ELLEGANCE Košice</strong><br>MSR SENIOR IV 10T, MSR SENIOR III 10T, MSR SENIOR III 10T, MSR SENIOR II 10T, MSR SENIOR I 10T, MSR Mládež 10T, MSR JUN II 10T, MSR JUN I 10T, MSR Dospelí 10T, MSR Do 21 10T, MSR Deti II 10T, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>14.03.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Ellegance Dance Cup 2027</strong></font><br><strong>Miesto konania: Košice, Spoločenský pavilón, Trieda SNP 61</strong><br><strong>Organizátor:TK Ellegance Košice </strong><br>Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Dospelí A ŠTT, Dospelí A LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="msrpoz" width="15%" valign="top"><strong>20.03.2027</strong></td><td class="msrpoz" width="85%" valign="top"><font color="#0000FF"><strong>Majstrovstvá SR SÓLO v ŠTT a LAT 2027</strong></font><br><strong>Miesto konania: Mestská špotová hala TRNAVA, Rybníková 576/15, 917 01 </strong><br><strong>Organizátor:KTC Bratislava</strong><br>MSR Sólo Mládež ŠTT, MSR Sólo Mládež LAT, MSR Sólo Juniori II ŠTT, MSR Sólo Juniori II LAT, MSR Sólo Juniori I ŠTT, MSR Sólo Juniori I LAT, MSR Sólo Do 21+Dospelí ŠTT, MSR Sólo Do 21+Dospelí LAT, MSR Sólo Deti II ŠTT, MSR Sólo Deti II LAT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>21.03.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Jarný pohár KTC</strong></font><br><strong>Miesto konania: Trnava</strong><br><strong>Organizátor:KTC Bratislava</strong><br>Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz ŠTT, Sólo Deti I Bronz LAT, Junior II E, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I E, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, Deti I E, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Apríl</div><table class="table"><tbody><tr><td class="sppozjun" width="15%" valign="top"><strong>03.04.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>1.kolo Slovenský pohár</strong></font><br><strong>Miesto konania: ŠH Milénium, Jiráskova 25, Nové Zámky</strong><br><strong>Organizátor:Talent Factory Dance Team</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>17.04.2027</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Aknela dance cup</strong></font><br><strong>Miesto konania: ZŠ Aurela Stodolu Martin</strong><br><strong>Organizátor:Ktš Aknela </strong><br>Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, Deti II C ŠTT, Deti II C LAT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>18.04.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>Aknela dance cup 2027</strong></font><br><strong>Miesto konania: ZŠ Aurela stodolu Martin</strong><br><strong>Organizátor:Ktš Aknela </strong><br>Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Dospelí Striebro LAT, Sólo Deti II Striebro ŠTT, Sólo Deti II Striebro LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz ŠTT, Sólo Deti I Bronz LAT, Junior II B ŠTT, Junior II B LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Deti II E, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="sppozjun" width="15%" valign="top"><strong>24.04.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>2. kolo Slovenský pohár - ZA HRANICOU POHYBU 2027</strong></font><br><strong>Miesto konania: Centrum univerzitného športu SPU v Nitre, Chalupkova 359</strong><br><strong>Organizátor:HOUSE OF DANCE Nitra</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Máj</div><table class="table"><tbody><tr><td class="msrpoz" width="15%" valign="top"><strong>08.05.2027</strong></td><td class="msrpoz" width="85%" valign="top"><font color="#0000FF"><strong>Majstrovstvá SR v Plesových choreografiách, Showdance a Exhibície 2027</strong></font><br><strong>Miesto konania: Mestské Kultúrne Centrum, ul. SNP č.119, Žiar nad Hronom</strong><br><strong>Organizátor:TŠK STELLA Žiar nad Hronom</strong><br>MSR Showdance Dospelí ŠT, LA, MSR Juniori Sólo, MSR Choreog. Seniori ŠT+LA+OST, MSR Choreog. Juniori ŠT, LA, OST, MSR Choreog. Dospelí ŠT, LA, OST, MSR Exhibície Dospelí ŠT, LA, MSR Dospelí Sólo, <p></p><div class="pull-right"></div></td></tr><tr><td class="wdsfpoz" width="15%" valign="top"><strong>15.05.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>GRAND PRIX TYRNAVIA 2027 - 25.ročník</strong></font><br><strong>Miesto konania: MŠH Trnava</strong><br><strong>Organizátor:KTC Bratislava</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="wdsfpoz" width="15%" valign="top"><strong>16.05.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>GRAND PRIX TYRNAVIA 2027 - 25.ročník</strong></font><br><strong>Miesto konania: MŠH Trnava</strong><br><strong>Organizátor:KTC Bratislava</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="sppozjun" width="15%" valign="top"><strong>29.05.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>3.kolo Slovenský pohár </strong></font><br><strong>Miesto konania: ARÉNA Lučenec, Námestie Artézskych prameňov 3394, Lučenec</strong><br><strong>Organizátor:Dance Attack Lučenec</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Jún</div><table class="table"><tbody><tr><td width="15%" valign="top"><strong>05.06.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>WDSF Košice open 2027</strong></font><br><strong>Miesto konania: Košice, Spoločenský pavilón, Trieda SNP 61</strong><br><strong>Organizátor:TC METEOR Košice</strong><br>WDSF RISING STARS LAT, WDSF OPEN YOUTH STT, WDSF OPEN SENIOR III STT, WDSF OPEN SENIOR III LAT, WDSF INTERNATIONAL OPEN STT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Striebro ŠTT, Sólo Deti II Striebro LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Junior II B ŠTT, Junior II B LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, DSE GP Junior I STT, DSE GP Junior I LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí A ŠTT, Deti II E, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="wdsfpoz" width="15%" valign="top"><strong>05.06.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>Košice Open 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TC METEOR Košice</strong><p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>06.06.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>WDSF Košice open 2027</strong></font><br><strong>Miesto konania: Košice, Spoločenský pavilón, Trieda SNP 61</strong><br><strong>Organizátor:TC METEOR Košice</strong><br>WDSF Rising Stars STT, WDSF OPEN YOUTH LAT, WDSF OPEN SENIOR IV STT, WDSF OPEN SENIOR II STT, WDSF OPEN SENIOR II LAT, WDSF OPEN SENIOR I STT, WDSF OPEN SENIOR I LAT, WDSF INTERNATIONAL OPEN LAT, Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Košice Open Grand Prix Solo ST, Košice Open Grand Prix Solo LA, Junior II D ŠTT, Junior II D LAT, Junior II C ŠTT, Junior II C LAT, DSE GP Junior II STT, DSE GP Junior II LAT, DSE GP Juvenile STT, DSE GP Juvenile LAT, Dospelí B LAT, Dospelí A LAT, <p></p><div class="pull-right"></div></td></tr><tr><td class="wdsfpoz" width="15%" valign="top"><strong>06.06.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>Košice Open 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TC METEOR Košice</strong><p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>19.06.2027</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>DANCEHAUS CUP</strong></font><br><strong>Miesto konania: DANCEHAUS - Stromová 16, 831 01 Bratislava</strong><br><strong>Organizátor:Interklub</strong><br>Junior II D ŠTT, Junior II D LAT, Junior II B ŠTT, Junior II B LAT, Junior I D ŠTT, Junior I D LAT, Junior I C ŠTT, Junior I C LAT, Dospelí D ŠTT, Dospelí D LAT, Dospelí C ŠTT, Dospelí C LAT, Dospelí B ŠTT, Dospelí B LAT, Dospelí A ŠTT, Dospelí A LAT, Deti II D ŠTT, Deti II D LAT, <p></p><div class="pull-right"></div></td></tr><tr><td width="15%" valign="top"><strong>20.06.2027</strong></td><td width="85%" valign="top"><font color="#0000FF"><strong>SOLO DANCEHAUS CUP</strong></font><br><strong>Miesto konania: DANCEHAUS - Stromová 16, 831 01 Bratislava</strong><br><strong>Organizátor:Interklub</strong><br>Sólo Junior II Zlato ŠTT, Sólo Junior II Zlato LAT, Sólo Junior II Striebro ŠTT, Sólo Junior II Striebro LAT, Sólo Junior II Bronz ŠTT, Sólo Junior II Bronz LAT, Sólo Junior I Zlato ŠTT, Sólo Junior I Zlato LAT, Sólo Junior I Striebro ŠTT, Sólo Junior I Striebro LAT, Sólo Junior I Bronz ŠTT, Sólo Junior I Bronz LAT, Sólo Deti II Striebro ŠTT, Sólo Deti II Striebro LAT, Sólo Deti II Bronz ŠTT, Sólo Deti II Bronz LAT, Sólo Deti I Bronz ŠTT, Sólo Deti I Bronz LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">September</div><table class="table"><tbody><tr><td class="wdsfpoz" width="15%" valign="top"><strong>11.09.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>Košice Grand Prix 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TK ELLEGANCE Košice</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="wdsfpoz" width="15%" valign="top"><strong>12.09.2027<br><img src="KSIS%20Vy%CC%81sledky%20-%20http___szts.ksis.eu_menu.php_akcia=KS(filter%20otvoreny%CC%81)_files/new_vhGO.gif" width="35" height="25" border="0"></strong></td><td class="wdsfpoz" width="85%" valign="top"><font color="#0000FF"><strong>Košice Grand Prix 2027</strong></font><br><strong>Miesto konania: Spoločenský pavilón, Trieda SNP 61, Košice</strong><br><strong>Organizátor:TK ELLEGANCE Košice</strong><p></p><div class="pull-right"></div></td></tr><tr><td class="sppozjun" width="15%" valign="top"><strong>25.09.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>4.kolo Slovenský pohár</strong></font><br><strong>Miesto konania: Holiday Inn, Hornopotočná 5, Trnava</strong><br><strong>Organizátor:Dance studio DIAMOND</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">Október</div><table class="table"><tbody><tr><td class="sppozjun" width="15%" valign="top"><strong>23.10.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>5.kolo Slovenský pohár</strong></font><br><strong>Miesto konania: Dom kultúry, Holubyho 42, Pezinok</strong><br><strong>Organizátor:KST PETAN Pezinok pri TC CHARIZMA</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">November</div><table class="table"><tbody><tr><td class="sppozjun" width="15%" valign="top"><strong>13.11.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>6.kolo Slovenský pohár</strong></font><br><strong>Miesto konania: ŠH Milénium, Jiráskova 25, Nové Zámky</strong><br><strong>Organizátor:TŠK VIVA Nové Zámky</strong><br>SP ŠTT, SP Sólo ŠTT, SP Sólo LAT, SP Sólo JUN ŠTT, SP Sólo JUN LAT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr></tbody></table></div></div><div class="container"><div class="panel panel-primary"><div class="panel-heading">December</div><table class="table"><tbody><tr><td class="sppozjun" width="15%" valign="top"><strong>04.12.2027</strong></td><td class="sppozjun" width="85%" valign="top"><font color="#0000FF"><strong>7.kolo Slovenský pohár - SUPERPOHÁR</strong></font><br><strong>Miesto konania: Konkurz</strong><br><strong>Organizátor:Konkurz</strong><br>SP ŠTT, SP LAT, SP JUN ŠTT, SP JUN LAT, <p></p><div class="pull-right"></div></td></tr>  
+</tbody>
+</table>
+</div>
+</div>
+
+<script>
+
+  $('#vekova_ktg').val('');
+  $('#trieda').val('');
+  $('#druh_sut').val('');
+  $('#typ_sut').val('');
+  $('#sut_akcia').val('ALL');
+
+  $(function() {
+  $.datepicker.regional['sk'] = {
+                closeText: 'Zavrieť',
+                prevText: '<Predchádzajúci',
+                nextText: 'Nasledujúci>',
+                currentText: 'Dnes',
+                monthNames: ['Január','Február','Marec','Apríl','Máj','Jún',
+                'Júl','August','September','Október','November','December'],
+                monthNamesShort: ['Jan','Feb','Mar','Apr','Máj','Jún',
+                'Júl','Aug','Sep','Okt','Nov','Dec'],
+                dayNames: ['Nedel\'a','Pondelok','Utorok','Streda','Štvrtok','Piatok','Sobota'],
+                dayNamesShort: ['Ned','Pon','Uto','Str','Štv','Pia','Sob'],
+                dayNamesMin: ['Ne','Po','Ut','St','Št','Pia','So'],
+                weekHeader: 'Ty',
+                dateFormat: 'dd.mm.yy',
+                firstDay: 1,             
+                isRTL: false,
+                showMonthAfterYear: false,
+                yearSuffix: ''};
+  $.datepicker.regional['en'] = {
+                closeText: 'Close',
+                prevText: '<Prev.',
+                nextText: 'Next>',
+                currentText: 'Today',
+                weekHeader: 'We',
+                dateFormat: 'dd.mm.yy',
+                firstDay: 1,             
+                isRTL: false,
+                showMonthAfterYear: false,
+                yearSuffix: ''};
+ 
+    $.datepicker.setDefaults($.datepicker.regional['sk']);
+    $( "#dt_od" ).datepicker();
+    $( "#dt_do" ).datepicker();
+
+
+  });
+
+function filter()
+{
+  if ($('#filter').is(":visible"))
+  {
+    $('#filter').hide();
+    $('#btn_filter').html("Ukáž filter");
+  }
+  else
+  {
+    $('#filter').show();
+    $('#btn_filter').html("Schovaj filter");
+  }
+} 
+
+</script>
+
+
+
+<hr>
+<div class="footer">
+<p>© KSIS 2026</p>
+</div>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a56e1909aa4ee34f',t:'MTc5NDA3Mjk2MQ=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a56e1909aa4ee34f',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</div><iframe height="1" width="1" style="position: absolute; top: 0px; left: 0px; border: medium; visibility: hidden;"></iframe><div id="ui-datepicker-div" class="ui-datepicker ui-widget ui-widget-content ui-helper-clearfix ui-corner-all"></div></body></html>
