@@ -382,7 +382,7 @@ final class CalendarExporter {
         guard await requestAccess() else { return nil }
         let event = EKEvent(eventStore: store)
         event.calendar = store.defaultCalendarForNewEvents
-        event.title = "🏆 \(competition.name)"
+        event.title = competition.name
         event.location = competition.city.isEmpty ? nil : competition.city
         event.isAllDay = true
         event.startDate = PlannerCalendar.startOfDay(competition.date)
