@@ -12,13 +12,14 @@ import SwiftData
 /// - What went up is remembered as a fingerprint per record, so only what changed goes, in batches, when the app opens,
 ///   goes to the background or the network comes back (PendingSyncRunner). A failure keeps it for the next try.
 /// - A record deleted here goes up as deleted.
-/// - Only an iPhone that never sent anything and holds none of these is filled from the cloud, so nothing here is ever
-///   overwritten. Wiping the store for another account forgets the fingerprints too (LocalDataGuard).
+/// - The cloud adds back only what this iPhone does not hold and never sent, so nothing here is ever overwritten and
+///   nothing deleted here comes back. Wiping the store for another account forgets the fingerprints too (LocalDataGuard).
 @MainActor
 enum DeviceBackup {
     private static let fingerprintsKey = "encore.deviceBackup.v1"
-    /// The account whose empty backup was already looked for: an empty cloud is not asked again on every launch.
-    private static let checkedKey = "encore.deviceBackup.checkedUser"
+    /// The account whose backup was already brought back: the cloud is not asked again on every launch.
+    /// v2: the first version came down only into an empty iPhone, so one record made after a wipe kept the rest away.
+    private static let checkedKey = "encore.deviceBackup.checkedUser.v2"
     private static let batchSize = 200
     private static let pageSize = 1000
     private static var isUploading = false
@@ -100,12 +101,13 @@ enum DeviceBackup {
     }
 
     // MARK: Down
-    /// Fills an empty iPhone that never sent anything: a new iPhone, or this one after another account used it.
+    /// Brings back what the cloud holds and this iPhone does not: a new iPhone, or this one after another account used
+    /// it, also when something new was written here meanwhile. A record here, or one sent from here and deleted since,
+    /// is left alone.
     static func restoreIfNeeded() async {
         guard let context = AppContainer.shared?.mainContext,
               let userId = SupabaseConfig.client.auth.currentUser?.id,
-              UserDefaults.standard.string(forKey: checkedKey) != userId.uuidString,
-              storedFingerprints().isEmpty, localRecords(in: context).isEmpty else { return }
+              UserDefaults.standard.string(forKey: checkedKey) != userId.uuidString else { return }
         let startedIn = generation
 
         var rows: [Row] = []
@@ -128,22 +130,26 @@ enum DeviceBackup {
             Logger.sync.error("Device backup download failed: \(error.localizedDescription, privacy: .public)")
             return
         }
-        // Something written meanwhile, or another account: nothing comes down over it.
-        guard generation == startedIn, localRecords(in: context).isEmpty else { return }
-        UserDefaults.standard.set(userId.uuidString, forKey: checkedKey)
-        guard !rows.isEmpty else { return }
-
-        for row in rows {
+        // Another account meanwhile: nothing of this one comes down into its store.
+        guard generation == startedIn else { return }
+        var fingerprints = storedFingerprints()
+        let known = Set(localRecords(in: context).map(\.key)).union(fingerprints.keys)
+        var added = Set<String>()
+        for row in rows where !known.contains(key(row.kind, row.id)) {
             guard let type = types.first(where: { $0.backupKind == row.kind }),
                   let data = try? JSONEncoder().encode(row.payload) else { continue }
             insert(type, from: data, into: context)
+            added.insert(key(row.kind, row.id))
         }
+        UserDefaults.standard.set(userId.uuidString, forKey: checkedKey)
+        guard !added.isEmpty else { return }
         try? context.save()
         // What came down is what the cloud holds: it does not go up again.
-        var fingerprints: [String: String] = [:]
-        for record in localRecords(in: context) { fingerprints[record.key] = fingerprint(record.payload) }
+        for record in localRecords(in: context) where added.contains(record.key) {
+            fingerprints[record.key] = fingerprint(record.payload)
+        }
         UserDefaults.standard.set(fingerprints, forKey: fingerprintsKey)
-        Logger.sync.info("Device backup restored \(rows.count) records.")
+        Logger.sync.info("Device backup restored \(added.count) records.")
         await PlannerNotifications.rescheduleFromStore()
     }
 

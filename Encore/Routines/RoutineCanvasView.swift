@@ -717,8 +717,9 @@ struct RoutineCanvasView: View {
             Task {
                 guard await SupabaseSyncManager.shared.sendIfPending(routine) else { return }
                 if let (dbRoutine, dbNodes) = await SupabaseSyncManager.shared.fetchRoutine(routine.id) {
-                    // Check if DB version is newer
-                    if dbRoutine.updated_at > routine.updatedAt {
+                    // Newer in the cloud, or a routine that came down without its figures (a new iPhone, or this one
+                    // after another account used it): its date is the cloud's, so the date alone would keep it empty.
+                    if dbRoutine.updated_at > routine.updatedAt || (routine.canvasNodes.isEmpty && !dbNodes.isEmpty) {
                         await MainActor.run {
                             routine.name = dbRoutine.name
                             routine.danceName = dbRoutine.dance_name
