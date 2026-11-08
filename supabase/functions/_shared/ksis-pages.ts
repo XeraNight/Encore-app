@@ -9,6 +9,7 @@
  *   couples list      menu.php?akcia=CZP&cis_pr=…&hladany_text=…&aktivne=on   parseCouplesList
  *   couple detail     detail_paru.php?cp=<pair number>                         parseCoupleDetail
  *   couple page       par.php?id=<KSIS couple id>                              parseCouplePage
+ *   search            search.php?hladany_text=…                                parseSearchResults
  *   results           sutaz.php?sutaz_id=…                                     parseResults
  *   judges' marks     hodnot_sut.php?sutaz_id=…                                parseMarks, coupleRounds
  *   registrations     zoznam_prihl.php?id_prop=…                               parseRegistrations
@@ -149,9 +150,21 @@ export function splitPair(text: string): KsisPairNames {
   return cut < 0 ? { partner: value, partnerka: "" } : { partner: value.slice(0, cut), partnerka: value.slice(cut + 3) };
 }
 
+/** A name whatever the order of its words: KSIS lists write "Priezvisko Meno", the search and WDSF "Meno Priezvisko". */
+export function nameKey(name: string): string {
+  return normalizeDancerName(name).split(" ").filter((word) => word.length > 0).sort().join(" ");
+}
+
 export function isSameCouple(a: KsisPairNames, b: KsisPairNames): boolean {
-  return normalizeDancerName(a.partner) === normalizeDancerName(b.partner) &&
-    normalizeDancerName(a.partnerka) === normalizeDancerName(b.partnerka);
+  return nameKey(a.partner) === nameKey(b.partner) && nameKey(a.partnerka) === nameKey(b.partnerka);
+}
+
+/** Which of the two the dancer is, by name alone; nil when neither. */
+export function sideInPair(dancerName: string, couple: KsisPairNames): "partner" | "partnerka" | null {
+  const name = nameKey(dancerName);
+  if (name === "") return null;
+  if (nameKey(couple.partner) === name) return "partner";
+  return nameKey(couple.partnerka) === name ? "partnerka" : null;
 }
 
 /** "Dospelí D ŠTT" → "STT". Only reads the discipline KSIS writes last; nothing else is inferred. */
@@ -200,9 +213,40 @@ export function sideInCouple(
   member: Pick<KsisMemberRow, "personNumber" | "name">,
   couple: Pick<KsisCoupleListRow, "pairNumber" | "partner" | "partnerka">,
 ): "partner" | "partnerka" | null {
-  const name = normalizeDancerName(member.name);
-  if (couple.pairNumber === member.personNumber || normalizeDancerName(couple.partner) === name) return "partner";
-  return normalizeDancerName(couple.partnerka) === name ? "partnerka" : null;
+  return couple.pairNumber === member.personNumber ? "partner" : sideInPair(member.name, couple);
+}
+
+// ── Search (search.php?hladany_text=…) ───────────────────────────────────────────────────────────
+
+export interface KsisSearchCouple extends KsisPairNames {
+  /** par.php?id=. One couple can have two ids, and an id can carry a later partnerka as well. */
+  parId: number;
+  club: string;
+  /** "Počet súťaží" of this row; a couple that changed club has one row per club. */
+  competitions: number;
+}
+
+const SEARCH = "vyhľadávanie";
+
+/**
+ * Couples, judges and officials whose name contains the text, diacritics ignored, in one table without pages.
+ * Only couples are read. Unlike the couples list it keeps the couples that ended, and it is the only list with their ids.
+ */
+export function parseSearchResults(html: string): KsisSearchCouple[] {
+  const $ = load(html, SEARCH);
+  const table = "table.table";
+  if ($(table).length === 0) throw layoutChanged(SEARCH, "no results table");
+  expectColumns(SEARCH, columnTitles($, table), ["Pár/Rozhodca/Funkcionár", "Klub", "Počet súťaží"]);
+  return $(table).first().find("tbody tr").toArray().flatMap((tr) => {
+    const td = $(tr).find("td");
+    const link = $(td[0]).find("a[href*='par.php?id=']");
+    const parId = idFrom(link.attr("href"), "id");
+    const names = splitPair(link.text());
+    const competitions = intOrNull($(td[2]).text());
+    // A judge, an official, "Nenašli sa žiadne záznamy" and KSIS's couples without names are not couples to keep.
+    if (parId === null || names.partner === "" || names.partnerka === "" || competitions === null) return [];
+    return [{ parId, ...names, club: clean($(td[1]).text()), competitions }];
+  });
 }
 
 // ── Members list (menu.php?akcia=CZ) ─────────────────────────────────────────────────────────────

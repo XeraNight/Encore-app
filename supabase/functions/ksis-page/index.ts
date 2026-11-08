@@ -7,10 +7,12 @@
 //   read          { url, html }            -> { kind, ... }        nothing is stored
 //   save          { url, html, consent? }  -> { kind, ..., saved } link the couple, standings, history, a result, crosses
 //   save          { url, html, personNumber } on the members list: "Toto som ja"
+//   save          { url, html, consent?, parIds? } on the search: the dancer's couples and their KSIS ids; new couples
+//                                           only those in parIds, and only with consent
 //   unlink        { coupleId }             -> { ok }                that couple and its results are deleted
 //   delete_result { resultId }             -> { ok }
 //
-// Kinds: members_list, couples_list, couple_detail, couple_page, results, marks, registrations, slp_standings,
+// Kinds: members_list, couples_list, search, couple_detail, couple_page, results, marks, registrations, slp_standings,
 // blocked, unsupported.
 // Only the user's own couples are stored; other couples and members on the page are read and forgotten.
 // Who the account is: the dancer picks themselves in the members list (ksis_dancers; no verification since
@@ -40,9 +42,12 @@ import {
   parseMembersList,
   parseRegistrations,
   parseResults,
+  parseSearchResults,
   parseSlpStandings,
   registeredCategories,
+  type KsisSearchCouple,
   sideInCouple,
+  sideInPair,
   splitPair,
 } from "../_shared/ksis-pages.ts";
 
@@ -50,7 +55,7 @@ const HOST = "szts.ksis.eu";
 const MAX_HTML = 2_000_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-type Kind = "members_list" | "couples_list" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
+type Kind = "members_list" | "couples_list" | "search" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
 
 type Body = {
   action?: string;
@@ -59,6 +64,8 @@ type Body = {
   consent?: boolean;
   /** "Toto som ja" on the members list. */
   personNumber?: number;
+  /** The new couples the dancer ticked on the search; their other couples are saved without asking. */
+  parIds?: unknown;
   /** The saved couple to unlink (user_couples.id). */
   coupleId?: string;
   resultId?: string;
@@ -134,6 +141,8 @@ function kindOf(url: URL): Kind | null {
         default:
           return null;
       }
+    case "/search.php":
+      return "search";
     case "/detail_paru.php":
       return "couple_detail";
     case "/par.php":
@@ -175,6 +184,8 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
         return await membersList(admin, userId, body.html, dancer, save, body.personNumber);
       case "couples_list":
         return await couplesList(admin, userId, body.html, linked, dancer, save, consent);
+      case "search":
+        return await search(admin, userId, body.html, linked, dancer, save, consent, body.parIds);
       case "couple_detail":
         return await coupleDetail(admin, userId, body.html, linked, dancer, save, consent);
       case "couple_page":
@@ -229,11 +240,16 @@ function coupleKey(pairNumber: number, partnerka: string): string {
   return `${pairNumber}|${normalizeDancerName(partnerka)}`;
 }
 
-/** The saved couple behind a KSIS couple; rows saved before the key match by the number alone. */
-function savedCouple(linked: LinkedCouple[], pairNumber: number, partnerka: string): LinkedCouple | undefined {
-  const key = coupleKey(pairNumber, partnerka);
+/** The saved couple behind a KSIS couple; rows saved before the key match by the number alone, and couples found by
+ * the search (no number yet) by both names. */
+function savedCouple(linked: LinkedCouple[], pairNumber: number, names: KsisPairNames): LinkedCouple | undefined {
+  const key = coupleKey(pairNumber, names.partnerka);
   return linked.find((couple) => couple.couple_key === key) ??
-    linked.find((couple) => couple.couple_key === null && couple.pair_number === pairNumber);
+    linked.find((couple) => couple.couple_key === null && couple.pair_number === pairNumber) ??
+    linked.find((couple) =>
+      couple.couple_key === null && couple.pair_number === null && couple.partner_names !== null &&
+      isSameCouple(splitPair(couple.partner_names), names)
+    );
 }
 
 /** Makes room for a new current couple; the one before stays in the history. */
@@ -245,10 +261,13 @@ async function endCurrentCouple(admin: Admin, userId: string): Promise<void> {
 const NEEDS_DANCER = "Najprv sa nájdi v zozname členov: Členská základňa → Zoznam členov.";
 const NEEDS_CONSENT = "Potvrď, že partner(ka) súhlasí so zobrazením spoločných výsledkov.";
 
-/** The linked couple behind a row: by the KSIS couple id, or by both names when the id is not known yet. */
+/** The linked couple behind a row: by the KSIS couple id, or by both names when the couple has no id yet. A couple
+ * with an id is never given another one: one couple can have two ids in KSIS, and each keeps its own history. */
 function findOwn(linked: LinkedCouple[], parId: number | null, names: KsisPairNames): LinkedCouple | undefined {
   return linked.find((couple) => parId !== null && couple.couple_id === parId) ??
-    linked.find((couple) => couple.partner_names !== null && isSameCouple(splitPair(couple.partner_names), names));
+    linked.find((couple) =>
+      couple.couple_id === null && couple.partner_names !== null && isSameCouple(splitPair(couple.partner_names), names)
+    );
 }
 
 async function rememberCoupleId(admin: Admin, own: LinkedCouple, parId: number): Promise<void> {
@@ -331,12 +350,14 @@ async function couplesList(
 ) {
   const rows = parseCouplesList(html);
   const sideOf = (row: (typeof rows)[number]) => (dancer ? sideInCouple(asMember(dancer), row) : null);
+  // The dancer's rows first: a common surname lists more couples than the reply carries.
+  const ordered = [...rows.filter((row) => sideOf(row) !== null), ...rows.filter((row) => sideOf(row) === null)];
   const reply = (saved: LinkedCouple[]) => ({
     kind: "couples_list",
-    couples: rows.slice(0, 30).map((row) => ({
+    couples: ordered.slice(0, 30).map((row) => ({
       ...row,
       side: sideOf(row),
-      isLinked: savedCouple(saved, row.pairNumber, row.partnerka) !== undefined,
+      isLinked: savedCouple(saved, row.pairNumber, row) !== undefined,
     })),
     dancer: dancerReply(dancer),
   });
@@ -347,7 +368,7 @@ async function couplesList(
   if (mine.length === 0) {
     return errorResponse("not_found", "Na tejto stránke nie je tvoj pár. Vyhľadaj svoje priezvisko a odškrtni Aktívne.", 404);
   }
-  if (!consent && mine.some((row) => savedCouple(linked, row.pairNumber, row.partnerka) === undefined)) {
+  if (!consent && mine.some((row) => savedCouple(linked, row.pairNumber, row) === undefined)) {
     return errorResponse("invalid_input", NEEDS_CONSENT, 400);
   }
 
@@ -367,13 +388,117 @@ async function couplesList(
       is_current: row === current,
       updated_at: now,
     };
-    const saved = savedCouple(linked, row.pairNumber, row.partnerka);
+    const saved = savedCouple(linked, row.pairNumber, row);
     const { error } = saved
       ? await admin.from("user_couples").update(values).eq("id", saved.id)
       : await admin.from("user_couples").insert({ ...values, user_id: userId, discipline: "ALL", partner_consent: true });
     if (error) throw error;
   }
   return jsonResponse({ ...reply(await linkedCouples(admin, userId)), saved: mine.length });
+}
+
+// ── Search: every couple of the dancer, the ended ones too, each with its KSIS id ────────────────
+
+interface FoundCouple extends KsisSearchCouple {
+  side: "partner" | "partnerka";
+}
+
+/** What saving does with a found couple. */
+type Step =
+  /** Saved with this id already. */
+  | { couple: FoundCouple; action: "known" }
+  /** Saved by its names without an id: the id is added. */
+  | { couple: FoundCouple; action: "claim"; row: LinkedCouple }
+  /** A second id of a saved couple (KSIS keeps some couples twice): saved too, its partner already said yes. */
+  | { couple: FoundCouple; action: "same" }
+  /** Not saved: needs the partner's yes and the dancer's tick, a namesake abroad looks the same. */
+  | { couple: FoundCouple; action: "new" };
+
+/** The dancer's rows, one per id: a couple that changed club has a row per club. Most competitions first, so the id
+ * with the history takes a saved couple's place when KSIS keeps the couple twice. */
+function foundCouples(rows: KsisSearchCouple[], dancer: Dancer): FoundCouple[] {
+  const byId = new Map<number, FoundCouple[]>();
+  for (const row of rows) {
+    const side = sideInPair(dancer.name, row);
+    if (side) byId.set(row.parId, [...(byId.get(row.parId) ?? []), { ...row, side }]);
+  }
+  return [...byId.values()]
+    .map((same) => {
+      const main = same.reduce((best, row) => (row.competitions > best.competitions ? row : best));
+      return { ...main, competitions: same.reduce((sum, row) => sum + row.competitions, 0) };
+    })
+    .sort((a, b) => b.competitions - a.competitions);
+}
+
+function plan(found: FoundCouple[], linked: LinkedCouple[]): Step[] {
+  const claimed = new Set<string>();
+  return found.map((couple): Step => {
+    if (linked.some((saved) => saved.couple_id === couple.parId)) return { couple, action: "known" };
+    const byNames = linked.filter((saved) => saved.partner_names !== null && isSameCouple(splitPair(saved.partner_names), couple));
+    const free = byNames.find((saved) => saved.couple_id === null && !claimed.has(saved.id));
+    if (free) {
+      claimed.add(free.id);
+      return { couple, action: "claim", row: free };
+    }
+    return { couple, action: byNames.length > 0 ? "same" : "new" };
+  });
+}
+
+async function search(
+  admin: Admin,
+  userId: string,
+  html: string,
+  linked: LinkedCouple[],
+  dancer: Dancer | null,
+  save: boolean,
+  consent: boolean,
+  parIds: unknown,
+) {
+  const rows = parseSearchResults(html);
+  const steps = dancer ? plan(foundCouples(rows, dancer), linked) : [];
+  const reply = (list: Step[]) => ({
+    kind: "search",
+    found: list.slice(0, 40).map(({ couple, action }) => ({
+      parId: couple.parId,
+      partner: couple.partner,
+      partnerka: couple.partnerka,
+      club: couple.club,
+      competitions: couple.competitions,
+      side: couple.side,
+      status: action,
+    })),
+    dancer: dancerReply(dancer),
+  });
+  if (!save) return jsonResponse(reply(steps));
+
+  if (!dancer) return errorResponse("needs_dancer", NEEDS_DANCER, 409);
+  const ticked = new Set(Array.isArray(parIds) ? parIds.filter((id): id is number => Number.isInteger(id)) : []);
+  const chosen = steps.filter((step) => step.action !== "new" || ticked.has(step.couple.parId));
+  if (!consent && chosen.some((step) => step.action === "new")) return errorResponse("invalid_input", NEEDS_CONSENT, 400);
+
+  const now = new Date().toISOString();
+  let saved = 0;
+  for (const step of chosen) {
+    const { couple } = step;
+    if (step.action === "known") continue;
+    const { error } = step.action === "claim"
+      ? await admin.from("user_couples").update({ couple_id: couple.parId, updated_at: now }).eq("id", step.row.id)
+      : await admin.from("user_couples").insert({
+        user_id: userId,
+        couple_id: couple.parId,
+        side: couple.side,
+        partner_names: `${couple.partner} - ${couple.partnerka}`,
+        partner_name: `${couple.partner} & ${couple.partnerka}`,
+        club: couple.club || null,
+        is_current: false,
+        discipline: "ALL",
+        partner_consent: true,
+        updated_at: now,
+      });
+    if (error) throw error;
+    saved += 1;
+  }
+  return jsonResponse({ ...reply(plan(foundCouples(rows, dancer), await linkedCouples(admin, userId))), saved });
 }
 
 // ── Couple detail: class, points, finals of one of the dancer's couples ─────────────────────────
@@ -390,7 +515,7 @@ async function coupleDetail(
   const detail = parseCoupleDetail(html);
   const partner = `${detail.partner.surname} ${detail.partner.firstName}`.trim();
   const partnerka = `${detail.partnerka.surname} ${detail.partnerka.firstName}`.trim();
-  const saved = savedCouple(linked, detail.pairNumber, partnerka);
+  const saved = savedCouple(linked, detail.pairNumber, { partner, partnerka });
   const side = dancer ? sideInCouple(asMember(dancer), { pairNumber: detail.pairNumber, partner, partnerka }) : null;
   const couple = {
     pairNumber: detail.pairNumber,

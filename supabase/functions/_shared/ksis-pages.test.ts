@@ -17,10 +17,12 @@ import {
   parsePlace,
   parseRegistrations,
   parseResults,
+  parseSearchResults,
   parseSlpStandings,
   parseStanding,
   registeredCategories,
   sideInCouple,
+  sideInPair,
   splitPair,
 } from "./ksis-pages.ts";
 
@@ -121,6 +123,38 @@ Deno.test("the side in a couple comes from the pair number or the partnerka's na
   assertEquals(sideInCouple({ ...eva, name: "TANECNA  Eva" }, couple), "partnerka");
   assertEquals(sideInCouple(former, ended), "partner");
   assertEquals(sideInCouple(other, couple), null);
+  assertEquals(sideInCouple({ ...eva, name: "Eva Tanečná" }, couple), "partnerka");
+});
+
+// ── Search ───────────────────────────────────────────────────────────────────────────────────────
+
+const SEARCH_EMPTY = `<table class="table table-striped table-hover" border="0"><thead><tr><th class="titulka">Pár/Rozhodca/Funkcionár</th>` +
+  `<th class="titulka">Klub</th><th class="titulka">Počet súťaží</th><th class="titulka"></th></tr></thead>` +
+  `<tbody><tr><td colspan="2"> Nenašli sa žiadne záznamy...</td></tr></tbody></table>`;
+
+Deno.test("search: every couple with its KSIS id; judges and couples without names are left out", () => {
+  const rows = parseSearchResults(fixture("search_tanecny.html"));
+  assertEquals(rows.map((row) => row.parId), [17340, 20046, 11404, 15104, 15104, 18978, 15129, 15129, 12001]);
+  assertEquals(rows[0], { parId: 17340, partner: "Adam Tanečný", partnerka: "Eva Tanečná", club: "TK Ellegance Košice", competitions: 1 });
+  assertEquals(rows.filter((row) => row.parId === 15104).map((row) => [row.club, row.competitions]), [
+    ["TK DANSOVIA Bratislava", 85],
+    ["TK ELLEGANCE Košice", 6],
+  ]);
+  assertEquals(parseSearchResults(SEARCH_EMPTY), []);
+  assertLayoutChanged(() => parseSearchResults("<h3>Výsledky vyhladávania</h3>"));
+});
+
+Deno.test("search: the dancer's couples by name in either order, without diacritics and in capitals", () => {
+  const rows = parseSearchResults(fixture("search_tanecny.html"));
+  const ids = (name: string) => rows.filter((row) => sideInPair(name, row) !== null).map((row) => row.parId);
+  // 20046 is a namesake abroad: the dancer unticks it. 15129 and 11404 only contain the searched text.
+  assertEquals(ids("Tanečný Adam"), [17340, 20046, 15104, 15104, 18978, 12001]);
+  assertEquals(ids("Tanečná Eva"), [17340, 18978]);
+  assertEquals(sideInPair("Tanečná Eva", rows[0]), "partnerka");
+  assertEquals(ids(""), []);
+  // One couple under two ids.
+  assert(isSameCouple(rows[0], rows[5]));
+  assert(!isSameCouple(rows[0], rows[1]));
 });
 
 Deno.test("couple detail: class, points, finals and last change for both disciplines", () => {
