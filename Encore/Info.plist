@@ -54,7 +54,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Encore používa Face ID na odomknutie aplikácie a na potvrdenie citlivých krokov, napríklad zmazania účtu.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
-	<string>Encore odstráni z kalendára iba tréningy a súťaže, ktoré sám vytvoril, keď o to požiadaš. Ostatné udalosti nečíta ani nemení.</string>
+	<string>Encore si vytvorí vlastný karmínový kalendár Encore a pridáva doň tvoje tréningy a súťaže. Pracuje iba s udalosťami, ktoré sám vytvoril, ostatné nemení.</string>
 	<key>NSCalendarsWriteOnlyAccessUsageDescription</key>
 	<string>Encore pridá tvoje tréningy a súťaže do kalendára iba na tvoju žiadosť. Existujúce udalosti nečíta.</string>
 	<key>NSMicrophoneUsageDescription</key>

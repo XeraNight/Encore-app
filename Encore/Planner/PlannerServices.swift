@@ -349,8 +349,9 @@ enum PlannerAttendance {
 }
 
 // MARK: - Apple Calendar export (EventKit)
-/// Creates events in the system calendar. Uses write-only access, so the app never reads the
-/// user's calendars.
+/// Creates events in the app's own crimson calendar "Encore", so trainings and competitions stand out and can be
+/// hidden at once. Making that calendar needs full access; with write-only access the events go to the default
+/// calendar. The app only ever touches events it created itself.
 @MainActor
 final class CalendarExporter {
     static let shared = CalendarExporter()
@@ -362,13 +363,92 @@ final class CalendarExporter {
     private static let competitionMarker = "Encore · súťaž"
     private static let sessionMarker = "Encore · tréning"
 
+    private static let calendarName = "Encore"
+    private static let calendarIdKey = "encore.calendar.id"
+    /// Set once the events made before the Encore calendar were moved into it on this iPhone.
+    private static let movedKey = "encore.calendar.movedOwnEvents"
+    /// Encore Crimson, the bright one, readable among Apple Calendar's colours.
+    private static let crimson = CGColor(red: 154 / 255, green: 13 / 255, blue: 31 / 255, alpha: 1)
+
     private func requestAccess() async -> Bool {
         (try? await store.requestWriteOnlyAccessToEvents()) ?? false
     }
 
     /// Asks for access when the dancer switches "V Apple Kalendári" on, so a refusal can be shown right there.
     func canAddEvents() async -> Bool {
-        await requestAccess()
+        await targetCalendar() != nil
+    }
+
+    /// Where a new event goes: the Encore calendar, or the default one with write-only access; nil without access.
+    private func targetCalendar() async -> EKCalendar? {
+        if await requestFullAccess() { return encoreCalendar() ?? store.defaultCalendarForNewEvents }
+        return await requestAccess() ? store.defaultCalendarForNewEvents : nil
+    }
+
+    /// The crimson Encore calendar: the one saved, the one made before (a reinstall, another iPhone on the same
+    /// iCloud), or a new one next to the default calendar, on the iPhone itself when that account cannot add one.
+    private func encoreCalendar() -> EKCalendar? {
+        let defaults = UserDefaults.standard
+        var calendar = defaults.string(forKey: Self.calendarIdKey).flatMap(store.calendar(withIdentifier:))
+            ?? store.calendars(for: .event).first { $0.title == Self.calendarName && $0.allowsContentModifications }
+        if calendar == nil {
+            let sources = [store.defaultCalendarForNewEvents?.source, store.sources.first { $0.sourceType == .local }]
+            for source in sources.compactMap({ $0 }) {
+                let made = EKCalendar(for: .event, eventStore: store)
+                made.title = Self.calendarName
+                made.cgColor = Self.crimson
+                made.source = source
+                do {
+                    try store.saveCalendar(made, commit: true)
+                    calendar = made
+                    break
+                } catch {
+                    Logger.general.warning("Encore calendar not created: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
+        guard let calendar else { return nil }
+        defaults.set(calendar.calendarIdentifier, forKey: Self.calendarIdKey)
+        if !defaults.bool(forKey: Self.movedKey) {
+            moveOwnEvents(into: calendar)
+            defaults.set(true, forKey: Self.movedKey)
+        }
+        return calendar
+    }
+
+    /// Once per iPhone: the events made before move into the Encore calendar, competitions without the trophy they
+    /// had. A weekly series moves whole from its first date. Stored event ids follow, so removing still finds them.
+    private func moveOwnEvents(into calendar: EKCalendar) {
+        let cal = PlannerCalendar.calendar
+        let start = cal.date(byAdding: .year, value: -1, to: Date()) ?? Date()
+        let end = cal.date(byAdding: .year, value: 2, to: Date()) ?? Date()
+        let markers = [Self.trainingMarker, Self.competitionMarker, Self.sessionMarker]
+        let own = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: nil)).filter { event in
+            event.calendar.calendarIdentifier != calendar.calendarIdentifier && markers.contains { event.notes?.contains($0) == true }
+        }
+        var seen = Set<String>()
+        var renamed: [String: String] = [:]
+        for occurrence in own where seen.insert(occurrence.calendarItemIdentifier).inserted {
+            guard let oldId = occurrence.eventIdentifier, let event = store.event(withIdentifier: oldId) else { continue }
+            event.calendar = calendar
+            if event.title.hasPrefix("🏆 ") { event.title = String(event.title.dropFirst(2)) }
+            if let newId = save(event), newId != oldId { renamed[oldId] = newId }
+        }
+        if !renamed.isEmpty { Self.updateStoredIds(renamed) }
+    }
+
+    private static func updateStoredIds(_ renamed: [String: String]) {
+        guard let context = AppContainer.shared?.mainContext else { return }
+        func update<M: PersistentModel>(_ type: M.Type, _ id: ReferenceWritableKeyPath<M, String?>) {
+            for model in (try? context.fetch(FetchDescriptor<M>())) ?? [] {
+                if let old = model[keyPath: id], let new = renamed[old] { model[keyPath: id] = new }
+            }
+        }
+        update(TrainingCadence.self, \.calendarEventId)
+        update(TrainingLogEntry.self, \.calendarEventId)
+        update(PlannedCompetition.self, \.calendarEventId)
+        update(PlannedSession.self, \.calendarEventId)
+        try? context.save()
     }
 
     /// Removing needs full access. The app only touches events it created itself (by stored id or by the
@@ -379,9 +459,9 @@ final class CalendarExporter {
 
     /// Returns the event identifier, or nil when access was denied or saving failed.
     func export(competition: PlannedCompetition) async -> String? {
-        guard await requestAccess() else { return nil }
+        guard let calendar = await targetCalendar() else { return nil }
         let event = EKEvent(eventStore: store)
-        event.calendar = store.defaultCalendarForNewEvents
+        event.calendar = calendar
         event.title = competition.name
         event.location = competition.city.isEmpty ? nil : competition.city
         event.isAllDay = true
@@ -398,7 +478,7 @@ final class CalendarExporter {
 
     /// Creates a weekly recurring event starting with the next occurrence.
     func export(cadence: TrainingCadence) async -> String? {
-        guard await requestAccess() else { return nil }
+        guard let calendar = await targetCalendar() else { return nil }
         let cal = PlannerCalendar.calendar
         let today = PlannerCalendar.startOfDay(Date())
         var first = today
@@ -412,7 +492,7 @@ final class CalendarExporter {
         }
 
         let event = EKEvent(eventStore: store)
-        event.calendar = store.defaultCalendarForNewEvents
+        event.calendar = calendar
         event.title = cadence.title.isEmpty ? "Tréning" : cadence.title
         event.location = cadence.location.isEmpty ? nil : cadence.location
         event.notes = Self.trainingMarker
@@ -437,9 +517,9 @@ final class CalendarExporter {
 
     /// One-off training: a single timed event with a reminder 30 minutes before.
     func export(session: PlannedSession) async -> String? {
-        guard await requestAccess() else { return nil }
+        guard let calendar = await targetCalendar() else { return nil }
         let event = EKEvent(eventStore: store)
-        event.calendar = store.defaultCalendarForNewEvents
+        event.calendar = calendar
         event.title = session.displayTitle
         event.location = session.location.isEmpty ? nil : session.location
         event.notes = session.goal.isEmpty ? Self.sessionMarker : "\(Self.sessionMarker)\nCieľ: \(session.goal)"
@@ -452,9 +532,9 @@ final class CalendarExporter {
     /// One occurrence of a weekly training as its own event: used when a cancelled day is restored, because
     /// Apple Calendar cannot bring back a deleted occurrence of a series.
     func export(cadence: TrainingCadence, on day: Date) async -> String? {
-        guard await requestAccess() else { return nil }
+        guard let calendar = await targetCalendar() else { return nil }
         let event = EKEvent(eventStore: store)
-        event.calendar = store.defaultCalendarForNewEvents
+        event.calendar = calendar
         event.title = cadence.title.isEmpty ? "Tréning" : cadence.title
         event.location = cadence.location.isEmpty ? nil : cadence.location
         event.notes = Self.trainingMarker
