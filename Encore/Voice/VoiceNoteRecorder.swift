@@ -162,25 +162,47 @@ final class VoiceNotePlayer: NSObject, ObservableObject, AVAudioPlayerDelegate {
     func load(fileName: String) {
         guard self.fileName != fileName else { return }
         halt()
+        player = nil
+        self.fileName = fileName
+        currentTime = 0
         // A recording that is not on this iPhone loads nothing: the one loaded before must not play in its place.
-        player = MediaStorageManager.fileExists(fileName)
-            ? try? AVAudioPlayer(contentsOf: MediaStorageManager.url(for: fileName))
-            : nil
+        // It is brought back from its copy in the cloud (a new iPhone, a reinstall) and then loads.
+        if MediaStorageManager.fileExists(fileName) {
+            attach(fileName)
+        } else {
+            duration = 0
+            Task {
+                guard await VoiceBackup.shared.download(fileName), self.fileName == fileName, player == nil else { return }
+                attach(fileName)
+            }
+        }
+    }
+
+    private func attach(_ fileName: String) {
+        player = try? AVAudioPlayer(contentsOf: MediaStorageManager.url(for: fileName))
         player?.delegate = self
         player?.enableRate = true
         player?.rate = rate
         player?.prepareToPlay()
-        self.fileName = fileName
         duration = player?.duration ?? 0
-        currentTime = 0
     }
 
-    /// Loads the note when it is another one and plays it.
+    /// Loads the note when it is another one and plays it, after bringing it back from the cloud when needed.
     func play(fileName: String) {
         load(fileName: fileName)
-        // Nothing to play: "Počúvať" goes on with the next note.
-        guard player != nil else { onFinish?(); return }
-        if !isPlaying { toggle() }
+        if player != nil {
+            if !isPlaying { toggle() }
+            return
+        }
+        Task {
+            guard await VoiceBackup.shared.download(fileName), self.fileName == fileName else {
+                // Nothing to play: "Počúvať" goes on with the next note.
+                onFinish?()
+                return
+            }
+            if player == nil { attach(fileName) }
+            if player != nil, !isPlaying { toggle() }
+        }
     }
 
     func toggle() {

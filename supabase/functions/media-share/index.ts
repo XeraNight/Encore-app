@@ -1,14 +1,19 @@
-// media-share: videos shared with partner and coach, stored in Cloudflare R2.
+// media-share: videos shared with partner and coach, and the owner's voice notes, stored in Cloudflare R2.
 //
 // The app never holds R2 keys. This function decides who may upload or watch and hands out
-// short-lived presigned links; the video bytes go straight between the iPhone and R2.
-// The original video always stays in the owner's Fotky; R2 keeps only the 720p copy.
+// short-lived presigned links; the bytes go straight between the iPhone and R2.
+// The original video always stays in the owner's Fotky; R2 keeps only the 720p copy. A voice note lives on the
+// iPhone and its copy here brings it back on a new iPhone; only its owner can reach it, the place is built from the
+// signed-in account (voice/<user id>/<file name>).
 //
 // POST JSON, one action per call:
-//   upload   { nodeId, sizeBytes } -> { key, uploadUrl, expiresIn }   limit per plan checked first
-//   confirm  { key }               -> { videoPath, usedBytes, quotaBytes }  file checked, figure updated
-//   download { key }               -> { downloadUrl, expiresIn }      owner, partner or coach only
-//   remove   { key }               -> { ok }                          owner only
+//   upload         { nodeId, sizeBytes } -> { key, uploadUrl, expiresIn }   limit per plan checked first
+//   confirm        { key }               -> { videoPath, usedBytes, quotaBytes }  file checked, figure updated
+//   download       { key }               -> { downloadUrl, expiresIn }      owner, partner or coach only
+//   remove         { key }               -> { ok }                          owner only
+//   voice_upload   { name, sizeBytes }   -> { uploadUrl, expiresIn }        the same limit per plan
+//   voice_download { name }              -> { downloadUrl, expiresIn }      owner only; 404 when there is no copy
+//   voice_remove   { name }              -> { ok }                          owner only
 //
 // Errors: { error, message } with a Slovak message the app can show as is.
 
@@ -22,8 +27,13 @@ const STALE_PENDING_MS = 60 * 60 * 1000;
 const MAX_PENDING = 3;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const KEY = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.mp4$/;
+/** As VoiceNoteRecorder names a recording. */
+const VOICE_NAME = /^voice_[0-9A-Fa-f-]{36}\.m4a$/;
+const MAX_VOICE_BYTES = 25 * 1024 * 1024;   // about 25 minutes of AAC
 
-type Body = { action?: string; nodeId?: string; sizeBytes?: number; key?: string };
+type Body = { action?: string; nodeId?: string; sizeBytes?: number; key?: string; name?: string };
+
+const voicePrefix = (userId: string) => `voice/${userId}/`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -52,6 +62,9 @@ Deno.serve(async (req: Request) => {
       case "confirm": return await confirm(admin, user.id, body);
       case "download": return await download(admin, user.id, body);
       case "remove": return await remove(admin, user.id, body);
+      case "voice_upload": return await voiceUpload(admin, user.id, body);
+      case "voice_download": return await voiceDownload(user.id, body);
+      case "voice_remove": return await voiceRemove(user.id, body);
       default: return errorResponse("invalid_input", "Neznáma akcia.", 400);
     }
   } catch (err) {
@@ -78,9 +91,17 @@ async function usage(admin: Admin, userId: string, exceptNodeId?: string) {
   const { data, error } = await admin.from("shared_videos").select("size_bytes, canvas_node_id").eq("owner_id", userId);
   if (error) throw error;
   // A replaced video of the same figure is deleted on confirm, so it does not count against the new one.
-  const used = (data ?? [])
+  const videos = (data ?? [])
     .filter((row: { canvas_node_id: string | null }) => !exceptNodeId || row.canvas_node_id !== exceptNodeId)
     .reduce((sum: number, row: { size_bytes: number }) => sum + Number(row.size_bytes), 0);
+  // Voice notes count toward the same place per plan. Sharing a video must not stop when the list cannot be read.
+  let voice = 0;
+  try {
+    voice = (await getR2().list(voicePrefix(userId))).reduce((sum, item) => sum + item.size, 0);
+  } catch (err) {
+    console.error("media-share: voice notes not counted:", err instanceof Error ? err.message : err);
+  }
+  const used = videos + voice;
   const { data: quota, error: quotaError } = await admin.rpc("shared_video_quota_bytes", { p_user: userId });
   if (quotaError) throw quotaError;
   return { used, quota: Number(quota) };
@@ -201,6 +222,52 @@ async function download(admin: Admin, userId: string, body: Body) {
 
   const downloadUrl = await getR2().presign(key, "GET", DOWNLOAD_TTL);
   return jsonResponse({ downloadUrl, expiresIn: DOWNLOAD_TTL });
+}
+
+// ── Voice notes ──────────────────────────────────────────────────────────────────────────────────
+
+async function voiceUpload(admin: Admin, userId: string, body: Body) {
+  const name = body.name ?? "";
+  const size = Number(body.sizeBytes);
+  if (!VOICE_NAME.test(name)) return errorResponse("invalid_input", "Neplatná hlasovka.", 400);
+  if (!Number.isInteger(size) || size <= 0) return errorResponse("invalid_input", "Neplatná veľkosť hlasovky.", 400);
+  if (size > MAX_VOICE_BYTES) return errorResponse("too_large", "Hlasovka je väčšia ako 25 MB.", 413);
+
+  const key = voicePrefix(userId) + name;
+  const r2 = getR2();
+  // The same recording sent again replaces its copy, so it does not count twice.
+  const existing = (await r2.size(key)) ?? 0;
+  const { used, quota } = await usage(admin, userId);
+  if (used - existing + size > quota) {
+    return jsonResponse({
+      error: "quota_exceeded",
+      message: "Miesto v Encore je plné. Zmaž staršie hlasovky alebo zdieľané videá, alebo si zvýš plán.",
+      usedBytes: used,
+      quotaBytes: quota,
+    }, 413);
+  }
+  const uploadUrl = await r2.presign(key, "PUT", UPLOAD_TTL, {
+    "content-type": "audio/mp4",
+    "content-length": String(size),
+  });
+  return jsonResponse({ uploadUrl, expiresIn: UPLOAD_TTL });
+}
+
+async function voiceDownload(userId: string, body: Body) {
+  const name = body.name ?? "";
+  if (!VOICE_NAME.test(name)) return errorResponse("invalid_input", "Neplatná hlasovka.", 400);
+  const key = voicePrefix(userId) + name;
+  const r2 = getR2();
+  if ((await r2.size(key)) === null) return errorResponse("not_found", "Táto hlasovka v Encore nie je.", 404);
+  const downloadUrl = await r2.presign(key, "GET", DOWNLOAD_TTL);
+  return jsonResponse({ downloadUrl, expiresIn: DOWNLOAD_TTL });
+}
+
+async function voiceRemove(userId: string, body: Body) {
+  const name = body.name ?? "";
+  if (!VOICE_NAME.test(name)) return errorResponse("invalid_input", "Neplatná hlasovka.", 400);
+  await getR2().remove(voicePrefix(userId) + name);
+  return jsonResponse({ ok: true });
 }
 
 async function remove(admin: Admin, userId: string, body: Body) {

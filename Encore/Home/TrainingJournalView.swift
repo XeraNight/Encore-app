@@ -706,7 +706,8 @@ enum VoiceWaveformLoader {
     static func levels(for fileName: String, count: Int) async -> [CGFloat] {
         let key = "\(fileName)#\(count)"
         if let cached = cache[key] { return cached }
-        guard MediaStorageManager.fileExists(fileName) else { return [] }
+        // A recording missing on this iPhone comes back from its copy in the cloud first.
+        guard await VoiceBackup.shared.download(fileName) else { return [] }
         let url = MediaStorageManager.url(for: fileName)
         let levels = await Task.detached(priority: .utility) { read(url, count: count) }.value
         cache[key] = levels

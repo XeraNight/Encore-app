@@ -178,6 +178,8 @@ final class PendingSyncRunner {
             let allSent = await SupabaseSyncManager.shared.sendPending(in: container.mainContext)
             // The diary, plan and notes: their own fingerprints, a failure waits for the next run.
             await DeviceBackup.upload(in: container.mainContext)
+            // Voice recordings: their copies in the cloud, so a new iPhone gets them back.
+            await VoiceBackup.shared.sync(in: container.mainContext)
             isRunning = false
             if allSent { attempt = 0 } else { scheduleRetry() }
         }
