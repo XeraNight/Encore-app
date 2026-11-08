@@ -676,6 +676,8 @@ async function results(admin: Admin, userId: string, html: string, linked: Linke
     cumulative_points: row.total?.points ?? 0,
     cumulative_finals: row.total?.finals ?? 0,
     start_number: row.startNumber,
+    // "Miesto:" for the map of where the couple danced; a page without it keeps what was saved.
+    ...(page.competition.venue ? { venue: page.competition.venue } : {}),
     season: yearOf(page.competition.date),
     source: "auto",
     is_deleted: false,
@@ -743,7 +745,12 @@ async function marks(admin: Admin, userId: string, url: URL, html: string, linke
   }
   const { error } = await admin
     .from("competition_results")
-    .update({ rounds, judges, start_number: entry.startNumber })
+    .update({
+      rounds,
+      judges,
+      start_number: entry.startNumber,
+      ...(page.competition.venue ? { venue: page.competition.venue } : {}),
+    })
     .eq("id", existing.id);
   if (error) throw error;
   return jsonResponse({ ...reply, saved: 1 });

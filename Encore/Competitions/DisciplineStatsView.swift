@@ -20,6 +20,8 @@ struct DisciplineStatsView: View {
     @State private var pickedDate: Date?
     @State private var pickedId: UUID?
     @State private var openJudge: String?
+    /// The town picked on the map of where the couple danced.
+    @State private var pickedTown: String?
     @State private var showsAllJudges = false
     @State private var selectedResult: CompetitionResult?
     @State private var browser: KSISBrowserTarget?
@@ -84,6 +86,7 @@ struct DisciplineStatsView: View {
                         chartCard(results, stats)
                         dancesSection(stats)
                         judgesSection(results)
+                        placesSection(results)
                     } else {
                         plusCard
                     }
@@ -101,7 +104,10 @@ struct DisciplineStatsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.selection, trigger: scope)
         .sensoryFeedback(.selection, trigger: pickedId)
-        .onChange(of: scope) { _, _ in pickedId = nil }
+        .onChange(of: scope) { _, _ in
+            pickedId = nil
+            pickedTown = nil
+        }
         .onAppear {
             withAnimation(reduceMotion ? nil : .spring(response: 0.8, dampingFraction: 0.85).delay(0.1)) { appeared = true }
         }
@@ -519,6 +525,50 @@ struct DisciplineStatsView: View {
                 .padding(.bottom, 12)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
+        }
+    }
+
+    // MARK: Places
+    /// Where the couple danced, from KSIS's "Miesto:", which comes with the results and crosses pages. A tap on a town
+    /// lists its competitions.
+    @ViewBuilder
+    private func placesSection(_ results: [CompetitionResult]) -> some View {
+        let towns = results.map { result in (result: result, town: result.venue.flatMap(SlovakCity.find(in:))?.name) }
+        let counts = Dictionary(grouping: towns.compactMap(\.town)) { $0 }.mapValues(\.count)
+        if !counts.isEmpty {
+            let elsewhere = towns.filter { $0.town == nil }.count
+            let inTown = towns.filter { $0.town != nil && $0.town == pickedTown }.map(\.result)
+            VStack(alignment: .leading, spacing: 10) {
+                HomeSectionHeader(title: "KDE STE TANCOVALI", systemImage: "map")
+                SlovakiaMapView(counts: counts, selected: $pickedTown)
+                    .homeCard(cornerRadius: 20)
+                if let pickedTown, !inTown.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(pickedTown) · \(slovakCount(inTown.count, one: "súťaž", few: "súťaže", many: "súťaží"))")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(Color.gold300)
+                        VStack(spacing: 0) {
+                            ForEach(inTown) { result in
+                                Button { selectedResult = result } label: {
+                                    CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
+                                }
+                                .buttonStyle(.pressable(scale: 0.98))
+                                if result.id != inTown.last?.id { HomeRowDivider() }
+                            }
+                        }
+                        .homeCard(cornerRadius: 20)
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                Text(elsewhere > 0
+                     ? "Ťukni na mesto. Mimo mapy: \(elsewhere), v zahraničí alebo ešte bez miesta, to príde s krížikmi."
+                     : "Ťukni na mesto a uvidíš súťaže v ňom.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .animation(spring, value: pickedTown)
+            .sensoryFeedback(.selection, trigger: pickedTown)
         }
     }
 

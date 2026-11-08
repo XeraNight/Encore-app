@@ -97,7 +97,7 @@ final class CompetitionManager: ObservableObject {
                 .value
             async let loadedResults: [CompetitionResult] = client
                 .from("competition_results")
-                .select("id, sutaz_id, couple_id, event_name, category_name, discipline, date, couple_count, placement_text, placement, points_earned, cumulative_stats, start_number, rounds, judges")
+                .select("id, sutaz_id, couple_id, event_name, category_name, discipline, date, couple_count, placement_text, placement, points_earned, cumulative_stats, start_number, venue, rounds, judges")
                 .eq("user_id", value: myId)
                 .eq("is_deleted", value: false)
                 .order("date", ascending: false)

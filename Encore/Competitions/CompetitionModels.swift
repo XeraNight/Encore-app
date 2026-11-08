@@ -122,6 +122,8 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
     /// "Body po" / "Celkom": points and finals after this competition.
     let cumulativeStats: String?
     let startNumber: String?
+    /// "Miesto:" from KSIS's results or marks page, the hall and its town; nil until one of them is read.
+    let venue: String?
     let rounds: [KSISRound]?
     let judges: [KSISJudge]?
 
@@ -139,6 +141,7 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
         case pointsEarned = "points_earned"
         case cumulativeStats = "cumulative_stats"
         case startNumber = "start_number"
+        case venue
         case rounds
         case judges
     }
