@@ -8,36 +8,10 @@ enum AppContainer {
     static var shared: ModelContainer?
 }
 
-/// Keeps one account's local data (routines, notes, videos, plans) away from the next account
-/// that signs in on the same iPhone.
-///
-/// The local database is not tied to a user id, so without this a second person signing in would
-/// see the first person's routines and could upload them to their own cloud account. We remember
-/// which account the local data belongs to and clear it when a different one signs in. Signing
-/// out and back in as the same account keeps everything (local videos are not in the cloud).
+/// Wipes the open account's data on this iPhone when the account is deleted; switching accounts deletes nothing
+/// (AccountStore).
 @MainActor
 enum LocalDataGuard {
-    private static let ownerKey = "encore.localDataOwnerId"
-
-    /// Call whenever a (different) user becomes the active user, before any data is shown or synced.
-    static func claim(for userId: UUID) {
-        let defaults = UserDefaults.standard
-        if let stored = defaults.string(forKey: ownerKey), stored != userId.uuidString {
-            Logger.auth.notice("[LocalDataGuard] Local data belongs to another account, clearing it.")
-            wipeAll()
-            // Nothing the previous account left unsent may go up under this one.
-            Task { await SyncLedger.shared.reset() }
-            ConnectionManager.shared.reset()
-            SlovakCupStore.shared.clear()
-        }
-        // No stored owner (data from before this feature): adopt it for the current user.
-        defaults.set(userId.uuidString, forKey: ownerKey)
-    }
-
-    static func forgetOwner() {
-        UserDefaults.standard.removeObject(forKey: ownerKey)
-    }
-
     /// Removes user-created data. Built-in dances and library figures are kept.
     static func wipeAll() {
         guard let container = AppContainer.shared else {

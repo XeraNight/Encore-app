@@ -155,8 +155,8 @@ final class AuthManager: ObservableObject {
 
     private func applySession(_ session: Session) {
         let isNewUser = currentUser?.id != session.user.id
-        // Before anything is shown or synced for a different account, drop the previous one's data.
-        if isNewUser { LocalDataGuard.claim(for: session.user.id) }
+        // Before anything is shown or synced for a different account, its own data opens (the previous one's stays).
+        if isNewUser { AccountStore.shared.open(session.user.id) }
         currentUser = session.user
         isAuthenticated = true
         if let email = session.user.email, !email.isEmpty {
@@ -976,7 +976,7 @@ final class AuthManager: ObservableObject {
         googleSubId = ""
         try? await client.auth.signOut(scope: .local)
         LocalDataGuard.wipeAll()
-        LocalDataGuard.forgetOwner()
+        if let userId = currentUser?.id { AccountStore.shared.close(deleting: userId) }
         KeychainHelper.shared.deleteCredentials()
         isBiometricsEnabled = false
         clearSession()

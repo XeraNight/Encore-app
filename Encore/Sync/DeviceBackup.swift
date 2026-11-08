@@ -16,10 +16,12 @@ import SwiftData
 ///   nothing deleted here comes back. Wiping the store for another account forgets the fingerprints too (LocalDataGuard).
 @MainActor
 enum DeviceBackup {
-    private static let fingerprintsKey = "encore.deviceBackup.v1"
+    /// Each account's data on this iPhone goes up on its own (AccountStore), so its fingerprints are its own too.
+    private static var fingerprintsKey: String { "encore.deviceBackup.v1" + accountSuffix }
     /// The account whose backup was already brought back: the cloud is not asked again on every launch.
     /// v2: the first version came down only into an empty iPhone, so one record made after a wipe kept the rest away.
-    private static let checkedKey = "encore.deviceBackup.checkedUser.v2"
+    private static var checkedKey: String { "encore.deviceBackup.checkedUser.v2" + accountSuffix }
+    private static var accountSuffix: String { AccountStore.shared.accountId.map { ".\($0.uuidString)" } ?? "" }
     private static let batchSize = 200
     private static let pageSize = 1000
     private static var isUploading = false
@@ -153,7 +155,12 @@ enum DeviceBackup {
         await PlannerNotifications.rescheduleFromStore()
     }
 
-    /// The local store was wiped for another account: what went up from it belonged to the previous one.
+    /// Another account's data opened: work started for the one before remembers nothing under this one.
+    static func accountChanged() {
+        generation += 1
+    }
+
+    /// The open account's data was wiped (the account is being deleted): nothing of it went up any more.
     static func reset() {
         generation += 1
         UserDefaults.standard.removeObject(forKey: fingerprintsKey)

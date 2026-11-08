@@ -73,11 +73,13 @@ struct SyncLedgerTests {
         #expect(await ledger.changedRows([row(figure, routine: routine, name: "Whisk")]).isEmpty)
     }
 
-    @Test func anotherAccountStartsWithNothingToSend() async throws {
-        let (ledger, _) = try makeLedger()
+    @Test func eachAccountKeepsItsOwnChangesToSend() async throws {
+        let (ledger, defaults) = try makeLedger()
         let routine = UUID()
         await ledger.recordDeletion(node: UUID(), in: routine)
-        await ledger.reset()
-        #expect(await ledger.pendingRoutineIds.isEmpty)
+        let otherAccount = SyncLedger(defaults: defaults, key: "encore.syncLedger.v1.other")
+        #expect(await otherAccount.pendingRoutineIds.isEmpty)
+        let sameAccountAgain = SyncLedger(defaults: defaults)
+        #expect(await sameAccountAgain.pendingRoutineIds == [routine])
     }
 }

@@ -23,50 +23,20 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct EncoreApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    let container: ModelContainer
+    /// Each account's own data on this iPhone; switching accounts switches the database.
+    @StateObject private var accounts = AccountStore.shared
 
     init() {
-        let schema = Schema([
-            Dance.self,
-            FigureLibraryItem.self,
-            Routine.self,
-            CanvasNode.self,
-            InstantNote.self,
-            VideoMediaEntry.self,
-            TrainingCadence.self,
-            TrainingLogEntry.self,
-            PlannedCompetition.self,
-            PlannedSession.self,
-            LessonPriority.self
-        ])
-        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-        do {
-            container = try ModelContainer(for: schema, configurations: config)
-        } catch {
-            Logger.general.error("ModelContainer init failed: \(error.localizedDescription, privacy: .public). Attempting recovery.")
-            do {
-                container = try DatabaseRecoveryManager.recoverContainer(schema: schema, configuration: config)
-            } catch {
-                fatalError("Could not initialize ModelContainer after recovery: \(error)")
-            }
-        }
-
         MainActor.assumeIsolated {
-            AppContainer.shared = container
             // Changes made offline go up whenever the network or the app comes back.
-            PendingSyncRunner.shared.start(container: container)
-        }
-
-        // Seed on a true background task — never touches the main thread
-        let containerRef = container
-        Task.detached(priority: .background) {
-            await EncoreApp.seedIfNeeded(container: containerRef)
+            PendingSyncRunner.shared.start()
         }
     }
 
     var body: some Scene {
         WindowGroup {
             RootAppView()
+                .modelContainer(accounts.container)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     // 1. Google Sign-In redirect
@@ -107,12 +77,11 @@ struct EncoreApp: App {
                     }
                 }
         }
-        .modelContainer(container)
     }
 
     // MARK: - Background seed using a dedicated ModelActor context
     // Runs entirely off the main thread — zero impact on first-frame render.
-    private static func seedIfNeeded(container: ModelContainer) async {
+    static func seedIfNeeded(container: ModelContainer) async {
         // Create a background context (ModelActor) for safe off-thread access
         let bgContext = ModelContext(container)
 
@@ -159,6 +128,7 @@ struct RootAppView: View {
     @ObservedObject private var friendManager = FriendManager.shared
     @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @ObservedObject private var profileStore = UserProfileStore.shared
+    @ObservedObject private var accounts = AccountStore.shared
     @Environment(\.scenePhase) private var scenePhase
     @State private var dismissMaintenanceOffline = false
     @State private var isSplashActive = true
@@ -174,7 +144,9 @@ struct RootAppView: View {
                 .transition(.opacity)
                 .zIndex(100)
             } else if authManager.isAuthenticated {
+                // Another account's data: every screen starts again on it.
                 MainTabView()
+                    .id(accounts.accountId)
                     .transition(.opacity)
             } else {
                 AuthSheetView(isSheet: false)

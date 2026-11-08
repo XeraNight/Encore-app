@@ -3,6 +3,7 @@ import Foundation
 import Network
 import OSLog
 import SwiftData
+import Synchronization
 
 // MARK: - What still has to reach the server
 /// Kept on the iPhone, so it survives no network, a killed app and a restart:
@@ -12,8 +13,32 @@ import SwiftData
 /// - a fingerprint of every figure as last uploaded or downloaded.
 /// Only figures whose fingerprint changed are sent, so an old copy on this iPhone can never overwrite what a
 /// partner changed meanwhile, and the server loses a figure only when it was deleted here.
+/// Each account on this iPhone has its own (AccountStore): what one left unsent waits for it and never goes up
+/// under another.
 actor SyncLedger {
-    static let shared = SyncLedger()
+    /// The open account's ledger.
+    static var shared: SyncLedger { current.withLock { $0 } }
+    private static let current = Mutex(SyncLedger())
+    static let legacyKey = "encore.syncLedger.v1"
+
+    private static func key(for account: UUID) -> String { "\(legacyKey).\(account.uuidString)" }
+
+    /// When an account's data opens. The one ledger kept before accounts had their own belongs to the account that
+    /// opens first after the update, the one that used it.
+    static func open(account: UUID) {
+        let defaults = UserDefaults.standard
+        let key = key(for: account)
+        if defaults.data(forKey: key) == nil, let legacy = defaults.data(forKey: legacyKey) {
+            defaults.set(legacy, forKey: key)
+        }
+        defaults.removeObject(forKey: legacyKey)
+        current.withLock { $0 = SyncLedger(key: key) }
+    }
+
+    /// The account was deleted: its ledger goes with it.
+    static func forget(account: UUID) {
+        UserDefaults.standard.removeObject(forKey: key(for: account))
+    }
 
     private struct State: Codable {
         var pending: [UUID: Int] = [:]
@@ -26,7 +51,7 @@ actor SyncLedger {
     private let defaults: UserDefaults
     private let key: String
 
-    init(defaults: UserDefaults = .standard, key: String = "encore.syncLedger.v1") {
+    init(defaults: UserDefaults = .standard, key: String = legacyKey) {
         self.defaults = defaults
         self.key = key
         state = defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(State.self, from: $0) } ?? State()
@@ -102,12 +127,6 @@ actor SyncLedger {
         save()
     }
 
-    /// Another account on this iPhone: nothing of the previous one may be sent under it.
-    func reset() {
-        state = State()
-        save()
-    }
-
     // MARK: Fingerprint
     /// SHA-256 of the fields this app uploads (the coach's note is written by the coach only).
     nonisolated static func fingerprint(_ row: DBCanvasNodeRow) -> String {
@@ -134,7 +153,6 @@ actor SyncLedger {
 final class PendingSyncRunner {
     static let shared = PendingSyncRunner()
 
-    private var container: ModelContainer?
     private let monitor = NWPathMonitor()
     private var attempt = 0
     private var retryTask: Task<Void, Never>?
@@ -142,8 +160,8 @@ final class PendingSyncRunner {
 
     private init() {}
 
-    func start(container: ModelContainer) {
-        self.container = container
+    /// Watches the network. Each run works on the open account's data (AccountStore).
+    func start() {
         monitor.pathUpdateHandler = { path in
             guard path.status == .satisfied else { return }
             Task { @MainActor in PendingSyncRunner.shared.run() }
@@ -153,7 +171,7 @@ final class PendingSyncRunner {
 
     /// Tries now; a try already running is enough.
     func run() {
-        guard let container, !isRunning else { return }
+        guard let container = AppContainer.shared, !isRunning else { return }
         isRunning = true
         retryTask?.cancel()
         Task {
