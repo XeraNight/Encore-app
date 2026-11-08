@@ -32,7 +32,7 @@ struct PlannerCompetitionsView: View {
             plannerSectionTitle("NADCHÁDZAJÚCE SÚŤAŽE")
 
             if upcoming.isEmpty {
-                Text("Pridaj súťaž a nastav Idem. Appka ti pripomenie uzávierku prihlášok a deň pred súťažou.")
+                Text("Pridaj súťaž alebo ju vyber v Kalendári KSIS a nastav Idem. Appka ti pripomenie uzávierku prihlášok a deň pred súťažou.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -46,15 +46,28 @@ struct PlannerCompetitionsView: View {
                 }
             }
 
-            Button { showNew = true } label: {
-                Label("Pridať súťaž", systemImage: "plus")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Color.obsidian900)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 11)
-                    .background(Color.gold400, in: Capsule())
+            HStack(spacing: 10) {
+                Button { showNew = true } label: {
+                    Label("Pridať súťaž", systemImage: "plus")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Color.obsidian900)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 11)
+                        .background(Color.gold400, in: Capsule())
+                }
+                .buttonStyle(.pressable)
+                // What KSIS announces, with Idem sending a competition here.
+                NavigationLink { KSISCalendarView() } label: {
+                    Label("Kalendár KSIS", systemImage: "calendar")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Color.gold400)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 11)
+                        .background(Color.white.opacity(0.08), in: Capsule())
+                        .overlay(Capsule().stroke(Color.gold400.opacity(0.4), lineWidth: 0.5))
+                }
+                .buttonStyle(.pressable)
             }
-            .buttonStyle(.pressable)
 
             if !past.isEmpty {
                 plannerSectionTitle("MINULÉ")

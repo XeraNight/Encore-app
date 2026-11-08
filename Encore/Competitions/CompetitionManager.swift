@@ -26,7 +26,11 @@ final class CompetitionManager: ObservableObject {
     private static let withoutMarksKey = "encore.ksisCompetitionsWithoutMarks"
 
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
-    var previousCouples: [UserCouple] { couples.filter { !$0.isCurrent } }
+    /// The couples before the current one, each once: KSIS keeps some couples under two ids.
+    var previousCouples: [UserCouple] {
+        var seen = Set(activeCouple.map { [$0.sameCoupleKey] } ?? [])
+        return couples.filter { !$0.isCurrent && seen.insert($0.sameCoupleKey).inserted }
+    }
 
     enum ActionError: LocalizedError {
         case server(String)
@@ -109,9 +113,10 @@ final class CompetitionManager: ObservableObject {
         }
     }
 
+    /// The couple's competitions under each of its KSIS ids.
     func results(for couple: UserCouple) -> [CompetitionResult] {
-        guard let coupleId = couple.coupleId else { return [] }
-        return results.filter { $0.coupleId == coupleId }
+        let ids = Set(couples.filter { $0.sameCoupleKey == couple.sameCoupleKey }.compactMap(\.coupleId))
+        return results.filter { ids.contains($0.coupleId) }
     }
 
     /// The result has no crosses yet and KSIS may still have them.
@@ -135,9 +140,10 @@ final class CompetitionManager: ObservableObject {
 
     /// Stores what the open page says about the user (who they are, their couples, a result), then reloads the diary.
     /// `reloads` is false while an update saves many pages: it reloads once after them.
-    func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil, reloads: Bool = true) async throws -> KSISPageReply {
+    func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil, parIds: [Int]? = nil,
+              reloads: Bool = true) async throws -> KSISPageReply {
         let reply: KSISPageReply = try await call(
-            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber)
+            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber, parIds: parIds)
         )
         if reloads { await loadAllData() }
         return reply

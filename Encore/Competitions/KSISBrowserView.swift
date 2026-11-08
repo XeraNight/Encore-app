@@ -229,6 +229,7 @@ struct KSISBrowserView: View {
             switch reply.kind {
             case .membersList: return "Zoznam členov"
             case .couplesList: return "Páry v KSIS"
+            case .search: return "Vyhľadávanie v KSIS"
             case .coupleDetail: return "Detail páru"
             case .couplePage: return "Stránka páru"
             case .results: return "Výsledková listina"
@@ -256,6 +257,7 @@ struct KSISBrowserView: View {
             switch reply.kind {
             case .membersList: membersList(reply)
             case .couplesList: couplesList(reply)
+            case .search: foundCouples(reply)
             case .coupleDetail: coupleDetail(reply)
             case .couplePage: couplePage(reply)
             case .results: resultsPage(reply)
@@ -311,6 +313,36 @@ struct KSISBrowserView: View {
     private func memberLine(_ member: KSISPageReply.ListedMember) -> String {
         let classes = [("ŠTT", member.sttClass), ("LAT", member.latClass)].filter { !$0.1.isEmpty }.map { "\($0.0) \($0.1)" }
         return ([member.club] + classes + (member.active ? [] : ["neaktívny"])).filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    /// The dancer's couples on the search, read only: Aktualizovať z KSIS saves them, asking about new ones there.
+    @ViewBuilder
+    private func foundCouples(_ reply: KSISPageReply) -> some View {
+        let notMine = manager.dancer.map { KSISNotMine.ids(for: $0.personNumber) } ?? []
+        let found = (reply.found ?? []).filter { !notMine.contains($0.parId) }
+        if manager.dancer == nil {
+            hint("Najprv sa nájdi v zozname členov. Potom appka spozná, ktoré páry sú tvoje.")
+        } else if found.isEmpty {
+            hint("Tvoj pár tu nie je. Hľadaj svoje priezvisko.")
+        } else {
+            ForEach(found) { couple in
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("\(couple.partner) & \(couple.partnerka)")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                    Text([couple.club, slovakCount(couple.competitions, one: "súťaž", few: "súťaže", many: "súťaží"),
+                          couple.isNew ? "neuložený" : "v Encore"].filter { !$0.isEmpty }.joined(separator: " · "))
+                        .font(.caption)
+                        .foregroundColor(Color.textSecondary)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .homeCard(cornerRadius: 14)
+            }
+            if found.contains(where: \.isNew) {
+                hint("Neuložené páry pridáš cez Aktualizovať z KSIS v Súťažiach.")
+            }
+        }
     }
 
     @ViewBuilder
@@ -768,6 +800,13 @@ struct KSISBrowserView: View {
     }
 
     /// The dancer's couples, the ones that ended too.
+    /// KSIS's search by name (Výsledky → search): every couple with the name, the ended ones too, with their ids.
+    static func nameSearchURL(_ text: String) -> URL? {
+        var components = URLComponents(string: "https://\(host)/search.php")
+        components?.queryItems = [URLQueryItem(name: "hladany_text", value: text)]
+        return components?.url
+    }
+
     static func couplesURL(surname: String) -> URL? {
         search(akcia: "CZP", query: surname, filters: ["vekktg", "vtstt", "vtlat"])
     }

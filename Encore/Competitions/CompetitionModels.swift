@@ -71,6 +71,16 @@ struct UserCouple: Identifiable, Decodable, Equatable, Sendable {
         return partnerNames.replacingOccurrences(of: " - ", with: " & ")
     }
 
+    /// One couple whatever KSIS's order of names and diacritics: KSIS keeps some couples twice, as "Kalina Jakub -
+    /// Kissova Nikoletta" and "Jakub Kalina - Nikoletta Kissová". A couple without names is only itself.
+    var sameCoupleKey: String {
+        guard let partnerNames, !partnerNames.isEmpty else { return id.uuidString }
+        return partnerNames.components(separatedBy: " - ").map { side in
+            side.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "sk"))
+                .split(separator: " ").sorted().joined(separator: " ")
+        }.joined(separator: "|")
+    }
+
     /// The other dancer of the couple, for telling a dancer's couples apart; the whole couple when that is unclear.
     func partnerName(besides dancer: String?) -> String {
         let names = title.components(separatedBy: " & ")
@@ -226,6 +236,8 @@ struct KSISPageRequest: Encodable, Sendable {
     var consent: Bool? = nil
     /// "Toto som ja" on the members list.
     var personNumber: Int? = nil
+    /// The new couples ticked on the KSIS search; the dancer's other couples there are saved without asking.
+    var parIds: [Int]? = nil
     /// The saved couple to unlink (`user_couples.id`).
     var coupleId: String? = nil
     var resultId: String? = nil
@@ -236,6 +248,7 @@ struct KSISPageReply: Decodable, Sendable {
     enum Kind: String, Decodable, Sendable {
         case membersList = "members_list"
         case couplesList = "couples_list"
+        case search
         case coupleDetail = "couple_detail"
         case couplePage = "couple_page"
         case results
@@ -283,6 +296,22 @@ struct KSISPageReply: Decodable, Sendable {
         var id: String { "\(pairNumber)|\(partnerka)" }
         var isMine: Bool { side != nil }
         var isActive: Bool { status == "Aktívny" }
+    }
+
+    /// One of the dancer's couples on the KSIS search, the ended ones too, with its KSIS id.
+    struct FoundCouple: Decodable, Sendable, Identifiable {
+        let parId: Int
+        let partner: String
+        let partnerka: String
+        let club: String
+        let competitions: Int
+        let side: String
+        /// "known", "claim" (saved, the id is new), "same" (a second id of a saved couple) or "new".
+        let status: String
+
+        var id: Int { parId }
+        /// Not saved yet: needs the partner's yes, and a namesake abroad looks the same.
+        var isNew: Bool { status == "new" }
     }
 
     struct PageStanding: Decodable, Sendable {
@@ -346,6 +375,8 @@ struct KSISPageReply: Decodable, Sendable {
     let kind: Kind
     let members: [ListedMember]?
     let couples: [ListedCouple]?
+    /// Search: the dancer's couples.
+    let found: [FoundCouple]?
     let couple: PageCouple?
     let isLinked: Bool?
     /// Couple detail: one of the signed-in dancer's couples.

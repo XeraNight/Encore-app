@@ -8,6 +8,8 @@ enum KSISUpdateJob: String, Identifiable {
     case everything
     /// The competition calendar alone.
     case calendar
+    /// The next crosses still missing, nothing else.
+    case marks
 
     var id: String { rawValue }
 }
@@ -22,7 +24,10 @@ final class KSISUpdateRun {
         case waitingForCheck
         /// Couples of this dancer not saved yet: saving them needs the partner's yes.
         case newCouples([KSISPageReply.ListedCouple])
-        case finished(String)
+        /// The dancer's earlier couples found by name: each one is ticked, a namesake abroad is unticked by hand.
+        case foundCouples([KSISPageReply.FoundCouple])
+        /// What was saved, and how many competitions still have crosses to read.
+        case finished(String, marksLeft: Int)
         case failed(String)
     }
 
@@ -44,6 +49,10 @@ final class KSISUpdateRun {
     private var task: Task<Void, Never>?
     private var pageWaiter: CheckedContinuation<Page, Error>?
     private var consentWaiter: CheckedContinuation<Bool, Never>?
+    /// The ticked couples, or nil when the dancer skipped the question.
+    private var foundWaiter: CheckedContinuation<[Int]?, Never>?
+    /// The found couples the dancer keeps ticked.
+    var ticked: Set<Int> = []
     private var lastLabel = "Otváram KSIS…"
     /// Pages that could not be saved, for the last line.
     private var failures = 0
@@ -57,6 +66,7 @@ final class KSISUpdateRun {
     var startURL: URL? {
         switch job {
         case .calendar: return KSISEvent.calendarURL()
+        case .marks: return KSISBrowserView.page("menu.php?akcia=S")
         case .everything:
             return manager.dancer.flatMap { KSISBrowserView.couplesURL(surname: KSISBrowserView.surname(of: $0.name)) }
         }
@@ -106,6 +116,26 @@ final class KSISUpdateRun {
         consentWaiter = nil
     }
 
+    func answerFoundCouples(save: Bool) {
+        foundWaiter?.resume(returning: save ? Array(ticked) : nil)
+        foundWaiter = nil
+    }
+
+    /// The next crosses, without reading the rest again.
+    func readMoreMarks() {
+        guard isFinished else { return }
+        failures = 0
+        task = Task {
+            do {
+                try await readMarks()
+            } catch is CancellationError {
+                // Closed by the dancer.
+            } catch {
+                phase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
     /// The window closed: what is saved stays, the next update goes on from there.
     func cancel() {
         isClosed = true
@@ -113,6 +143,7 @@ final class KSISUpdateRun {
         pageWaiter?.resume(throwing: CancellationError())
         pageWaiter = nil
         answerNewCouples(save: false)
+        answerFoundCouples(save: false)
     }
 
     // MARK: The run
@@ -121,7 +152,9 @@ final class KSISUpdateRun {
             switch job {
             case .calendar:
                 try rememberCalendar(first)
-                phase = .finished("Kalendár je aktuálny.")
+                phase = .finished("Kalendár je aktuálny.", marksLeft: 0)
+            case .marks:
+                try await readMarks()
             case .everything:
                 try await updateEverything(first: first)
             }
@@ -139,6 +172,7 @@ final class KSISUpdateRun {
         let marksBefore = manager.results.filter { $0.rounds?.isEmpty == false }.count
 
         try await updateCouples(first)
+        try await updateAllCouples()
         await manager.loadAllData()
         try await updatePointsAndHistory()
         await manager.loadAllData()
@@ -155,7 +189,7 @@ final class KSISUpdateRun {
 
         let newResults = manager.results.count - resultsBefore
         let newMarks = manager.results.filter { $0.rounds?.isEmpty == false }.count - marksBefore
-        phase = .finished(summary(newResults: newResults, newMarks: newMarks, marksLeft: marksLeft))
+        phase = .finished(summary(newResults: newResults, newMarks: newMarks, marksLeft: marksLeft), marksLeft: marksLeft)
     }
 
     /// The dancer's couples in KSIS, the ended ones too, recognised by the server from the dancer's KSIS number and name.
@@ -175,6 +209,47 @@ final class KSISUpdateRun {
     private func askAboutNewCouples(_ couples: [KSISPageReply.ListedCouple]) async -> Bool {
         phase = .newCouples(couples)
         return await withCheckedContinuation { consentWaiter = $0 }
+    }
+
+    private func readMarks() async throws {
+        let marksBefore = manager.results.filter { $0.rounds?.isEmpty == false }.count
+        let marksLeft = try await updateMarks()
+        await manager.loadAllData()
+        let newMarks = manager.results.filter { $0.rounds?.isEmpty == false }.count - marksBefore
+        phase = .finished(summary(newResults: 0, newMarks: newMarks, marksLeft: marksLeft), marksLeft: marksLeft)
+    }
+
+    /// Every couple the dancer ever had, each with its KSIS id. The couples list keeps only the current partnerka
+    /// under a pair number and no id at all; KSIS's search by name keeps them all. The server saves the dancer's
+    /// couples it already knows, and new ones only when ticked here.
+    private func updateAllCouples() async throws {
+        guard let dancer = manager.dancer,
+              let url = KSISBrowserView.nameSearchURL(KSISBrowserView.surname(of: dancer.name)) else { return }
+        say("Hľadám všetky vaše páry…")
+        let page = try await open(url)
+        let found: [KSISPageReply.FoundCouple]
+        do {
+            found = try await manager.read(url: page.url, html: page.html).found ?? []
+        } catch CompetitionManager.ActionError.server {
+            failures += 1
+            return
+        }
+        let notMine = KSISNotMine.ids(for: dancer.personNumber)
+        let new = found.filter { $0.isNew && !notMine.contains($0.parId) }
+        let answer = new.isEmpty ? [] : await askAboutFoundCouples(new)
+        let picked = answer ?? []
+        if let answer {
+            KSISNotMine.add(Set(new.map(\.parId)).subtracting(answer), for: dancer.personNumber)
+        }
+        guard !picked.isEmpty || found.contains(where: { $0.status == "claim" || $0.status == "same" }) else { return }
+        try await save(page, consent: !picked.isEmpty, parIds: picked)
+        try Task.checkCancellation()
+    }
+
+    private func askAboutFoundCouples(_ couples: [KSISPageReply.FoundCouple]) async -> [Int]? {
+        ticked = Set(couples.map(\.parId))
+        phase = .foundCouples(couples)
+        return await withCheckedContinuation { foundWaiter = $0 }
     }
 
     /// Class and points of the current couple, then every competition of every couple. A couple that ended keeps
@@ -244,9 +319,9 @@ final class KSISUpdateRun {
     }
 
     /// One page that cannot be saved does not stop the rest; without internet nothing can go on.
-    private func save(_ page: Page, consent: Bool = false) async throws {
+    private func save(_ page: Page, consent: Bool = false, parIds: [Int]? = nil) async throws {
         do {
-            _ = try await manager.save(url: page.url, html: page.html, consent: consent, reloads: false)
+            _ = try await manager.save(url: page.url, html: page.html, consent: consent, parIds: parIds, reloads: false)
         } catch CompetitionManager.ActionError.server, CompetitionManager.ActionError.notFound {
             failures += 1
             Logger.sync.error("KSIS update: page not saved")
@@ -262,13 +337,28 @@ final class KSISUpdateRun {
         if newResults > 0 { lines.append(slovakCount(newResults, one: "nová súťaž", few: "nové súťaže", many: "nových súťaží")) }
         if newMarks > 0 { lines.append("krížiky k \(slovakCount(newMarks, one: "súťaži", few: "súťažiam", many: "súťažiam"))") }
         let withoutHistory = manager.couples.filter { $0.coupleId == nil }.count
-        var text = lines.isEmpty ? (withoutHistory > 0 ? "" : "Všetko je aktuálne.") : "Uložené: \(lines.joined(separator: ", ")). "
+        var text = lines.isEmpty ? (withoutHistory > 0 || marksLeft > 0 ? "" : "Všetko je aktuálne.") : "Uložené: \(lines.joined(separator: ", ")). "
         if withoutHistory > 0 {
             text += "História chýba pri \(slovakCount(withoutHistory, one: "páre", few: "pároch", many: "pároch")), pozri Moje výsledky."
         }
-        if marksLeft > 0 { text += " Ďalšie krížiky načítam pri ďalšom Aktualizovať (\(marksLeft))." }
         if failures > 0 { text += " Niektoré stránky sa nepodarilo uložiť, skús to znova." }
         return text.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+// MARK: - Namesakes
+/// Couples on the KSIS search the dancer said are not theirs: the search shows names, not personal numbers, so a
+/// namesake abroad looks the same. Kept on this iPhone for the dancer's KSIS number and never asked about again.
+enum KSISNotMine {
+    private static func key(_ personNumber: Int) -> String { "encore.ksis.notMine.\(personNumber)" }
+
+    static func ids(for personNumber: Int) -> Set<Int> {
+        Set(UserDefaults.standard.array(forKey: key(personNumber)) as? [Int] ?? [])
+    }
+
+    static func add(_ parIds: Set<Int>, for personNumber: Int) {
+        guard !parIds.isEmpty else { return }
+        UserDefaults.standard.set(Array(ids(for: personNumber).union(parIds)), forKey: key(personNumber))
     }
 }
 
@@ -314,12 +404,20 @@ struct KSISUpdateSheet: View {
         .preferredColorScheme(.dark)
     }
 
+    private var title: String {
+        switch run.job {
+        case .calendar: return "Kalendár z KSIS"
+        case .marks: return "Krížiky z KSIS"
+        case .everything: return "Aktualizovať z KSIS"
+        }
+    }
+
     private var topBar: some View {
         HStack(spacing: 10) {
             LiquidGlassCircleButton(icon: "xmark", label: "Zavrieť", size: 40) { dismiss() }
             Spacer(minLength: 4)
             VStack(spacing: 1) {
-                Text(run.job == .calendar ? "Kalendár z KSIS" : "Aktualizovať z KSIS")
+                Text(title)
                     .font(.system(.headline, design: .rounded).weight(.bold))
                     .foregroundColor(.white)
                 Text("Zdroj výsledkov: SZTŠ")
@@ -354,12 +452,22 @@ struct KSISUpdateSheet: View {
                     .foregroundColor(.white.opacity(0.7))
             case .newCouples(let couples):
                 newCouples(couples)
-            case .finished(let text):
-                Label(text, systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-                PrimarySheetButton(title: "Hotovo", isLoading: false, isEnabled: true) { dismiss() }
+            case .foundCouples(let couples):
+                foundCouples(couples)
+            case .finished(let text, let marksLeft):
+                if !text.isEmpty {
+                    Label(text, systemImage: "checkmark.circle.fill")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if marksLeft > 0 {
+                    marksLeftNote(marksLeft)
+                    PrimarySheetButton(title: "Čítať ďalej", isLoading: false, isEnabled: true) { run.readMoreMarks() }
+                    secondaryButton("Neskôr") { dismiss() }
+                } else {
+                    PrimarySheetButton(title: "Hotovo", isLoading: false, isEnabled: true) { dismiss() }
+                }
             case .failed(let text):
                 Text(text)
                     .font(.subheadline.weight(.semibold))
@@ -383,8 +491,86 @@ struct KSISUpdateSheet: View {
                 .foregroundColor(Color.gold300)
         }
         KSISConsentToggle(isOn: $consent)
-        PrimarySheetButton(title: "Uložiť", isLoading: false, isEnabled: consent) { run.answerNewCouples(save: true) }
-        Button("Preskočiť") { run.answerNewCouples(save: false) }
+        PrimarySheetButton(title: "Uložiť", isLoading: false, isEnabled: consent) {
+            run.answerNewCouples(save: true)
+            // The yes was for these couples; the ones found next are asked about on their own.
+            consent = false
+        }
+        secondaryButton("Preskočiť") { run.answerNewCouples(save: false) }
+    }
+
+    /// The earlier couples, each ticked: a namesake abroad has the same name and is unticked by hand.
+    @ViewBuilder
+    private func foundCouples(_ couples: [KSISPageReply.FoundCouple]) -> some View {
+        Text(couples.count == 1 ? "Našiel som ďalší pár" : "Našiel som ďalšie páry (\(couples.count))")
+            .font(.subheadline.weight(.bold))
+            .foregroundColor(.white)
+        Text("Páry s tvojím menom, aj skončené. Odškrtni tie, ktoré nie sú tvoje, napríklad menovca z inej krajiny. Appka si to zapamätá.")
+            .font(.footnote)
+            .foregroundColor(.white.opacity(0.7))
+            .fixedSize(horizontal: false, vertical: true)
+        if couples.count > 4 {
+            ScrollView { foundRows(couples) }
+                .frame(height: 230)
+        } else {
+            foundRows(couples)
+        }
+        KSISConsentToggle(isOn: $consent)
+        PrimarySheetButton(title: run.ticked.isEmpty ? "Ani jeden nie je môj" : "Uložiť", isLoading: false,
+                           isEnabled: run.ticked.isEmpty || consent) {
+            run.answerFoundCouples(save: true)
+        }
+        secondaryButton("Preskočiť") { run.answerFoundCouples(save: false) }
+    }
+
+    private func foundRows(_ couples: [KSISPageReply.FoundCouple]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(couples) { couple in
+                Toggle(isOn: tick(couple.parId)) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("\(couple.partner) & \(couple.partnerka)")
+                            .font(.footnote.weight(.semibold))
+                            .foregroundColor(Color.gold300)
+                            .lineLimit(2)
+                        Text([couple.club, slovakCount(couple.competitions, one: "súťaž", few: "súťaže", many: "súťaží")]
+                            .filter { !$0.isEmpty }.joined(separator: " · "))
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
+                    }
+                }
+                .tint(Color.gold400)
+            }
+        }
+        .sensoryFeedback(.selection, trigger: run.ticked)
+    }
+
+    private func tick(_ parId: Int) -> Binding<Bool> {
+        Binding {
+            run.ticked.contains(parId)
+        } set: { isOn in
+            if isOn { run.ticked.insert(parId) } else { run.ticked.remove(parId) }
+        }
+    }
+
+    /// Crosses are one KSIS page per competition, read 30 at a time.
+    private func marksLeftNote(_ count: Int) -> some View {
+        let rounds = (count + 29) / 30
+        return VStack(alignment: .leading, spacing: 3) {
+            Text("Zostáva dočítať krížiky k \(slovakCount(count, one: "súťaži", few: "súťažiam", many: "súťažiam"))")
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(.white)
+            Text("Číta sa po 30 súťaží, ešte \(slovakCount(rounds, one: "kolo", few: "kolá", many: "kôl")).")
+                .font(.footnote)
+                .foregroundColor(Color.gold300)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.encoreCrimson.opacity(0.6), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(Color.gold400.opacity(0.5), lineWidth: 0.5))
+    }
+
+    private func secondaryButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action)
             .font(.subheadline.weight(.semibold))
             .foregroundColor(Color.gold400)
             .frame(maxWidth: .infinity, minHeight: 44)

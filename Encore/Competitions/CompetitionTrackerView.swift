@@ -2,17 +2,15 @@ import SwiftUI
 import SwiftData
 
 // MARK: - Súťaže
-/// The current couple with class, points and finals, the couples before when there are any, every competition with
-/// the crosses of each judge, and one tap to bring it all up to date from KSIS (BRAND_GUIDELINES §1A). The competitions
-/// the dancer goes to stay in Kalendár; here they only tie in: "Postupujete?" on their day, a reminder when one is
-/// not saved yet. Free for everyone. Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár
+/// The dancer, the current couple with Štandard and Latina (each opens its own statistics and the Slovenský pohár), and
+/// the latest results (all of them and the couples before in Výsledky). Reminders only when there is something to do:
+/// an unsaved competition, the competition day, crosses still to read. Aktualizovať z KSIS is the small button in the
+/// corner (BRAND_GUIDELINES §1A). Numbers come only from KSIS; the only thresholds shown are the Slovenský pohár
 /// places from the competition rules (SlovakCup).
 struct CompetitionTrackerView: View {
     @ObservedObject private var manager = CompetitionManager.shared
-    @ObservedObject private var subscriptionManager = SubscriptionManager.shared
     @ObservedObject private var cupStore = SlovakCupStore.shared
     @Query(sort: \PlannedCompetition.date, order: .reverse) private var planned: [PlannedCompetition]
-    @State private var showPaywall = false
 
     @State private var browser: KSISBrowserTarget?
     @State private var updateJob: KSISUpdateJob?
@@ -33,20 +31,11 @@ struct CompetitionTrackerView: View {
                     if let couple = manager.activeCouple {
                         coupleSection(couple)
                     }
-                    if !manager.previousCouples.isEmpty {
-                        previousCouplesSection
-                    }
                     unsavedSection
                     if let competition = todaysCompetition {
                         competitionDaySection(competition)
                     }
-                    if let couple = manager.activeCouple {
-                        slovakCupSection(couple)
-                    }
-                    quickLinks
-                    if !manager.results.isEmpty {
-                        mySeasonCard
-                    }
+                    marksReminder
 
                     if showsLatestResults {
                         latestResultsSection
@@ -70,6 +59,18 @@ struct CompetitionTrackerView: View {
         }
         .navigationTitle("Súťaže")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if manager.dancer != nil {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { updateJob = .everything } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(Color.gold400)
+                    }
+                    .accessibilityLabel("Aktualizovať z KSIS")
+                }
+            }
+        }
         .sensoryFeedback(.impact(weight: .medium), trigger: refreshCount)
         .fullScreenCover(item: $browser) { target in
             KSISBrowserView(startURL: target.url)
@@ -100,91 +101,7 @@ struct CompetitionTrackerView: View {
             Text(errorText ?? "")
         }
         .task { await manager.loadAllData() }
-        .sheet(isPresented: $showPaywall) { SubscriptionPaywallView(initialTier: .plus) }
         .preferredColorScheme(.dark)
-    }
-
-    // MARK: Moja sezóna (Plus)
-    /// The saved results stay free; the analysis of them is Plus (docs/V1_PAYWALL_FEATURES_PLAN.md).
-    @ViewBuilder
-    private var mySeasonCard: some View {
-        let hasPlus = subscriptionManager.currentTier >= .plus
-        let row = HomeRow(
-            icon: "chart.bar.xaxis",
-            title: "Moja sezóna",
-            subtitle: "Krížiky podľa tancov, finále a vývoj počas sezóny",
-            badge: hasPlus ? nil : "PLUS"
-        )
-        .padding(.vertical, 4)
-        .homeCard(cornerRadius: 20)
-
-        if hasPlus {
-            NavigationLink { MySeasonView(results: manager.results) } label: { row }
-                .buttonStyle(.pressable(scale: 0.98))
-        } else {
-            Button { showPaywall = true } label: { row }
-                .buttonStyle(.pressable(scale: 0.98))
-        }
-    }
-
-    // MARK: Slovenský pohár
-    /// The official KSIS table, read live in the KSIS browser; the last one read stays here until the next read.
-    /// Only for couples in the cup, by their KSIS age category and class (SlovakCup.disciplines).
-    @ViewBuilder
-    private func slovakCupSection(_ couple: UserCouple) -> some View {
-        let disciplines = SlovakCup.disciplines(for: couple)
-        if let group = SlovakCup.Group(ageCategory: couple.ageCategory), !disciplines.isEmpty {
-            VStack(alignment: .leading, spacing: 12) {
-                HomeSectionHeader(title: "SLOVENSKÝ POHÁR", systemImage: "trophy.fill")
-                ForEach(disciplines) { discipline in
-                    cupCard(couple, group: group, discipline: discipline)
-                }
-            }
-        }
-    }
-
-    private func cupCard(_ couple: UserCouple, group: SlovakCup.Group, discipline: SlovakCup.Discipline) -> some View {
-        let saved = cupStore.standings(group: group, discipline: discipline)
-        let entry = saved.flatMap { SlovakCup.entry(in: $0.standings, for: couple) }
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(discipline.title)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                Spacer()
-                if let saved {
-                    Text("Načítané \(EncoreTime.dayAndClock(saved.readAt))")
-                        .font(.caption)
-                        .foregroundColor(Color.textSecondary)
-                }
-            }
-            if let saved, let entry {
-                SlovakCupStatusView(status: SlovakCup.status(of: entry, in: saved.standings, group: group),
-                                    showsChampionship: group == .adults || (couple.ageCategory ?? "").contains("II"))
-            } else if saved != nil {
-                Text("V tomto poradí zatiaľ nie ste.")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.7))
-            }
-            Button { openCupStandings(group: group, discipline: discipline) } label: {
-                Label("Poradie v KSIS", systemImage: "list.number")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(Color.gold400)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
-            .buttonStyle(.pressable)
-        }
-        .padding(14)
-        .homeCard(cornerRadius: 20)
-        .animation(.spring(response: 0.35, dampingFraction: 0.85), value: saved?.readAt)
-    }
-
-    private func openCupStandings(group: SlovakCup.Group, discipline: SlovakCup.Discipline) {
-        let year = Calendar.current.component(.year, from: Date())
-        if let url = SlovakCup.standingsURL(year: year, group: group, discipline: discipline) {
-            browser = KSISBrowserTarget(url: url)
-        }
     }
 
     // MARK: Dancer
@@ -282,62 +199,6 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    // MARK: Couples before
-    private var previousCouplesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "PREDCHÁDZAJÚCE PÁRY", systemImage: "clock.arrow.circlepath", count: manager.previousCouples.count)
-            VStack(spacing: 0) {
-                ForEach(manager.previousCouples) { couple in
-                    previousCoupleRow(couple)
-                    if couple.id != manager.previousCouples.last?.id {
-                        HomeRowDivider()
-                    }
-                }
-            }
-            .homeCard(cornerRadius: 20)
-        }
-    }
-
-    private func previousCoupleRow(_ couple: UserCouple) -> some View {
-        let saved = manager.results(for: couple).count
-        return HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(couple.title)
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(.white)
-                Text(([couple.club, couple.ageCategory].compactMap { $0 } + [saved > 0 ? "\(saved) súťaží" : "bez uložených súťaží"])
-                    .filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.caption)
-                    .foregroundColor(Color.textSecondary)
-            }
-            Spacer(minLength: 8)
-            Menu {
-                if let coupleId = couple.coupleId {
-                    Button {
-                        if let url = URL(string: "https://\(KSISBrowserView.host)/par.php?id=\(coupleId)") {
-                            browser = KSISBrowserTarget(url: url)
-                        }
-                    } label: {
-                        Label("História v KSIS", systemImage: "list.bullet.rectangle")
-                    }
-                }
-                Button(role: .destructive) {
-                    coupleToUnlink = couple
-                } label: {
-                    Label("Odstrániť z Encore", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(width: 44, height: 44)
-            }
-            .accessibilityLabel("Možnosti páru \(couple.title)")
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-    }
-
     // MARK: Couple
     private func coupleSection(_ couple: UserCouple) -> some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -346,6 +207,11 @@ struct CompetitionTrackerView: View {
                     if let dancer = manager.dancer {
                         Button { openCouples(of: dancer) } label: {
                             Label("Moje páry v KSIS", systemImage: "person.2.fill")
+                        }
+                    }
+                    if let coupleId = couple.coupleId, let url = KSISBrowserView.page("par.php?id=\(coupleId)") {
+                        Button { browser = KSISBrowserTarget(url: url) } label: {
+                            Label("Stránka páru v KSIS", systemImage: "list.bullet.rectangle")
                         }
                     }
                     Button(role: .destructive) {
@@ -373,43 +239,16 @@ struct CompetitionTrackerView: View {
                 }
 
                 HStack(spacing: 10) {
-                    standingTile("ŠTANDARD", couple.stt)
-                    standingTile("LATINA", couple.lat)
+                    disciplineLink(couple, "STT")
+                    disciplineLink(couple, "LAT")
                 }
 
                 if couple.coupleId == nil {
-                    Label("Ulož históriu: otvor v KSIS jednu vašu súťaž a ťukni Uložiť všetky súťaže páru.",
+                    Label("Históriu súťaží uloží Aktualizovať z KSIS, šípka v pravom hornom rohu.",
                           systemImage: "lightbulb.fill")
                         .font(.footnote)
                         .foregroundColor(Color.gold300)
                         .fixedSize(horizontal: false, vertical: true)
-                }
-
-                HStack(spacing: 10) {
-                    Button { updateJob = .everything } label: {
-                        Label("Aktualizovať z KSIS", systemImage: "arrow.clockwise")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(Color.obsidian900)
-                            .frame(maxWidth: .infinity, minHeight: 44)
-                            .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
-
-                    Button {
-                        if let coupleId = couple.coupleId, let url = URL(string: "https://\(KSISBrowserView.host)/par.php?id=\(coupleId)") {
-                            browser = KSISBrowserTarget(url: url)
-                        } else if let url = URL(string: "https://\(KSISBrowserView.host)/") {
-                            browser = KSISBrowserTarget(url: url)
-                        }
-                    } label: {
-                        Label(couple.coupleId == nil ? "KSIS" : "História", systemImage: "list.bullet.rectangle")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    }
-                    .buttonStyle(.pressable)
                 }
 
                 if let refreshed = couple.refreshedAt.flatMap(Self.parseTimestamp) {
@@ -423,12 +262,39 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    private func standingTile(_ title: String, _ standing: UserCouple.Standing) -> some View {
+    /// Štandard or Latina: class, points and the cup place; a tap opens the discipline's statistics.
+    private func disciplineLink(_ couple: UserCouple, _ discipline: String) -> some View {
+        NavigationLink {
+            DisciplineStatsView(couple: couple, discipline: discipline)
+        } label: {
+            standingTile(discipline == "LAT" ? "LATINA" : "ŠTANDARD",
+                         discipline == "LAT" ? couple.lat : couple.stt,
+                         cupPlace: cupPlace(couple, discipline == "LAT" ? .latin : .standard))
+        }
+        .buttonStyle(.pressable(scale: 0.96))
+    }
+
+    /// "Pohár 5." from the last table read; nil outside the cup or before a table was read.
+    private func cupPlace(_ couple: UserCouple, _ discipline: SlovakCup.Discipline) -> String? {
+        guard let group = SlovakCup.Group(ageCategory: couple.ageCategory),
+              SlovakCup.disciplines(for: couple).contains(discipline),
+              let saved = cupStore.standings(group: group, discipline: discipline),
+              let entry = SlovakCup.entry(in: saved.standings, for: couple) else { return nil }
+        return "Pohár \(entry.place?.display ?? "–")"
+    }
+
+    private func standingTile(_ title: String, _ standing: UserCouple.Standing, cupPlace: String?) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(.caption2, design: .rounded).weight(.black))
-                .tracking(1.2)
-                .foregroundColor(Color.gold400)
+            HStack {
+                Text(title)
+                    .font(.system(.caption2, design: .rounded).weight(.black))
+                    .tracking(1.2)
+                    .foregroundColor(Color.gold400)
+                Spacer(minLength: 4)
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.bold))
+                    .foregroundColor(.white.opacity(0.45))
+            }
             Text(standing.className ?? "–")
                 .font(.system(size: 34, weight: .heavy, design: .rounded))
                 .foregroundColor(.white)
@@ -441,13 +307,18 @@ struct CompetitionTrackerView: View {
             .font(.caption.weight(.bold))
             .foregroundColor(.white.opacity(0.8))
             .labelStyle(.titleAndIcon)
-            if let change = standing.lastChange.flatMap({ KSISBrowserView.displayDate($0, numeric: true) }) {
+            if let cupPlace {
+                Text(cupPlace)
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color.gold300)
+            } else if let change = standing.lastChange.flatMap({ KSISBrowserView.displayDate($0, numeric: true) }) {
                 Text("Zmena \(change)")
                     .font(.caption2)
                     .foregroundColor(Color.textSecondary)
                     .lineLimit(1)
             }
         }
+        .contentShape(Rectangle())
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -537,42 +408,35 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    // MARK: Quick links
-    private var quickLinks: some View {
-        HStack(spacing: 10) {
-            NavigationLink { KSISCalendarView() } label: { quickLink("Kalendár súťaží", icon: "calendar") }
-                .buttonStyle(.pressable(scale: 0.96))
-            NavigationLink { MyResultsView() } label: { quickLink("Moje výsledky", icon: "trophy.fill") }
-                .buttonStyle(.pressable(scale: 0.96))
-            Button(action: openCup) { quickLink("Pohár", icon: "rosette") }
-                .buttonStyle(.pressable(scale: 0.96))
-        }
-    }
-
-    private func quickLink(_ title: String, icon: String) -> some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.headline)
-                .foregroundColor(Color.gold400)
-            Text(title)
-                .font(.caption.weight(.bold))
-                .foregroundColor(.white)
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.85)
-        }
-        .frame(maxWidth: .infinity, minHeight: 76)
-        .padding(.horizontal, 6)
-        .homeCard(cornerRadius: 18)
-    }
-
-    /// The couple's live table when it is in the cup, otherwise KSIS's cup and MSR results.
-    private func openCup() {
-        if let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory),
-           let discipline = SlovakCup.disciplines(for: couple).first {
-            openCupStandings(group: group, discipline: discipline)
-        } else if let url = SlovakCup.resultsURL {
-            browser = KSISBrowserTarget(url: url)
+    // MARK: Crosses still to read
+    /// KSIS has one page per competition for the crosses and an update reads 30; until all are read, this says so.
+    @ViewBuilder
+    private var marksReminder: some View {
+        let missing = manager.results.filter(manager.isMissingMarks).count
+        if missing > 0 {
+            Button { updateJob = .marks } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "square.dashed")
+                        .foregroundColor(Color.gold400)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Dočítaj krížiky z KSIS")
+                            .font(.subheadline.weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Zostáva \(slovakCount(missing, one: "súťaž", few: "súťaže", many: "súťaží"))")
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
+                            .contentTransition(.numericText())
+                    }
+                    Spacer(minLength: 8)
+                    Text("Čítať ďalej")
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(Color.gold400)
+                }
+                .padding(14)
+                .homeCard(cornerRadius: 20)
+            }
+            .buttonStyle(.pressable(scale: 0.98))
         }
     }
 
@@ -590,11 +454,11 @@ struct CompetitionTrackerView: View {
 
     private var latestResultsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "POSLEDNÉ VÝSLEDKY", systemImage: "trophy.fill") {
+            HomeSectionHeader(title: "VÝSLEDKY", systemImage: "trophy.fill") {
                 if !manager.results.isEmpty {
                     NavigationLink { MyResultsView() } label: {
                         HStack(spacing: 3) {
-                            Text("Všetky")
+                            Text("Všetky \(manager.results.count)")
                             Image(systemName: "chevron.right")
                         }
                         .font(.footnote.weight(.semibold))
@@ -608,7 +472,7 @@ struct CompetitionTrackerView: View {
             if manager.results.isEmpty {
                 Text(manager.loadFailed
                      ? "Výsledky sa nepodarilo načítať. Potiahni obrazovku nadol a skús znova."
-                     : "Zatiaľ žiadne. Ťukni Aktualizovať z KSIS a uložia sa všetky vaše súťaže.")
+                     : "Zatiaľ žiadne. Ťukni šípku v pravom hornom rohu a uložia sa všetky vaše súťaže.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .padding(16)
@@ -683,6 +547,15 @@ struct CompetitionResultRow: View {
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
                     .lineLimit(1)
+                if let number = result.startNumber, !number.isEmpty {
+                    Text("č. \(number)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(Color.gold300)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 1)
+                        .overlay(Capsule().stroke(Color.gold400.opacity(0.5), lineWidth: 0.5))
+                        .accessibilityLabel("Štartové číslo \(number)")
+                }
             }
 
             Spacer(minLength: 8)

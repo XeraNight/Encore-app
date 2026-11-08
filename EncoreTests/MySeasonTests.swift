@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import Encore
 
-/// Moja sezóna counts only published marks ("X" and "."), per dance and per season (September to August).
+/// Štandard and Latina count only published marks ("X" and "."), per dance and per season (September to August).
 @MainActor
 struct MySeasonTests {
 
@@ -14,10 +14,16 @@ struct MySeasonTests {
           {"dance":"QUICKSTEP","marks":[{"letter":"A","mark":"1"},{"letter":"B","mark":"3"}],"crosses":null}],
           "sum":10,"couplesInRound":6}
         """ : ""
+        // D judges only the final, E is a judge KSIS does not publish.
+        let finalJudge = withFinal ? #",{"letter":"D","name":"Rozhodca D","city":null,"hidden":false}"# : ""
         let json = """
         {"id":"\(UUID().uuidString)","sutaz_id":1,"couple_id":7,"event_name":"GP","category_name":"Dospelí D",
          "discipline":"\(discipline)","date":"\(date)","couple_count":12,"placement_text":"\(place).","placement":\(place),
          "points_earned":0,
+         "judges":[{"letter":"A","name":"Rozhodca A","city":"Košice","hidden":false},
+                   {"letter":"B","name":"Rozhodca B","city":null,"hidden":false},
+                   {"letter":"C","name":"Rozhodca C","city":null,"hidden":false},
+                   {"letter":"E","name":null,"city":null,"hidden":true}\(finalJudge)],
          "rounds":[{"round":"1.kolo","kind":"crosses","dances":[
            {"dance":"WALTZ","marks":[{"letter":"A","mark":"X"},{"letter":"B","mark":"X"},{"letter":"C","mark":"."}],"crosses":2},
            {"dance":"QUICKSTEP","marks":[{"letter":"A","mark":"."},{"letter":"B","mark":"X"},{"letter":"C","mark":"."}],"crosses":1}],
@@ -51,6 +57,30 @@ struct MySeasonTests {
         let finals = try #require(stats.disciplines.first?.finals)
         #expect(finals.map(\.dance) == ["Waltz", "Quickstep"])
         #expect(finals.map(\.average) == [3, 2])
+    }
+
+    @Test func everySeasonWhenNoneIsGiven() throws {
+        let results = [try result(date: "2025-10-03"), try result(date: "2026-11-14")]
+        #expect(SeasonStats(results: results, seasonStartYear: nil).competitions == 2)
+        #expect(SeasonStats.seasonTitle(2026) == "2026/27")
+    }
+
+    @Test func judgesByHowOftenTheyJudgedWithTheirCrosses() throws {
+        let judges = JudgeStat.all(in: [try result(date: "2026-10-03"), try result(date: "2026-11-14", withFinal: true)])
+        #expect(judges.map(\.name) == ["Rozhodca A", "Rozhodca B", "Rozhodca C", "Rozhodca D"])
+        #expect(judges.map(\.competitions.count) == [2, 2, 2, 1])
+        #expect(judges.map(\.crosses) == [2, 4, 0, 0])
+        #expect(judges.map(\.marks) == [4, 4, 4, 0])
+        #expect(judges.first?.city == "Košice")
+    }
+
+    @Test func oneCoupleUnderTwoKSISIds() throws {
+        func couple(_ names: String) throws -> UserCouple {
+            try JSONDecoder().decode(UserCouple.self, from: Data(#"{"id":"\#(UUID().uuidString)","partner_names":"\#(names)"}"#.utf8))
+        }
+        let saved = try couple("Kalina Jakub - Kissova Nikoletta")
+        #expect(saved.sameCoupleKey == (try couple("Jakub Kalina - Nikoletta Kissová")).sameCoupleKey)
+        #expect(saved.sameCoupleKey != (try couple("Jakub Kalina - Beata Mockova")).sameCoupleKey)
     }
 
     @Test func mapsKSISDanceNames() {
