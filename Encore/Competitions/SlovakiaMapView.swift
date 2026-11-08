@@ -129,8 +129,9 @@ struct SlovakiaOutline: Shape {
 }
 
 // MARK: - Map
-/// The competitions on Slovakia: a gold point with the count in each town. The border draws itself and the pins come
-/// in one by one; a tap moves in on the town and filters the list below, another tap steps back.
+/// Competitions on Slovakia: a pin with the count in each town. The border draws itself and the pins come in one by
+/// one; a tap moves in on the town, another tap steps back. The town's name is shown where its competitions are
+/// listed, never over the map, where it would cover the next pin. Meant to fill its card edge to edge.
 struct SlovakiaMapView: View {
     /// Competitions per town, after the filters.
     let counts: [String: Int]
@@ -171,17 +172,11 @@ struct SlovakiaMapView: View {
                         .position(pins[index])
                         .transition(.scale(scale: 0.3).combined(with: .opacity))
                 }
-                if let picked {
-                    townTag(cities[picked].name)
-                        .position(tagPosition(for: pins[picked], in: size))
-                        .transition(.opacity.combined(with: .scale(scale: 0.8)))
-                        .id(cities[picked].name)
-                }
             }
             .scaleEffect(picked == nil ? 1 : Self.zoom, anchor: picked.map { anchor(pins[$0], in: size) } ?? .center)
         }
         .aspectRatio(SlovakiaOutline.aspectRatio, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .animation(spring, value: counts)
         .animation(spring, value: selected)
         .onAppear(perform: comeIn)
@@ -205,25 +200,6 @@ struct SlovakiaMapView: View {
 
     private func anchor(_ point: CGPoint, in size: CGSize) -> UnitPoint {
         UnitPoint(x: point.x / max(size.width, 1), y: point.y / max(size.height, 1))
-    }
-
-    /// Above the pin, or under it at the top of the map; never past the side.
-    private func tagPosition(for pin: CGPoint, in size: CGSize) -> CGPoint {
-        CGPoint(x: min(max(pin.x, 54), size.width - 54), y: pin.y < 34 ? pin.y + 26 : pin.y - 26)
-    }
-
-    private func townTag(_ name: String) -> some View {
-        Text(name)
-            .font(.system(size: 10, weight: .bold, design: .rounded))
-            .foregroundColor(Color.gold300)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.obsidian900.opacity(0.9), in: Capsule())
-            .overlay(Capsule().stroke(Color.gold400.opacity(0.6), lineWidth: 0.5))
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     /// Towns around Bratislava lie closer than a finger: their pins move apart just enough, each staying tied to its town.
