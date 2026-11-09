@@ -374,7 +374,9 @@ struct CompetitionTrackerView: View {
         let today = PlannerCalendar.startOfDay(Date())
         let monthAgo = PlannerCalendar.calendar.date(byAdding: .day, value: -30, to: today) ?? today
         return planned.filter {
-            $0.intent == .going && $0.date < today && $0.date >= monthAgo && $0.dancedResults(in: manager.results).isEmpty
+            // Only one sent from the KSIS calendar: KSIS has its results, a competition added by hand may not exist there.
+            $0.intent == .going && $0.ksisPropId != nil && $0.date < today && $0.date >= monthAgo
+                && $0.dancedResults(in: manager.results).isEmpty
         }
     }
 
