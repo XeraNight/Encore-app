@@ -388,6 +388,8 @@ final class CalendarExporter {
     /// The crimson Encore calendar: the one saved, the one made before (a reinstall, another iPhone on the same
     /// iCloud), or a new one next to the default calendar, on the iPhone itself when that account cannot add one.
     private func encoreCalendar() -> EKCalendar? {
+        // Right after full access is given, this store may not see the accounts and calendars yet.
+        store.refreshSourcesIfNecessary()
         let defaults = UserDefaults.standard
         var calendar = defaults.string(forKey: Self.calendarIdKey).flatMap(store.calendar(withIdentifier:))
             ?? store.calendars(for: .event).first { $0.title == Self.calendarName && $0.allowsContentModifications }

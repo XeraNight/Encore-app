@@ -375,12 +375,16 @@ extension PlannedCompetition {
         if changed { try? context.save() }
     }
 
-    /// A competition from KSIS as Idem: the one already planned for that day under that name, or a new one.
+    /// A competition from KSIS as Idem: the one already planned with its KSIS id (KSIS may rename it), or for that day
+    /// under that name, or a new one.
     static func goingFromKSIS(name: String, venue: String, date: Date, categories: [String], entryDeadline: Date? = nil,
                               propId: Int? = nil, context: ModelContext) {
+        let samePropId = propId.flatMap { id in
+            try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.ksisPropId == id })).first
+        }
         let sameName = (try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.name == name }))) ?? []
         let competition: PlannedCompetition
-        if let existing = sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
+        if let existing = samePropId ?? sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
             competition = existing
         } else {
             competition = PlannedCompetition(name: name, city: venue, date: date)
