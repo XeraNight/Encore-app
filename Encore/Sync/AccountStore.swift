@@ -48,8 +48,7 @@ final class AccountStore: ObservableObject {
         UserDefaults.standard.set(userId.uuidString, forKey: Self.accountKey)
         guard userId != accountId else { return }
 
-        // Reminders and caches outside the database belong to the account before; its data stays in its database.
-        Task { await PlannerNotifications.cancelAll() }
+        // Caches outside the database belong to the account before; its data stays in its database.
         ConnectionManager.shared.reset()
         SlovakCupStore.shared.clear()
 
@@ -58,7 +57,11 @@ final class AccountStore: ObservableObject {
         accountId = userId
         container = Self.makeContainer(for: userId, sharedStoreOwner: previous)
         AppContainer.shared = container
-        Task { await PlannerNotifications.rescheduleFromStore() }
+        // The previous account's reminders go first, then this one's are planned: in one task, never the other way.
+        Task {
+            await PlannerNotifications.cancelAll()
+            await PlannerNotifications.rescheduleFromStore()
+        }
         Logger.auth.notice("[AccountStore] Opened the data of the signed-in account.")
     }
 
