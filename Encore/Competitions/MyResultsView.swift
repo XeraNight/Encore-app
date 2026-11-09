@@ -302,7 +302,7 @@ struct MyResultsView: View {
                     Text("Chýba história: \(couplesWithoutHistory.map { $0.partnerName(besides: manager.dancer?.name) }.joined(separator: ", "))")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
-                    Text("Ťukni sem: Aktualizovať z KSIS nájde páry podľa mena a uloží ich súťaže.")
+                    Text("Ťukni sem: Aktualizovať z KSIS nájde páry podľa mena. Ak pár nenájde, otvor v KSIS jednu jeho súťaž a ulož ju.")
                         .font(.caption)
                         .foregroundColor(.white.opacity(0.7))
                 }

@@ -22,8 +22,11 @@ final class CompetitionManager: ObservableObject {
     @Published private(set) var dancer: KSISDancer?
 
     /// Competitions whose crosses KSIS does not have for the couple: the update stops asking for them.
-    @Published private(set) var competitionsWithoutMarks: Set<Int>
-    private static let withoutMarksKey = "encore.ksisCompetitionsWithoutMarks"
+    @Published private(set) var competitionsWithoutMarks: Set<Int> = []
+    /// Per account, so after switching accounts and back the pages KSIS has no crosses on are not read again.
+    private static func withoutMarksKey(_ user: UUID?) -> String {
+        "encore.ksisCompetitionsWithoutMarks" + (user.map { ".\($0.uuidString)" } ?? "")
+    }
 
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
     /// The couples before the current one, each once: KSIS keeps some couples under two ids.
@@ -51,11 +54,13 @@ final class CompetitionManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        competitionsWithoutMarks = Set(UserDefaults.standard.array(forKey: Self.withoutMarksKey) as? [Int] ?? [])
+        // The one list kept before it was per account; a competition in it is asked once more.
+        UserDefaults.standard.removeObject(forKey: Self.withoutMarksKey(nil))
         AuthManager.shared.$currentUser
             .receive(on: RunLoop.main)
             .sink { [weak self] user in
-                if user != nil {
+                if let user {
+                    self?.competitionsWithoutMarks = Set(UserDefaults.standard.array(forKey: Self.withoutMarksKey(user.id)) as? [Int] ?? [])
                     Task { await self?.loadAllData() }
                 } else {
                     self?.resetState()
@@ -70,7 +75,6 @@ final class CompetitionManager: ObservableObject {
         results = []
         loadFailed = false
         competitionsWithoutMarks = []
-        UserDefaults.standard.removeObject(forKey: Self.withoutMarksKey)
     }
 
     /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
@@ -129,7 +133,7 @@ final class CompetitionManager: ObservableObject {
         let recent = PlannerCalendar.calendar.date(byAdding: .day, value: -14, to: Date()) ?? Date()
         guard let date = result.dateValue, date < recent else { return }
         competitionsWithoutMarks.insert(result.sutazId)
-        UserDefaults.standard.set(Array(competitionsWithoutMarks), forKey: Self.withoutMarksKey)
+        UserDefaults.standard.set(Array(competitionsWithoutMarks), forKey: Self.withoutMarksKey(AuthManager.shared.currentUser?.id))
     }
 
     // MARK: Pages
