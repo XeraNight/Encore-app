@@ -6,7 +6,8 @@ import SwiftUI
 /// corner, KSIS's own results a link at the end.
 struct MyResultsView: View {
     @ObservedObject private var manager = CompetitionManager.shared
-    @AppStorage("competitionResultsAsCalendar") private var showsCalendar = false
+    /// List, calendar or the map of where the couple danced; the choice stays.
+    @AppStorage("resultsMode") private var mode = Mode.list
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var choice = CoupleChoice.current
@@ -15,7 +16,13 @@ struct MyResultsView: View {
     @State private var browser: KSISBrowserTarget?
     @State private var updateJob: KSISUpdateJob?
     @State private var coupleToUnlink: UserCouple?
+    /// The town picked on the map; the list under it shows its competitions.
+    @State private var pickedTown: String?
     @State private var errorText: String?
+
+    private enum Mode: String {
+        case list, calendar, map
+    }
 
     private enum CoupleChoice: Hashable {
         case current
@@ -67,7 +74,10 @@ struct MyResultsView: View {
                     if manager.dancer == nil { findYourselfNote }
                     if !manager.results.isEmpty { summary }
                     if !couplesWithoutHistory.isEmpty { missingHistory }
-                    if !coupleResults.isEmpty { filters }
+                    if !coupleResults.isEmpty {
+                        filters
+                        modeRow
+                    }
                     results
                     footer
                 }
@@ -76,7 +86,8 @@ struct MyResultsView: View {
                 .padding(.bottom, 120)
                 .animation(spring, value: resultsFilter)
                 .animation(spring, value: choice)
-                .animation(spring, value: showsCalendar)
+                .animation(spring, value: mode)
+                .animation(spring, value: pickedTown)
             }
             .refreshable { await manager.loadAllData() }
         }
@@ -84,15 +95,6 @@ struct MyResultsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button {
-                    showsCalendar.toggle()
-                } label: {
-                    Image(systemName: showsCalendar ? "list.bullet" : "calendar")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.gold400)
-                        .contentTransition(.symbolEffect(.replace))
-                }
-                .accessibilityLabel(showsCalendar ? "Zoznam" : "Kalendár")
                 if manager.dancer != nil {
                     Button { updateJob = .everything } label: {
                         Image(systemName: "arrow.clockwise")
@@ -105,7 +107,10 @@ struct MyResultsView: View {
         }
         .sensoryFeedback(.selection, trigger: resultsFilter)
         .sensoryFeedback(.selection, trigger: choice)
-        .sensoryFeedback(.selection, trigger: showsCalendar)
+        .sensoryFeedback(.selection, trigger: pickedTown)
+        // A town of one couple or category may have nothing in another.
+        .onChange(of: resultsFilter) { _, _ in pickedTown = nil }
+        .onChange(of: choice) { _, _ in pickedTown = nil }
         .confirmationDialog("Odstrániť pár z Encore?", isPresented: Binding(
             get: { coupleToUnlink != nil },
             set: { if !$0 { coupleToUnlink = nil } }
@@ -133,6 +138,22 @@ struct MyResultsView: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// How many are shown, and the switch between list, calendar and map, on a row of their own.
+    private var modeRow: some View {
+        HStack(spacing: 10) {
+            Text(slovakCount(shown.count, one: "súťaž", few: "súťaže", many: "súťaží"))
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.white.opacity(0.8))
+                .contentTransition(.numericText())
+            Spacer(minLength: 8)
+            GoldModePicker(selection: $mode, options: [
+                (.list, "list.bullet", "Zoznam"),
+                (.calendar, "calendar", "Kalendár"),
+                (.map, "map", "Mapa"),
+            ])
+        }
     }
 
     // MARK: Couples
@@ -334,34 +355,46 @@ struct MyResultsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .homeCard(cornerRadius: 20)
             }
-        } else if showsCalendar {
-            CompetitionCalendarView(results: shown) { selectedResult = $0 }
-                .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
         } else {
-            // Seasons run from September to August, as the dancers count them.
-            let seasons = Dictionary(grouping: shown) { $0.dateValue.map(SeasonStats.seasonStartYear(of:)) ?? 0 }
-            ForEach(seasons.keys.sorted(by: >), id: \.self) { season in
-                VStack(alignment: .leading, spacing: 8) {
-                    HomeSectionHeader(title: season > 0 ? "SEZÓNA \(SeasonStats.seasonTitle(season))" : "BEZ DÁTUMU",
-                                      count: seasons[season]?.count)
-                    VStack(spacing: 0) {
-                        ForEach(seasons[season] ?? []) { result in
-                            Button {
-                                selectedResult = result
-                            } label: {
-                                CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
-                            }
-                            .buttonStyle(.pressable(scale: 0.98))
-                            .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
-                            if result.id != seasons[season]?.last?.id {
-                                HomeRowDivider()
-                            }
+            switch mode {
+            case .calendar:
+                CompetitionCalendarView(results: shown) { selectedResult = $0 }
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+            case .map:
+                ResultPlacesMap(results: shown, town: $pickedTown)
+                    .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
+                seasonList(pickedTown.map { town in shown.filter { ResultPlacesMap.town(of: $0) == town } } ?? shown)
+            case .list:
+                seasonList(shown)
+            }
+        }
+    }
+
+    /// Seasons run from September to August, as the dancers count them.
+    @ViewBuilder
+    private func seasonList(_ shown: [CompetitionResult]) -> some View {
+        let seasons = Dictionary(grouping: shown) { $0.dateValue.map(SeasonStats.seasonStartYear(of:)) ?? 0 }
+        ForEach(seasons.keys.sorted(by: >), id: \.self) { season in
+            VStack(alignment: .leading, spacing: 8) {
+                HomeSectionHeader(title: season > 0 ? "SEZÓNA \(SeasonStats.seasonTitle(season))" : "BEZ DÁTUMU",
+                                  count: seasons[season]?.count)
+                VStack(spacing: 0) {
+                    ForEach(seasons[season] ?? []) { result in
+                        Button {
+                            selectedResult = result
+                        } label: {
+                            CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
+                        }
+                        .buttonStyle(.pressable(scale: 0.98))
+                        .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                        if result.id != seasons[season]?.last?.id {
+                            HomeRowDivider()
                         }
                     }
-                    .homeCard(cornerRadius: 20)
                 }
-                .transition(.opacity)
+                .homeCard(cornerRadius: 20)
             }
+            .transition(.opacity)
         }
     }
 }

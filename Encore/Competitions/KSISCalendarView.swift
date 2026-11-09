@@ -2,9 +2,9 @@ import SwiftUI
 import SwiftData
 
 // MARK: - Kalendár súťaží
-/// The KSIS calendar: what is coming, filtered as on KSIS, as a list or as the map of Slovakia, where a town opens its
-/// competitions in a small sheet. Reading only: the competitions the dancer goes to live in Kalendár, sent there with
-/// Idem. The last read stays on the iPhone.
+/// The KSIS calendar: what is coming, filtered as on KSIS, as a list or with the map of Slovakia above it, where a
+/// town picks its competitions for the list. Reading only: the competitions the dancer goes to live in Kalendár, sent
+/// there with Idem. The last read stays on the iPhone.
 struct KSISCalendarView: View {
     @ObservedObject private var store = KSISCalendarStore.shared
     @ObservedObject private var manager = CompetitionManager.shared
@@ -12,8 +12,6 @@ struct KSISCalendarView: View {
 
     @State private var filter = KSISCalendarFilter()
     @State private var selected: KSISEvent?
-    /// The town picked on the map; its competitions open in a sheet.
-    @State private var mapTown: String?
     @State private var job: KSISUpdateJob?
     @AppStorage("ksisCalendarAsMap") private var showsMap = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -65,7 +63,8 @@ struct KSISCalendarView: View {
                         statusLine
                         filters
                         resultLine
-                        if showsMap { map } else { list }
+                        if showsMap { map }
+                        list
                     }
                     Text("Zdroj: KSIS (szts.ksis.eu). Propozície, prihlášky a termíny vždy over v KSIS.")
                         .font(.caption)
@@ -85,20 +84,7 @@ struct KSISCalendarView: View {
         .sheet(item: $selected) { event in
             KSISEventSheet(event: event, couple: couple)
         }
-        .sheet(isPresented: Binding(get: { mapTown != nil }, set: { if !$0 { mapTown = nil } })) {
-            let town = mapTown ?? ""
-            KSISTownSheet(town: town,
-                          events: beforeCity.filter { $0.city == town }.sorted { $0.date < $1.date },
-                          couple: couple,
-                          isGoing: isGoing(to:))
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
-        }
-        .onChange(of: showsMap) { _, isMap in
-            mapTown = nil
-            // On the map the town is picked on the map, so the list's town filter does not hide pins.
-            if isMap { filter.city = nil }
-        }
+
         .preferredColorScheme(.dark)
     }
 
@@ -205,17 +191,21 @@ struct KSISCalendarView: View {
     }
 
     // MARK: Map
-    /// The map alone: a town opens its competitions in a sheet, so the map does not repeat the list.
+    /// The map above the list: a town picks its competitions for the list, another tap or Všetky mestá steps back.
     private var map: some View {
         VStack(alignment: .leading, spacing: 8) {
-            SlovakiaMapView(counts: cityCounts, selected: $mapTown)
+            SlovakiaMapView(counts: cityCounts, selected: $filter.city)
                 .homeCard(cornerRadius: 20)
-            let unplaced = beforeCity.count - cityCounts.values.reduce(0, +)
-            Text(unplaced > 0 ? "Ťukni na mesto a uvidíš jeho súťaže. Bez miesta na mape: \(unplaced), sú v Zozname."
-                              : "Ťukni na mesto a uvidíš jeho súťaže.")
-                .font(.caption)
-                .foregroundColor(Color.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
+            if let town = filter.city {
+                TownPickedRow(town: town, count: cityCounts[town] ?? 0) { filter.city = nil }
+            } else {
+                let unplaced = beforeCity.count - cityCounts.values.reduce(0, +)
+                Text(unplaced > 0 ? "Ťukni na mesto a zoznam ukáže jeho súťaže. Bez miesta na mape: \(unplaced)."
+                                  : "Ťukni na mesto a zoznam ukáže jeho súťaže.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
     }
@@ -262,42 +252,6 @@ struct KSISCalendarView: View {
 
     private func isGoing(to event: KSISEvent) -> Bool {
         planned.contains { $0.ksisPropId != nil && $0.ksisPropId == event.propId && $0.intent == .going }
-    }
-}
-
-// MARK: - One town's competitions
-/// What a town on the map has, with Idem and the competition's page one tap away.
-private struct KSISTownSheet: View {
-    let town: String
-    let events: [KSISEvent]
-    let couple: UserCouple?
-    let isGoing: (KSISEvent) -> Bool
-
-    @State private var selected: KSISEvent?
-
-    var body: some View {
-        NavigationStack {
-            ZStack {
-                EllegancePageBackground()
-                ScrollView {
-                    VStack(spacing: 0) {
-                        ForEach(events) { event in
-                            Button { selected = event } label: {
-                                KSISEventRow(event: event, couple: couple, isGoing: isGoing(event))
-                            }
-                            .buttonStyle(.pressable(scale: 0.98))
-                            if event.id != events.last?.id { HomeRowDivider() }
-                        }
-                    }
-                    .homeCard(cornerRadius: 20)
-                    .padding(20)
-                }
-            }
-            .navigationTitle(town)
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .sheet(item: $selected) { KSISEventSheet(event: $0, couple: couple) }
-        .preferredColorScheme(.dark)
     }
 }
 

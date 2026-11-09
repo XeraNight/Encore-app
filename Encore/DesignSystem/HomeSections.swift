@@ -240,17 +240,26 @@ struct GoldModeSwitch: View {
     let first: (icon: String, label: String)
     let second: (icon: String, label: String)
 
+    var body: some View {
+        GoldModePicker(selection: $isSecond, options: [(false, first.icon, first.label), (true, second.icon, second.label)])
+    }
+}
+
+/// The small gold switch with any number of modes, an icon each (list, calendar, map).
+struct GoldModePicker<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, icon: String, label: String)]
+
     @Namespace private var namespace
 
     var body: some View {
         HStack(spacing: 2) {
-            ForEach([false, true], id: \.self) { value in
-                let isOn = isSecond == value
-                let mode = value ? second : first
+            ForEach(options, id: \.value) { option in
+                let isOn = selection == option.value
                 Button {
-                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { isSecond = value }
+                    withAnimation(.spring(response: 0.32, dampingFraction: 0.8)) { selection = option.value }
                 } label: {
-                    Image(systemName: mode.icon)
+                    Image(systemName: option.icon)
                         .font(.caption.weight(.bold))
                         .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.6))
                         .frame(width: 34, height: 26)
@@ -263,14 +272,14 @@ struct GoldModeSwitch: View {
                         }
                 }
                 .buttonStyle(.pressable(scale: 0.9))
-                .accessibilityLabel(mode.label)
+                .accessibilityLabel(option.label)
                 .accessibilityAddTraits(isOn ? .isSelected : [])
             }
         }
         .padding(2)
         .background(Color.white.opacity(0.07), in: Capsule())
         .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
-        .sensoryFeedback(.selection, trigger: isSecond)
+        .sensoryFeedback(.selection, trigger: selection)
     }
 }
 

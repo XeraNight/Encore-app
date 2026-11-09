@@ -15,7 +15,8 @@ struct DisciplineStatsView: View {
     @ObservedObject private var cupStore = SlovakCupStore.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var scope = Scope.season
+    /// Everything by default; a season picked stays picked.
+    @AppStorage("disciplineStatsScope") private var scope = Scope.all
     @State private var chartShowsCrosses = false
     @State private var pickedDate: Date?
     @State private var pickedId: UUID?
@@ -28,16 +29,21 @@ struct DisciplineStatsView: View {
     @State private var showPaywall = false
     @State private var appeared = false
 
-    private enum Scope: CaseIterable {
-        case season, previous, all
+    private enum Scope: String, CaseIterable {
+        case all, season, previous
 
         var title: String {
             switch self {
-            case .season: return "Táto sezóna"
-            case .previous: return "Minulá"
             case .all: return "Celkovo"
+            case .season: return "Táto sezóna"
+            case .previous: return "Minulá sezóna"
             }
         }
+    }
+
+    /// " · 2026/27" on every section while one season is picked, so a short list never looks like all of them.
+    private var scopeSuffix: String {
+        seasonYear.map { " · \(SeasonStats.seasonTitle($0))" } ?? ""
     }
 
     /// One point in the chart: a competition with its place or its share of crosses.
@@ -280,7 +286,7 @@ struct DisciplineStatsView: View {
             }
         let picked = results.first { $0.id == pickedId }
         return VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: chartShowsCrosses ? "KRÍŽIKY" : "UMIESTNENIA", systemImage: "chart.xyaxis.line") {
+            HomeSectionHeader(title: (chartShowsCrosses ? "KRÍŽIKY" : "UMIESTNENIA") + scopeSuffix, systemImage: "chart.xyaxis.line") {
                 GoldModeSwitch(isSecond: $chartShowsCrosses, first: ("list.number", "Miesto"), second: ("xmark.square", "Krížiky"))
             }
             VStack(alignment: .leading, spacing: 10) {
@@ -323,7 +329,7 @@ struct DisciplineStatsView: View {
         }
         .chartYScale(domain: chartShowsCrosses ? .automatic(includesZero: true) : .automatic(includesZero: false, reversed: true))
         .chartYAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { value in
+            AxisMarks(values: yTicks(points)) { value in
                 AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
                 AxisValueLabel {
                     let number = value.as(Double.self).map { Int($0.rounded()) } ?? 0
@@ -332,11 +338,15 @@ struct DisciplineStatsView: View {
             }
         }
         .chartXAxis {
-            AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                AxisValueLabel(format: .dateTime.month(.abbreviated).year(.twoDigits).locale(Locale(identifier: "sk")))
-                    .foregroundStyle(Color.textSecondary)
+            let dates = Set([points.map(\.date).min(), points.map(\.date).max()].compactMap { $0 }).sorted()
+            let spansYear = (dates.last?.timeIntervalSince(dates.first ?? .now) ?? 0) > 300 * 24 * 3600
+            AxisMarks(values: dates) { value in
+                AxisValueLabel {
+                    if let date = value.as(Date.self) { Text(Self.axisDate(date, withYear: spansYear)).foregroundStyle(Color.textSecondary) }
+                }
             }
         }
+        .chartXScale(range: .plotDimension(padding: 18))
         .chartXSelection(value: $pickedDate)
         .onChange(of: pickedDate) { _, date in
             guard let date else { return }
@@ -346,13 +356,31 @@ struct DisciplineStatsView: View {
         .accessibilityLabel(chartShowsCrosses ? "Podiel krížikov v čase" : "Umiestnenia v čase")
     }
 
+    /// Whole places only, a few of them, best at the top; the share of crosses at 0, 50 and 100 %.
+    private func yTicks(_ points: [Point]) -> [Double] {
+        if chartShowsCrosses { return [0, 50, 100] }
+        let places = points.map { Int($0.value) }
+        guard let best = places.min(), let worst = places.max() else { return [] }
+        let step = max(1, Int((Double(worst - best) / 3).rounded(.up)))
+        var ticks = Array(stride(from: best, through: worst, by: step))
+        if ticks.last != worst { ticks.append(worst) }
+        return ticks.map(Double.init)
+    }
+
+    /// "7. 9." within a year, "9/24" over a longer time: short enough for the first and last date to fit.
+    private static func axisDate(_ date: Date, withYear: Bool) -> String {
+        let parts = PlannerCalendar.calendar.dateComponents([.day, .month, .year], from: date)
+        let day = parts.day ?? 0, month = parts.month ?? 0, year = (parts.year ?? 0) % 100
+        return withYear ? "\(month)/\(String(format: "%02d", year))" : "\(day). \(month)."
+    }
+
     // MARK: Dances
     @ViewBuilder
     private func dancesSection(_ stats: SeasonStats) -> some View {
         if let rated = stats.disciplines.first {
             if !rated.dances.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    HomeSectionHeader(title: "KRÍŽIKY PODĽA TANCOV", systemImage: "xmark.circle")
+                    HomeSectionHeader(title: "KRÍŽIKY PODĽA TANCOV" + scopeSuffix, systemImage: "xmark.circle")
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(rated.dances) { dance in
                             crossBar(dance, isWeakest: dance.id == rated.weakest?.id)
@@ -372,7 +400,7 @@ struct DisciplineStatsView: View {
             }
             if !rated.finals.isEmpty {
                 VStack(alignment: .leading, spacing: 10) {
-                    HomeSectionHeader(title: "VO FINÁLE", systemImage: "trophy.fill")
+                    HomeSectionHeader(title: "VO FINÁLE" + scopeSuffix, systemImage: "trophy.fill")
                     VStack(alignment: .leading, spacing: 10) {
                         ForEach(rated.finals) { final in
                             HStack {
@@ -438,7 +466,7 @@ struct DisciplineStatsView: View {
         if !judges.isEmpty {
             let shown = showsAllJudges ? judges : Array(judges.prefix(8))
             VStack(alignment: .leading, spacing: 10) {
-                HomeSectionHeader(title: "POROTCOVIA", systemImage: "person.3.fill", count: judges.count)
+                HomeSectionHeader(title: "POROTCOVIA" + scopeSuffix, systemImage: "person.3.fill", count: judges.count)
                 VStack(spacing: 0) {
                     ForEach(shown) { judge in
                         judgeRow(judge)
@@ -530,52 +558,23 @@ struct DisciplineStatsView: View {
 
     // MARK: Places
     /// Where the couple danced, from KSIS's "Miesto:", which comes with the results and crosses pages. A tap on a town
-    /// lists its competitions.
+    /// picks its competitions in the list below.
     @ViewBuilder
     private func placesSection(_ results: [CompetitionResult]) -> some View {
-        let towns = results.map { result in (result: result, town: result.venue.flatMap(SlovakCity.find(in:))?.name) }
-        let counts = Dictionary(grouping: towns.compactMap(\.town)) { $0 }.mapValues(\.count)
-        if !counts.isEmpty {
-            let elsewhere = towns.filter { $0.town == nil }.count
-            let inTown = towns.filter { $0.town != nil && $0.town == pickedTown }.map(\.result)
-            VStack(alignment: .leading, spacing: 10) {
-                HomeSectionHeader(title: "KDE STE TANCOVALI", systemImage: "map")
-                SlovakiaMapView(counts: counts, selected: $pickedTown)
-                    .homeCard(cornerRadius: 20)
-                if let pickedTown, !inTown.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("\(pickedTown) · \(slovakCount(inTown.count, one: "súťaž", few: "súťaže", many: "súťaží"))")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundColor(Color.gold300)
-                        VStack(spacing: 0) {
-                            ForEach(inTown) { result in
-                                Button { selectedResult = result } label: {
-                                    CompetitionResultRow(result: result, isMissingMarks: manager.isMissingMarks(result))
-                                }
-                                .buttonStyle(.pressable(scale: 0.98))
-                                if result.id != inTown.last?.id { HomeRowDivider() }
-                            }
-                        }
-                        .homeCard(cornerRadius: 20)
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                Text(elsewhere > 0
-                     ? "Ťukni na mesto. Mimo mapy: \(elsewhere), v zahraničí alebo ešte bez miesta, to príde s krížikmi."
-                     : "Ťukni na mesto a uvidíš súťaže v ňom.")
-                    .font(.caption)
-                    .foregroundColor(Color.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            .animation(spring, value: pickedTown)
-            .sensoryFeedback(.selection, trigger: pickedTown)
+        VStack(alignment: .leading, spacing: 10) {
+            HomeSectionHeader(title: "KDE STE TANCOVALI" + scopeSuffix, systemImage: "map")
+            ResultPlacesMap(results: results, town: $pickedTown)
         }
+        .animation(spring, value: pickedTown)
+        .sensoryFeedback(.selection, trigger: pickedTown)
     }
 
     // MARK: Competitions
-    private func competitionsSection(_ results: [CompetitionResult]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HomeSectionHeader(title: "SÚŤAŽE", systemImage: "list.bullet", count: results.count)
+    private func competitionsSection(_ all: [CompetitionResult]) -> some View {
+        let results = pickedTown.map { town in all.filter { ResultPlacesMap.town(of: $0) == town } } ?? all
+        return VStack(alignment: .leading, spacing: 10) {
+            HomeSectionHeader(title: (pickedTown.map { "SÚŤAŽE · \($0.uppercased())" } ?? "SÚŤAŽE") + scopeSuffix,
+                              systemImage: "list.bullet", count: results.count)
             VStack(spacing: 0) {
                 ForEach(results) { result in
                     Button { selectedResult = result } label: {

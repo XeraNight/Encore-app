@@ -304,3 +304,63 @@ struct SlovakiaMapView: View {
             }
     }
 }
+
+// MARK: - Where the couple danced
+/// The towns of saved competitions, from KSIS's "Miesto:", which comes with the results and marks pages. A tap picks
+/// a town and the list under the map shows its competitions, as in the competition calendar.
+struct ResultPlacesMap: View {
+    let results: [CompetitionResult]
+    @Binding var town: String?
+
+    static func town(of result: CompetitionResult) -> String? {
+        result.venue.flatMap(SlovakCity.find(in:))?.name
+    }
+
+    var body: some View {
+        let towns = results.map(Self.town(of:))
+        let counts = Dictionary(grouping: towns.compactMap { $0 }) { $0 }.mapValues(\.count)
+        let elsewhere = towns.filter { $0 == nil }.count
+        VStack(alignment: .leading, spacing: 8) {
+            SlovakiaMapView(counts: counts, selected: $town)
+                .homeCard(cornerRadius: 20)
+            if let picked = town {
+                TownPickedRow(town: picked, count: counts[picked] ?? 0) { town = nil }
+            } else {
+                Text(elsewhere > 0
+                     ? "Ťukni na mesto a zoznam ukáže jeho súťaže. Mimo mapy: \(elsewhere), v zahraničí alebo ešte bez miesta, to príde s krížikmi."
+                     : "Ťukni na mesto a zoznam ukáže jeho súťaže.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+/// The town picked on a map, with the way back to all of them.
+struct TownPickedRow: View {
+    let town: String
+    let count: Int
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "mappin.and.ellipse")
+                .foregroundColor(Color.gold400)
+                .accessibilityHidden(true)
+            Text("\(town) · \(slovakCount(count, one: "súťaž", few: "súťaže", many: "súťaží"))")
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(.white)
+                .contentTransition(.numericText())
+            Spacer(minLength: 8)
+            Button(action: onClear) {
+                Label("Všetky mestá", systemImage: "xmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 32)
+            }
+            .buttonStyle(.pressable)
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+}
