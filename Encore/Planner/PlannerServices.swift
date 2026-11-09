@@ -380,7 +380,12 @@ final class CalendarExporter {
     }
 
     /// Where a new event goes: the Encore calendar, or the default one with write-only access; nil without access.
+    /// Adding events is asked first and the Encore calendar (full access) on top of it: a no to the second keeps the
+    /// first, while a no to full access asked alone would leave no calendar at all.
     private func targetCalendar() async -> EKCalendar? {
+        if EKEventStore.authorizationStatus(for: .event) == .notDetermined {
+            guard await requestAccess() else { return nil }
+        }
         if await requestFullAccess() { return encoreCalendar() ?? store.defaultCalendarForNewEvents }
         return await requestAccess() ? store.defaultCalendarForNewEvents : nil
     }

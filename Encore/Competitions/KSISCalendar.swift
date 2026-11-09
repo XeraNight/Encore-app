@@ -1,6 +1,7 @@
 import Combine
 import Foundation
 import OSLog
+import SwiftData
 
 // MARK: - KSIS competition calendar
 /// One line of the KSIS calendar (menu.php?akcia=KS). The calendar is public and nothing from it belongs to a user,
@@ -255,6 +256,7 @@ final class KSISCalendarStore: ObservableObject {
     func remember(_ events: [KSISEvent]) {
         self.events = events
         readAt = Date()
+        if let context = AppContainer.shared?.mainContext { PlannedCompetition.follow(events, context: context) }
         do {
             UserDefaults.standard.set(try JSONEncoder().encode(Saved(events: events, readAt: Date())), forKey: key)
         } catch {

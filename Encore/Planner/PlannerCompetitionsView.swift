@@ -397,6 +397,32 @@ extension PlannedCompetition {
         try? context.save()
     }
 
+    /// KSIS moved a competition planned from its calendar, or changed its entry deadline: the plan follows, and so does
+    /// its event in Apple Calendar. The name stays as the dancer has it.
+    static func follow(_ events: [KSISEvent], context: ModelContext) {
+        let byPropId = Dictionary(events.compactMap { event in event.propId.map { ($0, event) } }, uniquingKeysWith: { first, _ in first })
+        let planned = (try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.ksisPropId != nil }))) ?? []
+        var changed = false
+        for competition in planned {
+            guard let propId = competition.ksisPropId, let event = byPropId[propId], let date = event.dateValue else { continue }
+            if let deadline = event.entryDeadlineValue, competition.entryDeadline != deadline {
+                competition.entryDeadline = deadline
+                changed = true
+            }
+            guard !PlannerCalendar.calendar.isDate(competition.date, inSameDayAs: date) else { continue }
+            competition.date = date
+            changed = true
+            if let eventId = competition.calendarEventId {
+                Task {
+                    guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
+                    competition.calendarEventId = await CalendarExporter.shared.export(competition: competition)
+                    try? context.save()
+                }
+            }
+        }
+        if changed { try? context.save() }
+    }
+
     /// Neidem also takes the competition out of Apple Calendar; switching back does not add it again on its own.
     func setIntent(_ newIntent: CompetitionIntent, context: ModelContext) {
         intent = newIntent
