@@ -27,13 +27,15 @@ final class VoiceBackup {
         isSyncing = true
         defer { isSyncing = false }
         let key = savedKey
-        let referenced = Self.recordings(in: context)
+        let (referenced, isComplete) = Self.recordings(in: context)
         var saved = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
         for name in referenced.subtracting(saved).sorted() where MediaStorageManager.fileExists(name) {
             guard await upload(name) else { return }
             saved.insert(name)
             UserDefaults.standard.set(Array(saved), forKey: key)
         }
+        // A copy goes only when every note was read: a note that could not be read may still hold its recording.
+        guard isComplete else { return }
         for name in saved.subtracting(referenced).sorted() {
             guard await remove(name) else { return }
             saved.remove(name)
@@ -42,14 +44,22 @@ final class VoiceBackup {
     }
 
     /// Every recording the open account's data points to: Denník notes and the voice notes inside figures' notes.
-    static func recordings(in context: ModelContext) -> Set<String> {
-        var names = Set(((try? context.fetch(FetchDescriptor<InstantNote>())) ?? []).compactMap(\.audioPath))
+    /// Not complete when the data or a figure's note could not be read.
+    static func recordings(in context: ModelContext) -> (names: Set<String>, isComplete: Bool) {
         let withNotes = FetchDescriptor<CanvasNode>(predicate: #Predicate { $0.notesRichData != nil })
-        for node in (try? context.fetch(withNotes)) ?? [] {
-            guard let data = node.notesRichData, let text = RichNote.decode(data) else { continue }
+        guard let notes = try? context.fetch(FetchDescriptor<InstantNote>()), let nodes = try? context.fetch(withNotes) else {
+            return ([], false)
+        }
+        var names = Set(notes.compactMap(\.audioPath))
+        var isComplete = true
+        for node in nodes {
+            guard let data = node.notesRichData, let text = RichNote.decode(data) else {
+                isComplete = false
+                continue
+            }
             names.formUnion(RichNote.voiceNotes(in: text).map(\.fileName))
         }
-        return names
+        return (names, isComplete)
     }
 
     // MARK: Down
