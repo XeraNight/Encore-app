@@ -223,13 +223,22 @@ final class KSISUpdateRun {
     /// under a pair number and no id at all; KSIS's search by name keeps them all. The server saves the dancer's
     /// couples it already knows, and new ones only when ticked here.
     private func updateAllCouples() async throws {
-        guard let dancer = manager.dancer,
-              let url = KSISBrowserView.nameSearchURL(KSISBrowserView.surname(of: dancer.name)) else { return }
+        guard let dancer = manager.dancer else { return }
+        try await searchCouples(surname: KSISBrowserView.surname(of: dancer.name), otherName: nil, of: dancer)
+        // Couples danced under another surname (a maiden name) are found under that one.
+        if let other = KSISOtherSurname.get(for: dancer.personNumber) {
+            let given = dancer.name.split(separator: " ").dropFirst().joined(separator: " ")
+            try await searchCouples(surname: other, otherName: given.isEmpty ? other : "\(other) \(given)", of: dancer)
+        }
+    }
+
+    private func searchCouples(surname: String, otherName: String?, of dancer: KSISDancer) async throws {
+        guard let url = KSISBrowserView.nameSearchURL(surname) else { return }
         say("Hľadám všetky vaše páry…")
         let page = try await open(url)
         let found: [KSISPageReply.FoundCouple]
         do {
-            found = try await manager.read(url: page.url, html: page.html).found ?? []
+            found = try await manager.read(url: page.url, html: page.html, otherName: otherName).found ?? []
         } catch CompetitionManager.ActionError.server {
             failures += 1
             return
@@ -242,7 +251,7 @@ final class KSISUpdateRun {
             KSISNotMine.add(Set(new.map(\.parId)).subtracting(answer), for: dancer.personNumber)
         }
         guard !picked.isEmpty || found.contains(where: { $0.status == "claim" || $0.status == "same" }) else { return }
-        try await save(page, consent: !picked.isEmpty, parIds: picked)
+        try await save(page, consent: !picked.isEmpty, parIds: picked, otherName: otherName)
         try Task.checkCancellation()
     }
 
@@ -319,9 +328,10 @@ final class KSISUpdateRun {
     }
 
     /// One page that cannot be saved does not stop the rest; without internet nothing can go on.
-    private func save(_ page: Page, consent: Bool = false, parIds: [Int]? = nil) async throws {
+    private func save(_ page: Page, consent: Bool = false, parIds: [Int]? = nil, otherName: String? = nil) async throws {
         do {
-            _ = try await manager.save(url: page.url, html: page.html, consent: consent, parIds: parIds, reloads: false)
+            _ = try await manager.save(url: page.url, html: page.html, consent: consent, parIds: parIds, otherName: otherName,
+                                       reloads: false)
         } catch CompetitionManager.ActionError.server, CompetitionManager.ActionError.notFound {
             failures += 1
             Logger.sync.error("KSIS update: page not saved")
@@ -359,6 +369,25 @@ enum KSISNotMine {
     static func add(_ parIds: Set<Int>, for personNumber: Int) {
         guard !parIds.isEmpty else { return }
         UserDefaults.standard.set(Array(ids(for: personNumber).union(parIds)), forKey: key(personNumber))
+    }
+}
+
+/// Another surname the dancer competed under in KSIS (a maiden name), so Aktualizovať finds those couples too. Kept on
+/// this iPhone for the dancer's KSIS number.
+enum KSISOtherSurname {
+    private static func key(_ personNumber: Int) -> String { "encore.ksis.otherSurname.\(personNumber)" }
+
+    static func get(for personNumber: Int) -> String? {
+        UserDefaults.standard.string(forKey: key(personNumber)).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    static func set(_ surname: String, for personNumber: Int) {
+        let trimmed = surname.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            UserDefaults.standard.removeObject(forKey: key(personNumber))
+        } else {
+            UserDefaults.standard.set(trimmed, forKey: key(personNumber))
+        }
     }
 }
 

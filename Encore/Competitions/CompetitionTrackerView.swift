@@ -19,6 +19,8 @@ struct CompetitionTrackerView: View {
     @State private var coupleToUnlink: UserCouple?
     @State private var errorText: String?
     @State private var refreshCount = 0
+    @State private var editsOtherSurname = false
+    @State private var otherSurname = ""
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -81,6 +83,15 @@ struct CompetitionTrackerView: View {
                 selectedResult = nil
                 browser = KSISBrowserTarget(url: url)
             }
+        }
+        .alert("Iné priezvisko v KSIS", isPresented: $editsOtherSurname) {
+            TextField("Napríklad rodné priezvisko", text: $otherSurname)
+            Button("Uložiť") {
+                if let dancer = manager.dancer { KSISOtherSurname.set(otherSurname, for: dancer.personNumber) }
+            }
+            Button("Zrušiť", role: .cancel) {}
+        } message: {
+            Text("Ak si v KSIS súťažil(a) aj pod iným priezviskom, Aktualizovať z KSIS nájde aj tie páry. Prázdne pole ho zmaže.")
         }
         .confirmationDialog("Odstrániť pár z Encore?", isPresented: Binding(
             get: { coupleToUnlink != nil },
@@ -207,6 +218,12 @@ struct CompetitionTrackerView: View {
                     if let dancer = manager.dancer {
                         Button { openCouples(of: dancer) } label: {
                             Label("Moje páry v KSIS", systemImage: "person.2.fill")
+                        }
+                        Button {
+                            otherSurname = KSISOtherSurname.get(for: dancer.personNumber) ?? ""
+                            editsOtherSurname = true
+                        } label: {
+                            Label("Iné priezvisko v KSIS", systemImage: "person.text.rectangle")
                         }
                     }
                     if let coupleId = couple.coupleId, let url = KSISBrowserView.page("par.php?id=\(coupleId)") {

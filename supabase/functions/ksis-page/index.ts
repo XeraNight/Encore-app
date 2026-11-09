@@ -7,7 +7,8 @@
 //   read          { url, html }            -> { kind, ... }        nothing is stored
 //   save          { url, html, consent? }  -> { kind, ..., saved } link the couple, standings, history, a result, crosses
 //   save          { url, html, personNumber } on the members list: "Toto som ja"
-//   save          { url, html, consent?, parIds? } on the search: the dancer's couples and their KSIS ids; new couples
+//   save          { url, html, consent?, parIds?, otherName? } on the search: the dancer's couples and their KSIS
+//                                           ids, also under another name they danced as (a maiden name); new couples
 //                                           only those in parIds, and only with consent
 //   unlink        { coupleId }             -> { ok }                that couple and its results are deleted
 //   delete_result { resultId }             -> { ok }
@@ -66,6 +67,8 @@ type Body = {
   personNumber?: number;
   /** The new couples the dancer ticked on the search; their other couples are saved without asking. */
   parIds?: unknown;
+  /** Another name the dancer danced as, "Priezvisko Meno" (a maiden name), for the search. */
+  otherName?: unknown;
   /** The saved couple to unlink (user_couples.id). */
   coupleId?: string;
   resultId?: string;
@@ -185,7 +188,7 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
       case "couples_list":
         return await couplesList(admin, userId, body.html, linked, dancer, save, consent);
       case "search":
-        return await search(admin, userId, body.html, linked, dancer, save, consent, body.parIds);
+        return await search(admin, userId, body.html, linked, dancer, save, consent, body.parIds, body.otherName);
       case "couple_detail":
         return await coupleDetail(admin, userId, body.html, linked, dancer, save, consent);
       case "couple_page":
@@ -414,12 +417,19 @@ type Step =
   /** Not saved: needs the partner's yes and the dancer's tick, a namesake abroad looks the same. */
   | { couple: FoundCouple; action: "new" };
 
+/** A name the dancer gives for themselves: letters, spaces, a hyphen or an apostrophe, at most 80 characters. */
+function otherNameOf(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.trim().replace(/\s+/g, " ");
+  return name.length >= 3 && name.length <= 80 && /^[\p{L} .'-]+$/u.test(name) ? name : null;
+}
+
 /** The dancer's rows, one per id: a couple that changed club has a row per club. Most competitions first, so the id
  * with the history takes a saved couple's place when KSIS keeps the couple twice. */
-function foundCouples(rows: KsisSearchCouple[], dancer: Dancer): FoundCouple[] {
+function foundCouples(rows: KsisSearchCouple[], names: string[]): FoundCouple[] {
   const byId = new Map<number, FoundCouple[]>();
   for (const row of rows) {
-    const side = sideInPair(dancer.name, row);
+    const side = names.map((name) => sideInPair(name, row)).find((found) => found !== null) ?? null;
     if (side) byId.set(row.parId, [...(byId.get(row.parId) ?? []), { ...row, side }]);
   }
   return [...byId.values()]
@@ -453,9 +463,12 @@ async function search(
   save: boolean,
   consent: boolean,
   parIds: unknown,
+  otherName: unknown,
 ) {
   const rows = parseSearchResults(html);
-  const steps = dancer ? plan(foundCouples(rows, dancer), linked) : [];
+  const other = otherNameOf(otherName);
+  const names = dancer ? [dancer.name, ...(other ? [other] : [])] : [];
+  const steps = dancer ? plan(foundCouples(rows, names), linked) : [];
   const reply = (list: Step[]) => ({
     kind: "search",
     found: list.slice(0, 40).map(({ couple, action }) => ({
@@ -498,7 +511,7 @@ async function search(
     if (error) throw error;
     saved += 1;
   }
-  return jsonResponse({ ...reply(plan(foundCouples(rows, dancer), await linkedCouples(admin, userId))), saved });
+  return jsonResponse({ ...reply(plan(foundCouples(rows, names), await linkedCouples(admin, userId))), saved });
 }
 
 // ── Couple detail: class, points, finals of one of the dancer's couples ─────────────────────────

@@ -241,6 +241,8 @@ struct KSISPageRequest: Encodable, Sendable {
     var personNumber: Int? = nil
     /// The new couples ticked on the KSIS search; the dancer's other couples there are saved without asking.
     var parIds: [Int]? = nil
+    /// Another name the dancer danced as ("Priezvisko Meno", a maiden name), for the KSIS search.
+    var otherName: String? = nil
     /// The saved couple to unlink (`user_couples.id`).
     var coupleId: String? = nil
     var resultId: String? = nil

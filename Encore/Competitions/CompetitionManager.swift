@@ -138,16 +138,17 @@ final class CompetitionManager: ObservableObject {
 
     // MARK: Pages
     /// What the open page says about the user's couple. Nothing is stored.
-    func read(url: URL, html: String) async throws -> KSISPageReply {
-        try await call(KSISPageRequest(action: "read", url: url.absoluteString, html: html))
+    func read(url: URL, html: String, otherName: String? = nil) async throws -> KSISPageReply {
+        try await call(KSISPageRequest(action: "read", url: url.absoluteString, html: html, otherName: otherName))
     }
 
     /// Stores what the open page says about the user (who they are, their couples, a result), then reloads the diary.
     /// `reloads` is false while an update saves many pages: it reloads once after them.
     func save(url: URL, html: String, consent: Bool = false, personNumber: Int? = nil, parIds: [Int]? = nil,
-              reloads: Bool = true) async throws -> KSISPageReply {
+              otherName: String? = nil, reloads: Bool = true) async throws -> KSISPageReply {
         let reply: KSISPageReply = try await call(
-            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber, parIds: parIds)
+            KSISPageRequest(action: "save", url: url.absoluteString, html: html, consent: consent, personNumber: personNumber,
+                            parIds: parIds, otherName: otherName)
         )
         if reloads { await loadAllData() }
         return reply
