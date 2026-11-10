@@ -61,8 +61,9 @@ public enum SubscriptionTier: String, CaseIterable, Codable, Sendable {
     public var iconName: String {
         switch self {
         case .free: return "sparkles"
-        case .plus: return "crown.fill"
-        case .premium: return "diamond.fill"
+        // The crown is the highest, so it belongs to the highest plan.
+        case .plus: return "star.fill"
+        case .premium: return "crown.fill"
         }
     }
 }

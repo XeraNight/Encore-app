@@ -172,6 +172,8 @@ public struct SubscriptionPaywallView: View {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
                     Image(systemName: tier.iconName)
+                        .font(.headline)
+                        .frame(width: 26, height: 22, alignment: .leading)
                         .foregroundColor(isSelected ? Color.gold400 : .white.opacity(0.6))
                     Spacer()
                     if subscriptionManager.currentTier == tier {

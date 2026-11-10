@@ -151,7 +151,7 @@ struct DanceDetailView: View {
 
             if !canCreateRoutine {
                 HStack(spacing: 10) {
-                    Image(systemName: "crown.fill")
+                    Image(systemName: SubscriptionTier.plus.iconName)
                         .foregroundColor(Color.gold400)
                     Text("Vo Free máš 1 zostavu na tanec. Viac ich máš s Plus.")
                         .font(.footnote)
