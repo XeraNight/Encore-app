@@ -722,7 +722,9 @@ async function marks(admin: Admin, userId: string, url: URL, html: string, linke
   const judges = [
     ...page.competition.judges.map((judge) => ({ ...judge, hidden: false })),
     ...page.competition.hiddenJudgeLetters.map((letter) => ({ letter, name: null, city: null, hidden: true })),
-  ].sort((a, b) => a.letter.localeCompare(b.letter));
+  ].sort((a, b) => a.letter.localeCompare(b.letter)).concat(
+    page.competition.shadowJudges.map((judge) => ({ ...judge, hidden: false, shadow: true })),
+  );
   const reply = {
     kind: "marks",
     competition: competitionSummary(page.competition),

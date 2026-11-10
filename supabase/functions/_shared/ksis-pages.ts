@@ -451,6 +451,11 @@ export interface KsisCompetition {
   couples: number | null;
   judges: KsisJudge[];
   /**
+   * "Tieňová porota", listed under the judges with letters from A again. KSIS publishes no marks of theirs and
+   * "Suma" holds none (checked on 47 rounds of 30 competitions), so they never take a column.
+   */
+  shadowJudges: KsisJudge[];
+  /**
    * Letters missing in the judges list (D in A, B, C, E, F, G). Such a judge is counted in "Suma" and in the
    * final, but KSIS publishes neither the name nor the marks (verified on competition 12094, docs/KSIS_*).
    */
@@ -481,11 +486,15 @@ function parseCompetition($: CheerioAPI, page: string): KsisCompetition {
     const line = header.find("h5").toArray().map((h5) => clean($(h5).text())).find((text) => text.startsWith(label));
     return line ? clean(line.slice(label.length)) || null : null;
   };
-  const judges = $("a[href*='rozhodca.php']").toArray().map((a) => {
+  const judges: KsisJudge[] = [];
+  const shadowJudges: KsisJudge[] = [];
+  for (const a of $("a[href*='rozhodca.php']").toArray()) {
     const match = clean($(a).text()).match(/^([A-Z])\s*-\s*(.+?)(?:\s*\(([^)]*)\))?$/);
     if (!match) throw layoutChanged(page, "judge entry");
-    return { letter: match[1], name: match[2], city: match[3] ?? null };
-  });
+    const judge = { letter: match[1], name: match[2], city: match[3] ?? null };
+    const isShadow = $(a).prevAll("i").toArray().some((label) => /tieňová porota/i.test($(label).text()));
+    (isShadow ? shadowJudges : judges).push(judge);
+  }
 
   return {
     sutazId: idFrom($("a[href*='sutaz_id=']").first().attr("href"), "sutaz_id"),
@@ -499,6 +508,7 @@ function parseCompetition($: CheerioAPI, page: string): KsisCompetition {
     advancement: (field("Postupový kľúč:") ?? "").split("->").map((n) => n.trim()).filter((n) => /^\d+$/.test(n)).map(Number),
     couples: intOrNull(field("Počet párov") ?? ""),
     judges,
+    shadowJudges,
     hiddenJudgeLetters: missingLetters(judges.map((judge) => judge.letter)),
   };
 }

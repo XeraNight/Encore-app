@@ -227,8 +227,11 @@ struct KSISJudge: Codable, Equatable, Sendable, Identifiable {
     let city: String?
     /// Counted in "Suma" and in the final, but KSIS publishes neither the name nor the marks.
     let hidden: Bool
+    /// "Tieňová porota": listed by KSIS with its own letters, but its marks are neither published nor in "Suma".
+    var shadow: Bool? = nil
 
-    var id: String { letter }
+    var isShadow: Bool { shadow == true }
+    var id: String { (isShadow ? "shadow-" : "") + letter }
 }
 
 // MARK: - `ksis-page` function

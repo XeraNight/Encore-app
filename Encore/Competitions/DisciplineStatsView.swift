@@ -634,7 +634,7 @@ struct JudgeStat: Identifiable {
     static func all(in results: [CompetitionResult]) -> [JudgeStat] {
         var byName: [String: JudgeStat] = [:]
         for result in results {
-            let published = (result.judges ?? []).filter { !$0.hidden }
+            let published = (result.judges ?? []).filter { !$0.hidden && !$0.isShadow }
             let names = Dictionary(published.compactMap { judge in judge.name.map { (judge.letter, $0) } },
                                    uniquingKeysWith: { first, _ in first })
             var counts = Dictionary(names.values.map { ($0, (x: 0, all: 0)) }, uniquingKeysWith: { first, _ in first })

@@ -388,6 +388,17 @@ Deno.test("WDSF and cup results: placings without points", () => {
   assert(page.rows.every((row) => row.points === null && row.total === null && row.slp === null));
 });
 
+Deno.test("shadow jury: listed apart, never takes a judge's column", () => {
+  const page = parseMarks(fixture("marks_ajs_12248.html"));
+  assertEquals(page.competition.judges.map((judge) => judge.letter).join(""), "ABCDEFGHIJKL");
+  assertEquals(page.competition.shadowJudges.map((judge) => [judge.letter, judge.name]), [["A", "Rozhodca 13"]]);
+  assertEquals(page.competition.hiddenJudgeLetters, []);
+  assertEquals(page.judgeColumns, 12);
+  const first = coupleRounds(page, page.rounds[0].entries[0].parId)[0];
+  assertEquals(first.dances[0].marks.map((mark) => mark.letter).join(""), "ABCDEFGHIJKL");
+  assertEquals(first.dances[0].marks[11].name, "Rozhodca 12");
+});
+
 Deno.test("absolute judging: crosses rounds stay, the final has one score per dance", () => {
   const page = parseMarks(fixture("marks_ajs_12248.html"));
   assertEquals(page.rounds.map((round) => `${round.name}:${round.kind}:${round.entries.length}`), [

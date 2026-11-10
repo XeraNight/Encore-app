@@ -16,7 +16,8 @@ struct KSISResultDetailView: View {
     @State private var errorText: String?
 
     private var hiddenJudges: [KSISJudge] { (result.judges ?? []).filter(\.hidden) }
-    private var publishedJudges: [KSISJudge] { (result.judges ?? []).filter { !$0.hidden } }
+    private var publishedJudges: [KSISJudge] { (result.judges ?? []).filter { !$0.hidden && !$0.isShadow } }
+    private var shadowJudges: [KSISJudge] { (result.judges ?? []).filter(\.isShadow) }
 
     var body: some View {
         NavigationStack {
@@ -247,25 +248,43 @@ struct KSISResultDetailView: View {
             VStack(alignment: .leading, spacing: 10) {
                 HomeSectionHeader(title: "POROTCOVIA", systemImage: "person.3.fill")
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(result.judges ?? []) { judge in
-                        HStack(alignment: .firstTextBaseline, spacing: 10) {
-                            Text(judge.letter)
-                                .font(.system(.footnote, design: .rounded).weight(.black))
-                                .foregroundColor(Color.obsidian900)
-                                .frame(width: 24, height: 24)
-                                .background(judge.hidden ? Color.white.opacity(0.3) : Color.gold400, in: Circle())
-                            Text(judge.hidden
-                                 ? "KSIS meno nezverejňuje"
-                                 : [judge.name, judge.city.map { "(\($0))" }].compactMap { $0 }.joined(separator: " "))
-                                .font(.footnote)
-                                .foregroundColor(.white.opacity(judge.hidden ? 0.5 : 0.85))
+                    ForEach((result.judges ?? []).filter { !$0.isShadow }) { judge in
+                        judgeLine(judge)
+                    }
+                    if !shadowJudges.isEmpty {
+                        Text("Tieňová porota")
+                            .font(.caption.weight(.bold))
+                            .foregroundColor(Color.textSecondary)
+                            .padding(.top, 6)
+                        ForEach(shadowJudges) { judge in
+                            judgeLine(judge)
                         }
+                        Text("KSIS ich známky nezverejňuje a v Sume nie sú.")
+                            .font(.caption)
+                            .foregroundColor(Color.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .homeCard(cornerRadius: 18)
             }
+        }
+    }
+
+    private func judgeLine(_ judge: KSISJudge) -> some View {
+        let isMuted = judge.hidden || judge.isShadow
+        return HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(judge.letter)
+                .font(.system(.footnote, design: .rounded).weight(.black))
+                .foregroundColor(Color.obsidian900)
+                .frame(width: 24, height: 24)
+                .background(isMuted ? Color.white.opacity(0.3) : Color.gold400, in: Circle())
+            Text(judge.hidden
+                 ? "KSIS meno nezverejňuje"
+                 : [judge.name, judge.city.map { "(\($0))" }].compactMap { $0 }.joined(separator: " "))
+                .font(.footnote)
+                .foregroundColor(.white.opacity(isMuted ? 0.5 : 0.85))
         }
     }
 
