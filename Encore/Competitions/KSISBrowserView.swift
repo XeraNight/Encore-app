@@ -130,13 +130,13 @@ struct KSISBrowserView: View {
                     select(item)
                     if let url = url(of: item) { web.load(url) }
                 } label: {
-                    Label(item.title, systemImage: item.icon)
-                        .labelStyle(.titleAndIcon)
-                        .font(.caption.weight(.bold))
+                    Text(item.title)
+                        .font(.system(.footnote, design: .rounded).weight(.bold))
                         .lineLimit(1)
-                        .minimumScaleFactor(0.8)
+                        .minimumScaleFactor(0.85)
                         .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.8))
-                        .frame(maxWidth: .infinity, minHeight: 36)
+                        .padding(.horizontal, 6)
+                        .frame(maxWidth: .infinity, minHeight: 38)
                         .background {
                             if isOn {
                                 Capsule()
@@ -859,15 +859,6 @@ enum KSISTab: String, CaseIterable, Identifiable {
         case .calendar: return "Kalendár"
         case .cup: return "Pohár"
         case .couples: return "Moje páry"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .results: return "trophy.fill"
-        case .calendar: return "calendar"
-        case .cup: return "rosette"
-        case .couples: return "person.2.fill"
         }
     }
 
