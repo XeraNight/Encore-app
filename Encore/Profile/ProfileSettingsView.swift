@@ -29,6 +29,8 @@ struct ProfileSettingsView: View {
     @State private var sharingError: String?
     @State private var isLinking = false
     @State private var linkError: String?
+    /// "google" or "apple" while its linked row's details are open.
+    @State private var linkedDetails: String?
 
     var body: some View {
         ZStack {
@@ -60,6 +62,7 @@ struct ProfileSettingsView: View {
         .navigationTitle("Nastavenia")
         .navigationBarTitleDisplayMode(.inline)
         .task { await refreshStorageUsage() }
+        .task { await authManager.loadSignInMethod() }
         .sheet(isPresented: $showChangePassword) { PasswordUpdateSheet(mode: .change) }
         .sheet(isPresented: $showLegal) { LegalComplianceView() }
         .sheet(isPresented: $showOwnerConsole) { OwnerAdminConsoleView() }
@@ -103,7 +106,9 @@ struct ProfileSettingsView: View {
     // MARK: Account
     private var accountSection: some View {
         HomeRowGroup(title: "ÚČET") {
-            HomeRow(icon: "envelope.fill", title: "E-mail", subtitle: authManager.userEmail, showsChevron: false)
+            HomeRow(icon: "envelope.fill", title: "E-mail",
+                    subtitle: authManager.signInMethod == "email" ? "Teraz prihlásený heslom · \(authManager.userEmail)" : authManager.userEmail,
+                    showsChevron: false)
 
             if AppFeatures.coachTools {
                 HomeRowDivider()
@@ -173,21 +178,57 @@ struct ProfileSettingsView: View {
         } message: {
             Text(linkError ?? "")
         }
+        .confirmationDialog(
+            linkedDetails == "google" ? "Google" : "Apple",
+            isPresented: Binding(get: { linkedDetails != nil }, set: { if !$0 { linkedDetails = nil } }),
+            titleVisibility: .visible,
+            presenting: linkedDetails
+        ) { provider in
+            if provider == "google", let url = URL(string: "https://myaccount.google.com/connections") {
+                Button("Otvoriť účet Google") { UIApplication.shared.open(url) }
+            }
+            Button("Zavrieť", role: .cancel) {}
+        } message: { provider in
+            Text(provider == "google"
+                 ? "Týmto Google účtom sa dostaneš do tohto účtu Encore, s tými istými dátami. Aplikácie prepojené s Google účtom vidíš v účte Google."
+                 : "Týmto Apple účtom sa dostaneš do tohto účtu Encore, s tými istými dátami. Spravuješ ho v Nastaveniach iPhonu pod svojím Apple účtom, v časti Prihlásenie a zabezpečenie.")
+        }
     }
 
-    /// Google or Apple added to this account opens the same account, with the same data.
+    /// Google or Apple added to this account opens the same account, with the same data. A green tick says it is
+    /// added, "teraz prihlásený" says this iPhone signed in with it.
     private func signInRow(_ provider: String, title: String, icon: String) -> some View {
         let isLinked = authManager.signInProviders.contains(provider)
-        return Button { addSignIn(provider) } label: {
-            HomeRow(
-                icon: icon,
-                title: isLinked ? "Prihlásenie cez \(title)" : "Pridať prihlásenie cez \(title)",
-                subtitle: isLinked ? "Prepojené s týmto účtom." : "Potom sa prihlásiš aj ním, do toho istého účtu.",
-                showsChevron: !isLinked
-            )
+        return Button {
+            if isLinked { linkedDetails = provider } else { addSignIn(provider) }
+        } label: {
+            HStack(spacing: 0) {
+                HomeRow(
+                    icon: icon,
+                    title: isLinked ? "Prihlásenie cez \(title)" : "Pridať prihlásenie cez \(title)",
+                    subtitle: isLinked ? linkedSubtitle(provider) : "Potom sa prihlásiš aj ním, do toho istého účtu.",
+                    showsChevron: !isLinked
+                )
+                if isLinked {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(Color.syncEmerald)
+                        .padding(.trailing, 14)
+                        .transition(.scale.combined(with: .opacity))
+                        .accessibilityLabel("Prepojené")
+                }
+            }
+            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: isLinked)
         }
         .buttonStyle(.pressable(scale: 0.98))
-        .disabled(isLinked || isLinking)
+        .disabled(isLinking)
+    }
+
+    /// The linked account's e-mail (Apple may hide it), and whether this iPhone signed in with it.
+    private func linkedSubtitle(_ provider: String) -> String {
+        let email = authManager.signInEmail(provider).map { $0.hasSuffix("privaterelay.appleid.com") ? "skrytý e-mail Apple" : $0 }
+        let parts = [authManager.signInMethod == provider ? "Teraz prihlásený" : nil, email].compactMap { $0 }
+        return parts.isEmpty ? "Prepojené s týmto účtom." : parts.joined(separator: " · ")
     }
 
     private func addSignIn(_ provider: String) {

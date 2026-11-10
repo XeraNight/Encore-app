@@ -9,7 +9,7 @@ struct SavedAuthSession: Sendable {
 }
 
 // MARK: - Thread-safe iOS Keychain Helper for Biometric / Saved Auth
-final class KeychainHelper: @unchecked Sendable {
+nonisolated final class KeychainHelper: @unchecked Sendable {
     static let shared = KeychainHelper()
     private let serviceName = "com.encore.app.auth"
     private let lock = NSLock()

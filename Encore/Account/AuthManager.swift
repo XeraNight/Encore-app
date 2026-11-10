@@ -56,6 +56,8 @@ final class AuthManager: ObservableObject {
     /// App lock: with Face ID sign-in on, the user stays signed in and unlocks Encore with Face ID
     /// when opening it (after a restart or more than 5 minutes in the background).
     @Published var isAppLocked = false
+    /// How this iPhone signed in to the account this time: "email", "google" or "apple"; nil until read.
+    @Published private(set) var signInMethod: String?
     private var backgroundedAt: Date?
     private static let lockGracePeriod: TimeInterval = 5 * 60
 
@@ -190,6 +192,12 @@ final class AuthManager: ObservableObject {
     /// session in the Keychain, and iOS AutoFill / iCloud Keychain handles saved passwords.
     private func persistLogin(email: String, provider: String) {
         KeychainHelper.shared.saveSession(email: email, provider: provider)
+        signInMethod = provider
+    }
+
+    /// Reads how this iPhone signed in from the Keychain, off the main thread.
+    func loadSignInMethod() async {
+        signInMethod = await Task.detached { KeychainHelper.shared.readSession()?.provider }.value
     }
 
     // MARK: - Saved Credentials Info
@@ -708,6 +716,13 @@ final class AuthManager: ObservableObject {
     /// accounts until the user adds one to the other here.
     var signInProviders: Set<String> {
         Set(currentUser?.identities?.map(\.provider) ?? [])
+    }
+
+    /// The e-mail of the Google or Apple account added to this one, as that provider gave it.
+    func signInEmail(_ provider: String) -> String? {
+        guard let identity = currentUser?.identities?.first(where: { $0.provider == provider }),
+              case let .string(email)? = identity.identityData?["email"], !email.isEmpty else { return nil }
+        return email
     }
 
     /// Adds Google to the signed-in account. Returns a message when it failed; nil when done or cancelled.
