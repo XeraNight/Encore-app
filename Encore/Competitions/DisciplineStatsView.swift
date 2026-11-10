@@ -330,11 +330,11 @@ struct DisciplineStatsView: View {
         }
         .chartYScale(domain: chartShowsCrosses ? .automatic(includesZero: true) : .automatic(includesZero: false, reversed: true))
         .chartYAxis {
-            AxisMarks(values: yTicks(points)) { value in
-                AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
+            AxisMarks(position: .trailing, values: yTicks(points)) { value in
+                AxisGridLine().foregroundStyle(ChartAxisText.grid)
                 AxisValueLabel {
                     let number = value.as(Double.self).map { Int($0.rounded()) } ?? 0
-                    Text(chartShowsCrosses ? "\(number) %" : "\(number).").foregroundStyle(Color.textSecondary)
+                    ChartAxisText(chartShowsCrosses ? "\(number) %" : "\(number).")
                 }
             }
         }
@@ -342,8 +342,9 @@ struct DisciplineStatsView: View {
             let dates = Set([points.map(\.date).min(), points.map(\.date).max()].compactMap { $0 }).sorted()
             let spansYear = (dates.last?.timeIntervalSince(dates.first ?? .now) ?? 0) > 300 * 24 * 3600
             AxisMarks(values: dates) { value in
-                AxisValueLabel {
-                    if let date = value.as(Date.self) { Text(Self.axisDate(date, withYear: spansYear)).foregroundStyle(Color.textSecondary) }
+                // The first date starts at its point and the last one ends at its point, so neither runs off the card.
+                AxisValueLabel(anchor: dates.count == 1 ? .top : value.index == 0 ? .topLeading : .topTrailing) {
+                    if let date = value.as(Date.self) { ChartAxisText(Self.axisDate(date, withYear: spansYear)) }
                 }
             }
         }

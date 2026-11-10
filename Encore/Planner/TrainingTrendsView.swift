@@ -204,19 +204,21 @@ struct TrainingTrendsContent: View {
                 .chartForegroundStyleScale(["Tréningy": Color.white.opacity(0.75), "Samotréning": Color.gold400])
                 .chartLegend(position: .bottom, alignment: .leading)
                 .chartYAxis {
-                    AxisMarks { value in
-                        AxisGridLine().foregroundStyle(Color.white.opacity(0.08))
+                    AxisMarks(position: .trailing) { value in
+                        AxisGridLine().foregroundStyle(ChartAxisText.grid)
                         // "0,5 h" instead of a second "0 h" when the weeks are short.
                         AxisValueLabel {
-                            Text("\((value.as(Double.self) ?? 0).formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h")
-                                .foregroundStyle(Color.textSecondary)
+                            ChartAxisText("\((value.as(Double.self) ?? 0).formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h")
                         }
                     }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 4)) { _ in
-                        AxisValueLabel(format: .dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk")))
-                            .foregroundStyle(Color.textSecondary)
+                    AxisMarks(values: .automatic(desiredCount: 4)) { value in
+                        AxisValueLabel {
+                            if let date = value.as(Date.self) {
+                                ChartAxisText(date.formatted(.dateTime.day().month(.defaultDigits).locale(Locale(identifier: "sk"))))
+                            }
+                        }
                     }
                 }
                 .frame(height: 190)
