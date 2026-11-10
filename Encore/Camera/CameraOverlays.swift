@@ -162,6 +162,7 @@ struct QuickSaveVideoSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .safeAreaBar(edge: .bottom) {
                 VStack(spacing: 10) {

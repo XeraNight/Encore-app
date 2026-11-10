@@ -50,6 +50,7 @@ struct JournalInsertSheet: View {
                     .padding(.top, 8)
                     .padding(.bottom, 30)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Z denníka")
             .navigationBarTitleDisplayMode(.inline)

@@ -316,6 +316,7 @@ struct CoachLessonSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(student.otherUserName)

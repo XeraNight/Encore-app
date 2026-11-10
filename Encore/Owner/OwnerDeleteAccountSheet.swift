@@ -80,6 +80,7 @@ struct OwnerDeleteAccountSheet: View {
                     .padding(.bottom, 32)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: errorText)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Zmazať účet")

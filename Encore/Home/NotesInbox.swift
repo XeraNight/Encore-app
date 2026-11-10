@@ -192,6 +192,7 @@ struct NoteDetailSheet: View {
                     .padding(.top, 8)
                     .padding(.bottom, 40)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Poznámka")
@@ -365,6 +366,7 @@ struct FigurePickerSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 8)
                 }
+                .softTopEdge()
             }
             .searchable(text: $search, prompt: "Hľadať figúru alebo zostavu")
             .navigationTitle("Vybrať figúru")

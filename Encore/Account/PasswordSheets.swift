@@ -312,6 +312,7 @@ private struct AuthSheetScaffold<Content: View>: View {
                 .padding(.bottom, 32)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: title)
             }
+            .softTopEdge()
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top, spacing: 0) {
                 HStack {

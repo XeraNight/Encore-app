@@ -52,6 +52,7 @@ struct CompareHubView: View {
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: pathA)
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: pathB)
             }
+            .softTopEdge()
         }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

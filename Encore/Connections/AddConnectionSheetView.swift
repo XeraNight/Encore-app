@@ -55,6 +55,7 @@ struct AddConnectionSheetView: View {
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: successMessage)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: errorMessage)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Nové spojenie")
             .navigationBarTitleDisplayMode(.inline)

@@ -39,6 +39,7 @@ struct ConnectionResultsSheet: View {
                     .padding(20)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: results.count)
                 }
+                .softTopEdge()
             }
             .navigationTitle(connection.otherUserName)
             .navigationBarTitleDisplayMode(.inline)

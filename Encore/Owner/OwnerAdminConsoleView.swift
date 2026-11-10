@@ -70,6 +70,7 @@ struct OwnerAdminConsoleView: View {
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: mode)
                     .animation(.spring(response: 0.35, dampingFraction: 0.85), value: selectedUserId)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Majiteľská konzola")

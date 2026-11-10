@@ -71,6 +71,7 @@ struct SeminarSplitterView: View {
                     .padding(.bottom, 32)
                     .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: savedClips.count)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Strih lekcie")

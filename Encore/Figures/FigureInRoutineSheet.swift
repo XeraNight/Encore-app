@@ -63,6 +63,7 @@ struct FigureInRoutineSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Figúra v tejto zostave")
             .navigationBarTitleDisplayMode(.inline)

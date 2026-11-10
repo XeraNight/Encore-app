@@ -53,6 +53,7 @@ struct CompetitionTrackerView: View {
                 .padding(.bottom, 120)   // clear of the tab bar
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: manager.couples.map(\.id))
             }
+            .softTopEdge()
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
                 refreshCount += 1

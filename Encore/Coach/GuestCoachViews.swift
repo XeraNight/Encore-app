@@ -44,6 +44,7 @@ struct GuestCoachKeysSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Hosťujúci tréner")
             .navigationBarTitleDisplayMode(.inline)
@@ -465,6 +466,7 @@ struct GuestRoutinesListView: View {
                 }
                 .padding(20)
             }
+            .softTopEdge()
         }
         .navigationTitle("Požičané zostavy")
         .navigationBarTitleDisplayMode(.inline)

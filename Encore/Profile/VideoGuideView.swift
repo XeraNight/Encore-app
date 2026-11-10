@@ -91,6 +91,7 @@ struct VideoGuideView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 120)
             }
+            .softTopEdge()
         }
         .navigationTitle("Ako fungujú videá")
         .navigationBarTitleDisplayMode(.inline)

@@ -45,6 +45,7 @@ struct CompetitionDayView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 40)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Súťažný deň")
             .navigationBarTitleDisplayMode(.inline)

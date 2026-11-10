@@ -22,6 +22,7 @@ struct ProfileRoutinesListView: View {
                 }
                 .padding(20)
             }
+            .softTopEdge()
         }
         .navigationTitle("Zostavy")
         .navigationBarTitleDisplayMode(.inline)
@@ -84,6 +85,7 @@ struct ProfileFiguresListView: View {
                 .padding(.bottom, 120)   // clear of the tab bar
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: danceFilter)
             }
+            .softTopEdge()
             .scrollDismissesKeyboard(.interactively)
             .refreshable {
                 refreshCount += 1
@@ -249,6 +251,7 @@ struct ProfileMediaListView: View {
                 }
                 .padding(20)
             }
+            .softTopEdge()
         }
         .navigationTitle("Videá a poznámky")
         .navigationBarTitleDisplayMode(.inline)

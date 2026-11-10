@@ -34,6 +34,7 @@ struct AllRoutinesSheetView: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Zostavy")
             .navigationBarTitleDisplayMode(.inline)

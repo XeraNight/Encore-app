@@ -77,6 +77,7 @@ struct KSISCalendarView: View {
                 .animation(spring, value: filter)
                 .animation(spring, value: showsMap)
             }
+            .softTopEdge()
         }
         .navigationTitle("Kalendár súťaží")
         .navigationBarTitleDisplayMode(.inline)
@@ -366,6 +367,7 @@ struct KSISEventSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle(event.dateValue?.formatted(.dateTime.day().month(.wide).year().locale(Locale(identifier: "sk"))) ?? "")
             .navigationBarTitleDisplayMode(.inline)

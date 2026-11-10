@@ -105,6 +105,7 @@ struct DisciplineStatsView: View {
                 .animation(spring, value: scope)
                 .animation(spring, value: chartShowsCrosses)
             }
+            .softTopEdge()
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)

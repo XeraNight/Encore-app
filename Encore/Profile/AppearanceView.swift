@@ -32,6 +32,7 @@ struct AppearanceView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 120)
             }
+            .softTopEdge()
         }
         .navigationTitle("Vzhľad")
         .navigationBarTitleDisplayMode(.inline)

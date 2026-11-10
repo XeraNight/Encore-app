@@ -52,6 +52,7 @@ struct DanceDetailView: View {
                 .padding(.bottom, 40)
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: routinesForDance.map(\.id))
             }
+            .softTopEdge()
         }
         .navigationTitle(DanceNames.display(dance.name))
         .navigationBarTitleDisplayMode(.inline)

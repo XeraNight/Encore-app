@@ -91,6 +91,7 @@ public struct SubscriptionPaywallView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 40)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Členstvo")
             .navigationBarTitleDisplayMode(.inline)

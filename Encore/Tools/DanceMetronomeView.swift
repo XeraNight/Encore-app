@@ -35,6 +35,7 @@ public struct DanceMetronomeView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 32)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Metronóm")
             .navigationBarTitleDisplayMode(.inline)

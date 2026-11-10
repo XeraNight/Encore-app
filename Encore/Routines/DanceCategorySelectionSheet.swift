@@ -31,6 +31,7 @@ struct DanceCategorySelectionSheet: View {
                 .padding(.top, 8)
                 .padding(.bottom, 32)
             }
+            .softTopEdge()
         }
         .navigationTitle("Nová zostava")
         .navigationBarTitleDisplayMode(.inline)

@@ -89,6 +89,7 @@ struct MyResultsView: View {
                 .animation(spring, value: mode)
                 .animation(spring, value: pickedTown)
             }
+            .softTopEdge()
             .refreshable { await manager.loadAllData() }
         }
         .navigationTitle("Výsledky")

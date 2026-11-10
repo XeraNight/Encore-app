@@ -124,6 +124,7 @@ struct FigureDetailCard: View {
                             .onTapGesture { isWriting = false }
                     }
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .overlay {

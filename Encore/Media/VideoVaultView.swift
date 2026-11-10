@@ -107,6 +107,7 @@ struct VideoVaultView: View {
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selectedFilter)
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: mediaItems.map(\.id))
                 }
+                .softTopEdge()
                 .safeAreaInset(edge: .bottom) { actionBar }
             }
             .navigationTitle("Videá zostavy")

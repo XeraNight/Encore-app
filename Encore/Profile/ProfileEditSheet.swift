@@ -63,6 +63,7 @@ struct ProfileEditSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 16)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Upraviť profil")

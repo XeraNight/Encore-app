@@ -141,6 +141,7 @@ struct TrainingTrendsView: View {
                         ProgressView().tint(Color.gold400).padding(.top, 80)
                     }
                 }
+                .softTopEdge()
             }
             .navigationTitle("Vývoj")
             .navigationBarTitleDisplayMode(.inline)

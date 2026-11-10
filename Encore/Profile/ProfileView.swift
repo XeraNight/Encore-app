@@ -62,6 +62,7 @@ struct ProfileView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                 }
+                .softTopEdge()
             }
             .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showEditProfile) { ProfileEditSheet() }
@@ -344,6 +345,7 @@ struct MemberCardScreen: View {
                 .padding(20)
                 .padding(.bottom, 100)
             }
+            .softTopEdge()
         }
         .navigationTitle("Moja karta")
         .navigationBarTitleDisplayMode(.inline)

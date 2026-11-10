@@ -266,6 +266,7 @@ struct LessonPrioritiesSheet: View {
                     .padding(20)
                     .padding(.bottom, 90)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
 
                 VStack {

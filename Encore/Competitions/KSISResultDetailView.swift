@@ -37,6 +37,7 @@ struct KSISResultDetailView: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle(result.categoryName)
             .navigationBarTitleDisplayMode(.inline)

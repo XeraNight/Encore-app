@@ -144,6 +144,7 @@ struct NewFigureSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Nová figúra")
@@ -222,6 +223,7 @@ struct LibraryFigureDetailSheet: View {
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: figure.videoPath)
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: figure.imagePath)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(figure.name)

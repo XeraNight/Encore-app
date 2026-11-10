@@ -102,6 +102,7 @@ public struct CanvasRoutinesHubView: View {
                             .onTapGesture { isSearching = false }
                     }
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
                 .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.85), value: filteredRoutines.map(\.id))
             }

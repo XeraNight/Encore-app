@@ -61,6 +61,7 @@ struct FriendsListView: View {
                 .padding(.bottom, 120)   // clear of the tab bar
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: selectedTab)
             }
+            .softTopEdge()
             .scrollDismissesKeyboard(.interactively)
             .refreshable { await connectionManager.fetchAllConnections() }
         }
@@ -762,6 +763,7 @@ struct FriendsListView: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Môj QR kód")
             .navigationBarTitleDisplayMode(.inline)

@@ -129,6 +129,7 @@ struct FigureCorrectionSheet: View {
                     .padding(.top, 8)
                     .padding(.bottom, 110)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
 
                 VStack {

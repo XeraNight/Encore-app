@@ -45,6 +45,7 @@ struct PlannerEditorScaffold<Content: View>: View {
                 .padding(.bottom, 24)
                 .animation(.spring(response: 0.35, dampingFraction: 0.85), value: canSave)
             }
+            .softTopEdge()
             .scrollDismissesKeyboard(.interactively)
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }

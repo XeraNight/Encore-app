@@ -45,6 +45,7 @@ struct EditDanceSheet: View {
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: dance.videoPath)
                     .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85), value: dance.imagePath)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle(DanceNames.display(dance.name))

@@ -62,6 +62,7 @@ struct FiguresDrawerSheet: View {
                     }
                     .padding(20)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Pridať figúru")
@@ -189,6 +190,7 @@ struct TransitionEditSheet: View {
                     .padding(20)
                     .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isAutoSaved)
                 }
+                .softTopEdge()
                 .scrollDismissesKeyboard(.interactively)
             }
             .navigationTitle("Prechod")
@@ -492,6 +494,7 @@ struct QRExportSheet: View {
                     .padding(.horizontal, 20)
                     .padding(.bottom, 32)
                 }
+                .softTopEdge()
             }
             .navigationTitle("Zdieľať zostavu")
             .navigationBarTitleDisplayMode(.inline)
