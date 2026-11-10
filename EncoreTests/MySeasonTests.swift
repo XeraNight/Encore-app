@@ -65,13 +65,30 @@ struct MySeasonTests {
         #expect(SeasonStats.seasonTitle(2026) == "2026/27")
     }
 
-    @Test func judgesByHowOftenTheyJudgedWithTheirCrosses() throws {
+    @Test func everyJudgeWhoMarkedTheCoupleByHowOften() throws {
         let judges = JudgeStat.all(in: [try result(date: "2026-10-03"), try result(date: "2026-11-14", withFinal: true)])
-        #expect(judges.map(\.name) == ["Rozhodca A", "Rozhodca B", "Rozhodca C", "Rozhodca D"])
-        #expect(judges.map(\.competitions.count) == [2, 2, 2, 1])
-        #expect(judges.map(\.crosses) == [2, 4, 0, 0])
-        #expect(judges.map(\.marks) == [4, 4, 4, 0])
+        // D is listed but gave the couple no mark; E is hidden by KSIS.
+        #expect(judges.map(\.name) == ["Rozhodca A", "Rozhodca B", "Rozhodca C"])
+        #expect(judges.map(\.competitions.count) == [2, 2, 2])
+        let withFinal = try #require(judges.first?.competitions.first { !$0.finalPlaces.isEmpty })
+        #expect(withFinal.finalPlaces == [2, 1])
+        #expect(withFinal.finalAverage == 1.5)
+        #expect(judges.map { $0.competitions.map(\.crosses).reduce(0, +) } == [2, 4, 0])
         #expect(judges.first?.city == "Košice")
+    }
+
+    @Test func shadowJuryIsNeverAJudge() throws {
+        let json = """
+        {"id":"\(UUID().uuidString)","sutaz_id":1,"couple_id":7,"event_name":"GP","category_name":"Dospelí D",
+         "discipline":"STT","date":"2026-10-03","couple_count":12,"placement_text":"3.","placement":3,"points_earned":0,
+         "judges":[{"letter":"A","name":"Rozhodca A","city":null,"hidden":false},
+                   {"letter":"A","name":"Tieň A","city":null,"hidden":false,"shadow":true}],
+         "rounds":[{"round":"1.kolo","kind":"crosses","dances":[
+           {"dance":"WALTZ","marks":[{"letter":"A","mark":"X"}],"crosses":1}],"sum":1,"couplesInRound":12}]}
+        """
+        let result = try JSONDecoder().decode(CompetitionResult.self, from: Data(json.utf8))
+        #expect(JudgeStat.all(in: [result]).map(\.name) == ["Rozhodca A"])
+        #expect(result.judges?.map(\.id) == ["A", "shadow-A"])
     }
 
     @Test func oneCoupleUnderTwoKSISIds() throws {

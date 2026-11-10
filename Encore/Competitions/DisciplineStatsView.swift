@@ -488,7 +488,7 @@ struct DisciplineStatsView: View {
                     }
                 }
                 .homeCard(cornerRadius: 20)
-                Text("Zoradení podľa toho, koľkokrát vás hodnotili. Krížiky z kôl pred finále, ako ich KSIS zverejňuje.")
+                Text("Každý porotca, ktorý vás hodnotil, podľa toho, koľkokrát. Ťukni a uvidíš kde a ako, ako to KSIS zverejňuje.")
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -507,15 +507,18 @@ struct DisciplineStatsView: View {
                         Text(judge.name)
                             .font(.subheadline.weight(.bold))
                             .foregroundColor(.white)
-                        Text([judge.city, "\(judge.competitions.count)×"].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.caption)
-                            .foregroundColor(Color.textSecondary)
+                        if let city = judge.city, !city.isEmpty {
+                            Text(city)
+                                .font(.caption)
+                                .foregroundColor(Color.textSecondary)
+                        }
                     }
                     Spacer(minLength: 8)
-                    Text(judge.marks > 0 ? "\(judge.crosses) z \(judge.marks)" : "finále")
-                        .font(.system(.footnote, design: .rounded).weight(.bold))
+                    Text("\(judge.competitions.count)×")
+                        .font(.system(.subheadline, design: .rounded).weight(.heavy))
                         .monospacedDigit()
                         .foregroundColor(Color.gold300)
+                        .accessibilityLabel("Hodnotil vás \(judge.competitions.count)×")
                     Image(systemName: "chevron.down")
                         .font(.caption.weight(.bold))
                         .foregroundColor(.white.opacity(0.4))
@@ -532,19 +535,33 @@ struct DisciplineStatsView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(judge.competitions) { judged in
                         Button { selectedResult = judged.result } label: {
-                            HStack(spacing: 10) {
+                            HStack(alignment: .firstTextBaseline, spacing: 10) {
                                 Text(judged.result.dateValue?.formatted(.dateTime.day().month(.defaultDigits).year(.twoDigits)) ?? "")
                                     .font(.caption.monospacedDigit())
                                     .foregroundColor(Color.textSecondary)
                                     .frame(width: 62, alignment: .leading)
-                                Text(judged.result.eventName)
-                                    .font(.caption)
-                                    .foregroundColor(.white.opacity(0.85))
-                                    .lineLimit(1)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(judged.result.eventName)
+                                        .font(.caption)
+                                        .foregroundColor(.white.opacity(0.85))
+                                        .lineLimit(1)
+                                    if let town = ResultPlacesMap.town(of: judged.result) {
+                                        Text(town)
+                                            .font(.caption2)
+                                            .foregroundColor(Color.textSecondary)
+                                    }
+                                }
                                 Spacer(minLength: 6)
-                                Text(judged.marks > 0 ? "\(judged.crosses)/\(judged.marks)" : "finále")
-                                    .font(.caption.weight(.bold).monospacedDigit())
-                                    .foregroundColor(Color.gold300)
+                                VStack(alignment: .trailing, spacing: 1) {
+                                    if judged.marks > 0 {
+                                        Text("\(judged.crosses) z \(judged.marks) ✕")
+                                    }
+                                    if let final = judged.finalAverage {
+                                        Text("finále Ø \(final.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk"))))")
+                                    }
+                                }
+                                .font(.caption.weight(.bold).monospacedDigit())
+                                .foregroundColor(Color.gold300)
                             }
                             .contentShape(Rectangle())
                         }
@@ -614,14 +631,21 @@ struct DisciplineStatsView: View {
 }
 
 // MARK: - Who judged the couple
-/// A judge's crosses for the couple, from the rounds before the final, as KSIS publishes them.
+/// Every judge who gave the couple a mark, in any round, as KSIS publishes it: how often and where, never who was
+/// kind. The shadow jury and judges KSIS keeps hidden have no marks, so they are not here.
 struct JudgeStat: Identifiable {
     struct Judged: Identifiable {
         let result: CompetitionResult
+        /// Crosses and marks from the rounds before the final.
         let crosses: Int
-        /// Marks given in rounds before the final; 0 when the judge only placed the final.
         let marks: Int
+        /// The judge's places for the couple in the final, one per dance; empty when the couple was not in it.
+        let finalPlaces: [Int]
         var id: UUID { result.id }
+
+        var finalAverage: Double? {
+            finalPlaces.isEmpty ? nil : Double(finalPlaces.reduce(0, +)) / Double(finalPlaces.count)
+        }
     }
 
     let name: String
@@ -629,34 +653,37 @@ struct JudgeStat: Identifiable {
     var competitions: [Judged]
 
     var id: String { name }
-    var crosses: Int { competitions.map(\.crosses).reduce(0, +) }
-    var marks: Int { competitions.map(\.marks).reduce(0, +) }
 
-    /// Most competitions first, then by name: how often a judge saw the couple, never how kind they were.
+    /// Most competitions first, then by name.
     static func all(in results: [CompetitionResult]) -> [JudgeStat] {
         var byName: [String: JudgeStat] = [:]
         for result in results {
             let published = (result.judges ?? []).filter { !$0.hidden && !$0.isShadow }
             let names = Dictionary(published.compactMap { judge in judge.name.map { (judge.letter, $0) } },
                                    uniquingKeysWith: { first, _ in first })
-            var counts = Dictionary(names.values.map { ($0, (x: 0, all: 0)) }, uniquingKeysWith: { first, _ in first })
-            for round in result.rounds ?? [] where !round.isFinal && !round.isScores {
+            var tallies: [String: (crosses: Int, marks: Int, places: [Int])] = [:]
+            for round in result.rounds ?? [] where !round.isScores {
                 for dance in round.dances {
                     for mark in dance.marks {
                         guard let name = mark.name ?? mark.letter.flatMap({ names[$0] }) else { continue }
                         let value = mark.mark.trimmingCharacters(in: .whitespaces).uppercased()
-                        guard value == "X" || value == "." else { continue }
-                        var count = counts[name, default: (0, 0)]
-                        count.all += 1
-                        if value == "X" { count.x += 1 }
-                        counts[name] = count
+                        var tally = tallies[name, default: (0, 0, [])]
+                        if round.isFinal {
+                            guard let place = Int(value) else { continue }
+                            tally.places.append(place)
+                        } else {
+                            guard value == "X" || value == "." else { continue }
+                            tally.marks += 1
+                            if value == "X" { tally.crosses += 1 }
+                        }
+                        tallies[name] = tally
                     }
                 }
             }
-            for (name, count) in counts {
+            for (name, tally) in tallies {
                 let city = published.first { $0.name == name }?.city
-                byName[name, default: JudgeStat(name: name, city: city, competitions: [])]
-                    .competitions.append(Judged(result: result, crosses: count.x, marks: count.all))
+                byName[name, default: JudgeStat(name: name, city: city, competitions: [])].competitions
+                    .append(Judged(result: result, crosses: tally.crosses, marks: tally.marks, finalPlaces: tally.places))
             }
         }
         return byName.values.sorted { first, second in
