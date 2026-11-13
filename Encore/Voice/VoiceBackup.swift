@@ -12,7 +12,9 @@ final class VoiceBackup {
     static let shared = VoiceBackup()
 
     private var isSyncing = false
-    private var downloads: [String: Task<Bool, Never>] = [:]
+    private var downloads: [String: Task<Bool?, Never>] = [:]
+    /// Recordings the storage has no copy of (made before the copies began): asked once per run, not on every look.
+    private var withoutCopy: Set<String> = []
 
     private init() {}
 
@@ -66,9 +68,11 @@ final class VoiceBackup {
     /// Brings a recording back from its copy when it is not on this iPhone; false without a copy or a network.
     func download(_ name: String) async -> Bool {
         if MediaStorageManager.fileExists(name) { return true }
-        if let running = downloads[name] { return await running.value }
+        if let running = downloads[name] { return await running.value == true }
+        guard !withoutCopy.contains(name) else { return false }
         let key = savedKey
-        let task = Task { () -> Bool in
+        // nil when the server says there is no copy.
+        let task = Task { () -> Bool? in
             do {
                 let link: Link = try await EdgeFunctionClient.call("media-share", Request(action: "voice_download", name: name))
                 let (temporary, response) = try await URLSession.shared.download(from: link.downloadUrl)
@@ -77,14 +81,18 @@ final class VoiceBackup {
                 try? FileManager.default.removeItem(at: file)
                 try FileManager.default.moveItem(at: temporary, to: file)
                 return true
+            } catch EdgeFunctionClient.Failure.server {
+                return nil
             } catch {
                 Logger.audio.notice("Voice note not brought back: \(error.localizedDescription, privacy: .public)")
                 return false
             }
         }
         downloads[name] = task
-        let isBack = await task.value
+        let result = await task.value
         downloads[name] = nil
+        if result == nil { withoutCopy.insert(name) }
+        let isBack = result == true
         if isBack {
             var saved = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
             saved.insert(name)
