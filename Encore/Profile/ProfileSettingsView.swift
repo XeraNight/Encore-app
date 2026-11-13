@@ -42,7 +42,6 @@ struct ProfileSettingsView: View {
                     signInSection
                     notificationsSection
                     sharingSection
-                    playbackSection
                     dataSection
                     helpSection
                     if subscriptionManager.isAppOwner { ownerSection }
@@ -297,28 +296,6 @@ struct ProfileSettingsView: View {
                     }
                 )
             )
-        }
-    }
-
-    // MARK: Playback
-    private var playbackSection: some View {
-        HomeRowGroup(title: "PREHRÁVANIE") {
-            HStack(spacing: 0) {
-                HomeRow(icon: "play.circle.fill", title: "Rýchlosť videí v knižnici", showsChevron: false)
-                Picker("Rýchlosť videí", selection: Binding(
-                    get: { profileStore.currentPlaybackRate },
-                    set: { profileStore.setPlaybackRate($0); changeCount += 1 }
-                )) {
-                    Text("0,5×").tag(0.5)
-                    Text("0,75×").tag(0.75)
-                    Text("1×").tag(1.0)
-                    Text("1,5×").tag(1.5)
-                }
-                .pickerStyle(.menu)
-                .tint(Color.gold400)
-                .labelsHidden()
-                .padding(.trailing, 8)
-            }
         }
     }
 

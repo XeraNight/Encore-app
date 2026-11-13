@@ -67,7 +67,6 @@ private nonisolated struct DeviceData: Encodable, Sendable {
         let danceRole: String
         let faceIdLogin: Bool
         let trainingNotifications: Bool
-        let libraryVideoSpeed: Double
     }
 
     struct Note: Encodable, Sendable {
@@ -194,8 +193,7 @@ private extension DeviceData {
         settings = Settings(
             danceRole: UserProfileStore.shared.danceRole,
             faceIdLogin: AuthManager.shared.isBiometricsEnabled,
-            trainingNotifications: NotificationManager.shared.notificationsEnabled,
-            libraryVideoSpeed: UserProfileStore.shared.currentPlaybackRate
+            trainingNotifications: NotificationManager.shared.notificationsEnabled
         )
 
         notes = fetch(InstantNote.self)

@@ -8,14 +8,13 @@ struct AttachedVideoSection: View {
     @Binding var videoPath: String?
     var onChange: () -> Void
 
-    @AppStorage("defaultPlaybackRate") private var defaultPlaybackRate = 1.0
-    @State private var playbackRate: Float?
+    /// Each video starts at its real speed; the chips under it slow it down or speed it up.
+    @State private var rate: Float = 1
     @State private var showCamera = false
     @State private var showMediaPicker = false
     @State private var confirmDelete = false
 
     private static let speeds: [Float] = [0.5, 0.75, 1, 1.5]
-    private var rate: Float { playbackRate ?? Float(defaultPlaybackRate) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -40,7 +39,7 @@ struct AttachedVideoSection: View {
                 HStack(spacing: 8) {
                     ForEach(Self.speeds, id: \.self) { speed in
                         let isSelected = rate == speed
-                        Button { playbackRate = speed } label: {
+                        Button { rate = speed } label: {
                             Text(Self.speedText(speed))
                                 .font(.footnote.weight(isSelected ? .bold : .semibold))
                                 .foregroundColor(isSelected ? Color.obsidian900 : .white.opacity(0.85))
@@ -51,7 +50,7 @@ struct AttachedVideoSection: View {
                         .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
-                .sensoryFeedback(.selection, trigger: playbackRate)
+                .sensoryFeedback(.selection, trigger: rate)
             } else {
                 HStack(spacing: 10) {
                     Button { showCamera = true } label: { AttachmentTile(title: "Natočiť", icon: "record.circle") }

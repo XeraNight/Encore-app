@@ -19,7 +19,6 @@ final class UserProfileStore: ObservableObject {
     @Published var dancerCode: String = "DNC-0000"
     @Published var dancerGroups: [String] = ["Štandardné tance", "Latinskoamerické tance"]
     @Published var cardTheme: String = "carmine_gold"
-    @Published var currentPlaybackRate: Double = 1.0
     /// "dancer" or "coach" – what the user does (self-declared). It is a label, not a permission:
     /// coach powers come only from an accepted coach–student connection on the server.
     @Published var danceRole: String = "dancer"
@@ -104,15 +103,6 @@ final class UserProfileStore: ObservableObject {
             currentAvatarPath = defaults.string(forKey: "profileImagePath")
         } else {
             currentAvatarPath = nil // Never inherit another account's photo
-        }
-        
-        // 5. Playback Rate
-        let savedRate = defaults.double(forKey: "profileRate_\(uid)")
-        if savedRate > 0 {
-            currentPlaybackRate = savedRate
-        } else {
-            let legacyRate = defaults.double(forKey: "defaultPlaybackRate")
-            currentPlaybackRate = legacyRate > 0 ? legacyRate : 1.0
         }
         
         // 6. Invite Code, Dancer Code & KSIS ID
@@ -307,13 +297,5 @@ final class UserProfileStore: ObservableObject {
                 defaults.removeObject(forKey: "profileImagePath")
             }
         }
-    }
-    
-    /// Updates preferred video playback rate for the active account
-    func setPlaybackRate(_ rate: Double) {
-        let uid = activeUserId
-        currentPlaybackRate = rate
-        UserDefaults.standard.set(rate, forKey: "profileRate_\(uid)")
-        UserDefaults.standard.set(rate, forKey: "defaultPlaybackRate")
     }
 }
