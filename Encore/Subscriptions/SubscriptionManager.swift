@@ -109,9 +109,19 @@ final class SubscriptionManager: ObservableObject {
     }
     
     // MARK: - Entitlements Refresh & Verification
-    // MARK: - Entitlements Refresh & Verification
+    /// When the plan was last checked on the server.
+    private var lastCheck: Date?
+
+    /// The plan is checked again when the app comes back, so a gift from the owner, or its end, shows without
+    /// quitting the app. Not more often than every 10 minutes: the plan rarely changes.
+    public func refreshEntitlementsAfterBackground() async {
+        if let lastCheck, Date().timeIntervalSince(lastCheck) < 600 { return }
+        await refreshEntitlements()
+    }
+
     public func refreshEntitlements() async {
         isCheckingEntitlements = true
+        lastCheck = Date()
         let checkedFor = AuthManager.shared.currentUser?.id
         defer {
             isCheckingEntitlements = false
@@ -389,6 +399,18 @@ final class SubscriptionManager: ObservableObject {
             let p_tier: String
             let p_duration_months: Int?
             let p_note: String
+
+            /// "Navždy" and taking a plan away have no length. The server function has no default for it, so it
+            /// goes as null: left out, the server does not find the function at all.
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(p_user, forKey: .p_user)
+                try container.encode(p_tier, forKey: .p_tier)
+                try container.encode(p_duration_months, forKey: .p_duration_months)
+                try container.encode(p_note, forKey: .p_note)
+            }
+
+            private enum CodingKeys: String, CodingKey { case p_user, p_tier, p_duration_months, p_note }
         }
         // The server sets the expiry and writes the gift to the owner record.
         try await SupabaseConfig.client

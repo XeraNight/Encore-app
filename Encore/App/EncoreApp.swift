@@ -219,7 +219,10 @@ struct RootAppView: View {
                 // What was written just now goes up while iOS still gives the app a moment.
                 PendingSyncRunner.shared.run()
             }
-            if newPhase == .active && oldPhase == .background { authManager.appDidBecomeActive() }
+            if newPhase == .active && oldPhase == .background {
+                authManager.appDidBecomeActive()
+                Task { await SubscriptionManager.shared.refreshEntitlementsAfterBackground() }
+            }
             if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
                 // Device woke up from lock screen or returned from background!
                 UserProfileStore.shared.refreshForActiveUser()
