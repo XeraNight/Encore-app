@@ -393,7 +393,7 @@ struct MyResultsView: View {
     /// Seasons run from September to August, as the dancers count them.
     @ViewBuilder
     private func seasonList(_ shown: [CompetitionResult]) -> some View {
-        let seasons = Dictionary(grouping: shown) { $0.dateValue.map(SeasonStats.seasonStartYear(of:)) ?? 0 }
+        let seasons = Dictionary(grouping: shown) { $0.dateValue.map { SeasonStats.seasonStartYear(of: $0) } ?? 0 }
         ForEach(seasons.keys.sorted(by: >), id: \.self) { season in
             VStack(alignment: .leading, spacing: 8) {
                 HomeSectionHeader(title: season > 0 ? "SEZÓNA \(SeasonStats.seasonTitle(season))" : "BEZ DÁTUMU",

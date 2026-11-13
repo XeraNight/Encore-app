@@ -71,7 +71,7 @@ struct DisciplineStatsView: View {
     private var results: [CompetitionResult] {
         manager.results(for: couple)
             .filter { $0.discipline == discipline }
-            .filter { result in seasonYear == nil || result.dateValue.map(SeasonStats.seasonStartYear(of:)) == seasonYear }
+            .filter { result in seasonYear == nil || result.dateValue.map { SeasonStats.seasonStartYear(of: $0) } == seasonYear }
             .sorted { $0.date > $1.date }
     }
 
