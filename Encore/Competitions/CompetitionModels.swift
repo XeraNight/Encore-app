@@ -354,6 +354,8 @@ struct KSISPageReply: Decodable, Sendable {
         let eventName: String
         let category: String
         let date: String?
+        /// "Miesto:" of the page; nil when KSIS gives none.
+        let venue: String?
         let couples: Int?
         let advancement: [Int]
     }

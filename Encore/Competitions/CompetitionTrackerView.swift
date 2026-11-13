@@ -438,11 +438,13 @@ struct CompetitionTrackerView: View {
         }
     }
 
-    // MARK: Crosses still to read
-    /// KSIS has one page per competition for the crosses and an update reads 30; until all are read, this says so.
+    // MARK: Crosses and places still to read
+    /// KSIS has one page per competition for the crosses and the place, and an update reads 30; until all are read,
+    /// this says so.
     @ViewBuilder
     private var marksReminder: some View {
-        let missing = manager.results.filter(manager.isMissingMarks).count
+        let withoutMarks = manager.results.filter(manager.isMissingMarks).count
+        let missing = manager.results.filter { manager.isMissingMarks($0) || manager.isMissingVenue($0) }.count
         if missing > 0 {
             Button { updateJob = .marks } label: {
                 HStack(spacing: 12) {
@@ -450,7 +452,7 @@ struct CompetitionTrackerView: View {
                         .foregroundColor(Color.gold400)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Dočítaj krížiky z KSIS")
+                        Text(withoutMarks > 0 ? "Dočítaj krížiky z KSIS" : "Doplň miesta súťaží z KSIS")
                             .font(.subheadline.weight(.bold))
                             .foregroundColor(.white)
                         Text("Zostáva \(slovakCount(missing, one: "súťaž", few: "súťaže", many: "súťaží"))")

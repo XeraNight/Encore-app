@@ -277,23 +277,53 @@ final class KSISUpdateRun {
         }
     }
 
-    /// Crosses of the competitions without them, newest first. Returns how many are left for the next update.
+    /// Crosses of the competitions without them and the place of those saved without one, newest first. Returns how
+    /// many are left for the next update.
     private func updateMarks() async throws -> Int {
-        let missing = manager.results.filter(manager.isMissingMarks)
+        let missing = manager.results.filter { manager.isMissingMarks($0) || manager.isMissingVenue($0) }
         let batch = missing.prefix(Self.marksPerRun)
         for (index, result) in batch.enumerated() {
-            say("Krížiky \(index + 1) z \(batch.count)…")
-            guard let url = KSISBrowserView.page("hodnot_sut.php?sutaz_id=\(result.sutazId)") else { continue }
-            let page = try await open(url)
-            do {
-                _ = try await manager.save(url: page.url, html: page.html, reloads: false)
-            } catch CompetitionManager.ActionError.notFound {
-                manager.noteNoMarks(result)
-            } catch CompetitionManager.ActionError.server {
-                failures += 1
+            say("Krížiky a miesta \(index + 1) z \(batch.count)…")
+            var outcome = SavedPage.notThere
+            // The crosses page carries the place too. A competition KSIS has no crosses for keeps its place on
+            // the results page.
+            if result.rounds?.isEmpty == false || manager.isMissingMarks(result) {
+                outcome = try await savePage("hodnot_sut.php?sutaz_id=\(result.sutazId)")
+                if case .notThere = outcome { manager.noteNoMarks(result) }
+            }
+            if case .notThere = outcome, manager.isMissingVenue(result) {
+                outcome = try await savePage("sutaz.php?sutaz_id=\(result.sutazId)")
+            }
+            switch outcome {
+            case .saved(venue: .none), .notThere:
+                if manager.isMissingVenue(result) { manager.noteNoVenue(result) }
+            case .saved, .failed:
+                break
             }
         }
         return missing.count - batch.count
+    }
+
+    private enum SavedPage {
+        case saved(venue: String?)
+        /// The couple is not on the page.
+        case notThere
+        /// Not saved this time; the next update asks again.
+        case failed
+    }
+
+    private func savePage(_ path: String) async throws -> SavedPage {
+        guard let url = KSISBrowserView.page(path) else { return .failed }
+        let page = try await open(url)
+        do {
+            let reply = try await manager.save(url: page.url, html: page.html, reloads: false)
+            return .saved(venue: reply.competition?.venue)
+        } catch CompetitionManager.ActionError.notFound {
+            return .notThere
+        } catch CompetitionManager.ActionError.server {
+            failures += 1
+            return .failed
+        }
     }
 
     private func updateCup() async throws {
@@ -581,11 +611,11 @@ struct KSISUpdateSheet: View {
         }
     }
 
-    /// Crosses are one KSIS page per competition, read 30 at a time.
+    /// Crosses and the place are one KSIS page per competition, read 30 at a time.
     private func marksLeftNote(_ count: Int) -> some View {
         let rounds = (count + 29) / 30
         return VStack(alignment: .leading, spacing: 3) {
-            Text("Zostáva dočítať krížiky k \(slovakCount(count, one: "súťaži", few: "súťažiam", many: "súťažiam"))")
+            Text("Zostáva dočítať \(slovakCount(count, one: "súťaž", few: "súťaže", many: "súťaží"))")
                 .font(.subheadline.weight(.bold))
                 .foregroundColor(.white)
             Text("Číta sa po 30 súťaží, ešte \(slovakCount(rounds, one: "kolo", few: "kolá", many: "kôl")).")

@@ -23,9 +23,17 @@ final class CompetitionManager: ObservableObject {
 
     /// Competitions whose crosses KSIS does not have for the couple: the update stops asking for them.
     @Published private(set) var competitionsWithoutMarks: Set<Int> = []
-    /// Per account, so after switching accounts and back the pages KSIS has no crosses on are not read again.
+    /// Competitions whose page gives no place ("Miesto:"): the update stops asking for them too.
+    @Published private(set) var competitionsWithoutVenue: Set<Int> = []
+    /// Per account, so after switching accounts and back the pages KSIS has nothing on are not read again.
     private static func withoutMarksKey(_ user: UUID?) -> String {
         "encore.ksisCompetitionsWithoutMarks" + (user.map { ".\($0.uuidString)" } ?? "")
+    }
+    private static func withoutVenueKey(_ user: UUID?) -> String {
+        "encore.ksisCompetitionsWithoutVenue." + (user?.uuidString ?? "none")
+    }
+    private static func savedCompetitions(_ key: String) -> Set<Int> {
+        Set(UserDefaults.standard.array(forKey: key) as? [Int] ?? [])
     }
 
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
@@ -60,7 +68,8 @@ final class CompetitionManager: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] user in
                 if let user {
-                    self?.competitionsWithoutMarks = Set(UserDefaults.standard.array(forKey: Self.withoutMarksKey(user.id)) as? [Int] ?? [])
+                    self?.competitionsWithoutMarks = Self.savedCompetitions(Self.withoutMarksKey(user.id))
+                    self?.competitionsWithoutVenue = Self.savedCompetitions(Self.withoutVenueKey(user.id))
                     Task { await self?.loadAllData() }
                 } else {
                     self?.resetState()
@@ -75,6 +84,7 @@ final class CompetitionManager: ObservableObject {
         results = []
         loadFailed = false
         competitionsWithoutMarks = []
+        competitionsWithoutVenue = []
     }
 
     /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
@@ -135,6 +145,18 @@ final class CompetitionManager: ObservableObject {
         guard let date = result.dateValue, date < recent else { return }
         competitionsWithoutMarks.insert(result.sutazId)
         UserDefaults.standard.set(Array(competitionsWithoutMarks), forKey: Self.withoutMarksKey(AuthManager.shared.currentUser?.id))
+    }
+
+    /// The result has no place yet and KSIS may give one: a competition saved from the couple's history comes
+    /// without it, the place is on the competition's own pages.
+    func isMissingVenue(_ result: CompetitionResult) -> Bool {
+        result.venue == nil && !competitionsWithoutVenue.contains(result.sutazId)
+    }
+
+    /// The competition's pages were read and give no place.
+    func noteNoVenue(_ result: CompetitionResult) {
+        competitionsWithoutVenue.insert(result.sutazId)
+        UserDefaults.standard.set(Array(competitionsWithoutVenue), forKey: Self.withoutVenueKey(AuthManager.shared.currentUser?.id))
     }
 
     // MARK: Pages

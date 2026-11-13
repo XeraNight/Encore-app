@@ -317,7 +317,7 @@ struct ResultPlacesMap: View {
     }
 
     var body: some View {
-        let towns = results.map(Self.town(of:))
+        let towns = results.map { Self.town(of: $0) }
         let counts = Dictionary(grouping: towns.compactMap { $0 }) { $0 }.mapValues(\.count)
         let elsewhere = towns.filter { $0 == nil }.count
         VStack(alignment: .leading, spacing: 8) {
@@ -326,14 +326,25 @@ struct ResultPlacesMap: View {
             if let picked = town {
                 TownPickedRow(town: picked, count: counts[picked] ?? 0) { town = nil }
             } else {
-                Text(elsewhere > 0
-                     ? "Ťukni na mesto a zoznam ukáže jeho súťaže. Mimo mapy: \(elsewhere), v zahraničí alebo ešte bez miesta, to príde s krížikmi."
-                     : "Ťukni na mesto a zoznam ukáže jeho súťaže.")
+                Text(placesNote(elsewhere: elsewhere))
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+}
+
+extension ResultPlacesMap {
+    /// What the map cannot show: competitions still without a place (Aktualizovať reads it) and those outside the map.
+    private func placesNote(elsewhere: Int) -> String {
+        let unread = results.filter { CompetitionManager.shared.isMissingVenue($0) }.count
+        var text = "Ťukni na mesto a zoznam ukáže jeho súťaže."
+        if unread > 0 {
+            text += " \(slovakCount(unread, one: "súťaž je", few: "súťaže sú", many: "súťaží je")) ešte bez miesta: doplní ho Aktualizovať z KSIS."
+        }
+        if elsewhere - unread > 0 { text += " Mimo mapy: \(elsewhere - unread), v zahraničí alebo bez miesta v KSIS." }
+        return text
     }
 }
 
