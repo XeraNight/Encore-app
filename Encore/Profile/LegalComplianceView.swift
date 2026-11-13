@@ -98,7 +98,7 @@ public struct LegalComplianceView: View {
                 • Registračné údaje: meno alebo prezývka a e-mailová adresa (zadané priamo alebo cez prihlásenie Google či Apple). Právny základ: plnenie zmluvy o poskytovaní služby.
                 • Rok narodenia (len rok, nie dátum): ak môžeš mať menej ako 16 rokov, pri registrácii súhlasí rodič a ostatní ťa nájdu len podľa ID tanečníka alebo QR kódu, nie podľa mena. Právny základ: plnenie zmluvy a čl. 8 GDPR.
                 • Tanečné materiály: zostavy, choreografie, vlastné poznámky a nahrávky figúr. Vidíš ich len ty a ľudia, s ktorými ich sám zdieľaš.
-                • Záloha denníka, plánu a poznámok: text zápisov z Denníka, Plánu a poznámok z Domova ukladáme na server, aby si ich dostal späť na novom iPhone. Videá, hlasové poznámky a fotky ostávajú v iPhone. Vidíš ich len ty.
+                • Záloha denníka, plánu a poznámok: text zápisov z Denníka, Plánu a poznámok z Domova ukladáme na server, aby si ich dostal späť na novom iPhone. Z toho istého dôvodu ukladáme aj kópie tvojich hlasových poznámok, v súkromnom úložisku Encore; zmažú sa, keď zmažeš poznámku alebo účet. Videá a fotky ostávajú v iPhone. Vidíš ich len ty.
                 • Tréningové videá a porovnanie so vzorom: videá sú v tvojich Fotkách. Čiary a sklon v porovnaní kreslíš sám; appka nerozpoznáva postavu ani tvár a videá nepoužíva na biometrickú identifikáciu.
                 • Súťažné dáta z verejného systému KSIS (szts.ksis.eu), ktoré si uložíš zo stránky KSIS otvorenej v appke: kto si v KSIS (osobné číslo z preukazu, meno, klub, triedy), tvoje páry a pri tvojich súťažiach trieda, body, finále a výsledky.
                 """
@@ -123,7 +123,7 @@ public struct LegalComplianceView: View {
             
             legalSection(
                 title: "5. Tretie strany a infraštruktúra",
-                body: "Dáta sú bezpečne ukladané v databáze Supabase s platnou zmluvou o spracovaní údajov (DPA) a servermi umiestnenými v Európskej únii. Tvoje tréningové videá ostávajú v tvojich Fotkách na iPhone. Keď video zdieľaš s partnerom alebo trénerom, jeho zmenšenú kópiu ukladáme v úložisku Cloudflare R2 v Európe (so zmluvou o spracovaní údajov); vidí ju len tvoj partner alebo partnerka (či tréner) a po zrušení zdieľania sa zmaže. Žiadne osobné údaje nepredávame reklamným sieťam ani nesledujeme používateľov naprieč inými aplikáciami (App Tracking Transparency = No Tracking)."
+                body: "Dáta sú bezpečne ukladané v databáze Supabase s platnou zmluvou o spracovaní údajov (DPA) a servermi umiestnenými v Európskej únii. Tvoje tréningové videá ostávajú v tvojich Fotkách na iPhone. Kópie hlasových poznámok ukladáme v úložisku Cloudflare R2 v Európe (so zmluvou o spracovaní údajov); dostane sa k nim len tvoj účet. Keď video zdieľaš s partnerom alebo trénerom, jeho zmenšenú kópiu ukladáme v tom istom úložisku; vidí ju len tvoj partner alebo partnerka (či tréner) a po zrušení zdieľania sa zmaže. Žiadne osobné údaje nepredávame reklamným sieťam ani nesledujeme používateľov naprieč inými aplikáciami (App Tracking Transparency = No Tracking)."
             )
             
             legalSection(

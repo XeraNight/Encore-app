@@ -21,7 +21,7 @@ struct VideoGuideView: View {
         let voice = Topic(
             title: "HLASOVÉ NAHRÁVKY",
             icon: "waveform",
-            text: "Fotky zvuk neukladajú, preto hlasové poznámky ostávajú v Encore v tvojom iPhone. Zálohujú sa so zálohou iPhonu v iCloude."
+            text: "Fotky zvuk neukladajú, preto hlasové poznámky ostávajú v Encore v tvojom iPhone. Ich kópiu ukladáme do súkromného úložiska Encore, takže na novom iPhone sa ti vrátia."
         )
         guard AppFeatures.sharedVideos else {
             return [
