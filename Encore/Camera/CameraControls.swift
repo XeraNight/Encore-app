@@ -5,7 +5,9 @@ extension View {
     /// The camera's glass: Liquid Glass over the Lock Screen activity's red. A picture only, never interactive, so
     /// it never takes a tap from the buttons on it (BRAND_GUIDELINES §1A).
     func cameraGlass<S: Shape>(in shape: S) -> some View {
-        glassEffect(.regular.tint(Color.activityRed.opacity(0.5)), in: shape)
+        // Deep burgundy, strong enough to stay dark over a bright hall: a lighter red washed out to pink there.
+        glassEffect(.regular.tint(Color.encoreBurgundy.opacity(0.8)), in: shape)
+            .environment(\.colorScheme, .dark)
     }
 
     /// A camera chip: white 12 % like the Lock Screen activity's buttons, gold when on, never under 44 pt.
@@ -145,7 +147,6 @@ struct CameraBeatDot: View {
 /// "W • 84 BPM • Doba 1/3" above the controls while the metronome plays.
 struct CameraMetronomeStatusPill: View {
     @ObservedObject private var metronome = DanceMetronomeEngine.shared
-    let isRecording: Bool
 
     var body: some View {
         if metronome.selectedPreset != .off {
@@ -161,7 +162,6 @@ struct CameraMetronomeStatusPill: View {
             .padding(.vertical, 8)
             .cameraGlass(in: Capsule())
             .overlay(Capsule().stroke(metronome.currentBeat == 1 ? Color.amberGold.opacity(0.6) : Color.white.opacity(0.1), lineWidth: 1))
-            .opacity(isRecording ? 0.75 : 1.0)
             .transition(.scale.combined(with: .opacity))
         }
     }
@@ -194,7 +194,7 @@ struct CameraRecordingPill: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
-        .cameraGlass(in: Capsule())
+        .background(Color.white.opacity(0.12), in: Capsule())
         .overlay(Capsule().stroke(Color.red.opacity(0.55), lineWidth: 1))
     }
 }

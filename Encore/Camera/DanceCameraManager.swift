@@ -1,5 +1,5 @@
 import AudioToolbox
-import AVFoundation
+@preconcurrency import AVFoundation
 import Combine
 import Foundation
 import Observation
@@ -505,8 +505,7 @@ private enum RecordingActivity {
             sessionTitle: on ? "\(metronome.selectedPreset.shortCode) tréning" : "",
             metronomeName: on ? metronome.selectedPreset.shortCode : "",
             bpm: metronome.effectiveBpm,
-            beatsPerMeasure: on ? metronome.beatsPerMeasure : 0,
-            audioLevel: 0
+            beatsPerMeasure: on ? metronome.beatsPerMeasure : 0
         )
     }
     #else

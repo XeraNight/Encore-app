@@ -55,32 +55,9 @@ struct RecordingLiveActivity: Widget {
                         .padding(.top, 4)
                 }
 
-                // Expanded Bottom (Full width controls & 11-segment VU meter)
+                // Expanded Bottom (full width controls)
                 DynamicIslandExpandedRegion(.bottom) {
                     VStack(spacing: 12) {
-                        // How loud the hall is, so the music is heard on the video
-                        VStack(spacing: 6) {
-                            Text("HLASITOSŤ V SÁLE")
-                                .font(.system(size: 10, weight: .heavy))
-                                .foregroundColor(Color.white.opacity(0.55))
-                                .tracking(0.5)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            
-                            // 11-Segment Capsule Bar (5 Green, 3 Yellow, 3 Red)
-                            HStack(spacing: 4) {
-                                ForEach(0..<11, id: \.self) { index in
-                                    let threshold = Float(index + 1) / 11.0
-                                    let isActive = context.state.audioLevel >= threshold
-                                    
-                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                        .fill(segmentColor(for: index, isActive: isActive))
-                                        .frame(height: 8)
-                                        .frame(maxWidth: .infinity)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 6)
-
                         // Bottom Actions: Centered Bookmark (Left) + Red Circle Stop (Right) - Scaled Elegantly
                         HStack(spacing: 18) {
                             if #available(iOSApplicationExtension 17.0, *) {
@@ -142,16 +119,6 @@ struct RecordingLiveActivity: Widget {
     }
 }
 
-private func segmentColor(for index: Int, isActive: Bool) -> Color {
-    guard isActive else { return Color(white: 0.16) }
-    if index < 5 {
-        return Color(red: 0.19, green: 0.82, blue: 0.35) // 5 green
-    } else if index < 8 {
-        return Color(red: 1.0, green: 0.84, blue: 0.04)  // 3 yellow
-    } else {
-        return Color(red: 0.95, green: 0.26, blue: 0.21)  // 3 red
-    }
-}
 
 // MARK: - Lock Screen banner
 /// One look for every Encore Live Activity on the Lock Screen: an icon, a bold title, a gold line under it and round

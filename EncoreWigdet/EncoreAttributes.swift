@@ -24,7 +24,6 @@ struct RecordingActivityAttributes: ActivityAttributes {
         var metronomeName: String
         var bpm: Int
         var beatsPerMeasure: Int
-        var audioLevel: Float
     }
 
     var recordingName: String

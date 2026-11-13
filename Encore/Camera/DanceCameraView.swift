@@ -155,18 +155,15 @@ struct DanceCameraView: View {
                 .zIndex(100)
             }
 
-            // Top: only the recording clock. Everything else is in one glass deck in the thumb's reach.
+            // Everything is in one glass deck in the thumb's reach.
             VStack(spacing: 0) {
-                if camera.isRecording {
-                    CameraRecordingPill(camera: camera)
-                        .padding(.top, 8)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
-                
                 Spacer()
                 
-                CameraMetronomeStatusPill(isRecording: camera.isRecording)
-                    .padding(.bottom, 10)
+                // The beat above the deck, unless the open tray or the recording clock already shows the tempo.
+                if !camera.isRecording && !showMetronomeTray {
+                    CameraMetronomeStatusPill()
+                        .padding(.bottom, 10)
+                }
                 
                 if showGhostOverlay && ghostVideoPath != nil {
                     ghostControlsBar
@@ -291,6 +288,10 @@ struct DanceCameraView: View {
                 chipRow
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
                 zoomPicker
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+            } else {
+                // The clock sits with the stop button: at the top edge the Dynamic Island covered it.
+                CameraRecordingPill(camera: camera)
                     .transition(.scale(scale: 0.9).combined(with: .opacity))
             }
             shutterRow
