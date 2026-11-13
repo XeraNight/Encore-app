@@ -67,7 +67,7 @@ struct OwnerUserDetailsView: View {
                  systemImage: card.emailConfirmed ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
                  tint: card.emailConfirmed ? Color.syncEmerald : Color.gold300)
             line("Prihlásenie: \(card.signInMethods)", systemImage: "key.fill")
-            line("Naposledy: \(card.lastSignInAt.map(Self.dateTime) ?? "nikdy")", systemImage: "clock.fill")
+            line("Naposledy: \(card.lastSignInAt.map { Self.dateTime($0) } ?? "nikdy")", systemImage: "clock.fill")
             line("Účet od \(Self.date(card.createdAt))" + (card.appVersion.map { " · appka \($0)" } ?? ""),
                  systemImage: "calendar")
         }
@@ -130,7 +130,7 @@ struct OwnerUserDetailsView: View {
             HomeSectionHeader(title: "V CLOUDE", systemImage: "icloud.fill")
             line((["Zostavy \(card.routines)", "Figúry \(card.figures)"] + card.recordCounts).joined(separator: " · "),
                  systemImage: "square.stack.3d.up.fill")
-            line("Posledná synchronizácia: \(card.lastSync.map(Self.dateTime) ?? "nikdy")",
+            line("Posledná synchronizácia: \(card.lastSync.map { Self.dateTime($0) } ?? "nikdy")",
                  systemImage: "arrow.triangle.2.circlepath")
         }
     }

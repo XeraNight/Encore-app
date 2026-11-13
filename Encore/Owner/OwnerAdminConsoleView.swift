@@ -3,8 +3,8 @@ import Supabase
 import OSLog
 
 // MARK: - Owner Admin Console
-/// Gift a plan, find a dancer, ban or unban an account or delete it, see one account's support card
-/// (OwnerUserDetailsView), the overview and the record of owner actions. Only the owner sees it (server `is_app_owner()`),
+/// The newest accounts at once, a search for the rest; gift a plan, ban or unban an account or delete it, see one
+/// account's support card (OwnerUserDetailsView), the overview and the record of owner actions. Only the owner sees it (server `is_app_owner()`),
 /// and every action is checked again on the server (RLS and owner functions), so the screen grants nothing
 /// by itself. Moderation tool for App Review 1.2; described in the review notes (2.5.19).
 struct OwnerAdminConsoleView: View {
@@ -20,7 +20,9 @@ struct OwnerAdminConsoleView: View {
     @State private var isSearching = false
     @State private var hasSearched = false
     @State private var searchFailed = false
+    /// The newest accounts until something is typed, then the accounts found.
     @State private var searchResults: [AdminUserSearchItem] = []
+    @State private var listsNewest = true
     @State private var selectedUserId: UUID?
 
     @State private var grantTier: SubscriptionTier = .premium
@@ -38,10 +40,6 @@ struct OwnerAdminConsoleView: View {
     @State private var record: [OwnerAction] = []
     @State private var showsWholeRecord = false
 
-    private var selectedUser: AdminUserSearchItem? {
-        searchResults.first { $0.id == selectedUserId }
-    }
-
     var body: some View {
         NavigationStack {
             ZStack {
@@ -54,10 +52,6 @@ struct OwnerAdminConsoleView: View {
                                       selection: $mode)
                         if mode == .search {
                             searchSection
-                            if let user = selectedUser {
-                                userCard(user)
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
                             if !record.isEmpty { recordSection }
                         } else {
                             emailGrantSection
@@ -107,8 +101,9 @@ struct OwnerAdminConsoleView: View {
             // Loads again after every owner action, so the counts and the record stay current.
             .task(id: successCount) { await loadOverviewAndRecord() }
             .task(id: searchQuery) {
-                // Searches as you type, after a short pause (a new letter cancels the previous search).
-                try? await Task.sleep(for: .milliseconds(350))
+                // Searches as you type, after a short pause (a new letter cancels the previous search). The newest
+                // accounts come at once.
+                if !searchQuery.isEmpty { try? await Task.sleep(for: .milliseconds(350)) }
                 guard !Task.isCancelled else { return }
                 await search()
             }
@@ -146,24 +141,30 @@ struct OwnerAdminConsoleView: View {
     // MARK: Search
     private var searchSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "POUŽÍVATELIA", systemImage: "magnifyingglass")
+            HomeSectionHeader(title: listsNewest ? "NAJNOVŠÍ POUŽÍVATELIA" : "NÁJDENÍ", systemImage: "person.2.fill",
+                              count: searchResults.isEmpty ? nil : searchResults.count)
             PlannerTextField(placeholder: "Meno, ID tanečníka, klub alebo e-mail", text: $searchQuery,
                              systemImage: "magnifyingglass")
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            if isSearching {
+            if isSearching && searchResults.isEmpty {
                 ProgressView()
                     .tint(Color.gold400)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
             } else if searchFailed {
-                hint("Vyhľadávanie zlyhalo. Skontroluj pripojenie.")
+                hint("Používateľov sa nepodarilo načítať. Skontroluj pripojenie.")
             } else if hasSearched && searchResults.isEmpty {
                 hint("Nikto sa nenašiel.")
             }
             ForEach(searchResults) { item in
                 resultRow(item)
                     .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                // The account's card opens right under its row, not below the whole list.
+                if item.id == selectedUserId {
+                    userCard(item)
+                        .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
         }
     }
@@ -184,10 +185,17 @@ struct OwnerAdminConsoleView: View {
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
-                if item.isBanned {
-                    badge("ZABLOKOVANÝ", color: Color.latinRed)
-                } else if item.tier != .free {
-                    badge(item.tier.title.uppercased(), color: Color.gold400)
+                VStack(alignment: .trailing, spacing: 4) {
+                    if item.isBanned {
+                        badge("ZABLOKOVANÝ", color: Color.latinRed)
+                    } else if item.tier != .free {
+                        badge(item.tier.title.uppercased(), color: Color.gold400)
+                    }
+                    if let createdAt = item.createdAt {
+                        Text("od \(OwnerUserDetailsView.date(createdAt))")
+                            .font(.caption2)
+                            .foregroundColor(.white.opacity(0.45))
+                    }
                 }
             }
             .padding(12)
@@ -375,17 +383,13 @@ struct OwnerAdminConsoleView: View {
     }
 
     // MARK: - Search
-    /// Name (both name columns), dancer ID, club or e-mail; the owner may read every profile (RLS).
+    /// The newest accounts, or the ones found by name (both name columns), dancer ID, club or e-mail, newest first;
+    /// the owner may read every profile (RLS).
     private func search() async {
         // Characters that would change the PostgREST filter instead of being searched for.
         let query = searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
             .filter { !",()*%\\\"".contains($0) }
-        guard query.count >= 2 else {
-            searchResults = []
-            hasSearched = false
-            searchFailed = false
-            return
-        }
+        let isSearch = query.count >= 2
         isSearching = true
         defer { isSearching = false }
         let client = SupabaseConfig.client
@@ -398,6 +402,7 @@ struct OwnerAdminConsoleView: View {
             let dancer_code: String?
             let email: String?
             let account_status: String?
+            let created_at: Date?
         }
         struct EntitlementDTO: Decodable {
             let user_id: UUID
@@ -406,11 +411,15 @@ struct OwnerAdminConsoleView: View {
         }
 
         do {
-            let profiles: [ProfileDTO] = try await client
+            var filter = client
                 .from("profiles")
-                .select("id, name, full_name, club, dancer_code, email, account_status")
-                .or(["name", "full_name", "dancer_code", "club", "email"].map { "\($0).ilike.%\(query)%" }.joined(separator: ","))
-                .limit(20)
+                .select("id, name, full_name, club, dancer_code, email, account_status, created_at")
+            if isSearch {
+                filter = filter.or(["name", "full_name", "dancer_code", "club", "email"].map { "\($0).ilike.%\(query)%" }.joined(separator: ","))
+            }
+            let profiles: [ProfileDTO] = try await filter
+                .order("created_at", ascending: false)
+                .limit(30)
                 .execute()
                 .value
             let entitlements: [EntitlementDTO] = profiles.isEmpty ? [] : try await client
@@ -433,10 +442,12 @@ struct OwnerAdminConsoleView: View {
                     email: profile.email,
                     isBanned: profile.account_status == "banned",
                     tier: expired ? .free : plan.flatMap { SubscriptionTier(serverValue: $0.tier) } ?? .free,
-                    expiresAt: expired ? nil : plan?.expires_at
+                    expiresAt: expired ? nil : plan?.expires_at,
+                    createdAt: profile.created_at
                 )
             }
-            hasSearched = true
+            listsNewest = !isSearch
+            hasSearched = isSearch
             searchFailed = false
         } catch {
             guard !Task.isCancelled else { return }
@@ -446,13 +457,17 @@ struct OwnerAdminConsoleView: View {
     }
 
     // MARK: - Actions
+    /// The length of the gift picked in the form; none for "Navždy" and when the plan is taken away.
+    private var grantLength: Int? {
+        grantTier == .free || grantDurationMonths == 0 ? nil : grantDurationMonths
+    }
+
     private func grantByEmail() {
         let email = directEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !email.isEmpty else { return }
         perform {
             let message = try await subscriptionManager.grantEntitlementByEmailAsOwner(
-                targetEmail: email, tier: grantTier,
-                durationMonths: grantDurationMonths == 0 ? nil : grantDurationMonths, notes: grantNote)
+                targetEmail: email, tier: grantTier, durationMonths: grantLength, notes: grantNote)
             directEmail = ""
             return message
         }
@@ -461,8 +476,7 @@ struct OwnerAdminConsoleView: View {
     private func grant(to user: AdminUserSearchItem) {
         perform {
             try await subscriptionManager.grantEntitlementAsOwner(
-                targetUserId: user.id, tier: grantTier,
-                durationMonths: grantDurationMonths == 0 ? nil : grantDurationMonths, notes: grantNote)
+                targetUserId: user.id, tier: grantTier, durationMonths: grantLength, notes: grantNote)
             return grantTier == .free ? "\(user.name) už nemá darovaný plán." : "\(user.name) má teraz \(grantTier.title)."
         }
     }
@@ -502,6 +516,7 @@ struct AdminUserSearchItem: Identifiable, Equatable {
     /// The plan from `user_entitlements` (gift or App Store record); Free when none or expired.
     let tier: SubscriptionTier
     let expiresAt: Date?
+    let createdAt: Date?
 
     var planText: String {
         guard tier != .free else { return "Plán: Free" }
