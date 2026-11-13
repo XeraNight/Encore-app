@@ -94,7 +94,8 @@ final class CompetitionManager: ObservableObject {
                 .from("user_couples")
                 .select("id, is_current, pair_number, couple_id, partner_names, club, age_category, stt_class, stt_points, stt_finals, stt_last_change, lat_class, lat_points, lat_finals, lat_last_change, ksis_refreshed_at")
                 .eq("user_id", value: myId)
-                .not("pair_number", operator: .is, value: "null")
+                // Also the rows without a pair number: a couple found by name (an earlier couple, or the second
+                // KSIS id of a couple KSIS keeps twice) has only its id, and its history is read by that id.
                 .order("is_current", ascending: false)
                 .order("created_at", ascending: false)
                 .execute()
@@ -154,8 +155,11 @@ final class CompetitionManager: ObservableObject {
         return reply
     }
 
+    /// Removes the couple with its results: every row of it, as KSIS keeps some couples under two ids.
     func unlink(_ couple: UserCouple) async throws {
-        let _: KSISOkReply = try await call(KSISPageRequest(action: "unlink", coupleId: couple.id.uuidString.lowercased()))
+        for row in couples where row.sameCoupleKey == couple.sameCoupleKey {
+            let _: KSISOkReply = try await call(KSISPageRequest(action: "unlink", coupleId: row.id.uuidString.lowercased()))
+        }
         await loadAllData()
     }
 

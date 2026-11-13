@@ -258,15 +258,26 @@ struct MyResultsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// KSIS's own results, and removing a couple before that is not this dancer's.
+    /// Loading everything from KSIS, looking into KSIS itself, and removing a couple before that is not this dancer's.
     private var footer: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
+            if manager.dancer != nil, !shown.isEmpty {
+                Button { updateJob = .everything } label: {
+                    Label("Načítať všetky výsledky z KSIS", systemImage: "arrow.clockwise")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(Color.gold400)
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .buttonStyle(.pressable)
+            }
             Button {
-                if let url = KSISBrowserView.page("menu.php?akcia=S") { browser = KSISBrowserTarget(url: url) }
+                // The picked couple's own page when KSIS has one, else KSIS's list of results.
+                let path = pickedCouple?.coupleId.map { "par.php?id=\($0)" } ?? "menu.php?akcia=S"
+                if let url = KSISBrowserView.page(path) { browser = KSISBrowserTarget(url: url) }
             } label: {
-                Label("Všetky výsledky v KSIS", systemImage: "safari")
+                Label("Pozrieť v KSIS", systemImage: "safari")
                     .font(.footnote.weight(.semibold))
-                    .foregroundColor(Color.gold400)
+                    .foregroundColor(.white.opacity(0.65))
                     .frame(maxWidth: .infinity, minHeight: 44)
             }
             .buttonStyle(.pressable)
@@ -347,14 +358,22 @@ struct MyResultsView: View {
         if shown.isEmpty {
             // With a couple missing its history, the card above already says what to do.
             if couplesWithoutHistory.isEmpty || manager.loadFailed {
-                Text(manager.loadFailed
-                     ? "Výsledky sa nepodarilo načítať. Potiahni obrazovku nadol a skús znova."
-                     : "Zatiaľ žiadne. Ťukni šípku v pravom hornom rohu a uložia sa všetky vaše súťaže.")
-                    .font(.footnote)
-                    .foregroundColor(Color.textSecondary)
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .homeCard(cornerRadius: 20)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(manager.loadFailed
+                         ? "Výsledky sa nepodarilo načítať. Potiahni obrazovku nadol a skús znova."
+                         : "Zatiaľ žiadne. Načítaj ich z KSIS: nájdu sa všetky tvoje páry a uložia sa ich súťaže s krížikmi.")
+                        .font(.footnote)
+                        .foregroundColor(Color.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    if manager.dancer != nil, !manager.loadFailed {
+                        PrimarySheetButton(title: "Načítať výsledky z KSIS", isLoading: false, isEnabled: true) {
+                            updateJob = .everything
+                        }
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .homeCard(cornerRadius: 20)
             }
         } else {
             switch mode {

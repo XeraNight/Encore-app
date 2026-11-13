@@ -155,21 +155,35 @@ struct CompetitionTrackerView: View {
                         .font(.footnote)
                         .foregroundColor(Color.textSecondary)
                 }
-                Label("Ďalej ulož svoje páry, aj tie skončené.", systemImage: "lightbulb.fill")
+                Text("Jedno ťuknutie nájde tvoje páry, aj tie skončené, a uloží ich súťaže s krížikmi.")
                     .font(.footnote)
                     .foregroundColor(Color.gold300)
+                    .fixedSize(horizontal: false, vertical: true)
+                loadFromKSISButton("Načítať páry a výsledky")
                 Button { openCouples(of: dancer) } label: {
-                    Label("Moje páry v KSIS", systemImage: "person.2.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(Color.obsidian900)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    Text("Pozrieť páry v KSIS")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundColor(.white.opacity(0.65))
+                        .frame(maxWidth: .infinity, minHeight: 36)
                 }
                 .buttonStyle(.pressable)
             }
             .padding(16)
             .homeCard(cornerRadius: 20)
         }
+    }
+
+    /// The one way to the dancer's data: the update finds the couples and saves their competitions and crosses.
+    /// A gold button only where nothing is saved yet; later the small arrow in the corner does the same.
+    private func loadFromKSISButton(_ title: String) -> some View {
+        Button { updateJob = .everything } label: {
+            Label(title, systemImage: "arrow.clockwise")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(Color.obsidian900)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(Color.gold400, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(.pressable)
     }
 
     private func openCouples(of dancer: KSISDancer) {
@@ -262,11 +276,7 @@ struct CompetitionTrackerView: View {
                 }
 
                 if couple.coupleId == nil {
-                    Label("Históriu súťaží uloží Aktualizovať z KSIS, šípka v pravom hornom rohu.",
-                          systemImage: "lightbulb.fill")
-                        .font(.footnote)
-                        .foregroundColor(Color.gold300)
-                        .fixedSize(horizontal: false, vertical: true)
+                    loadFromKSISButton("Načítať históriu súťaží")
                 }
 
                 if let refreshed = couple.refreshedAt.flatMap(Self.parseTimestamp) {
