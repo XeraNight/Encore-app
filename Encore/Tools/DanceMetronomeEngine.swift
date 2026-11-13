@@ -185,19 +185,33 @@ public final class DanceMetronomeEngine: ObservableObject {
     }
     
     // MARK: - Playback Session Activation
-    private func activateAudioSession() {
-        do {
-            // Category .playAndRecord with .defaultToSpeaker allows metronome playback
-            // simultaneously with camera microphone recording, and bypasses Silent/Mute switch.
-            // .mixWithOthers allows metronome to play simultaneously over studio music (Spotify/Apple Music).
-            try AVAudioSession.sharedInstance().setCategory(
-                .playAndRecord,
-                mode: .default,
-                options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
-            )
-            try AVAudioSession.sharedInstance().setActive(true, options: .notifyOthersOnDeactivation)
-        } catch {
-            Logger.audio.error("Metronome audio session setup failed: \(error.localizedDescription, privacy: .public)")
+    private static let sessionQueue = DispatchQueue(label: "dance.encore.metronome.session", qos: .userInitiated)
+    /// Each start and stop gets a number, so a start whose audio session got ready after a stop never ticks.
+    private var startNumber = 0
+
+    /// Off the main thread: changing the audio session takes up to a second, more with headphones, and froze the
+    /// camera on every dance and tempo tap. A session the camera already set for recording is left as it is, so the
+    /// two never fight over it.
+    private nonisolated static func prepareAudioSession() async {
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            sessionQueue.async {
+                let session = AVAudioSession.sharedInstance()
+                do {
+                    if session.category != .playAndRecord {
+                        // .playAndRecord with .defaultToSpeaker plays next to the camera's microphone and past
+                        // the mute switch; .mixWithOthers plays over the hall's music.
+                        try session.setCategory(
+                            .playAndRecord,
+                            mode: .default,
+                            options: [.defaultToSpeaker, .mixWithOthers, .allowBluetoothHFP, .allowBluetoothA2DP]
+                        )
+                    }
+                    try session.setActive(true, options: .notifyOthersOnDeactivation)
+                } catch {
+                    Logger.audio.error("Metronome audio session setup failed: \(error.localizedDescription, privacy: .public)")
+                }
+                done.resume()
+            }
         }
     }
     
@@ -224,14 +238,24 @@ public final class DanceMetronomeEngine: ObservableObject {
         // Stop any currently running timer cleanly
         stopTimerOnly()
         
-        activateAudioSession()
-        
+        let wasPlaying = isPlaying
         isPlaying = true
         currentBeat = 1
-        
-        let intervalSeconds = 60.0 / Double(targetBpm)
-        
+        startNumber += 1
+        let number = startNumber
         AnalyticsManager.shared.metronomeStarted(bpm: targetBpm, dance: selectedPreset.shortCode)
+
+        // A tempo or dance change while it plays keeps the session it has.
+        guard !wasPlaying else { return beginTicking(bpm: targetBpm) }
+        Task {
+            await Self.prepareAudioSession()
+            guard number == startNumber, isPlaying else { return }
+            beginTicking(bpm: targetBpm)
+        }
+    }
+
+    private func beginTicking(bpm targetBpm: Int) {
+        let intervalSeconds = 60.0 / Double(targetBpm)
         
         // Immediate downbeat on start
         triggerBeatTick(beatNumber: 1)
@@ -260,6 +284,7 @@ public final class DanceMetronomeEngine: ObservableObject {
     // MARK: - Stop Metronome
     public func stop() {
         stopTimerOnly()
+        startNumber += 1
         isPlaying = false
         currentBeat = 1
         isPulse = false
