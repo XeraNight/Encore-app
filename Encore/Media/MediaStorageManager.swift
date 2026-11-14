@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import ImageIO
 import OSLog
 import SwiftData
 
@@ -29,6 +30,29 @@ enum MediaStorageManager {
                 Logger.audio.error("Voice note copy failed: \(error.localizedDescription, privacy: .public)")
                 return nil
             }
+        }.value
+    }
+
+    /// A figure's own copy of a Denník photo (same reason as the voice note) and its orientation for the block.
+    nonisolated static func copyPhoto(_ filename: String) async -> (name: String, isPortrait: Bool)? {
+        await Task.detached(priority: .userInitiated) {
+            let copy = "note_photo_\(UUID().uuidString).jpg"
+            do {
+                try FileManager.default.copyItem(at: MediaStorageManager.url(for: filename), to: MediaStorageManager.url(for: copy))
+            } catch {
+                Logger.camera.error("Photo copy failed: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
+            // Upright as the picture is shown: sideways orientations (5 to 8) swap width and height.
+            let url = MediaStorageManager.url(for: copy)
+            let properties = CGImageSourceCreateWithURL(url as CFURL, nil)
+                .flatMap { CGImageSourceCopyPropertiesAtIndex($0, 0, nil) as? [CFString: Any] }
+            var width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+            var height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+            if let orientation = properties?[kCGImagePropertyOrientation] as? Int, (5...8).contains(orientation) {
+                swap(&width, &height)
+            }
+            return (copy, height > width)
         }.value
     }
 

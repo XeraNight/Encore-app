@@ -34,6 +34,7 @@ struct FigureDetailCard: View {
     @StateObject private var noteEditor = NoteEditorController()
     /// Voice notes the text had when the figure opened; one deleted from the text is removed on close.
     @State private var loadedVoiceFiles: Set<String> = []
+    @State private var loadedPhotoFiles: Set<String> = []
     /// The empty notes' hint grows with the iPhone's text size, like the notes themselves.
     @ScaledMetric(relativeTo: .title2) private var placeholderTitleSize: CGFloat = 22
     @ScaledMetric(relativeTo: .body) private var placeholderTextSize = NoteStyle.defaultSize
@@ -159,6 +160,7 @@ struct FigureDetailCard: View {
             if !didLoadNotes {
                 text = RichNote.attributed(for: node)
                 loadedVoiceFiles = Set(RichNote.voiceNotes(in: text).map(\.fileName))
+                loadedPhotoFiles = Set(RichNote.photos(in: text).map(\.path))
                 didLoadNotes = true
             }
             noteEditor.onUseVideo = { path, asModel in useVideo(path, asModel: asModel) }
@@ -729,6 +731,9 @@ struct FigureDetailCard: View {
                 guard let video = note.videoPath else { return }
                 let portrait = await VideoStill.isPortrait(await MediaResolver.videoURL(path: video)) ?? false
                 piece = .video(VideoNoteRef(path: video, isPortrait: portrait))
+            case .photo:
+                guard let photo = note.imagePath, let copy = await MediaStorageManager.copyPhoto(photo) else { return }
+                piece = .photo(PhotoNoteRef(path: copy.name, isPortrait: copy.isPortrait))
             }
             // After the sheet has gone, so the notes are visible.
             try? await Task.sleep(for: .milliseconds(350))
@@ -741,6 +746,7 @@ struct FigureDetailCard: View {
         case .text(let text): noteEditor.insertText(text, at: index)
         case .voice(let ref): noteEditor.insertVoice(ref, at: index)
         case .video(let ref): noteEditor.insertVideo(ref, at: index)
+        case .photo(let ref): noteEditor.insertPhoto(ref, at: index)
         }
         markInFigure(pending.noteId)
         placing = nil
@@ -751,6 +757,7 @@ struct FigureDetailCard: View {
     /// A voice copy was made for this figure; not placed, it goes again.
     private func cancelPlacement() {
         if case .voice(let ref) = placing?.piece { MediaStorageManager.removeFile(named: ref.fileName) }
+        if case .photo(let ref) = placing?.piece { MediaStorageManager.removeFile(named: ref.path) }
         placing = nil
         placementTarget = nil
     }
@@ -786,6 +793,11 @@ struct FigureDetailCard: View {
     private func removeDeletedVoiceNotes() {
         let kept = Set(RichNote.voiceNotes(in: text).map(\.fileName))
         for file in loadedVoiceFiles.union(noteEditor.recordedFiles).subtracting(kept) {
+            MediaStorageManager.removeFile(named: file)
+        }
+        // A photo placed and then taken out of the text leaves the phone too; its own copy is all there is.
+        let keptPhotos = Set(RichNote.photos(in: text).map(\.path))
+        for file in loadedPhotoFiles.union(noteEditor.placedPhotoFiles).subtracting(keptPhotos) {
             MediaStorageManager.removeFile(named: file)
         }
     }

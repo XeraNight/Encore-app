@@ -3,7 +3,7 @@ import SwiftUI
 
 // MARK: - From Denník into a figure's notes
 /// What of a Denník note goes into a figure's notes: each kind on its own, never glued together.
-enum JournalPart { case text, voice, video }
+enum JournalPart { case text, voice, video, photo }
 
 /// Denník from inside a figure (BRAND_GUIDELINES §1A): the small notes, newest first. Its text, voice note and
 /// video each have their own button and are dragged to their place in the notes; a video can also become the
@@ -65,15 +65,15 @@ struct JournalInsertSheet: View {
         .preferredColorScheme(.dark)
     }
 
-    /// A video from Fotky goes into Denník and straight to its place in the notes.
+    /// A video or a photo from Fotky goes into Denník and straight to its place in the notes.
     private var fromFotky: some View {
-        FotkyVideoPicker(onImported: { insert($0, .video) }) { isImporting in
+        FotkyPicker(onImported: { insert($0, $0.imagePath != nil ? .photo : .video) }) { isImporting in
             HStack(spacing: 8) {
                 if isImporting {
                     ProgressView().tint(.white)
                 } else {
                     Image(systemName: "photo.on.rectangle")
-                    Text("Vložiť video z Fotiek")
+                    Text("Vložiť fotku alebo video z Fotiek")
                 }
             }
             .font(.subheadline.weight(.bold))
@@ -117,6 +117,10 @@ struct JournalInsertSheet: View {
                 MediaThumbnailView(path: video, cornerRadius: 12)
                     .frame(height: 120)
             }
+            if let photo = note.imagePath {
+                MediaThumbnailView(path: photo, placeholderIcon: "photo", cornerRadius: 12)
+                    .frame(height: 120)
+            }
             actions(for: note)
         }
         .padding(14)
@@ -140,6 +144,10 @@ struct JournalInsertSheet: View {
         }
         if note.audioPath != nil {
             Button { insert(note, .voice) } label: { actionLabel("Vložiť hlasovku", icon: "waveform") }
+                .buttonStyle(.pressable(scale: 0.96))
+        }
+        if note.imagePath != nil {
+            Button { insert(note, .photo) } label: { actionLabel("Vložiť fotku", icon: "photo") }
                 .buttonStyle(.pressable(scale: 0.96))
         }
         if note.videoPath != nil {
@@ -179,12 +187,14 @@ enum PlacedPiece: Equatable {
     case text(String)
     case voice(VoiceNoteRef)
     case video(VideoNoteRef)
+    case photo(PhotoNoteRef)
 
     var hint: String {
         switch self {
         case .text: return "Potiahni text na miesto v poznámkach"
         case .voice: return "Potiahni hlasovku na miesto v texte"
         case .video: return "Potiahni video medzi odseky"
+        case .photo: return "Potiahni fotku medzi odseky"
         }
     }
 }
@@ -211,8 +221,10 @@ struct PlacementOverlay: View {
     private static let edgeZone: CGFloat = 80
 
     private var isBlock: Bool {
-        if case .video = piece { return true }
-        return false
+        switch piece {
+        case .video, .photo: return true
+        case .text, .voice: return false
+        }
     }
 
     var body: some View {
@@ -276,6 +288,10 @@ struct PlacementOverlay: View {
             InlineVoiceToken(ref: ref, player: controller.player)
         case .video(let ref):
             MediaThumbnailView(path: ref.path, cornerRadius: 12, showsFormatBadge: false)
+                .frame(width: ref.isPortrait ? 63 : 144, height: ref.isPortrait ? 112 : 81)
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.gold400.opacity(0.6), lineWidth: 1))
+        case .photo(let ref):
+            MediaThumbnailView(path: ref.path, placeholderIcon: "photo", cornerRadius: 12, showsFormatBadge: false)
                 .frame(width: ref.isPortrait ? 63 : 144, height: ref.isPortrait ? 112 : 81)
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Color.gold400.opacity(0.6), lineWidth: 1))
         }

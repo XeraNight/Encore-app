@@ -117,6 +117,7 @@ protocol LiveTextAttachment: NSTextAttachment {
 final class NotesTextView: UITextView {
     static let voiceTokenIdentifier = "encore.voiceToken"
     static let videoBlockIdentifier = "encore.videoBlock"
+    static let photoBlockIdentifier = "encore.photoBlock"
     private var hosts: [ObjectIdentifier: UIViewController] = [:]
     /// The text view holds only the container; the storage must stay alive with it.
     private var ownedStorage: NSTextStorage?
@@ -179,7 +180,7 @@ final class NotesTextView: UITextView {
     override func gestureRecognizerShouldBegin(_ recognizer: UIGestureRecognizer) -> Bool {
         var view = hitTest(recognizer.location(in: self), with: nil)
         while let current = view, current !== self {
-            if let id = current.accessibilityIdentifier, [Self.voiceTokenIdentifier, Self.videoBlockIdentifier].contains(id) {
+            if let id = current.accessibilityIdentifier, [Self.voiceTokenIdentifier, Self.videoBlockIdentifier, Self.photoBlockIdentifier].contains(id) {
                 return false
             }
             view = current.superview
@@ -201,6 +202,8 @@ final class NoteEditorController: ObservableObject {
     /// Every recording made or placed here (the figure's own copies), so the ones deleted from the text can be
     /// removed from the phone.
     private(set) var recordedFiles: Set<String> = []
+    /// Photos put into the text this session; one taken out again is deleted when the figure closes.
+    private(set) var placedPhotoFiles: Set<String> = []
 
     private let recorder = VoiceNoteRecorder()
     private weak var textView: NotesTextView?
@@ -280,7 +283,11 @@ final class NoteEditorController: ObservableObject {
         let text = storage.string as NSString
         let selection = textView.selectedRange
         let starts = Self.lineStarts(in: text.paragraphRange(for: selection), of: text)
-            .filter { $0 >= storage.length || !(storage.attribute(.attachment, at: $0, effectiveRange: nil) is VideoTextAttachment) }
+            .filter { start in
+                guard start < storage.length else { return true }
+                let attachment = storage.attribute(.attachment, at: start, effectiveRange: nil)
+                return !(attachment is VideoTextAttachment || attachment is PhotoTextAttachment)
+            }
         guard !starts.isEmpty else { return }
         let removing = starts.allSatisfy { text.substring(from: $0).hasPrefix(Self.bullet) }
         let changed = removing ? starts : starts.filter { !text.substring(from: $0).hasPrefix(Self.bullet) }
@@ -438,6 +445,30 @@ final class NoteEditorController: ObservableObject {
         storage.insert(piece, at: location)
         textView.selectedRange = NSRange(location: location + piece.length, length: 0)
         textView.setNeedsLayout()
+        edited()
+    }
+
+    /// A photo as a block of its own between paragraphs (the figure's own copy of the picture).
+    func insertPhoto(_ ref: PhotoNoteRef, at index: Int) {
+        guard let textView else { return }
+        let storage = textView.textStorage
+        let location = min(max(0, index), storage.length)
+        let string = storage.string as NSString
+        let newline = NSAttributedString(string: "\n", attributes: NoteTextBridge.uikit(AttributeContainer()))
+        let piece = NSMutableAttributedString()
+        if location > 0, string.character(at: location - 1) != 10 { piece.append(newline) }
+        placedPhotoFiles.insert(ref.path)
+        piece.append(NoteTextBridge.attachment(PhotoTextAttachment(ref: ref, controller: self)))
+        piece.append(newline)
+        storage.insert(piece, at: location)
+        textView.selectedRange = NSRange(location: location + piece.length, length: 0)
+        textView.setNeedsLayout()
+        edited()
+    }
+
+    /// "Odstrániť z poznámok" on a photo; its file goes when the figure closes (undo works until then).
+    fileprivate func removePhoto(_ attachment: PhotoTextAttachment) {
+        remove(attachment)
         edited()
     }
 
@@ -767,6 +798,102 @@ private struct AttachmentVideoBlock: View {
     }
 }
 
+// MARK: - Photo in the text
+/// One photo inside the text: a block across the text (narrow and tall when taken upright), like a video.
+final class PhotoTextAttachment: NSTextAttachment, LiveTextAttachment {
+    nonisolated let ref: PhotoNoteRef
+    private weak var controller: NoteEditorController?
+
+    nonisolated static let maxHeight: CGFloat = 260
+    nonisolated static let gap: CGFloat = 6
+
+    init(ref: PhotoNoteRef, controller: NoteEditorController) {
+        self.ref = ref
+        self.controller = controller
+        super.init(data: nil, ofType: nil)
+        image = .clearSpace
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    nonisolated override func attachmentBounds(for textContainer: NSTextContainer?, proposedLineFragment lineFrag: CGRect,
+                                               glyphPosition position: CGPoint, characterIndex charIndex: Int) -> CGRect {
+        let width = max(60, lineFrag.width - 2 * (textContainer?.lineFragmentPadding ?? 0))
+        return CGRect(x: 0, y: 0, width: width, height: VideoTextAttachment.videoSize(isPortrait: ref.isPortrait, width: width).height + 2 * Self.gap)
+    }
+
+    var margins: UIEdgeInsets { .zero }
+
+    func makeHost() -> UIViewController {
+        let host = UIHostingController(rootView: AttachmentPhotoBlock(ref: ref) { [weak self] in
+            guard let self else { return }
+            self.controller?.removePhoto(self)
+        })
+        host.view.accessibilityIdentifier = NotesTextView.photoBlockIdentifier
+        return host
+    }
+}
+
+/// A photo inside the text: a tap makes it big (zoom, whole picture); ⋯ takes it out of the notes.
+private struct AttachmentPhotoBlock: View {
+    let ref: PhotoNoteRef
+    let onRemove: () -> Void
+
+    @State private var appeared = false
+
+    var body: some View {
+        GeometryReader { geo in
+            let size = VideoTextAttachment.videoSize(isPortrait: ref.isPortrait, width: geo.size.width)
+            block
+                .frame(width: size.width, height: size.height)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        }
+        .scaleEffect(appeared ? 1 : 0.92, anchor: .leading)
+        .opacity(appeared ? 1 : 0)
+        .onAppear { withAnimation(.spring(response: 0.4, dampingFraction: 0.75)) { appeared = true } }
+        .environment(\.colorScheme, .dark)
+    }
+
+    private var block: some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+        return MediaThumbnailView(path: ref.path, placeholderIcon: "photo", cornerRadius: 0, showsFormatBadge: false)
+            .clipShape(shape)
+            .overlay(shape.stroke(Color.gold400.opacity(0.3), lineWidth: 1))
+            .overlay(alignment: .topLeading) {
+                Text("FOTKA")
+                    .font(.system(.caption2, design: .rounded).weight(.black))
+                    .tracking(1.2)
+                    .foregroundColor(Color.gold400)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.black.opacity(0.45), in: Capsule())
+                    .padding(8)
+            }
+            .contentShape(shape)
+            .onTapGesture { FullScreenPhoto.present(path: ref.path) }
+            .contextMenu { remove }
+            .overlay(alignment: .topTrailing) {
+                Menu { remove } label: {
+                    GlassCircleLabel(icon: "ellipsis", size: 32)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .accessibilityLabel("Možnosti fotky")
+                .padding(2)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Fotka v poznámkach")
+            .accessibilityHint("Ťuknutím zväčšíš")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Odstrániť z poznámok", onRemove)
+    }
+
+    @ViewBuilder
+    private var remove: some View {
+        Button(role: .destructive, action: onRemove) { Label("Odstrániť z poznámok", systemImage: "trash") }
+    }
+}
+
 /// The one video playing inside the notes: silent and looping. It takes the audio session only when nothing
 /// else holds it, so music in the hall plays on and a figure video with sound keeps its sound.
 @MainActor
@@ -875,6 +1002,8 @@ enum NoteTextBridge {
                     token: VoiceTokenModel(ref: ref), player: controller.player, onStopRecording: {})))
             } else if let ref = run.videoNote {
                 result.append(attachment(VideoTextAttachment(ref: ref, controller: controller)))
+            } else if let ref = run.photoNote {
+                result.append(attachment(PhotoTextAttachment(ref: ref, controller: controller)))
             } else {
                 result.append(NSAttributedString(string: String(model[run.range].characters), attributes: uikit(run.attributes)))
             }
@@ -892,6 +1021,8 @@ enum NoteTextBridge {
                 result.append(NoteMedia.voice(ref).piece)
             } else if let video = attributes[.attachment] as? VideoTextAttachment {
                 result.append(NoteMedia.video(video.ref).piece)
+            } else if let photo = attributes[.attachment] as? PhotoTextAttachment {
+                result.append(NoteMedia.photo(photo.ref).piece)
             } else {
                 let container = (attributes[.encoreRun] as? RunAttributes)?.value ?? AttributeContainer()
                 result.append(AttributedString(string.substring(with: range), attributes: container))

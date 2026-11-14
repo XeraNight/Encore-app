@@ -429,11 +429,11 @@ struct TrainingJournalView: View {
                 Rectangle().fill(Color.obsidian900.opacity(0.2)).frame(width: 1, height: 24)
                 newNoteButton(title: "Text", systemImage: "square.and.pencil", kind: .text)
                 Rectangle().fill(Color.obsidian900.opacity(0.2)).frame(width: 1, height: 24)
-                FotkyVideoPicker(danceName: dayNotes.last?.danceName, onImported: { note in
+                FotkyPicker(danceName: dayNotes.last?.danceName, onImported: { note in
                     withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
                         selectedDay = calendar.startOfDay(for: note.createdAt)
                     }
-                    showToast("Video je v denníku")
+                    showToast(note.imagePath != nil ? "Fotka je v denníku" : "Video je v denníku")
                 }) { isImporting in
                     Group {
                         if isImporting {
@@ -528,6 +528,7 @@ struct TrainingJournalView: View {
     private func delete(_ note: InstantNote) {
         if player.fileName == note.audioPath { player.stop() }
         MediaStorageManager.removeFile(named: note.audioPath)
+        MediaStorageManager.removeFile(named: note.imagePath)
         withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { modelContext.delete(note) }
         try? modelContext.save()
     }
@@ -629,10 +630,14 @@ private struct JournalNoteCard: View {
                 }
                 .contentShape(Rectangle())
                 .onTapGesture {
-                    if let video = note.videoPath { Task { await FullScreenVideo.present(path: video) } }
+                    if let video = note.videoPath {
+                        Task { await FullScreenVideo.present(path: video) }
+                    } else if let photo = note.imagePath {
+                        FullScreenPhoto.present(path: photo)
+                    }
                 }
-                .accessibilityAddTraits(note.videoPath != nil ? .isButton : [])
-                .accessibilityHint(note.videoPath != nil ? "Prehrá video na celú obrazovku" : "")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHint(note.videoPath != nil ? "Prehrá video na celú obrazovku" : "Zväčší fotku")
             }
         }
         .padding(14)

@@ -13,6 +13,7 @@ extension InstantNote {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmed.isEmpty { return trimmed }
         if audioPath != nil { return "Hlasová poznámka · \(voiceTimeString(audioDuration ?? 0))" }
+        if imagePath != nil { return "Fotka" }
         return videoPath != nil ? "Tréningové video" : "Prázdna poznámka"
     }
 }
@@ -86,6 +87,7 @@ struct NotesInboxStrip: View {
                 }
                 Button(role: .destructive) {
                     MediaStorageManager.removeFile(named: note.audioPath)
+                    MediaStorageManager.removeFile(named: note.imagePath)
                     modelContext.delete(note)
                     try? modelContext.save()
                 } label: {
@@ -154,8 +156,8 @@ struct NoteDetailSheet: View {
     @FocusState private var isWriting: Bool
 
     /// A voice note or a video goes to a figure as it is; only a text note is written here.
-    private var showsText: Bool { (note.audioPath == nil && note.videoPath == nil) || note.hasText }
-    private var canAdd: Bool { note.hasText || note.audioPath != nil || note.videoPath != nil }
+    private var showsText: Bool { (note.audioPath == nil && note.videoPath == nil && note.imagePath == nil) || note.hasText }
+    private var canAdd: Bool { note.hasText || note.audioPath != nil || note.videoPath != nil || note.imagePath != nil }
 
     var body: some View {
         NavigationStack {
@@ -191,6 +193,19 @@ struct NoteDetailSheet: View {
                                         .accessibilityLabel("Na celú obrazovku")
                                         .padding(6)
                                     }
+                            }
+                        }
+
+                        if let imagePath = note.imagePath, let image = MediaResolver.resolveImage(path: imagePath) {
+                            section("FOTKA", systemImage: "photo") {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: .infinity, maxHeight: 320)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .onTapGesture { FullScreenPhoto.present(path: imagePath) }
+                                    .accessibilityAddTraits(.isButton)
+                                    .accessibilityHint("Zväčší fotku")
                             }
                         }
 
@@ -437,6 +452,9 @@ struct FigurePickerSheet: View {
             if let video = note.videoPath {
                 let portrait = await VideoStill.isPortrait(await MediaResolver.videoURL(path: video)) ?? false
                 pieces.append(NoteMedia.video(VideoNoteRef(path: video, isPortrait: portrait)).piece)
+            }
+            if let photo = note.imagePath, let copy = await MediaStorageManager.copyPhoto(photo) {
+                pieces.append(NoteMedia.photo(PhotoNoteRef(path: copy.name, isPortrait: copy.isPortrait)).piece)
             }
             guard !pieces.isEmpty else { return }
             let updated = RichNote.appending(pieces, to: node)

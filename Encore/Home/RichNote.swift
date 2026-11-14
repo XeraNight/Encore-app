@@ -23,6 +23,16 @@ nonisolated struct VideoNoteRef: Codable, Hashable, Sendable {
     static let marker = "[video]"
 }
 
+/// A photo inside the text of a figure's notes, a block of its own between paragraphs, for a technique shot or a
+/// pattern. Unlike a video, the figure keeps its own copy of the picture (a Denník note may be deleted).
+nonisolated struct PhotoNoteRef: Codable, Hashable, Sendable {
+    /// File name in Documents.
+    let path: String
+    let isPortrait: Bool
+
+    static let marker = "[fotka]"
+}
+
 nonisolated enum VoiceNoteAttribute: CodableAttributedStringKey {
     typealias Value = VoiceNoteRef
     static let name = "encoreVoiceNote"
@@ -33,11 +43,17 @@ nonisolated enum VideoNoteAttribute: CodableAttributedStringKey {
     static let name = "encoreVideoNote"
 }
 
+nonisolated enum PhotoNoteAttribute: CodableAttributedStringKey {
+    typealias Value = PhotoNoteRef
+    static let name = "encorePhotoNote"
+}
+
 extension AttributeScopes {
-    /// The SwiftUI formatting of notes plus Encore's voice notes and videos.
+    /// The SwiftUI formatting of notes plus Encore's voice notes, videos and photos.
     nonisolated struct EncoreNoteAttributes: AttributeScope {
         let voiceNote: VoiceNoteAttribute
         let videoNote: VideoNoteAttribute
+        let photoNote: PhotoNoteAttribute
         let swiftUI: SwiftUIAttributes
     }
 }
@@ -46,11 +62,13 @@ extension AttributeScopes {
 nonisolated enum NoteMedia: Hashable {
     case voice(VoiceNoteRef)
     case video(VideoNoteRef)
+    case photo(PhotoNoteRef)
 
     var marker: String {
         switch self {
         case .voice(let ref): return ref.marker
         case .video: return VideoNoteRef.marker
+        case .photo: return PhotoNoteRef.marker
         }
     }
 
@@ -60,6 +78,7 @@ nonisolated enum NoteMedia: Hashable {
         switch self {
         case .voice(let ref): piece.voiceNote = ref
         case .video(let ref): piece.videoNote = ref
+        case .photo(let ref): piece.photoNote = ref
         }
         return piece
     }
@@ -101,6 +120,11 @@ enum RichNote {
         try? JSONDecoder().decode(AttributedString.self, from: data, configuration: AttributeScopes.EncoreNoteAttributes.self)
     }
 
+    /// The photos in a text, in order.
+    static func photos(in text: AttributedString) -> [PhotoNoteRef] {
+        text.runs.compactMap(\.photoNote)
+    }
+
     /// The voice notes in a text, in order.
     static func voiceNotes(in text: AttributedString) -> [VoiceNoteRef] {
         text.runs.compactMap(\.voiceNote)
@@ -114,6 +138,7 @@ enum RichNote {
     nonisolated private static func media(of run: AttributedString.Runs.Run) -> NoteMedia? {
         if let voice = run.voiceNote { return .voice(voice) }
         if let video = run.videoNote { return .video(video) }
+        if let photo = run.photoNote { return .photo(photo) }
         return nil
     }
 

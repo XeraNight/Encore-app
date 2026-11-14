@@ -325,7 +325,7 @@ struct UniversalMediaPickerSheet: View {
 }
 
 // MARK: - Picking from Fotky
-/// The path Encore stores for an item picked in Fotky. Used by the media picker and by Denník (`FotkyVideoPicker`).
+/// The path Encore stores for an item picked in Fotky. Used by the media picker and by Denník (`FotkyPicker`).
 enum PhotosImport {
     /// A video stays in Fotky and is referenced; a photo (or a video Encore may not read) is copied.
     static func storedPath(for item: PhotosPickerItem) async -> String? {
