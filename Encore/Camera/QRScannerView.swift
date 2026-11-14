@@ -88,7 +88,7 @@ private class QRScannerViewController: UIViewController, AVCaptureMetadataOutput
         view.addSubview(label)
         
         let button = UIButton(type: .system)
-        button.setTitle("Simulovať import zostavy", for: .normal)
+        button.setTitle("Simulovať sken pozvánky", for: .normal)
         button.titleLabel?.font = .systemFont(ofSize: 16, weight: .bold)
         button.setTitleColor(.white, for: .normal)
         button.backgroundColor = UIColor(red: 0.85, green: 0.45, blue: 0.35, alpha: 1.0)
@@ -104,12 +104,9 @@ private class QRScannerViewController: UIViewController, AVCaptureMetadataOutput
     }
     
     @objc private func simulateScan() {
-        let dummyPayload = """
-        {"n":"Simulovaná zostava z QR","d":"Waltz","c":"Standard","nodes":[{"x":200,"y":300,"f":"Natural Spin Turn","r":"1, 2, 3, 4, 5, 6","o":0,"n":"Dôležité točiť na pätách.","t":""},{"x":450,"y":300,"f":"Chasse from PP","r":"1, 2 a 3","o":1,"n":"Ramená držať dole.","t":"Prechod na stred sály"}]}
-        """
-        delegate?.qrScannerDidScan(code: dummyPayload)
+        delegate?.qrScannerDidScan(code: "https://www.encore-sk.com/add/DNC-000000")
     }
-    
+
     private func checkPermissionAndSetupCamera() {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:

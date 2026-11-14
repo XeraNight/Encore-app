@@ -136,7 +136,6 @@ struct RoutineCanvasView: View {
     @State private var sketchColor: SketchColor = .red
     @State private var confirmClearSketch = false
     @State private var isDrawingMode = false
-    @State private var showQRExport = false
     @State private var showRoutineVideoVault = false
     /// Partner moves arrive many times a second; they are written to disk once the partner stops.
     @State private var remoteMoveSaveTask: Task<Void, Never>?
@@ -415,11 +414,6 @@ struct RoutineCanvasView: View {
 
                         Spacer(minLength: 0)
 
-                        LiquidGlassCircleButton(icon: "qrcode", label: "Zdieľať zostavu cez QR kód") {
-                            showQRExport = true
-                        }
-                        .accessibilityIdentifier("canvas.shareQR")
-
                         moreMenu
                             .accessibilityIdentifier("canvas.more")
                     }
@@ -592,9 +586,6 @@ struct RoutineCanvasView: View {
             TransitionEditSheet(fromNode: conn.from, toNode: conn.to, realtimeManager: realtimeManager) {
                 selectedConnectionForEdit = nil
             }
-        }
-        .sheet(isPresented: $showQRExport) {
-            QRExportSheet(routine: routine)
         }
         .modifier(DeleteFigureAlert(node: $nodeToDelete, onDelete: deleteNode))
         .confirmationDialog("Zmazať celú kresbu?", isPresented: $confirmClearSketch, titleVisibility: .visible) {

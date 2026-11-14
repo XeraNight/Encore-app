@@ -106,7 +106,7 @@ struct LogoCommandPaletteView: View {
                                             onSelectCamera()
                                         }
                                         
-                                        commandRow(icon: "qrcode.viewfinder", title: "Skenovať QR kód", subtitle: "Naimportovať zostavu od partnera", color: Color.white.opacity(0.7)) {
+                                        commandRow(icon: "qrcode.viewfinder", title: "Skenovať QR kód", subtitle: "Pozvánka od tanečníka", color: Color.white.opacity(0.7)) {
                                             isPresented = false
                                             onSelectScanQR()
                                         }

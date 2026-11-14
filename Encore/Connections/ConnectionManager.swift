@@ -409,18 +409,31 @@ public final class ConnectionManager: ObservableObject {
             .upsert(BlockDTO(blocker_id: myId, blocked_id: dancerId), onConflict: "blocker_id,blocked_id", ignoreDuplicates: true)
             .execute()
 
+        try await revokeEverything(with: dancerId)
+        await fetchAllConnections()
+    }
+
+    // MARK: - End the connection with a dancer
+    /// The pair, the connection and any request between us, in one go: ending a pair must not leave the plain
+    /// connection behind.
+    public func endConnection(with dancerId: UUID) async throws {
+        try await revokeEverything(with: dancerId)
+        rememberSharing(activePartners.contains { $0.otherUserId != dancerId } || !activeStudents.isEmpty || !activeCoaches.isEmpty)
+        await fetchAllConnections()
+    }
+
+    private func revokeEverything(with dancerId: UUID) async throws {
+        guard let myId = AuthManager.shared.currentUser?.id else { return }
         struct UpdateDTO: Encodable {
             let status: String
             let updated_at: String
         }
-        try await client
+        try await SupabaseConfig.client
             .from("connections")
             .update(UpdateDTO(status: ConnectionStatus.revoked.rawValue, updated_at: ISO8601DateFormatter().string(from: Date())))
             .in("status", values: [ConnectionStatus.pending.rawValue, ConnectionStatus.accepted.rawValue])
             .or("and(user_a_id.eq.\(myId),user_b_id.eq.\(dancerId)),and(user_a_id.eq.\(dancerId),user_b_id.eq.\(myId))")
             .execute()
-
-        await fetchAllConnections()
     }
 
     public func unblock(_ dancerId: UUID) async throws {

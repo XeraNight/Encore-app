@@ -187,7 +187,7 @@ struct EncoreMemberCardView: View {
                         }
                     }
 
-                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o spojenie. Kód platí 7 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a karta v Peňaženke ho dostane sama" : "").")
+                    Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o spojenie. Kód platí 30 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a karta v Peňaženke ho dostane sama" : "").")
                         .font(.footnote)
                         .foregroundColor(.white.opacity(0.65))
                         .fixedSize(horizontal: false, vertical: true)
@@ -203,6 +203,7 @@ struct EncoreMemberCardView: View {
         } message: {
             Text(walletManager.alertMessage)
         }
+        .task { await FriendManager.shared.fetchOrGenerateInviteToken() }
         .task(id: targetQRString) {
             let link = targetQRString
             qrImage = await Task.detached(priority: .utility) { QRGenerator.generateQRCode(from: link) }.value

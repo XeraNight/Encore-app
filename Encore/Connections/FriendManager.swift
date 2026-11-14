@@ -34,38 +34,40 @@ final class FriendManager: ObservableObject {
     }
     
     // MARK: - Token Management
-    /// Reuses the stored invite token while it is still valid for at least a day. A new one (which
-    /// revokes the old one on the server) is only made when none exists, it is about to expire,
-    /// or the user explicitly asks for a new QR code (`force`).
+    /// The card's QR code is the same on every iPhone: the server hands out the current token (30 days) and makes a
+    /// new one only when less than a week is left. It is asked every two hours at most; "Nový QR" (`force`) revokes the
+    /// old one at once. Every iPhone and the card in Wallet follow the server, so none of them keeps a dead code.
     func fetchOrGenerateInviteToken(force: Bool = false) async {
         guard AuthManager.shared.isAuthenticated else { return }
         let client = SupabaseConfig.client
         let uid = UserProfileStore.shared.activeUserId
         let defaults = UserDefaults.standard
         let tokenKey = "encore_active_invite_token_\(uid)"
-        let expiryKey = "encore_active_invite_token_exp_\(uid)"
-        
-        if let cached = defaults.string(forKey: tokenKey), !cached.isEmpty {
+        let checkedKey = "encore_active_invite_token_checked_\(uid)"
+
+        let cached = defaults.string(forKey: tokenKey) ?? ""
+        if !cached.isEmpty {
             self.activeInviteToken = cached
-            let expiry = defaults.double(forKey: expiryKey)
-            let hasDayLeft = expiry > Date().addingTimeInterval(24 * 60 * 60).timeIntervalSince1970
-            if !force && hasDayLeft { return }
+            let lastCheck = defaults.double(forKey: checkedKey)
+            if !force && lastCheck > Date().addingTimeInterval(-2 * 60 * 60).timeIntervalSince1970 { return }
         }
-        
+
         do {
             struct TokenParams: Encodable {
                 let p_expires_in_days: Int
             }
-            let token: String = try await client.rpc(
-                "create_friend_invite_token",
-                params: TokenParams(p_expires_in_days: 7)
-            ).execute().value
-            
+            let token: String
+            if force {
+                token = try await client.rpc("create_friend_invite_token", params: TokenParams(p_expires_in_days: 30)).execute().value
+            } else {
+                token = try await client.rpc("current_friend_invite_token").execute().value
+            }
+
             self.activeInviteToken = token
             defaults.set(token, forKey: tokenKey)
-            defaults.set(Date().addingTimeInterval(7 * 24 * 60 * 60).timeIntervalSince1970, forKey: expiryKey)
-            // The old token no longer works, so the card in Apple Wallet gets the new QR code too.
-            await AppleWalletPassManager.shared.updatePassInWallet()
+            defaults.set(Date().timeIntervalSince1970, forKey: checkedKey)
+            // A different code than the card in Apple Wallet shows: it gets the new QR code too.
+            if token != cached { await AppleWalletPassManager.shared.updatePassInWallet() }
         } catch {
             // No made-up token: the server would not know it. The card falls back to the dancer code link.
             Logger.general.notice("Invite token generation failed: \(error.localizedDescription, privacy: .public)")
@@ -92,6 +94,26 @@ final class FriendManager: ObservableObject {
         return "https://\(AppWebsite.host)/add"
     }
     
+    // MARK: - Scanned code (the one entry for the camera, the card and a pasted link)
+    /// Everything a QR code can hold: a guest coach key, an invite link or a dancer ID. Anything else is told to
+    /// the dancer (`inviteErrorMessage`, shown by the app's root), never ignored.
+    @discardableResult
+    func handleScanned(_ raw: String) -> Bool {
+        let clean = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if AppFeatures.coachTools, let token = GuestCoachLink.token(from: clean) {
+            GuestCoachService.shared.pendingToken = token
+            return true
+        }
+        if clean.uppercased().hasPrefix("DNC-") {
+            if processInviteCode(clean) { return true }
+        } else if let url = URL(string: clean), handleIncomingURL(url) {
+            return true
+        }
+        if inviteErrorMessage == nil { inviteErrorMessage = "Tento QR kód Encore nepozná." }
+        HapticFeedback.warning()
+        return false
+    }
+
     // MARK: - Universal Link / Deep Link Handler
     /// Accepts only an opaque invite token (`/add?t=tok_…`, `encore://add?t=tok_…`) or a dancer code
     /// (`/add/DNC-…`, `encore://add?code=DNC-…`). The name shown is always loaded from the server, never
@@ -148,6 +170,7 @@ final class FriendManager: ObservableObject {
         }
         
         if cleanCode == UserProfileStore.shared.dancerCode {
+            inviteErrorMessage = "Nemôžeš poslať pozvánku sám sebe."
             return false
         }
         
@@ -353,6 +376,7 @@ final class FriendManager: ObservableObject {
     }
     
     private func presentPayload(_ payload: FriendInvitePayload) {
+        inviteErrorMessage = nil
         self.incomingInvite = payload
         self.showInviteSheet = true
         HapticFeedback.light()

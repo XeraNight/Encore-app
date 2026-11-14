@@ -289,8 +289,6 @@ struct GoldModePicker<Value: Hashable>: View {
 /// still missing show at a glance. The same card is used on Home, in Zostavy and in the profile.
 struct RoutineCard: View {
     let routine: Routine
-    /// Shows a QR button in the corner (Zostavy tab).
-    var onShareQR: (() -> Void)? = nil
     let onOpen: () -> Void
 
     @Query private var dances: [Dance]
@@ -331,12 +329,6 @@ struct RoutineCard: View {
             .homeCard(cornerRadius: 20)
         }
         .buttonStyle(.pressable(scale: 0.97))
-        .overlay(alignment: .topTrailing) {
-            if let onShareQR {
-                LiquidGlassCircleButton(icon: "qrcode", label: "Zdieľať zostavu cez QR kód", size: 40, action: onShareQR)
-                    .padding(10)
-            }
-        }
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Otvorí zostavu na plátne")
@@ -375,11 +367,6 @@ struct RoutineCard: View {
                         .font(.caption2.weight(.semibold))
                         .foregroundColor(Color.textSecondary)
                 }
-            }
-
-            if onShareQR != nil {
-                // Room for the QR button that sits on top of the card.
-                Color.clear.frame(width: 40, height: 40)
             }
         }
     }

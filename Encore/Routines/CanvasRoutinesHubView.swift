@@ -12,7 +12,6 @@ public struct CanvasRoutinesHubView: View {
     @State private var filter: CategoryFilter = .all
     @State private var selectedRoutineForCanvas: Routine?
     @State private var showNewRoutineSheet = false
-    @State private var routineForQRExport: Routine?
     @State private var routinePendingDelete: Routine?
     @State private var routineToRename: Routine?
     @State private var renameText = ""
@@ -79,7 +78,7 @@ public struct CanvasRoutinesHubView: View {
                         } else {
                             LazyVStack(spacing: 14) {
                                 ForEach(filteredRoutines) { routine in
-                                    RoutineCard(routine: routine, onShareQR: { shareQR(routine) }) {
+                                    RoutineCard(routine: routine) {
                                         selectedRoutineForCanvas = routine
                                     }
                                     .contextMenu { menu(for: routine) }
@@ -114,9 +113,6 @@ public struct CanvasRoutinesHubView: View {
                 NavigationStack {
                     DanceCategorySelectionSheet(isPresented: $showNewRoutineSheet)
                 }
-            }
-            .sheet(item: $routineForQRExport) { routine in
-                QRExportSheet(routine: routine)
             }
             .confirmationDialog(
                 "Zmazať zostavu?",
@@ -316,16 +312,9 @@ public struct CanvasRoutinesHubView: View {
         } label: {
             Label("Premenovať", systemImage: "pencil")
         }
-        Button { shareQR(routine) } label: {
-            Label("Zdieľať QR kód", systemImage: "qrcode")
-        }
         Button(role: .destructive) { routinePendingDelete = routine } label: {
             Label("Zmazať zostavu", systemImage: "trash")
         }
-    }
-
-    private func shareQR(_ routine: Routine) {
-        routineForQRExport = routine
     }
 
     private func delete(_ routine: Routine) {

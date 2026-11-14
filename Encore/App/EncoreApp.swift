@@ -191,6 +191,15 @@ struct RootAppView: View {
                 }
             }
         }
+        // A dead, revoked or unknown code says so (inside the invite sheet the sheet itself shows the reason).
+        .alert("QR kód sa nedá použiť", isPresented: Binding(
+            get: { friendManager.inviteErrorMessage != nil && !friendManager.showInviteSheet },
+            set: { if !$0 { friendManager.inviteErrorMessage = nil } }
+        )) {
+            Button("Rozumiem", role: .cancel) {}
+        } message: {
+            Text(friendManager.inviteErrorMessage ?? "")
+        }
         .sheet(isPresented: $friendManager.showDeferredInvitePrompt) {
             DeferredInvitePasteSheet()
         }

@@ -84,9 +84,7 @@ struct FriendsListView: View {
         .sheet(isPresented: $showPaywallSheet) {
             SubscriptionPaywallView(initialTier: .premium)
         }
-        .qrScanner(isPresented: $showScanner) { scannedCode in
-            handleScannedQRCode(scannedCode)
-        }
+        .qrScanner(isPresented: $showScanner) { friendManager.handleScanned($0) }
         .confirmationDialog(
             "Zrušiť prepojenie?",
             isPresented: $showRevokeConfirmation,
@@ -94,10 +92,9 @@ struct FriendsListView: View {
         ) {
             if let conn = connectionToRevoke {
                 Button("Zrušiť prepojenie s \(conn.otherUserName)", role: .destructive) {
-                    Task {
-                        try? await connectionManager.revokeConnection(connectionId: conn.id)
+                    run {
+                        try await connectionManager.endConnection(with: conn.otherUserId)
                         connectionToRevoke = nil
-                        actionCount += 1
                     }
                 }
             }
@@ -105,7 +102,7 @@ struct FriendsListView: View {
                 connectionToRevoke = nil
             }
         } message: {
-            Text("Spojenie sa zruší. Spojiť sa môžete kedykoľvek znova.")
+            Text("Spojenie aj pár sa zrušia. Spojiť sa môžete kedykoľvek znova.")
         }
         .confirmationDialog(
             "Zmeniť na spojenie?",
@@ -777,17 +774,6 @@ struct FriendsListView: View {
         }
     }
 
-    private func handleScannedQRCode(_ code: String) {
-        let clean = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        if clean.starts(with: "DNC-") {
-            // A scanned ID tanečníka
-            Task {
-                try? await connectionManager.sendRequestByDancerCode(code: clean, type: .connection)
-            }
-        } else if let url = URL(string: clean) {
-            _ = friendManager.handleIncomingURL(url)
-        }
-    }
 }
 
 // MARK: - Xcode Canvas Preview

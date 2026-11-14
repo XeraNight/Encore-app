@@ -34,15 +34,9 @@ struct ContentView: View {
     @State private var compareSlotAPath: String?
     @State private var compareSlotBPath: String?
 
-    // Routine import (QR / pasted code) and guest coach keys
+    // QR scanner (invites, dancer IDs, guest coach keys: FriendManager.handleScanned)
     @ObservedObject private var guestService = GuestCoachService.shared
     @State private var showQRScanner = false
-    @State private var scanErrorMessage: String?
-    @State private var showScanError = false
-    @State private var showScanSuccess = false
-    @State private var scannedRoutineName = ""
-    @State private var showManualCodeSheet = false
-    @State private var manualCodeInput = ""
 
     /// Pinned notes first, then newest.
     private var sortedInbox: [InstantNote] {
@@ -203,7 +197,7 @@ struct ContentView: View {
             .sheet(isPresented: $showMetronomeSheet) {
                 DanceMetronomeView()
             }
-            .qrScanner(isPresented: $showQRScanner, onScan: handleScannedCode)
+            .qrScanner(isPresented: $showQRScanner) { FriendManager.shared.handleScanned($0) }
             .sheet(isPresented: Binding(
                 get: { guestService.pendingToken != nil },
                 set: { if !$0 { guestService.pendingToken = nil } }
@@ -212,19 +206,6 @@ struct ContentView: View {
                     GuestKeyRedeemView(token: token)
                 }
             }
-            .sheet(isPresented: $showManualCodeSheet) {
-                manualCodeImportSheet
-            }
-            .alert("Chyba skenovania", isPresented: $showScanError, actions: {
-                Button("OK", role: .cancel) {}
-            }, message: {
-                Text(scanErrorMessage ?? "Neznáma chyba")
-            })
-            .alert("Zostava naimportovaná", isPresented: $showScanSuccess, actions: {
-                Button("Skvelé", role: .cancel) {}
-            }, message: {
-                Text("Zostava \"\(scannedRoutineName)\" bola úspešne naimportovaná.")
-            })
         }
     }
 
@@ -249,27 +230,11 @@ struct ContentView: View {
         .frame(height: isRadialHubOpen ? max(logoSize + 185, 300) : logoSize + 36)
         .overlay(alignment: .topTrailing) {
             // Right QR Scanner & Actions Menu (Single Apple 3D Liquid Glass Lens)
-            Menu {
-                Button(action: { showQRScanner = true }) {
-                    Label("Skenovať QR kód", systemImage: "qrcode.viewfinder")
-                }
-                Button(action: {
-                    if let str = UIPasteboard.general.string, !str.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        handleScannedCode(str)
-                    } else {
-                        showError("Nemáš skopírovaný žiadny kód zostavy.")
-                    }
-                }) {
-                    Label("Vložiť skopírovaný kód", systemImage: "doc.on.clipboard")
-                }
-                Button(action: { showManualCodeSheet = true }) {
-                    Label("Zadať kód manuálne", systemImage: "keyboard")
-                }
-            } label: {
+            Button { showQRScanner = true } label: {
                 GlassCircleLabel(icon: "qrcode.viewfinder")
             }
-            .accessibilityLabel("Importovať zostavu")
-            .accessibilityHint("Naskenuj QR kód alebo vlož kód zostavy")
+            .accessibilityLabel("Skenovať QR kód")
+            .accessibilityHint("Naskenuj QR kód tanečníka")
             .padding(.trailing, 2)
             .opacity(isRadialHubOpen ? 0.0 : 1.0)
             .animation(.easeOut(duration: 0.18), value: isRadialHubOpen)
@@ -289,70 +254,6 @@ struct ContentView: View {
         case .compare:
             showCompareModeSheet = true
         }
-    }
-    
-    // MARK: - Routine import
-    private func handleScannedCode(_ rawCode: String) {
-        if AppFeatures.coachTools, let token = GuestCoachLink.token(from: rawCode) {
-            guestService.pendingToken = token
-            return
-        }
-        do {
-            scannedRoutineName = try RoutineShareImporter.importRoutine(fromCode: rawCode, into: modelContext)
-            showScanSuccess = true
-        } catch {
-            showError((error as? LocalizedError)?.errorDescription ?? "Nepodarilo sa naimportovať zostavu.")
-        }
-    }
-
-    private func showError(_ message: String) {
-        scanErrorMessage = message
-        showScanError = true
-    }
-
-    private var manualCodeImportSheet: some View {
-        NavigationStack {
-            ZStack {
-                EllegancePageBackground()
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("Skopíruj textový kód zostavy z druhého iPhonu a vlož ho sem.")
-                        .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.7))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    TextEditor(text: $manualCodeInput)
-                        .scrollContentBackground(.hidden)
-                        .font(.callout.monospaced())
-                        .foregroundColor(.white)
-                        .frame(height: 150)
-                        .padding(10)
-                        .homeCard(cornerRadius: 16)
-
-                    PrimarySheetButton(
-                        title: "Naimportovať zostavu",
-                        isLoading: false,
-                        isEnabled: !manualCodeInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    ) {
-                        let codeToProcess = manualCodeInput
-                        manualCodeInput = ""
-                        showManualCodeSheet = false
-                        handleScannedCode(codeToProcess)
-                    }
-
-                    Spacer()
-                }
-                .padding(20)
-            }
-            .navigationTitle("Kód zostavy")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Zrušiť") { showManualCodeSheet = false }
-                        .foregroundColor(.gold400)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
     }
 }
 
