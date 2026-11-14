@@ -22,6 +22,8 @@ struct TrainingJournalView: View {
     @State private var composer: JournalComposer.Kind?
     @State private var composerDance: String?
     @State private var search = ""
+    @State private var filter: JournalFilter = .all
+    @State private var danceFilter: String?
     @State private var noteToEdit: InstantNote?
     @State private var noteForFigure: InstantNote?
     @State private var noteToDelete: InstantNote?
@@ -33,6 +35,23 @@ struct TrainingJournalView: View {
     @Namespace private var dayNamespace
 
     enum JournalMode: Hashable { case read, listen }
+
+    /// What kind of note to look for across all days.
+    enum JournalFilter: String, CaseIterable, Identifiable {
+        case all = "Všetko", text = "Text", voice = "Hlas", video = "Video", photo = "Fotka", unassigned = "Bez figúry"
+        var id: String { rawValue }
+
+        func matches(_ note: InstantNote) -> Bool {
+            switch self {
+            case .all: return true
+            case .text: return note.hasText
+            case .voice: return note.audioPath != nil
+            case .video: return note.videoPath != nil
+            case .photo: return note.imagePath != nil
+            case .unassigned: return note.linkedFigureId == nil && !note.isImported
+            }
+        }
+    }
 
     private var calendar: Calendar { PlannerCalendar.calendar }
 
@@ -59,12 +78,25 @@ struct TrainingJournalView: View {
         return notes.filter { calendar.isDate($0.createdAt, inSameDayAs: day) }
     }
 
+    /// Across all days, newest first: what the search and the filters leave. The search also reads the dance and the
+    /// name of the figure a note was added to.
     private var searchResults: [InstantNote] {
         let query = search.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return notes.reversed().filter { $0.text.lowercased().contains(query) }
+        return notes.reversed().filter { note in
+            guard filter.matches(note), danceFilter == nil || note.danceName == danceFilter else { return false }
+            guard !query.isEmpty else { return true }
+            let figure = note.linkedFigureId.flatMap { figureNames[$0] } ?? ""
+            return [note.text, note.danceName.map(DanceNames.display) ?? "", figure].contains { $0.lowercased().contains(query) }
+        }
     }
 
     private var isSearching: Bool { !search.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    private var isFiltering: Bool { filter != .all || danceFilter != nil }
+    /// The day-by-day page gives way to one list across all days.
+    private var showsList: Bool { isSearching || isFiltering }
+    private var notesDances: [String] {
+        Set(notes.compactMap(\.danceName)).sorted { DanceNames.rank($0) < DanceNames.rank($1) }
+    }
     private var voiceNotes: [InstantNote] { dayNotes.filter { $0.audioPath != nil } }
 
     var body: some View {
@@ -133,8 +165,16 @@ struct TrainingJournalView: View {
         } else {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
-                    if isSearching {
-                        HomeSectionHeader(title: "VÝSLEDKY", systemImage: "magnifyingglass", count: searchResults.count)
+                    filterBar
+                    if showsList {
+                        HomeSectionHeader(title: isSearching ? "VÝSLEDKY" : "POZNÁMKY", systemImage: isSearching ? "magnifyingglass" : "line.3.horizontal.decrease", count: searchResults.count)
+                        if searchResults.isEmpty {
+                            Text("Nič také tu nie je.")
+                                .font(.subheadline)
+                                .foregroundColor(Color.textSecondary)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 24)
+                        }
                         ForEach(searchResults) { card(for: $0, showsDate: true) }
                     } else {
                         dayStrip
@@ -178,6 +218,53 @@ struct TrainingJournalView: View {
         .homeCard(cornerRadius: 20)
         .padding(.horizontal, 20)
         .frame(maxHeight: .infinity)
+    }
+
+    // MARK: Filter
+    private var filterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(JournalFilter.allCases) { kind in
+                    filterChip(kind.rawValue, isOn: filter == kind) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { filter = kind }
+                    }
+                }
+                if !notesDances.isEmpty {
+                    Menu {
+                        Button("Všetky tance") { danceFilter = nil }
+                        ForEach(notesDances, id: \.self) { dance in
+                            Button(DanceNames.display(dance)) { danceFilter = dance }
+                        }
+                    } label: {
+                        chipLabel(danceFilter.map(DanceNames.display) ?? "Tanec", isOn: danceFilter != nil, showsChevron: true)
+                    }
+                    .accessibilityLabel("Filter podľa tanca")
+                }
+            }
+            .padding(.vertical, 2)
+        }
+        .scrollClipDisabled()
+        .sensoryFeedback(.selection, trigger: filter)
+        .sensoryFeedback(.selection, trigger: danceFilter)
+    }
+
+    private func filterChip(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) { chipLabel(title, isOn: isOn, showsChevron: false) }
+            .buttonStyle(.pressable)
+            .accessibilityAddTraits(isOn ? .isSelected : [])
+    }
+
+    private func chipLabel(_ title: String, isOn: Bool, showsChevron: Bool) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+            if showsChevron { Image(systemName: "chevron.down").font(.system(size: 8, weight: .bold)) }
+        }
+        .font(.footnote.weight(isOn ? .bold : .medium))
+        .foregroundColor(isOn ? Color.obsidian900 : .white.opacity(0.85))
+        .padding(.horizontal, 12)
+        .frame(minHeight: 34)
+        .background(isOn ? AnyShapeStyle(Color.gold400) : AnyShapeStyle(Color.white.opacity(0.07)), in: Capsule())
+        .overlay(Capsule().stroke(isOn ? Color.gold400.opacity(0.45) : Color.white.opacity(0.08), lineWidth: 1))
     }
 
     // MARK: Days
@@ -323,7 +410,7 @@ struct TrainingJournalView: View {
             }
             if note.isImported {
                 Button { restore(note) } label: { Label("Vrátiť medzi nové", systemImage: "arrow.uturn.backward") }
-            } else if note.hasText {
+            } else if note.hasText || note.audioPath != nil || note.videoPath != nil {
                 Button { noteForFigure = note } label: { Label("Pridať k figúre", systemImage: "plus.circle") }
             }
             Button(role: .destructive) { noteToDelete = note } label: { Label("Zmazať", systemImage: "trash") }
@@ -540,6 +627,12 @@ private struct JournalNoteCard: View {
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.75))
                 }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    if let video = note.videoPath { Task { await FullScreenVideo.present(path: video) } }
+                }
+                .accessibilityAddTraits(note.videoPath != nil ? .isButton : [])
+                .accessibilityHint(note.videoPath != nil ? "Prehrá video na celú obrazovku" : "")
             }
         }
         .padding(14)
