@@ -19,6 +19,20 @@ struct EncoreMemberCardView: View {
     
     @ObservedObject private var walletManager = AppleWalletPassManager.shared
     @ObservedObject private var friendManager = FriendManager.shared
+    @ObservedObject private var competitions = CompetitionManager.shared
+
+    /// The dancer's own KSIS number and classes, for a quick look. Not on an invite card (that is someone else's),
+    /// and never a "verified" mark: the dancer picked the number themselves.
+    private var ksisNumber: String? {
+        guard qrURL == nil, let dancer = competitions.dancer else { return nil }
+        return String(dancer.personNumber)
+    }
+
+    private var classesText: String? {
+        guard qrURL == nil, let couple = competitions.activeCouple else { return nil }
+        let parts = [("ŠTT", couple.stt.className), ("LAT", couple.lat.className)].compactMap { label, name in name.map { "\(label) \($0)" } }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
 
     /// The Encore dancer ID: a KSIS number on the card would look confirmed, and nobody confirms it.
     private var publicCardId: String { "ID TANEČNÍKA: \(UserProfileStore.shared.dancerCode)" }
@@ -284,7 +298,7 @@ struct EncoreMemberCardView: View {
                 // Bottom Row: Calligraphic Name (Left) + Scannable QR Code (Right Bottom)
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("TANEČNÍK")
+                        Text(ksisNumber.map { "TANEČNÍK · KSIS Č. \($0)" } ?? "TANEČNÍK")
                             .font(.system(size: 8, weight: .bold))
                             .tracking(0.8)
                             .foregroundColor(Color(red: 0.90, green: 0.78, blue: 0.45).opacity(0.85))
@@ -445,8 +459,22 @@ struct EncoreMemberCardView: View {
                         Text(club.isEmpty ? "Individuálny" : club)
                             .font(.system(size: 13, weight: .bold, design: .serif))
                             .foregroundColor(.white)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
                     }
-                    
+
+                    if let ksisNumber {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("KSIS Č.")
+                                .font(.system(size: 8, weight: .bold))
+                                .tracking(0.8)
+                                .foregroundColor(Color(red: 0.90, green: 0.78, blue: 0.45).opacity(0.8))
+                            Text(ksisNumber)
+                                .font(.system(size: 13, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                    }
+
                     Spacer()
                 }
                 
@@ -458,6 +486,16 @@ struct EncoreMemberCardView: View {
                         .foregroundColor(Color(red: 0.90, green: 0.78, blue: 0.45).opacity(0.8))
                     
                     HStack(spacing: 6) {
+                        if let classesText {
+                            Text(classesText)
+                                .font(.system(size: 9, weight: .bold, design: .rounded))
+                                .foregroundColor(Color(red: 0.96, green: 0.85, blue: 0.50))
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 3)
+                                .background(Color.black.opacity(0.35))
+                                .cornerRadius(5)
+                                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.gold500.opacity(0.5), lineWidth: 0.8))
+                        }
                         ForEach(UserProfileStore.shared.dancerGroups, id: \.self) { group in
                             Text(group)
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
