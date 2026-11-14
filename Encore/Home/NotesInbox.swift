@@ -179,6 +179,18 @@ struct NoteDetailSheet: View {
                                 LoopingVideoPlayer(videoPath: videoPath, rate: 1.0)
                                     .frame(height: 220)
                                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                    .overlay(alignment: .bottomTrailing) {
+                                        Button {
+                                            Task { await FullScreenVideo.present(path: videoPath) }
+                                        } label: {
+                                            GlassCircleLabel(icon: "arrow.up.left.and.arrow.down.right", size: 32)
+                                                .frame(width: 44, height: 44)
+                                                .contentShape(Rectangle())
+                                        }
+                                        .buttonStyle(.plain)
+                                        .accessibilityLabel("Na celú obrazovku")
+                                        .padding(6)
+                                    }
                             }
                         }
 

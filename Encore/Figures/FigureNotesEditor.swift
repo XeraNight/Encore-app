@@ -734,6 +734,19 @@ private struct AttachmentVideoBlock: View {
             .accessibilityLabel("Možnosti videa")
             .padding(2)
         }
+        .overlay(alignment: .bottomTrailing) {
+            Button {
+                video.stop()
+                Task { await FullScreenVideo.present(path: ref.path) }
+            } label: {
+                GlassCircleLabel(icon: "arrow.up.left.and.arrow.down.right", size: 32)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Na celú obrazovku")
+            .padding(2)
+        }
         .sensoryFeedback(.selection, trigger: isPlaying)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Video v poznámkach")
@@ -741,6 +754,7 @@ private struct AttachmentVideoBlock: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction(named: "Ako moje video") { onUse(false) }
         .accessibilityAction(named: "Ako vzor") { onUse(true) }
+        .accessibilityAction(named: "Na celú obrazovku") { video.stop(); Task { await FullScreenVideo.present(path: ref.path) } }
         .accessibilityAction(named: "Odstrániť z poznámok", onRemove)
     }
 

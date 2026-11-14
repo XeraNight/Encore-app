@@ -450,13 +450,7 @@ struct FigureDetailCard: View {
     /// It shows the video as recorded ("Otočiť video" turns only the picture here).
     private func fullScreenButton(_ player: AVPlayer) -> some View {
         Button {
-            guard let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene,
-                  var top = scene.keyWindow?.rootViewController else { return }
-            while let presented = top.presentedViewController { top = presented }
-            let controller = AVPlayerViewController()
-            controller.player = player
-            controller.modalPresentationStyle = .fullScreen
-            top.present(controller, animated: true) { player.play() }
+            FullScreenVideo.present(player)
         } label: {
             Image(systemName: "arrow.up.left.and.arrow.down.right")
                 .font(.subheadline.weight(.semibold))
