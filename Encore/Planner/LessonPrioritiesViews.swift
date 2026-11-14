@@ -16,6 +16,8 @@ struct LessonPrioritiesSection: View {
     @State private var showPaywall = false
     @State private var tickCount = 0
     @State private var finishedCount = 0
+    /// With many dances the cards fold to the next thing to do; a tap on the header opens one.
+    @State private var expanded: Set<String> = []
 
     private var sets: [LessonPrioritySet] { LessonPriorities.activeSets(priorities) }
     private var canWrite: Bool { subscriptionManager.currentTier >= .plus }
@@ -96,13 +98,26 @@ struct LessonPrioritiesSection: View {
         .buttonStyle(.pressable)
     }
 
+    private static let foldsFrom = 3
+
     private func setCard(_ set: LessonPrioritySet) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        let folds = sets.count >= Self.foldsFrom
+        let isOpen = !folds || expanded.contains(set.id)
+        let shown = isOpen ? set.items : Array(set.items.filter(\.isOpen).prefix(1))
+        return VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(DanceNames.display(set.danceName).uppercased())
                     .font(.system(.caption, design: .rounded).weight(.black))
                     .tracking(1.2)
                     .foregroundColor(Color.gold400)
+                if folds {
+                    Text("\(set.items.count - set.openCount)/\(set.items.count)")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.white.opacity(0.55))
+                    Image(systemName: isOpen ? "chevron.up" : "chevron.down")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.white.opacity(0.55))
+                }
                 Spacer()
                 Text(set.createdAt, format: .dateTime.day().month(.abbreviated))
                     .font(.caption2)
@@ -119,13 +134,20 @@ struct LessonPrioritiesSection: View {
                 .accessibilityLabel("Upraviť Top 3 pre \(DanceNames.display(set.danceName))")
             }
 
-            ForEach(set.items) { item in
+            ForEach(shown) { item in
                 priorityRow(item, in: set)
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
         .homeCard()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard folds else { return }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                if isOpen { expanded.remove(set.id) } else { expanded.insert(set.id) }
+            }
+        }
     }
 
     private func priorityRow(_ item: LessonPriority, in set: LessonPrioritySet) -> some View {
@@ -233,6 +255,24 @@ struct LessonPrioritiesSheet: View {
     @State private var danceName: String?
     @State private var texts = ["", "", ""]
 
+    /// What this dance had before and is no longer open (ticked off or replaced), newest first, each text once.
+    private var earlier: [String] {
+        guard let danceName else { return [] }
+        let open = Set(LessonPriorities.openTexts(for: danceName, in: priorities))
+        var seen = open
+        return priorities
+            .filter { $0.danceName == danceName && !$0.isOpen }
+            .sorted { $0.createdAt > $1.createdAt }
+            .map(\.text)
+            .filter { seen.insert($0).inserted }
+            .prefix(6)
+            .map { $0 }
+    }
+
+    private var openCount: Int {
+        danceName.map { LessonPriorities.openTexts(for: $0, in: priorities).count } ?? 0
+    }
+
     private var canSave: Bool {
         danceName != nil && texts.contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
     }
@@ -260,6 +300,20 @@ struct LessonPrioritiesSheet: View {
                                 Text("Najprv vyber tanec.")
                                     .font(.footnote)
                                     .foregroundColor(Color.textSecondary)
+                            } else if openCount > 0 {
+                                Text("Z minula ti ostalo \(slovakCount(openCount, one: "nedokončené", few: "nedokončené", many: "nedokončených")). Nechaj ich, alebo ich prepíš. Prepísané nájdeš nižšie.")
+                                    .font(.footnote)
+                                    .foregroundColor(Color.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        if !earlier.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HomeSectionHeader(title: "Z MINULA", systemImage: "clock.arrow.circlepath")
+                                ForEach(earlier, id: \.self) { text in
+                                    earlierRow(text)
+                                }
                             }
                         }
                     }
@@ -294,6 +348,31 @@ struct LessonPrioritiesSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+    }
+
+    /// Ťuknutím sa starý riadok vráti na prvé voľné miesto.
+    private func earlierRow(_ text: String) -> some View {
+        let free = texts.firstIndex { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return Button {
+            guard let free else { return }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { texts[free] = text }
+        } label: {
+            HStack(spacing: 10) {
+                Text(text)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.75))
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Image(systemName: free == nil ? "checkmark" : "plus.circle")
+                    .foregroundColor(Color.gold400)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.pressable(scale: 0.98))
+        .disabled(free == nil)
+        .accessibilityHint("Vráti riadok medzi súčasné")
     }
 
     private func save() {
