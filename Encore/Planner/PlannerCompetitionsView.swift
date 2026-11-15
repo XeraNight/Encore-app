@@ -10,6 +10,8 @@ struct PlannerCompetitionsView: View {
     @ObservedObject private var ksisCalendar = KSISCalendarStore.shared
     @State private var browser: KSISBrowserTarget?
     @State private var editing: PlannedCompetition?
+    /// A competition already danced: its results, or the way to read them from KSIS.
+    @State private var openedPast: PlannedCompetition?
     @State private var showNew = false
     @State private var pendingDelete: PlannedCompetition?
     @State private var showsOlderSeasons = false
@@ -88,6 +90,7 @@ struct PlannerCompetitionsView: View {
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: competitions.map(\.id))
         .sheet(isPresented: $showNew) { CompetitionEditorSheet(competition: nil) }
         .sheet(item: $editing) { CompetitionEditorSheet(competition: $0) }
+        .sheet(item: $openedPast) { PastCompetitionSheet(competition: $0) }
         .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
         .confirmationDialog("Zmazať súťaž?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                             titleVisibility: .visible, presenting: pendingDelete) { competition in
@@ -110,7 +113,9 @@ struct PlannerCompetitionsView: View {
     }
 
     private func card(_ comp: PlannedCompetition) -> some View {
-        Button { editing = comp } label: {
+        Button {
+            if PlannerCalendar.startOfDay(comp.date) < today { openedPast = comp } else { editing = comp }
+        } label: {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(PlannerCalendar.daysText(until: comp.date))
