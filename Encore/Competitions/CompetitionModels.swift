@@ -146,6 +146,28 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
         case judges
     }
 
+    /// Marks and judges are stored as JSON: one that cannot be read (an older shape, a hand edit) takes only its
+    /// own marks away, never the result, and a result never takes the others with it (`LossyList`).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        sutazId = try c.decode(Int.self, forKey: .sutazId)
+        coupleId = try c.decode(Int.self, forKey: .coupleId)
+        eventName = try c.decode(String.self, forKey: .eventName)
+        categoryName = try c.decode(String.self, forKey: .categoryName)
+        discipline = try c.decode(String.self, forKey: .discipline)
+        date = try c.decode(String.self, forKey: .date)
+        coupleCount = try c.decode(Int.self, forKey: .coupleCount)
+        placementText = try c.decode(String.self, forKey: .placementText)
+        placement = try c.decodeIfPresent(Int.self, forKey: .placement)
+        pointsEarned = try c.decode(Int.self, forKey: .pointsEarned)
+        cumulativeStats = try c.decodeIfPresent(String.self, forKey: .cumulativeStats)
+        startNumber = try c.decodeIfPresent(String.self, forKey: .startNumber)
+        venue = try c.decodeIfPresent(String.self, forKey: .venue)
+        rounds = try? c.decodeIfPresent([KSISRound].self, forKey: .rounds)
+        judges = try? c.decodeIfPresent([KSISJudge].self, forKey: .judges)
+    }
+
     var dateValue: Date? { Self.isoDay.date(from: date) }
 
     /// "3. z 13", "12. – 13. z 16"
@@ -163,6 +185,34 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+/// A list read row by row: a row that cannot be read is left out instead of failing the whole list.
+struct LossyList<Element: Decodable>: Decodable {
+    let elements: [Element]
+    /// Rows that were left out.
+    let skipped: Int
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        var kept: [Element] = []
+        var skipped = 0
+        while !container.isAtEnd {
+            if let element = try? container.decode(Element.self) {
+                kept.append(element)
+            } else {
+                skipped += 1
+                _ = try? container.decode(AnyDecodable.self)
+            }
+        }
+        elements = kept
+        self.skipped = skipped
+    }
+
+    /// Steps over one value of any shape.
+    private struct AnyDecodable: Decodable {
+        init(from decoder: Decoder) throws {}
+    }
 }
 
 // MARK: - Marks by judge (stored in `competition_results.rounds`, shown live from the open page)
@@ -213,7 +263,8 @@ struct KSISRound: Codable, Equatable, Sendable, Identifiable {
     /// "28" for crosses, "15" or "9,5" for the final sum, "139,043" for scores.
     var sumText: String {
         if isScores { return Self.scoreText(sum) }
-        return sum.rounded() == sum ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk_SK")))
+        // Int(sum) stops the app for a number beyond Int: marks of a connection are read from their own saved page.
+        return sum.rounded() == sum && abs(sum) < 1e9 ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk_SK")))
     }
 
     static func scoreText(_ value: Double) -> String {

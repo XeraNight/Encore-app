@@ -64,12 +64,15 @@ final class CompetitionManager: ObservableObject {
     private init() {
         // The one list kept before it was per account; a competition in it is asked once more.
         UserDefaults.standard.removeObject(forKey: Self.withoutMarksKey(nil))
+        // Only a real user change reloads: a token refresh (every hour) sends the same user again.
         AuthManager.shared.$currentUser
+            .map { $0?.id }
+            .removeDuplicates()
             .receive(on: RunLoop.main)
-            .sink { [weak self] user in
-                if let user {
-                    self?.competitionsWithoutMarks = Self.savedCompetitions(Self.withoutMarksKey(user.id))
-                    self?.competitionsWithoutVenue = Self.savedCompetitions(Self.withoutVenueKey(user.id))
+            .sink { [weak self] userId in
+                if let userId {
+                    self?.competitionsWithoutMarks = Self.savedCompetitions(Self.withoutMarksKey(userId))
+                    self?.competitionsWithoutVenue = Self.savedCompetitions(Self.withoutVenueKey(userId))
                     Task { await self?.loadAllData() }
                 } else {
                     self?.resetState()
@@ -79,6 +82,7 @@ final class CompetitionManager: ObservableObject {
     }
 
     func resetState() {
+        loadNumber += 1   // an answer still on its way belongs to the account that left
         dancer = nil
         couples = []
         results = []
@@ -87,11 +91,17 @@ final class CompetitionManager: ObservableObject {
         competitionsWithoutVenue = []
     }
 
+    /// Each load takes a number; only the newest answer is kept, so a slow older one never overwrites what a save
+    /// has just reloaded, and an answer for an account that has since signed out is dropped.
+    private var loadNumber = 0
+
     /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
     func loadAllData() async {
         guard AuthManager.shared.isAuthenticated, let myId = AuthManager.shared.currentUser?.id else { return }
+        loadNumber += 1
+        let mine = loadNumber
         isLoading = true
-        defer { isLoading = false }
+        defer { if mine == loadNumber { isLoading = false } }
         do {
             let client = SupabaseConfig.client
             async let loadedDancers: [KSISDancer] = client
@@ -110,7 +120,7 @@ final class CompetitionManager: ObservableObject {
                 .order("created_at", ascending: false)
                 .execute()
                 .value
-            async let loadedResults: [CompetitionResult] = client
+            async let loadedResults: LossyList<CompetitionResult> = client
                 .from("competition_results")
                 .select("id, sutaz_id, couple_id, event_name, category_name, discipline, date, couple_count, placement_text, placement, points_earned, cumulative_stats, start_number, venue, rounds, judges")
                 .eq("user_id", value: myId)
@@ -118,11 +128,17 @@ final class CompetitionManager: ObservableObject {
                 .order("date", ascending: false)
                 .execute()
                 .value
-            dancer = try await loadedDancers.first
-            couples = try await loadedCouples
-            results = try await loadedResults
+            let (newDancer, newCouples, newResults) = try await (loadedDancers.first, loadedCouples, loadedResults)
+            guard mine == loadNumber, AuthManager.shared.currentUser?.id == myId else { return }
+            dancer = newDancer
+            couples = newCouples
+            results = newResults.elements
+            if newResults.skipped > 0 {
+                Logger.sync.error("KSIS diary: \(newResults.skipped, privacy: .public) unreadable result rows left out")
+            }
             loadFailed = false
         } catch {
+            guard mine == loadNumber else { return }
             loadFailed = true
             Logger.sync.error("Loading KSIS diary failed: \(error.localizedDescription, privacy: .public)")
         }
@@ -179,10 +195,11 @@ final class CompetitionManager: ObservableObject {
 
     /// Removes the couple with its results: every row of it, as KSIS keeps some couples under two ids.
     func unlink(_ couple: UserCouple) async throws {
+        // Reloaded also when one row fails midway: what was removed must not still show.
+        defer { Task { await loadAllData() } }
         for row in couples where row.sameCoupleKey == couple.sameCoupleKey {
             let _: KSISOkReply = try await call(KSISPageRequest(action: "unlink", coupleId: row.id.uuidString.lowercased()))
         }
-        await loadAllData()
     }
 
     func delete(_ result: CompetitionResult) async throws {
