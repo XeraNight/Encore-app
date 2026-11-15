@@ -1,6 +1,6 @@
 # Profil › Súťaže: prípady a stav kódu
 
-Stav z 15. 11. 2026. Čo sa skúšalo, čo sa našlo, čo čaká na ÁNO. Testy: `EncoreTests/SutazeEdgeCaseTests.swift`. Plný beh Swift: 222 testov prešlo. Deno (`ksis-pages.test.ts`): 37 prešlo.
+Stav z 15. 11. 2026. Čo sa skúšalo, čo sa našlo, čo čaká na ÁNO. Testy: `EncoreTests/SutazeEdgeCaseTests.swift`. Plný beh Swift: 215 rôznych testov prešlo. Deno (`ksis-pages.test.ts`): 40 prešlo.
 
 Značky: **test** = overené automatickým testom · **kód** = overené čítaním kódu · **iPhone** = dá sa overiť len na telefóne.
 
@@ -75,13 +75,27 @@ Všetko je commitnuté a **nasadené 16. 11. 2026**: migrácia `ksis_rate_limit_
 
 | Prípad | Dôsledok | Odporúčanie |
 |--------|----------|-------------|
-| Trieda E (deti) a desaťtance nemajú ŠTT ani LAT | **Neukladajú sa vôbec**, deti v E triede nemajú výsledky | Rozhodnúť: uložiť s disciplínou „ALL“ a ukázať ako triedu E. Dotkne sa databázy a zobrazenia, preto až po tvojom ÁNO |
-| Krížiky sa čítajú raz | Oprava výsledku organizátorom sa nenačíta; krížiky zverejnené po 14 dňoch sa nenačítajú nikdy (pamätá sa „nemá“) | Pri aktualizácii prečítať znova krížiky z posledných 14 dní a „nemá krížiky“ zabudnúť po 30 dňoch |
+| Krížiky sa čítali raz a „KSIS nemá“ sa pamätalo navždy | Krížiky zverejnené neskôr (organizátor mešká) sa nenačítali nikdy | Hotové: „KSIS nemal“ sa pamätá 30 dní a potom sa spýta znova; súťaž z posledných 14 dní sa pýta pri každej aktualizácii. Oprava výsledku organizátorom sa stále nečíta (výsledok sa opravuje pri čítaní stránky páru, krížiky nie) |
 | Súťaž zmazaná alebo zmenená v KSIS | V appke ostane, kým sa pár neodpojí | Nechať; dá sa odpojiť a načítať znova |
 | Stránka páru 17340 | Neviem, ako vyzerá (overenie Cloudflare) | Po nasadení Aktualizovať a pozrieť log |
 | Zlé hodiny v telefóne | „Minulé“ a „nadchádzajúce“ sa prehodia | Len na iPhone; server používa vlastný čas |
 | Telefón v inom jazyku | Dátumy v Plánovači sa píšu v jazyku telefónu aj v slovenskom texte | Kozmetika, po v1 |
 | Zvyšných 46 `try? save()` mimo Plánovača | Zlyhanie uloženia sa nezapíše | Mechanická zmena, povedz |
+
+## 2d. Čo KSIS má a appka neukladala (16. 11.)
+
+Na vzorovej stránke páru s 41 riadkami histórie sa ukladalo 22; po opravách 27 + 10.
+
+| Čo | Koľko na vzorovej stránke | Stav |
+|----|---------------------------|------|
+| WDSF „ST“ a „LA“ so slovenským číslom (Košice GP) | 4 | Hotové a nasadené (v13) |
+| MSR Dospelí 10T (desaťtance, majstrovstvá, nie pohár) | 1 | Pripravené, **nenasadené** (pozri nižšie) |
+| WDSF bez KSIS čísla (Košice, Budapešť; len miesto a počet párov) | 14, z toho 4 sú tie isté ako tie s číslom, ostáva 10 | Pripravené, **nenasadené** |
+| Trieda E (deti) | | Nečíta sa: v KSIS ju Jakub nemá (rozhodnuté 16. 11.) |
+| Sólo, formácie, choreo, showdance | | Nie sú na stránke páru. Neoverené, nečítame |
+| Harmonogram, propozície | | Len odkazy z kalendára |
+
+WDSF výsledok nemá KSIS číslo súťaže, preto dostane záporné číslo vyrobené z dátumu, podujatia a kategórie (rovnaké pri každom čítaní). Miesto je názov podujatia („Kosice,Slovakia“), takže sa ukáže na mape; zahraničné ide do „Mimo mapy“. Appka také súťaže nikdy nepýta v KSIS (nemajú stránku) a v detaile ukáže, že ide o WDSF. **Server aj appka sa musia nasadiť naraz**: starší build by pýtal stránky so záporným číslom. Webová appka (Antigravity): riadky so záporným `sutaz_id` nemajú KSIS stránku, odkazy z nich treba skryť.
 
 ## 3. Prípady, ktoré sú overené
 
