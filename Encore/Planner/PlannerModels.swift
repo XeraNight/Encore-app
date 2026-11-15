@@ -343,7 +343,7 @@ enum LessonPriorities {
             LessonPriority(danceName: danceName, text: text, rank: index + 1, createdAt: now, logEntryId: logEntryId)
         }
         saved.forEach(context.insert)
-        try? context.save()
+        context.saveOrLog()
         return saved
     }
 }

@@ -179,7 +179,7 @@ struct LessonPrioritiesSection: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) {
             item.doneAt = item.doneAt == nil ? Date() : nil
         }
-        try? modelContext.save()
+        modelContext.saveOrLog()
         tickCount += 1
         if set.items.allSatisfy({ $0.doneAt != nil }) { finishedCount += 1 }
     }

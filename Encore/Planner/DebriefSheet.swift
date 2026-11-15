@@ -473,7 +473,7 @@ struct DebriefSheet: View {
             }
         }
 
-        try? modelContext.save()
+        modelContext.saveOrLog()
         saveTick += 1
         dismiss()
     }

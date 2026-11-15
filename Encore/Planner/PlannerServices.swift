@@ -80,6 +80,36 @@ final class PlannerRouter: ObservableObject {
     private init() {}
 }
 
+// MARK: - What is to be reminded
+/// Reminders collected first and then added: iOS keeps only the 64 soonest local notifications and drops the rest
+/// without a word, so a busy training plan must not push a competition's reminders out.
+struct PlannerReminderQueue {
+    struct Item: Equatable {
+        let id: String
+        let title: String
+        let body: String
+        let date: Date
+        let open: PlannerOpenRequest?
+        let isCompetition: Bool
+
+        static func == (lhs: Item, rhs: Item) -> Bool { lhs.id == rhs.id }
+    }
+
+    /// Below the system's 64, so the planner's other reminders have room too.
+    static let limit = 60
+    private(set) var items: [Item] = []
+
+    mutating func add(id: String, title: String, body: String, at date: Date, open: PlannerOpenRequest? = nil,
+                      isCompetition: Bool = false) {
+        items.append(Item(id: id, title: title, body: body, date: date, open: open, isCompetition: isCompetition))
+    }
+
+    /// Every competition reminder first, then the soonest of the rest, at most `limit` in all.
+    var kept: [Item] {
+        items.sorted { ($0.isCompetition ? 0 : 1, $0.date) < ($1.isCompetition ? 0 : 1, $1.date) }.prefix(Self.limit).map { $0 }
+    }
+}
+
 // MARK: - Local notifications for the planner
 /// Plans notifications for the next two weeks (not a repeating weekly trigger) so that a day the
 /// user skipped can be left out. Everything is local, so it works without a connection and on the Lock Screen.
@@ -128,6 +158,7 @@ enum PlannerNotifications {
         remindsFocus: Bool = false
     ) async {
         let center = UNUserNotificationCenter.current()
+        var queue = PlannerReminderQueue()
         guard NotificationManager.shared.isAuthorized, NotificationManager.shared.notificationsEnabled else {
             await cancelAll()
             return
@@ -160,13 +191,12 @@ enum PlannerNotifications {
                 // Ask for the reflection 5 minutes after the session ends.
                 let fire = PlannerCalendar.date(on: day, minutes: cadence.endMinutes + 5)
                 guard fire > now else { continue }
-                add(
+                queue.add(
                     id: "\(prefix)debrief.\(cadence.id.uuidString).\(offset)",
                     title: "Tréning skončil",
                     body: "Čo kľúčové ste dnes vylepšili? Zapíš to za 20 sekúnd.",
                     at: fire,
-                    open: PlannerOpenRequest(target: .weekly(cadenceId: cadence.id, day: day)),
-                    center: center
+                    open: PlannerOpenRequest(target: .weekly(cadenceId: cadence.id, day: day))
                 )
             }
         }
@@ -185,15 +215,14 @@ enum PlannerNotifications {
             let fire = session.end.addingTimeInterval(5 * 60)
             guard fire > now else { continue }
             // "Lekcia" and an own name have their own gender, so the title stays neutral.
-            add(
+            queue.add(
                 id: "\(prefix)session.\(session.id.uuidString)",
                 title: "Tréning skončil",
                 body: session.goal.isEmpty
                     ? "\(session.displayTitle): čo ste riešili? Zapíš to za 20 sekúnd."
                     : "\(session.displayTitle) · cieľ: \(session.goal). Ako to dopadlo?",
                 at: fire,
-                open: PlannerOpenRequest(target: .session(session.id)),
-                center: center
+                open: PlannerOpenRequest(target: .session(session.id))
             )
         }
 
@@ -201,7 +230,7 @@ enum PlannerNotifications {
         let next = trainings.filter { $0.end > now }.min { $0.start < $1.start }
         let shownAsCard = await TrainingActivity.show(next)
         for training in trainings where !(shownAsCard && training.reminderId == next?.reminderId) {
-            addReminder(training, now: now, center: center)
+            addReminder(training, now: now, to: &queue)
         }
 
         for comp in competitions where comp.intent == .going {
@@ -216,19 +245,20 @@ enum PlannerNotifications {
                 guard let base = cal.date(byAdding: .day, value: reminder.offset, to: day) else { continue }
                 let fire = PlannerCalendar.date(on: base, minutes: reminder.minutes)
                 guard fire > now else { continue }
-                add(id: "\(prefix)\(reminder.id).\(comp.id.uuidString)", title: reminder.title, body: reminder.body,
-                    at: fire, center: center)
+                queue.add(id: "\(prefix)\(reminder.id).\(comp.id.uuidString)", title: reminder.title, body: reminder.body,
+                          at: fire, isCompetition: true)
             }
         }
+
+        for item in queue.kept { add(item, center: center) }
     }
 
     /// An hour before a training.
-    private static func addReminder(_ training: UpcomingTraining, now: Date, center: UNUserNotificationCenter) {
+    private static func addReminder(_ training: UpcomingTraining, now: Date, to queue: inout PlannerReminderQueue) {
         let fire = training.start.addingTimeInterval(-60 * 60)
         guard fire > now else { return }
-        add(id: training.reminderId, title: training.headline,
-            body: training.focus.isEmpty ? "Tréning začína o hodinu." : training.focus,
-            at: fire, center: center)
+        queue.add(id: training.reminderId, title: training.headline,
+                  body: training.focus.isEmpty ? "Tréning začína o hodinu." : training.focus, at: fire)
     }
 
     /// On Plus a reminder says what to focus on: the open Top 3 of the dances trained that day.
@@ -255,17 +285,16 @@ enum PlannerNotifications {
         "\(cadence?.uuidString ?? "-")|\(Int(PlannerCalendar.startOfDay(day).timeIntervalSince1970))"
     }
 
-    private static func add(id: String, title: String, body: String, at date: Date,
-                            open: PlannerOpenRequest? = nil, center: UNUserNotificationCenter) {
+    private static func add(_ item: PlannerReminderQueue.Item, center: UNUserNotificationCenter) {
         let content = UNMutableNotificationContent()
-        content.title = title
-        content.body = body
+        content.title = item.title
+        content.body = item.body
         content.sound = .default
-        if let open { content.userInfo = open.userInfo }
+        if let open = item.open { content.userInfo = open.userInfo }
 
-        let comps = PlannerCalendar.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let comps = PlannerCalendar.calendar.dateComponents([.year, .month, .day, .hour, .minute], from: item.date)
         let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-        center.add(UNNotificationRequest(identifier: id, content: content, trigger: trigger))
+        center.add(UNNotificationRequest(identifier: item.id, content: content, trigger: trigger))
     }
 }
 
@@ -304,22 +333,24 @@ enum PlannerAttendance {
         let entry = entryCreatingIfNeeded(cadence: cadence, on: day, in: logs, context: context)
         let wasSkipped = entry.status == .skipped
         entry.status = status
-        try? context.save()
+        context.saveOrLog()
 
         if status == .skipped, !wasSkipped {
             Task {
                 if let single = entry.calendarEventId {
-                    if await CalendarExporter.shared.removeEvent(id: single) { entry.calendarEventId = nil }
+                    if await CalendarExporter.shared.removeEvent(id: single), !entry.isGone { entry.calendarEventId = nil }
                 } else if let series = cadence.calendarEventId {
                     _ = await CalendarExporter.shared.removeOccurrence(seriesId: series, on: day)
                 }
-                try? context.save()
+                context.saveOrLog()
             }
         } else if wasSkipped, status != .skipped, cadence.calendarEventId != nil, entry.calendarEventId == nil,
                   PlannerCalendar.date(on: day, minutes: cadence.startMinutes) > Date() {
             Task {
-                entry.calendarEventId = await CalendarExporter.shared.export(cadence: cadence, on: day)
-                try? context.save()
+                let eventId = await CalendarExporter.shared.export(cadence: cadence, on: day)
+                guard !entry.isGone else { return }
+                entry.calendarEventId = eventId
+                context.saveOrLog()
             }
         }
     }
@@ -329,20 +360,22 @@ enum PlannerAttendance {
         let entry = entryCreatingIfNeeded(session: session, in: logs, context: context)
         let wasSkipped = entry.status == .skipped
         entry.status = status
-        try? context.save()
+        context.saveOrLog()
 
         if status == .skipped, !wasSkipped, let eventId = session.calendarEventId {
             Task {
-                guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
+                guard await CalendarExporter.shared.removeEvent(id: eventId), !session.isGone, !entry.isGone else { return }
                 session.calendarEventId = nil
                 entry.calendarEventId = eventId
-                try? context.save()
+                context.saveOrLog()
             }
         } else if wasSkipped, status != .skipped, entry.calendarEventId != nil, session.start > Date() {
             Task {
-                session.calendarEventId = await CalendarExporter.shared.export(session: session)
+                let eventId = await CalendarExporter.shared.export(session: session)
+                guard !session.isGone, !entry.isGone else { return }
+                session.calendarEventId = eventId
                 entry.calendarEventId = nil
-                try? context.save()
+                context.saveOrLog()
             }
         }
     }
@@ -455,7 +488,7 @@ final class CalendarExporter {
         update(TrainingLogEntry.self, \.calendarEventId)
         update(PlannedCompetition.self, \.calendarEventId)
         update(PlannedSession.self, \.calendarEventId)
-        try? context.save()
+        context.saveOrLog()
     }
 
     /// Removing needs full access. The app only touches events it created itself (by stored id or by the
@@ -466,7 +499,8 @@ final class CalendarExporter {
 
     /// Returns the event identifier, or nil when access was denied or saving failed.
     func export(competition: PlannedCompetition) async -> String? {
-        guard let calendar = await targetCalendar() else { return nil }
+        // The wait for access can be long (a permission question): the competition may be deleted meanwhile.
+        guard let calendar = await targetCalendar(), !competition.isGone else { return nil }
         let event = EKEvent(eventStore: store)
         event.calendar = calendar
         event.title = competition.name
@@ -485,7 +519,7 @@ final class CalendarExporter {
 
     /// Creates a weekly recurring event starting with the next occurrence.
     func export(cadence: TrainingCadence) async -> String? {
-        guard let calendar = await targetCalendar() else { return nil }
+        guard let calendar = await targetCalendar(), !cadence.isGone else { return nil }
         let cal = PlannerCalendar.calendar
         let today = PlannerCalendar.startOfDay(Date())
         var first = today
@@ -524,7 +558,7 @@ final class CalendarExporter {
 
     /// One-off training: a single timed event with a reminder 30 minutes before.
     func export(session: PlannedSession) async -> String? {
-        guard let calendar = await targetCalendar() else { return nil }
+        guard let calendar = await targetCalendar(), !session.isGone else { return nil }
         let event = EKEvent(eventStore: store)
         event.calendar = calendar
         event.title = session.displayTitle
@@ -539,7 +573,7 @@ final class CalendarExporter {
     /// One occurrence of a weekly training as its own event: used when a cancelled day is restored, because
     /// Apple Calendar cannot bring back a deleted occurrence of a series.
     func export(cadence: TrainingCadence, on day: Date) async -> String? {
-        guard let calendar = await targetCalendar() else { return nil }
+        guard let calendar = await targetCalendar(), !cadence.isGone else { return nil }
         let event = EKEvent(eventStore: store)
         event.calendar = calendar
         event.title = cadence.title.isEmpty ? "Tréning" : cadence.title

@@ -158,7 +158,7 @@ struct PlannerRoutineView: View {
                     cadence.calendarEventId = nil
                     cadence.inAppleCalendar = false
                 }
-                try? modelContext.save()
+                modelContext.saveOrLog()
                 calendarMessage = count == 0
                     ? "V kalendári sa nenašiel žiadny tréning z Encore."
                     : "Odstránené z kalendára: \(count)."
@@ -205,7 +205,7 @@ struct PlannerRoutineView: View {
                     set: { isOn in
                         cadence.isEnabled = isOn
                         cadence.inAppleCalendar = cadence.inAppleCalendar || cadence.calendarEventId != nil
-                        try? modelContext.save()
+                        modelContext.saveOrLog()
                         Task { await cadence.syncAppleCalendar(changed: false, context: modelContext) }
                     }
                 ))
@@ -341,11 +341,11 @@ struct CadenceEditorSheet: View {
         target.durationMinutes = duration
         target.location = location.trimmingCharacters(in: .whitespacesAndNewlines)
         target.danceCategory = category
-        try? modelContext.save()
+        modelContext.saveOrLog()
         saveTick += 1
 
         target.inAppleCalendar = inCalendar
-        try? modelContext.save()
+        modelContext.saveOrLog()
         let eventChanged = eventBefore != [target.title, target.location, "\(target.weekday)", "\(target.startMinutes)", "\(target.durationMinutes)"]
         let context = modelContext
         Task {
@@ -368,10 +368,10 @@ extension TrainingCadence {
         Task {
             if let seriesId { _ = await CalendarExporter.shared.retireSeries(id: seriesId) }
             for entry in restored { await Self.removeRestoredEvent(of: entry) }
-            try? context.save()
+            context.saveOrLog()
         }
         context.delete(self)
-        try? context.save()
+        context.saveOrLog()
     }
 
     /// Brings Apple Calendar in step with the training. A change gets a new series from the next date (the old
@@ -380,20 +380,20 @@ extension TrainingCadence {
     func syncAppleCalendar(changed: Bool, context: ModelContext) async {
         let exporter = CalendarExporter.shared
         if let seriesId = calendarEventId, changed || !inAppleCalendar || !isEnabled {
-            guard await exporter.retireSeries(id: seriesId) else { return }
+            guard await exporter.retireSeries(id: seriesId), !isGone else { return }
             calendarEventId = nil
             // A restored single date would double the new series or outlive the pause.
             for entry in Self.restoredDaysAhead(cadenceId: id, context: context) {
                 await Self.removeRestoredEvent(of: entry)
             }
         }
-        if inAppleCalendar, isEnabled, calendarEventId == nil, let seriesId = await exporter.export(cadence: self) {
+        if inAppleCalendar, isEnabled, calendarEventId == nil, let seriesId = await exporter.export(cadence: self), !isGone {
             calendarEventId = seriesId
             for day in cancelledDaysAhead(context: context) {
                 _ = await exporter.removeOccurrence(seriesId: seriesId, on: day)
             }
         }
-        try? context.save()
+        context.saveOrLog()
     }
 
     private func cancelledDaysAhead(context: ModelContext) -> [Date] {
@@ -417,6 +417,6 @@ extension TrainingCadence {
 
     private static func removeRestoredEvent(of entry: TrainingLogEntry) async {
         guard let eventId = entry.calendarEventId else { return }
-        if await CalendarExporter.shared.removeEvent(id: eventId) { entry.calendarEventId = nil }
+        if await CalendarExporter.shared.removeEvent(id: eventId), !entry.isGone { entry.calendarEventId = nil }
     }
 }

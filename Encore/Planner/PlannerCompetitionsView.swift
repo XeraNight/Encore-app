@@ -311,13 +311,14 @@ struct CompetitionEditorSheet: View {
         }
         target.intent = intent
         target.isTargetCompetition = isTarget
-        try? modelContext.save()
+        modelContext.saveOrLog()
         saveTick += 1
 
         // Neidem takes the competition out of Apple Calendar, like Nejdem does with a training.
         let wantsCalendar = inCalendar && intent != .declined
         let oldEventId = target.calendarEventId
         let eventChanged = eventBefore != [target.name, target.city, "\(target.date)", target.targetCategories.joined()]
+        // Each wait below can be long (a permission question, Apple Calendar), and the competition may be deleted meanwhile.
         Task {
             if !NotificationManager.shared.isAuthorized {
                 _ = await NotificationManager.shared.requestAuthorization()
@@ -326,13 +327,15 @@ struct CompetitionEditorSheet: View {
                 // Unchanged and still wanted: keep the event as it is.
                 guard !wantsCalendar || eventChanged else { return }
                 // Changed or no longer wanted: remove it (a changed one is created again below).
-                guard await CalendarExporter.shared.removeEvent(id: oldEventId) else { return }
+                guard await CalendarExporter.shared.removeEvent(id: oldEventId), !target.isGone else { return }
                 target.calendarEventId = nil
             }
-            if wantsCalendar, let id = await CalendarExporter.shared.export(competition: target) {
-                target.calendarEventId = id
+            guard wantsCalendar, !target.isGone, let id = await CalendarExporter.shared.export(competition: target) else {
+                modelContext.saveOrLog()
+                return
             }
-            try? modelContext.save()
+            if !target.isGone { target.calendarEventId = id }
+            modelContext.saveOrLog()
         }
         dismiss()
     }
@@ -377,7 +380,7 @@ extension PlannedCompetition {
             competition.ksisCompetitionId = String(result.sutazId)
             changed = true
         }
-        if changed { try? context.save() }
+        if changed { context.saveOrLog() }
     }
 
     /// A competition from KSIS as Idem: the one already planned with its KSIS id (KSIS may rename it), or for that day
@@ -399,7 +402,7 @@ extension PlannedCompetition {
         competition.entryDeadline = entryDeadline ?? competition.entryDeadline
         competition.ksisPropId = propId ?? competition.ksisPropId
         competition.intent = .going
-        try? context.save()
+        context.saveOrLog()
     }
 
     /// KSIS moved a competition planned from its calendar, or changed its entry deadline: the plan follows, and so does
@@ -419,24 +422,26 @@ extension PlannedCompetition {
             changed = true
             if let eventId = competition.calendarEventId {
                 Task {
-                    guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
-                    competition.calendarEventId = await CalendarExporter.shared.export(competition: competition)
-                    try? context.save()
+                    guard await CalendarExporter.shared.removeEvent(id: eventId), !competition.isGone else { return }
+                    let newEventId = await CalendarExporter.shared.export(competition: competition)
+                    guard !competition.isGone else { return }
+                    competition.calendarEventId = newEventId
+                    context.saveOrLog()
                 }
             }
         }
-        if changed { try? context.save() }
+        if changed { context.saveOrLog() }
     }
 
     /// Neidem also takes the competition out of Apple Calendar; switching back does not add it again on its own.
     func setIntent(_ newIntent: CompetitionIntent, context: ModelContext) {
         intent = newIntent
-        try? context.save()
+        context.saveOrLog()
         guard newIntent == .declined, let eventId = calendarEventId else { return }
         Task {
-            guard await CalendarExporter.shared.removeEvent(id: eventId) else { return }
+            guard await CalendarExporter.shared.removeEvent(id: eventId), !isGone else { return }
             calendarEventId = nil
-            try? context.save()
+            context.saveOrLog()
         }
     }
 
@@ -446,6 +451,6 @@ extension PlannedCompetition {
             Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }
         }
         context.delete(self)
-        try? context.save()
+        context.saveOrLog()
     }
 }

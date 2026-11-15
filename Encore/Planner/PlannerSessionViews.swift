@@ -199,25 +199,28 @@ struct SessionEditorSheet: View {
             entry.day = PlannerCalendar.startOfDay(start)
             entry.title = target.displayTitle
         }
-        try? modelContext.save()
+        modelContext.saveOrLog()
         saveTick += 1
 
         let wantsCalendar = inCalendar
         let oldEventId = target.calendarEventId
         let eventChanged = eventBefore != [target.displayTitle, target.location, "\(target.start)", "\(target.durationMinutes)", target.goal]
+        // Each wait below can be long, and the training may be deleted meanwhile.
         Task {
             if !NotificationManager.shared.isAuthorized {
                 _ = await NotificationManager.shared.requestAuthorization()
             }
             if let oldEventId {
                 guard !wantsCalendar || eventChanged else { return }
-                guard await CalendarExporter.shared.removeEvent(id: oldEventId) else { return }
+                guard await CalendarExporter.shared.removeEvent(id: oldEventId), !target.isGone else { return }
                 target.calendarEventId = nil
             }
-            if wantsCalendar, let id = await CalendarExporter.shared.export(session: target) {
-                target.calendarEventId = id
+            guard wantsCalendar, !target.isGone, let id = await CalendarExporter.shared.export(session: target) else {
+                modelContext.saveOrLog()
+                return
             }
-            try? modelContext.save()
+            if !target.isGone { target.calendarEventId = id }
+            modelContext.saveOrLog()
         }
         dismiss()
     }
@@ -238,6 +241,6 @@ extension PlannedSession {
             Task { _ = await CalendarExporter.shared.removeEvent(id: eventId) }
         }
         context.delete(self)
-        try? context.save()
+        context.saveOrLog()
     }
 }
