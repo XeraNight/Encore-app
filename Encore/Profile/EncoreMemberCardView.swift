@@ -119,7 +119,7 @@ struct EncoreMemberCardView: View {
                 .font(large ? .system(size: 28, weight: .semibold, design: .serif)
                             : .system(size: 15, weight: .semibold, design: mono ? .monospaced : .default))
                 .foregroundColor(Self.ink)
-                .lineLimit(large ? 2 : 1)
+                .lineLimit(2)
                 .minimumScaleFactor(0.7)
         }
         .accessibilityElement(children: .combine)
