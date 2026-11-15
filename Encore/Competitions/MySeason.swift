@@ -24,12 +24,12 @@ struct SeasonStats: Equatable {
     }
 
     struct Discipline: Identifiable, Equatable {
-        /// "STT" or "LAT".
+        /// "STT", "LAT" or "10T".
         let code: String
         let dances: [DanceRate]
         let finals: [FinalPlacing]
         var id: String { code }
-        var title: String { code == "LAT" ? "Latina" : "Štandard" }
+        var title: String { CompetitionResult.disciplineTitle(of: code) }
 
         /// The dance with the fewest crosses, worth the most practice; nil when all are equal.
         var weakest: DanceRate? {

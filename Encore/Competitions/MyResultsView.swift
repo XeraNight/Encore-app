@@ -337,6 +337,7 @@ struct MyResultsView: View {
                 chip("Všetko", nil)
                 chip("ŠTT", .discipline("STT"))
                 chip("LAT", .discipline("LAT"))
+                if coupleResults.contains(where: { $0.discipline == "10T" }) { chip("10T", .discipline("10T")) }
                 ForEach(categories, id: \.self) { chip($0, .category($0)) }
             }
         }

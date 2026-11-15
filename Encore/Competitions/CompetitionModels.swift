@@ -110,7 +110,7 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
     let coupleId: Int
     let eventName: String
     let categoryName: String
-    /// "STT" or "LAT".
+    /// "STT", "LAT" or "10T".
     let discipline: String
     /// yyyy-MM-dd
     let date: String
@@ -176,7 +176,20 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
         return coupleCount > 0 ? "\(place) z \(coupleCount)" : place
     }
 
-    var disciplineTitle: String { discipline == "LAT" ? "Latina" : "Štandard" }
+    var disciplineTitle: String { Self.disciplineTitle(of: discipline) }
+
+    /// "STT", "LAT" or "10T" (the ten-dance of the Slovak championship).
+    static func disciplineTitle(of code: String) -> String {
+        switch code {
+        case "LAT": return "Latina"
+        case "10T": return "Desaťtance"
+        default: return "Štandard"
+        }
+    }
+
+    /// False for a WDSF result: KSIS lists it on the couple's page with the place and the number of couples only, so
+    /// it has no results page and no crosses to read, and its number is made up here (negative).
+    var hasKSISPage: Bool { sutazId > 0 }
 
     private static let isoDay: DateFormatter = {
         let formatter = DateFormatter()

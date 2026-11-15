@@ -4,6 +4,36 @@ import Combine
 import Supabase
 import OSLog
 
+// MARK: - What KSIS had nothing for
+/// Competitions KSIS had nothing for when asked (no crosses, no place), each with the day it was asked. An update does not
+/// ask again at once, but KSIS may publish later, so after a month it asks once more.
+struct KSISAskedAbout: Equatable {
+    static let askAgainAfterDays = 30
+
+    /// KSIS competition number → the day it was asked, counted from 1970.
+    private var days: [Int: Int] = [:]
+
+    init() {}
+
+    /// As kept in preferences: string keys. A key that is not a number is left out, never a stop.
+    init(stored: [String: Int]?) {
+        days = Dictionary((stored ?? [:]).compactMap { key, day in Int(key).map { ($0, day) } }, uniquingKeysWith: { first, _ in first })
+    }
+
+    var stored: [String: Int] { Dictionary(uniqueKeysWithValues: days.map { (String($0.key), $0.value) }) }
+
+    func contains(_ id: Int, on date: Date = Date()) -> Bool {
+        guard let asked = days[id] else { return false }
+        return Self.day(of: date) - asked < Self.askAgainAfterDays
+    }
+
+    mutating func note(_ id: Int, on date: Date = Date()) {
+        days[id] = Self.day(of: date)
+    }
+
+    private static func day(of date: Date) -> Int { Int(date.timeIntervalSince1970 / 86_400) }
+}
+
 // MARK: - KSIS in the app
 /// Who the user is in KSIS, their couples (the current one and the ones before) and results. Everything comes from a
 /// KSIS page the user has open in the app (`KSISBrowserView`): the server function `ksis-page` reads it and stores only
@@ -21,19 +51,15 @@ final class CompetitionManager: ObservableObject {
     /// Who the user picked in the KSIS members list; nil until they do.
     @Published private(set) var dancer: KSISDancer?
 
-    /// Competitions whose crosses KSIS does not have for the couple: the update stops asking for them.
-    @Published private(set) var competitionsWithoutMarks: Set<Int> = []
-    /// Competitions whose page gives no place ("Miesto:"): the update stops asking for them too.
-    @Published private(set) var competitionsWithoutVenue: Set<Int> = []
-    /// Per account, so after switching accounts and back the pages KSIS has nothing on are not read again.
-    private static func withoutMarksKey(_ user: UUID?) -> String {
-        "encore.ksisCompetitionsWithoutMarks" + (user.map { ".\($0.uuidString)" } ?? "")
-    }
-    private static func withoutVenueKey(_ user: UUID?) -> String {
-        "encore.ksisCompetitionsWithoutVenue." + (user?.uuidString ?? "none")
-    }
-    private static func savedCompetitions(_ key: String) -> Set<Int> {
-        Set(UserDefaults.standard.array(forKey: key) as? [Int] ?? [])
+    /// Competitions whose crosses KSIS did not have for the couple when asked: the update waits a month before it asks again.
+    @Published private(set) var askedAboutMarks = KSISAskedAbout()
+    /// Competitions whose page gave no place ("Miesto:") when asked: the same.
+    @Published private(set) var askedAboutVenue = KSISAskedAbout()
+    /// Per account, so after switching accounts and back the pages KSIS had nothing on are not read at once again.
+    private static func askedAboutMarksKey(_ user: UUID?) -> String { "encore.ksisAskedAboutMarks." + (user?.uuidString ?? "none") }
+    private static func askedAboutVenueKey(_ user: UUID?) -> String { "encore.ksisAskedAboutVenue." + (user?.uuidString ?? "none") }
+    private static func savedAsked(_ key: String) -> KSISAskedAbout {
+        KSISAskedAbout(stored: UserDefaults.standard.dictionary(forKey: key) as? [String: Int])
     }
 
     var activeCouple: UserCouple? { couples.first(where: \.isCurrent) }
@@ -64,8 +90,6 @@ final class CompetitionManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        // The one list kept before it was per account; a competition in it is asked once more.
-        UserDefaults.standard.removeObject(forKey: Self.withoutMarksKey(nil))
         // Only a real user change reloads: a token refresh (every hour) sends the same user again.
         AuthManager.shared.$currentUser
             .map { $0?.id }
@@ -73,9 +97,12 @@ final class CompetitionManager: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] userId in
                 if let userId {
+                    // The lists kept before the ask-again-after-a-month rule: plain arrays of numbers.
+                    UserDefaults.standard.removeObject(forKey: "encore.ksisCompetitionsWithoutMarks." + userId.uuidString)
+                    UserDefaults.standard.removeObject(forKey: "encore.ksisCompetitionsWithoutVenue." + userId.uuidString)
                     self?.cachedUser = userId
-                    self?.competitionsWithoutMarks = Self.savedCompetitions(Self.withoutMarksKey(userId))
-                    self?.competitionsWithoutVenue = Self.savedCompetitions(Self.withoutVenueKey(userId))
+                    self?.askedAboutMarks = Self.savedAsked(Self.askedAboutMarksKey(userId))
+                    self?.askedAboutVenue = Self.savedAsked(Self.askedAboutVenueKey(userId))
                     Task {
                         await self?.restoreFromDisk(for: userId)
                         await self?.loadAllData()
@@ -95,8 +122,8 @@ final class CompetitionManager: ObservableObject {
         couples = []
         results = []
         loadFailed = false
-        competitionsWithoutMarks = []
-        competitionsWithoutVenue = []
+        askedAboutMarks = KSISAskedAbout()
+        askedAboutVenue = KSISAskedAbout()
     }
 
     /// Each load takes a number; only the newest answer is kept, so a slow older one never overwrites what a save
@@ -250,29 +277,30 @@ final class CompetitionManager: ObservableObject {
         return results.filter { ids.contains($0.coupleId) }
     }
 
-    /// The result has no crosses yet and KSIS may still have them.
+    /// The result has no crosses yet and KSIS may still have them (a WDSF result has no KSIS page to ask).
     func isMissingMarks(_ result: CompetitionResult) -> Bool {
-        result.rounds?.isEmpty != false && !competitionsWithoutMarks.contains(result.sutazId)
+        result.hasKSISPage && result.rounds?.isEmpty != false && !askedAboutMarks.contains(result.sutazId)
     }
 
-    /// KSIS has no crosses for this result. A recent competition is asked again: KSIS may publish them later.
+    /// KSIS had no crosses for this result. A competition of the last 14 days is asked again at the next update, and an
+    /// older one after a month: organisers can be late.
     func noteNoMarks(_ result: CompetitionResult) {
         let recent = PlannerCalendar.calendar.date(byAdding: .day, value: -14, to: Date()) ?? Date()
         guard let date = result.dateValue, date < recent else { return }
-        competitionsWithoutMarks.insert(result.sutazId)
-        UserDefaults.standard.set(Array(competitionsWithoutMarks), forKey: Self.withoutMarksKey(AuthManager.shared.currentUser?.id))
+        askedAboutMarks.note(result.sutazId)
+        UserDefaults.standard.set(askedAboutMarks.stored, forKey: Self.askedAboutMarksKey(AuthManager.shared.currentUser?.id))
     }
 
     /// The result has no place yet and KSIS may give one: a competition saved from the couple's history comes
-    /// without it, the place is on the competition's own pages.
+    /// without it, the place is on the competition's own pages (a WDSF result has its place from the history).
     func isMissingVenue(_ result: CompetitionResult) -> Bool {
-        result.venue == nil && !competitionsWithoutVenue.contains(result.sutazId)
+        result.hasKSISPage && result.venue == nil && !askedAboutVenue.contains(result.sutazId)
     }
 
-    /// The competition's pages were read and give no place.
+    /// The competition's pages were read and gave no place.
     func noteNoVenue(_ result: CompetitionResult) {
-        competitionsWithoutVenue.insert(result.sutazId)
-        UserDefaults.standard.set(Array(competitionsWithoutVenue), forKey: Self.withoutVenueKey(AuthManager.shared.currentUser?.id))
+        askedAboutVenue.note(result.sutazId)
+        UserDefaults.standard.set(askedAboutVenue.stored, forKey: Self.askedAboutVenueKey(AuthManager.shared.currentUser?.id))
     }
 
     // MARK: Pages

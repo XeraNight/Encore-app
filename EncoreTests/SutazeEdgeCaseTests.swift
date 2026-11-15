@@ -11,9 +11,9 @@ struct SutazeEdgeCaseTests {
 
     // MARK: Helpers
     private func resultJSON(id: String = UUID().uuidString, date: String = "2026-10-03", place: String = "3.", placement: String = "3",
-                            count: Int = 12, extra: String = "") -> String {
+                            count: Int = 12, extra: String = "", sutaz: Int = 1, discipline: String = "STT") -> String {
         """
-        {"id":"\(id)","sutaz_id":1,"couple_id":7,"event_name":"GP","category_name":"Dospelí D","discipline":"STT",
+        {"id":"\(id)","sutaz_id":\(sutaz),"couple_id":7,"event_name":"GP","category_name":"Dospelí D","discipline":"\(discipline)",
          "date":"\(date)","couple_count":\(count),"placement_text":"\(place)","placement":\(placement),"points_earned":0\(extra)}
         """
     }
@@ -290,6 +290,48 @@ struct SutazeEdgeCaseTests {
         #expect(Calendar(identifier: .buddhist).component(.year, from: date) == 2569)
         let url = try #require(SlovakCup.standingsURL(year: SlovakCup.currentYear(date), group: .adults, discipline: .standard))
         #expect(url.absoluteString.contains("rok=2026"))
+    }
+
+    // MARK: What KSIS has, what it had nothing for
+    @Test func aWDSFResultHasNoKSISPageAndTheTenDanceHasItsOwnName() throws {
+        let wdsf = try decode(resultJSON(sutaz: -123_456, discipline: "LAT"))
+        #expect(!wdsf.hasKSISPage)
+        #expect(try decode(resultJSON()).hasKSISPage)
+        #expect(try decode(resultJSON(discipline: "10T")).disciplineTitle == "Desaťtance")
+        #expect(try decode(resultJSON(discipline: "LAT")).disciplineTitle == "Latina")
+        #expect(try decode(resultJSON(discipline: "STT")).disciplineTitle == "Štandard")
+        #expect(CompetitionResult.disciplineTitle(of: "something new") == "Štandard")
+    }
+
+    @Test func aWDSFResultIsNeverAskedAboutCrossesOrPlace() throws {
+        let wdsf = try decode(resultJSON(sutaz: -123_456))
+        #expect(!CompetitionManager.shared.isMissingMarks(wdsf))
+        #expect(!CompetitionManager.shared.isMissingVenue(wdsf))
+        // A KSIS result without crosses and place is.
+        let own = try decode(resultJSON(sutaz: 12_094))
+        #expect(CompetitionManager.shared.isMissingMarks(own))
+        #expect(CompetitionManager.shared.isMissingVenue(own))
+    }
+
+    @Test func aCompetitionKSISHadNothingForIsAskedAgainAfterAMonth() {
+        let day = Date(timeIntervalSince1970: 1_800_000_000)
+        var asked = KSISAskedAbout()
+        #expect(!asked.contains(7, on: day))
+        asked.note(7, on: day)
+        #expect(asked.contains(7, on: day))
+        #expect(asked.contains(7, on: day.addingTimeInterval(29 * 86_400)))
+        #expect(!asked.contains(7, on: day.addingTimeInterval(31 * 86_400)))
+        #expect(!asked.contains(8, on: day))
+    }
+
+    @Test func whatKSISHadNothingForComesBackFromPreferencesAndNeverStopsOnABadKey() {
+        var asked = KSISAskedAbout()
+        asked.note(5, on: Date(timeIntervalSince1970: 1_800_000_000))
+        #expect(KSISAskedAbout(stored: asked.stored) == asked)
+        #expect(KSISAskedAbout(stored: nil) == KSISAskedAbout())
+        // Two keys that are the same number, a word and an empty key: kept or left out, never a crash.
+        let odd = KSISAskedAbout(stored: ["1": 20_000, "01": 20_001, "x": 5, "": 3])
+        #expect(odd.contains(1, on: Date(timeIntervalSince1970: 20_000 * 86_400)))
     }
 
     // MARK: What went wrong in an update

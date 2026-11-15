@@ -31,8 +31,10 @@ struct KSISResultDetailView: View {
                                 roundCard(round)
                             }
                             judgesLegend
-                        } else {
+                        } else if result.hasKSISPage {
                             noMarksCard
+                        } else {
+                            noPageCard
                         }
                     }
                     .padding(20)
@@ -48,15 +50,17 @@ struct KSISResultDetailView: View {
                 }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
-                        Button {
-                            open("sutaz.php?sutaz_id=\(result.sutazId)")
-                        } label: {
-                            Label("Výsledková listina v KSIS", systemImage: "list.number")
-                        }
-                        Button {
-                            open("hodnot_sut.php?sutaz_id=\(result.sutazId)")
-                        } label: {
-                            Label("Hodnotenie v KSIS", systemImage: "xmark.square")
+                        if result.hasKSISPage {
+                            Button {
+                                open("sutaz.php?sutaz_id=\(result.sutazId)")
+                            } label: {
+                                Label("Výsledková listina v KSIS", systemImage: "list.number")
+                            }
+                            Button {
+                                open("hodnot_sut.php?sutaz_id=\(result.sutazId)")
+                            } label: {
+                                Label("Hodnotenie v KSIS", systemImage: "xmark.square")
+                            }
                         }
                         if isOwn {
                             Button(role: .destructive) {
@@ -287,6 +291,21 @@ struct KSISResultDetailView: View {
                 .font(.footnote)
                 .foregroundColor(.white.opacity(isMuted ? 0.5 : 0.85))
         }
+    }
+
+    /// A WDSF result: KSIS gives the place and the number of couples on the couple's page, and nothing more.
+    private var noPageCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Súťaž WDSF")
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(.white)
+            Text("KSIS o nej ukazuje len umiestnenie a počet párov. Výsledková listina ani krížiky tam nie sú.")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.65))
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .homeCard(cornerRadius: 20)
     }
 
     private var noMarksCard: some View {

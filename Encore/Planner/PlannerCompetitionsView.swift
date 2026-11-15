@@ -376,7 +376,7 @@ extension PlannedCompetition {
         let today = PlannerCalendar.startOfDay(Date())
         var changed = false
         for competition in competitions where competition.ksisCompetitionId == nil && competition.date < today {
-            guard let result = competition.dancedResults(in: results).first else { continue }
+            guard let result = competition.dancedResults(in: results).first(where: \.hasKSISPage) else { continue }
             competition.ksisCompetitionId = String(result.sutazId)
             changed = true
         }

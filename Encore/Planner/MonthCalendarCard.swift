@@ -302,7 +302,7 @@ extension CompetitionResult {
         let isPodium = results.contains { ($0.placement ?? Int.max) <= 3 }
         return CalendarDayMark(
             ring: isPodium ? .filled : .solid,
-            dots: results.map { $0.discipline == "LAT" ? Color.latinPink : Color.standardBlue }
+            dots: results.map { $0.discipline == "LAT" ? Color.latinPink : $0.discipline == "10T" ? Color.gold400 : Color.standardBlue }
         )
     }
 }
