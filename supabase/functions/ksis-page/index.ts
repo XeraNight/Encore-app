@@ -31,6 +31,8 @@ import {
 import {
   coupleRounds,
   disciplineOf,
+  historyToStore,
+  isPlausibleDate,
   isSameCouple,
   type KsisCompetition,
   KsisPageError,
@@ -50,6 +52,7 @@ import {
   sideInCouple,
   sideInPair,
   splitPair,
+  type StoredHistoryRow,
 } from "../_shared/ksis-pages.ts";
 
 const HOST = "szts.ksis.eu";
@@ -156,12 +159,6 @@ async function withinRateLimit(admin: Admin, userId: string): Promise<boolean> {
   if (error.hint === "rate_limited") return false;
   console.error("ksis-page rate limit check failed:", error.message);
   return true;
-}
-
-/** A competition not danced yet, or from before KSIS, is not a result anybody has. */
-function isPlausibleDate(isoDate: string): boolean {
-  const tomorrow = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
-  return isoDate >= "1995-01-01" && isoDate <= tomorrow;
 }
 
 /** Room for `adding` more couples of this dancer, or the answer that says there is none. */
@@ -652,10 +649,7 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
     stt: page.stt,
     lat: page.lat,
   };
-  // WDSF competitions have no KSIS competition id and no results in KSIS, so they are not stored.
-  const stored = page.history.filter((row) =>
-    row.sutazId !== null && disciplineOf(row.category) !== null && row.date !== null && isPlausibleDate(row.date)
-  );
+  const stored = historyToStore(page.history);
   const competitions = stored.length;
   if (!save) {
     return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: own !== undefined, isLinked: linked.length > 0 });
@@ -678,47 +672,58 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
   }).eq("id", own.id);
   if (coupleError) throw coupleError;
 
-  // A competition twice on the page would make the whole save fail ("cannot affect a row a second time").
-  const seen = new Set<number>();
-  const rows = stored.flatMap((entry) => {
-    const discipline = disciplineOf(entry.category);
-    if (!discipline || !entry.date || entry.sutazId === null || seen.has(entry.sutazId)) return [];
-    seen.add(entry.sutazId);
-    return [{
-      user_id: userId,
-      sutaz_id: entry.sutazId,
-      couple_id: page.parId,
-      event_name: entry.eventName,
-      category_name: entry.category,
-      discipline,
-      date: entry.date,
-      couple_count: entry.couples ?? 0,
-      placement_text: entry.place?.text ?? "",
-      placement: entry.place?.from ?? null,
-      points_earned: entry.earned?.points ?? 0,
-      cumulative_stats: entry.after ? `${entry.after.points}/${entry.after.finals}F` : null,
-      cumulative_points: entry.after?.points ?? 0,
-      cumulative_finals: entry.after?.finals ?? 0,
-      season: yearOf(entry.date),
-      source: "auto",
-      is_deleted: false,
-      deleted_at: null,
-      imported_at: now,
-    }];
+  const resultRow = ({ entry, date, discipline, sutazId }: StoredHistoryRow) => ({
+    user_id: userId,
+    sutaz_id: sutazId,
+    couple_id: page.parId,
+    event_name: entry.eventName,
+    category_name: entry.category,
+    discipline,
+    date,
+    couple_count: entry.couples ?? 0,
+    placement_text: entry.place?.text ?? "",
+    placement: entry.place?.from ?? null,
+    points_earned: entry.earned?.points ?? 0,
+    cumulative_stats: entry.after ? `${entry.after.points}/${entry.after.finals}F` : null,
+    cumulative_points: entry.after?.points ?? 0,
+    cumulative_finals: entry.after?.finals ?? 0,
+    season: yearOf(date),
+    source: "auto",
+    is_deleted: false,
+    deleted_at: null,
+    imported_at: now,
   });
-  if (rows.length > 0) {
+  const rows = stored.filter((item) => !item.isWdsf).map(resultRow);
+  // A WDSF result has no KSIS page to read the place from: the event's own name ("Kosice,Slovakia") is the place.
+  // Its own save, because one batch needs the same columns in every row and the others keep the place they have.
+  const wdsfRows = stored.filter((item) => item.isWdsf).map((item) => ({ ...resultRow(item), venue: item.entry.eventName }));
+  if (rows.length + wdsfRows.length > 0) {
     const { count, error: countError } = await admin
       .from("competition_results")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId);
     if (countError) throw countError;
-    if ((count ?? 0) + rows.length > MAX_RESULTS_PER_USER) {
+    if ((count ?? 0) + rows.length + wdsfRows.length > MAX_RESULTS_PER_USER) {
       return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
     }
+  }
+  if (rows.length > 0) {
     const { error } = await admin.from("competition_results").upsert(rows, { onConflict: "user_id,sutaz_id,couple_id" });
     if (error) throw error;
   }
-  return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: true, isLinked: true, saved: rows.length });
+  if (wdsfRows.length > 0) {
+    const { error } = await admin.from("competition_results").upsert(wdsfRows, { onConflict: "user_id,sutaz_id,couple_id" });
+    if (error) throw error;
+  }
+  // WDSF rows follow the page: one that is no longer there (KSIS gave it a number, or wrote it otherwise) goes. A page
+  // without any row leaves them alone: it may be a page that did not load as it should.
+  if (page.history.length > 0) {
+    let stale = admin.from("competition_results").delete().eq("user_id", userId).eq("couple_id", page.parId).lt("sutaz_id", 0);
+    if (wdsfRows.length > 0) stale = stale.not("sutaz_id", "in", `(${wdsfRows.map((row) => row.sutaz_id).join(",")})`);
+    const { error: staleError } = await stale;
+    if (staleError) throw staleError;
+  }
+  return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: true, isLinked: true, saved: rows.length + wdsfRows.length });
 }
 
 // ── Results: one competition ─────────────────────────────────────────────────────────────────────

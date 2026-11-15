@@ -202,10 +202,40 @@ export function sideInPair(dancerName: string, couple: KsisPairNames): "partner"
   return nameKey(couple.partnerka) === name ? "partnerka" : null;
 }
 
-/** "Dospelí D ŠTT" → "STT". Only reads the discipline KSIS writes last ("ST" and "LA" in the WDSF categories); nothing else is inferred. */
-export function disciplineOf(category: string): "STT" | "LAT" | null {
+export type Discipline = "STT" | "LAT" | "10T";
+
+/**
+ * "Dospelí D ŠTT" → "STT". Only reads the discipline KSIS writes last: "ŠTT" and "LAT", "ST" and "LA" in the WDSF
+ * categories held in Slovakia, and "10T" for the ten-dance of the Slovak championship; nothing else is inferred.
+ */
+export function disciplineOf(category: string): Discipline | null {
   const last = clean(category).split(" ").at(-1);
+  if (last === "10T") return "10T";
   return last === "ŠTT" || last === "ST" ? "STT" : last === "LAT" || last === "LA" ? "LAT" : null;
+}
+
+/** WDSF categories on the couple's page are written in English: "Rising Stars Standard", "Adult Latin". */
+export function wdsfDisciplineOf(category: string): "STT" | "LAT" | null {
+  const last = clean(category).split(" ").at(-1);
+  return last === "Standard" ? "STT" : last === "Latin" ? "LAT" : null;
+}
+
+/**
+ * A WDSF result has no KSIS competition id, but a saved result needs a number that is the same every time for the
+ * same row. It is negative, so it never meets a real id (FNV-1a over the date, event and category).
+ */
+export function wdsfResultId(row: { date: string | null; eventName: string; category: string }): number {
+  let hash = 0x811c9dc5;
+  for (const char of `${row.date}|${row.eventName}|${row.category}`) {
+    hash = Math.imul(hash ^ (char.codePointAt(0) ?? 0), 0x01000193) >>> 0;
+  }
+  return -((hash % 2_147_483_646) + 1);
+}
+
+/** A competition not danced yet, or from before KSIS, is not a result anybody has. */
+export function isPlausibleDate(isoDate: string): boolean {
+  const tomorrow = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return isoDate >= "1995-01-01" && isoDate <= tomorrow;
 }
 
 // ── Couples list (menu.php?akcia=CZP) ────────────────────────────────────────────────────────────
@@ -493,6 +523,51 @@ export function parseCouplePage(html: string): KsisCouplePage {
     lat: classLabel("LAT"),
     history,
   };
+}
+
+/** A row of the couple's history that is kept as a result. */
+export interface StoredHistoryRow {
+  entry: KsisHistoryRow;
+  date: string;
+  discipline: Discipline;
+  /** KSIS's own number, or a negative one made from the row for a WDSF result (`wdsfResultId`). */
+  sutazId: number;
+  isWdsf: boolean;
+}
+
+/**
+ * The rows of a couple's history that are kept: every competition KSIS has a number for (once each), and the WDSF
+ * ones KSIS lists without a number, which give only the place and the number of couples. A WDSF competition held in
+ * Slovakia is listed twice, with a number and without; the one with the number is kept.
+ */
+export function historyToStore(history: KsisHistoryRow[]): StoredHistoryRow[] {
+  const seen = new Set<number>();
+  const ksis: StoredHistoryRow[] = [];
+  const wdsfRows: KsisHistoryRow[] = [];
+  for (const entry of history) {
+    if (entry.date === null || !isPlausibleDate(entry.date)) continue;
+    if (entry.sutazId === null) {
+      wdsfRows.push(entry);
+      continue;
+    }
+    const discipline = disciplineOf(entry.category);
+    if (!discipline || seen.has(entry.sutazId)) continue;
+    seen.add(entry.sutazId);
+    ksis.push({ entry, date: entry.date, discipline, sutazId: entry.sutazId, isWdsf: false });
+  }
+  const wdsf = wdsfRows.flatMap((entry): StoredHistoryRow[] => {
+    const discipline = wdsfDisciplineOf(entry.category);
+    if (!discipline || entry.date === null || entry.place === null) return [];
+    const listedWithNumber = ksis.some((known) =>
+      known.date === entry.date && known.discipline === discipline && known.entry.couples === entry.couples &&
+      known.entry.place?.text === entry.place?.text
+    );
+    const sutazId = wdsfResultId(entry);
+    if (listedWithNumber || seen.has(sutazId)) return [];
+    seen.add(sutazId);
+    return [{ entry, date: entry.date, discipline, sutazId, isWdsf: true }];
+  });
+  return [...ksis, ...wdsf];
 }
 
 // ── Competition header shared by results and marks ──────────────────────────────────────────────

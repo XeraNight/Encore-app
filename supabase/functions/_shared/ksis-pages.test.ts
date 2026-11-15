@@ -5,6 +5,7 @@ import { assert, assertEquals, assertThrows } from "https://deno.land/std@0.224.
 import {
   coupleRounds,
   disciplineOf,
+  historyToStore,
   isChallengePage,
   isSameCouple,
   KsisPageError,
@@ -25,6 +26,8 @@ import {
   sideInCouple,
   sideInPair,
   splitPair,
+  wdsfDisciplineOf,
+  wdsfResultId,
 } from "./ksis-pages.ts";
 
 const fixture = (name: string): string =>
@@ -61,8 +64,9 @@ Deno.test("places, standings and points read exactly as KSIS writes them", () =>
   // WDSF competitions held in Slovakia have a KSIS id and write the discipline short.
   assertEquals(disciplineOf("WDSF International Open ST"), "STT");
   assertEquals(disciplineOf("WDSF Rising Stars LA"), "LAT");
-  // A ten-dance or an E class has no single discipline: not saved as one.
-  assertEquals(disciplineOf("Dospelí A 10T"), null);
+  // The ten-dance of the Slovak championship is its own discipline.
+  assertEquals(disciplineOf("MSR Dospelí 10T"), "10T");
+  // An E class has no discipline and KSIS does not keep its results: not saved.
   assertEquals(disciplineOf("Deti II E"), null);
 });
 
@@ -521,4 +525,45 @@ Deno.test("couple page: a table with rows and none of the known titles is a chan
   const error = assertThrows(() => parseCouplePage(fixture("couple_page_18978.html").replace(/<table[\s\S]*<\/table>/, other)), KsisPageError);
   assertEquals(error.kind, "layout_changed");
   assert(error.message.includes("Termín | Názov"), error.message);
+});
+
+// ── What is kept from a couple's history ────────────────────────────────────────────────────────
+
+Deno.test("history to keep: each KSIS number once, the 10-dance, WDSF without a number, the Slovak WDSF only once", () => {
+  const stored = historyToStore(parseCouplePage(fixture("couple_page_18967.html")).history);
+  const ksis = stored.filter((row) => !row.isWdsf);
+  const wdsf = stored.filter((row) => row.isWdsf);
+  // 27 rows with a KSIS number: the national ones, 4 WDSF held in Slovakia ("ST", "LA") and the ten-dance of the championship.
+  assertEquals(ksis.length, 27);
+  assertEquals(ksis.filter((row) => row.discipline === "10T").map((row) => row.sutazId), [11517]);
+  // 14 rows without a number; 4 of them are the same competitions as the Slovak ones with a number (place and couples agree).
+  assertEquals(wdsf.length, 10);
+  assert(wdsf.every((row) => row.sutazId < 0 && row.sutazId >= -2_147_483_646));
+  assertEquals(new Set(stored.map((row) => row.sutazId)).size, stored.length);
+  assert(!wdsf.some((row) => row.date === "2025-09-27" || row.date === "2025-09-28"));
+  // Abroad there is only the WDSF record, and it is kept.
+  const budapest = wdsf.find((row) => row.entry.eventName.startsWith("Budapest") && row.discipline === "LAT");
+  assertEquals([budapest?.entry.place?.text, budapest?.entry.couples], ["27.", 32]);
+  // A couple without any WDSF row keeps nothing of the kind.
+  assertEquals(historyToStore(parseCouplePage(fixture("couple_page_18978.html")).history).filter((row) => row.isWdsf), []);
+});
+
+Deno.test("a WDSF result gets the same negative number every time and a different one for another row", () => {
+  const row = { date: "2026-04-19", eventName: "Budapest,Hungary", category: "Rising Stars Standard" };
+  assertEquals(wdsfResultId(row), wdsfResultId({ ...row }));
+  assert(wdsfResultId(row) < 0 && wdsfResultId(row) >= -2_147_483_646);
+  assert(wdsfResultId(row) !== wdsfResultId({ ...row, category: "Rising Stars Latin" }));
+  assert(wdsfResultId(row) !== wdsfResultId({ ...row, date: "2026-04-18" }));
+  assertEquals(wdsfDisciplineOf("Rising Stars Standard"), "STT");
+  assertEquals(wdsfDisciplineOf("Adult Latin"), "LAT");
+  assertEquals(wdsfDisciplineOf("Adult Ten Dance"), null);
+});
+
+Deno.test("a result from the future or from long before KSIS is not kept", () => {
+  const history = parseCouplePage(fixture("couple_page_18978.html")).history;
+  const future = { ...history[0], date: "2999-01-01", sutazId: 999_999 };
+  const ancient = { ...history[0], date: "1980-01-01", sutazId: 999_998 };
+  const kept = historyToStore([future, ancient, ...history]);
+  assert(!kept.some((row) => row.sutazId === 999_999 || row.sutazId === 999_998));
+  assertEquals(kept.length, history.length);
 });
