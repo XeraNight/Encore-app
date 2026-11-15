@@ -8,7 +8,6 @@ struct LogoCommandPaletteView: View {
     let onSelectLibrary: () -> Void
     let onSelectCanvas: () -> Void
     let onSelectCamera: () -> Void
-    let onSelectScanQR: () -> Void
     let onSelectRoutine: (Routine) -> Void
     
     let routines: [Routine]
@@ -104,11 +103,6 @@ struct LogoCommandPaletteView: View {
                                         commandRow(icon: "video.fill", title: "Kamera & Spomalené zábery", subtitle: "Natočiť nový tréningový záznam", color: Color.gold400) {
                                             isPresented = false
                                             onSelectCamera()
-                                        }
-                                        
-                                        commandRow(icon: "qrcode.viewfinder", title: "Skenovať QR kód", subtitle: "Pozvánka od tanečníka", color: Color.white.opacity(0.7)) {
-                                            isPresented = false
-                                            onSelectScanQR()
                                         }
                                     }
                                 }

@@ -36,14 +36,14 @@ struct ProfileView: View {
                         accountCard
                         danceWorldSection
                         membershipSection
-                        HomeRowGroup(title: "MOJA KARTA") {
+                        HomeRowGroup(title: "MÔJ LÍSTOK") {
                             NavigationLink { MemberCardScreen() } label: {
-                                HomeRow(icon: "wallet.pass.fill", title: "Digitálna karta", subtitle: "QR na prepojenie a Apple Peňaženka")
+                                HomeRow(icon: "wallet.pass.fill", title: "Členský lístok", subtitle: "QR na prepojenie a Apple Peňaženka")
                             }
                             .buttonStyle(.pressable(scale: 0.98))
                             HomeRowDivider()
                             NavigationLink { AppearanceView() } label: {
-                                HomeRow(icon: "paintpalette.fill", title: "Vzhľad", subtitle: "Ikona appky, motív karty a rámik profilovky",
+                                HomeRow(icon: "paintpalette.fill", title: "Vzhľad", subtitle: "Ikona appky, motív lístka a rámik profilovky",
                                         badge: subscriptionManager.currentTier >= .plus ? nil : "PLUS")
                             }
                             .buttonStyle(.pressable(scale: 0.98))
@@ -339,7 +339,6 @@ struct MemberCardScreen: View {
                 EncoreMemberCardView(
                     name: profileStore.currentName,
                     club: profileStore.currentClub,
-                    allowInteractiveTilt: true,
                     showActionButtons: true
                 )
                 .padding(20)
@@ -347,7 +346,7 @@ struct MemberCardScreen: View {
             }
             .softTopEdge()
         }
-        .navigationTitle("Moja karta")
+        .navigationTitle("Môj lístok")
         .navigationBarTitleDisplayMode(.inline)
     }
 }

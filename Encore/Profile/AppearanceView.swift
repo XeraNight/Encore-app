@@ -94,8 +94,8 @@ struct AppearanceView: View {
     // MARK: Card
     private var themeSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HomeSectionHeader(title: "MOTÍV KARTY", systemImage: "wallet.pass.fill")
-            Text("Platí pre kartu v Encore aj v Apple Peňaženke.")
+            HomeSectionHeader(title: "MOTÍV LÍSTKA", systemImage: "wallet.pass.fill")
+            Text("Platí pre lístok v Encore aj v Apple Peňaženke.")
                 .font(.footnote)
                 .foregroundColor(Color.textSecondary)
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
@@ -115,7 +115,7 @@ struct AppearanceView: View {
             }
         } label: {
             VStack(alignment: .leading, spacing: 8) {
-                LeatherCardSurface(isFront: true, theme: theme)
+                theme.middle
                     .aspectRatio(1.72, contentMode: .fit)
                     .overlay(alignment: .topLeading) {
                         Text("ENCORE")

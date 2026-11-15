@@ -81,7 +81,7 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
         } else {
             Logger.general.error("Wallet pass replace refused")
             if userInitiated {
-                showProblem("Kartu v Peňaženke sa nepodarilo aktualizovať. Vymaž ju v Peňaženke a pridaj znova.")
+                showProblem("Lístok v Peňaženke sa nepodarilo aktualizovať. Vymaž ho v Peňaženke a pridaj znova.")
             }
         }
     }
@@ -130,21 +130,21 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
             } catch {
                 Logger.general.error("Wallet pass rejected by iOS: \(error.localizedDescription, privacy: .public)")
                 if reportProblems {
-                    showProblem("Server kartu vytvoril, ale iOS ju neprijal (podpis alebo obrázky karty). Chyba: \(error.localizedDescription)")
+                    showProblem("Server lístok vytvoril, ale iOS ho neprijal (podpis alebo obrázky lístka). Chyba: \(error.localizedDescription)")
                 }
                 return nil
             }
         } catch {
             Logger.general.error("Wallet pass fetch failed: \(error.localizedDescription, privacy: .public)")
             if reportProblems {
-                showProblem("Kartu sa nepodarilo stiahnuť. Skontroluj pripojenie a skús to znova.")
+                showProblem("Lístok sa nepodarilo stiahnuť. Skontroluj pripojenie a skús to znova.")
             }
             return nil
         }
     }
 
     private func showProblem(_ message: String) {
-        alertTitle = "Kartu sa nepodarilo pridať"
+        alertTitle = "Lístok sa nepodarilo pridať"
         alertMessage = message
         showErrorAlert = true
         HapticFeedback.warning()
@@ -159,7 +159,7 @@ final class AppleWalletPassManager: NSObject, ObservableObject {
             return "Na serveri ešte nie sú certifikáty pre Apple Peňaženku."
         default:
             let reason = serverMessage.map { " \($0)" } ?? ""
-            return "Server kartu nevytvoril (\(status), \(code)).\(reason)"
+            return "Server lístok nevytvoril (\(status), \(code)).\(reason)"
         }
     }
 

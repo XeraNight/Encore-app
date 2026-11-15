@@ -738,7 +738,6 @@ struct FriendsListView: View {
                         EncoreMemberCardView(
                             name: profileStore.currentName,
                             club: profileStore.currentClub,
-                            allowInteractiveTilt: true,
                             showActionButtons: true
                         )
 

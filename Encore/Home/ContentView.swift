@@ -34,9 +34,8 @@ struct ContentView: View {
     @State private var compareSlotAPath: String?
     @State private var compareSlotBPath: String?
 
-    // QR scanner (invites, dancer IDs, guest coach keys: FriendManager.handleScanned)
+    // A guest coach key opened from a link (FriendManager.handleScanned)
     @ObservedObject private var guestService = GuestCoachService.shared
-    @State private var showQRScanner = false
 
     /// Pinned notes first, then newest.
     private var sortedInbox: [InstantNote] {
@@ -146,7 +145,6 @@ struct ContentView: View {
                     onSelectLibrary: { showGlobalLibrarySheet = true },
                     onSelectCanvas: { showAllRoutinesSheet = true },
                     onSelectCamera: { showCameraModal = true },
-                    onSelectScanQR: { showQRScanner = true },
                     onSelectRoutine: { selectedRoutineForNavigation = $0 },
                     routines: routines,
                     allFigures: allFigures
@@ -197,7 +195,6 @@ struct ContentView: View {
             .sheet(isPresented: $showMetronomeSheet) {
                 DanceMetronomeView()
             }
-            .qrScanner(isPresented: $showQRScanner) { FriendManager.shared.handleScanned($0) }
             .sheet(isPresented: Binding(
                 get: { guestService.pendingToken != nil },
                 set: { if !$0 { guestService.pendingToken = nil } }
@@ -228,17 +225,6 @@ struct ContentView: View {
         // Open height must equal the hub's own frame (EncoreRadialHubView) so nothing overflows
         // onto the text field below; closed, the header stays slim.
         .frame(height: isRadialHubOpen ? max(logoSize + 185, 300) : logoSize + 36)
-        .overlay(alignment: .topTrailing) {
-            // Right QR Scanner & Actions Menu (Single Apple 3D Liquid Glass Lens)
-            Button { showQRScanner = true } label: {
-                GlassCircleLabel(icon: "qrcode.viewfinder")
-            }
-            .accessibilityLabel("Skenovať QR kód")
-            .accessibilityHint("Naskenuj QR kód tanečníka")
-            .padding(.trailing, 2)
-            .opacity(isRadialHubOpen ? 0.0 : 1.0)
-            .animation(.easeOut(duration: 0.18), value: isRadialHubOpen)
-        }
     }
     
     // MARK: - Radial Action Dispatcher
