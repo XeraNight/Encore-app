@@ -1,10 +1,10 @@
 # Profil › Súťaže: prípady a stav kódu
 
-Stav z 15. 11. 2026. Čo sa skúšalo, čo sa našlo, čo čaká na ÁNO. Testy: `EncoreTests/SutazeEdgeCaseTests.swift`. Plný beh: 214 testov, 213 prešlo a jeden bol zle napísaný môj test (opravený, trieda Súťaží prešla celá).
+Stav z 15. 11. 2026. Čo sa skúšalo, čo sa našlo, čo čaká na ÁNO. Testy: `EncoreTests/SutazeEdgeCaseTests.swift`. Plný beh Swift: 222 testov prešlo. Deno (`ksis-pages.test.ts`): 37 prešlo.
 
 Značky: **test** = overené automatickým testom · **kód** = overené čítaním kódu · **iPhone** = dá sa overiť len na telefóne.
 
-## 1. Opravené a commitnuté (dddd39c, a945f3b, 5c643cc)
+## 1. Opravené skôr (dddd39c, a945f3b, 5c643cc)
 
 | # | Nález | Oprava | Overenie |
 |---|-------|--------|----------|
@@ -14,22 +14,50 @@ Značky: **test** = overené automatickým testom · **kód** = overené čítan
 | F4 | Aktualizácia si zapamätala „KSIS nemá miesto“ aj vtedy, keď prišla iná stránka než tá, o ktorú sa žiadalo (presmerovanie, kontrola KSIS). Pamätá sa to natrvalo. | Stránka iného druhu sa počíta ako neúspech a pri ďalšej aktualizácii sa pýta znova. | kód, build |
 | F5 | Jeden nečitateľný riadok výsledkov alebo krížikov skryl všetky výsledky; pomalá odpoveď mohla prepísať čerstvejšiu. | `LossyList`, číslo načítania, `unlink` vždy načíta znova. | testy v `SutazeEdgeCaseTests` |
 
-## 2. Čaká na ÁNO
+## 2. Čo si Jakub vyžiadal 15. 11. večer (P1 až P10), stav
 
-Poradie podľa dôležitosti.
+Všetko je commitnuté. **Čaká len na dve nasadenia:** migrácia databázy a funkcia `ksis-page` (nižšie).
 
-| # | Nález | Navrhovaná oprava | Súbory |
-|---|-------|-------------------|--------|
-| P1 | Server uloží všetko, čo stránka v odoslanom HTML povie: dĺžku textov, počet kôl a rozhodcov, hodnoty súčtov. Vymyslená stránka tak môže nafúknuť riadok alebo dať spojeniam obrovský text. | Hranice pri čítaní (dĺžka textu, počet kôl, rozsah súčtu) a kontrola veľkosti tela ešte pred čítaním. Nasadí Jakub (`supabase functions deploy ksis-page`). | `_shared/ksis-pages.ts`, `ksis-page/index.ts`, test |
-| P2 | `anon` a `authenticated` majú na `competition_results` a `user_couples` aj `TRUNCATE`, `TRIGGER`, `REFERENCES` (a `anon` aj `SELECT`). Cez REST sa to zneužiť nedá a RLS čítanie drží, ale právo je zbytočné. | `revoke` týchto práv. SQL ukážem pred nasadením. | migrácia |
-| P3 | Po `await` sa siaha na modely SwiftData, ktoré medzitým mohli byť zmazané (`follow`, `setIntent`, uloženie súťaže). Zmazaný model pri čítaní zhodí appku. Navyše 29-krát `try? save()` zahodí chybu (napr. plný disk). | Po `await` model znovu nájsť podľa `id`; jeden pomocník na uloženie, ktorý chybu zapíše do `Logger`. | `Planner/PlannerCompetitionsView.swift`, `Planner/PlannerServices.swift`, … |
-| P4 | Webové okno KSIS otvorí Safari aj pri presmerovaní, nielen po ťuknutí. | Mimo KSIS iba po ťuknutí na odkaz. | `KSISBrowserView.swift` |
-| P5 | `KSISEvent.id` bez čísla propozícií je „dátum + názov“; dve súťaže s rovnakým názvom v ten deň by sa zlúčili v zozname. | Pridať miesto konania do kľúča. | `KSISCalendar.swift` |
-| P6 | Pripomienky: iOS drží najviac 64 naplánovaných. Pri veľa tréningoch by sa pripomienky súťaží (sú najďalej) zahodili. | Súťaže naplánovať ako prvé a ak je ich veľa, skrátiť obdobie tréningov. | `PlannerServices.swift` |
-| P7 | Kalendár a Slovenský pohár sú v `UserDefaults`; dva takmer rovnaké obchody s dátami. | Jeden malý pomocník na súbor v Application Support (menej kódu, žiadny limit veľkosti). | `KSISCalendar.swift`, `SlovakCup.swift` |
-| P8 | Výsledky sa po štarte bez internetu nenačítajú (nie sú na disku). | Uložiť posledný stav na disk podľa účtu, alebo to nechať. Rozhodnutie je tvoje. | `CompetitionManager.swift` |
-| P9 | `ksis-page` nemá obmedzenie počtu volaní na človeka. | Počítadlo ako pri `send-email`, nová SQL funkcia (ukážem pred nasadením). | `ksis-page/index.ts`, migrácia |
-| P10 | `KSISBrowserView` (1059 riadkov) a `KSISUpdateSheet` robia čiastočne to isté (páry, história, krížiky). | Ručné okno zúžiť na „Toto som ja“ a prehliadanie KSIS. Produktové rozhodnutie. | `KSISBrowserView.swift` |
+| # | Čo | Rozhodnutie a stav |
+|---|----|--------------------|
+| P1 | Server uloží všetko, čo povie odoslané HTML | Hotové: text sa reže na 400 znakov, čísla na 9 číslic, súčet kola na 100 000, história na 1000 riadkov, neexistujúci dátum nie je dátum, telo nad 6 MB sa nečíta, adresa bez portu a mena. Čaká na nasadenie funkcie. |
+| P2 | Zbytočné práva v databáze | Hotové v migrácii `20261116_ksis_rate_limit_and_grants.sql`: `TRUNCATE`, `TRIGGER`, `REFERENCES` preč pre `anon` a `authenticated` na **všetkých** tabuľkách `public` (nielen na dvoch: 96 práv na 19 tabuľkách, po migrácii 0) aj pre nové tabuľky; `anon` už nečíta výsledky ani páry. Skúška v transakcii, ktorá sa vrátila späť. Čaká na použitie migrácie. |
+| P3 | Model zmazaný počas čakania na Apple Kalendár | Hotové: `isGone` po každom čakaní (tréning, súťaž, deň, séria) a `saveOrLog()` namiesto `try? save()` v celom Plánovači (29 miest). **Mimo Plánovača je ďalších 46 `try? save()`**, mechanická zmena, ak povieš. |
+| P4 | Safari z okna KSIS | Hotové: otvorí sa len po ťuknutí na odkaz. |
+| P5 | Kľúč udalosti kalendára | Hotové: bez čísla propozícií je to deň + názov + miesto a riadok uvedený dvakrát je jedna súťaž. |
+| P6 | Pripomienky nad 64 | Hotové: pripomienky sa najprv zoberú do rady, appka drží 60 a pripomienky súťaží majú prednosť. |
+| P7 | Dva obchody s dátami v `UserDefaults` | Hotové: `LocalFile` (súbor zapísaný naraz, nezálohuje sa) pre kalendár aj pohár a aj pre výsledky. |
+| P8 | Výsledky bez internetu po štarte | Rozhodnuté: **áno**. Posledné odpovede servera (páry, výsledky s krížikmi) sa držia po účtoch v súboroch, po štarte sa ukážu hneď a odpoveď servera ich nahradí. Zmiznú pri odhlásení a pri zmazaní výsledku. Výsledky sa dekódujú mimo hlavného vlákna. |
+| P9 | Počet volaní `ksis-page` | Hotové: 240 volaní za 10 minút na človeka (aktualizácia má asi sto), `429 rate_limited` zastaví aktualizáciu so správou. Ak sa počítadlo pokazí, aktualizácia ide ďalej. Čaká na migráciu a nasadenie. |
+| P10 | Ručné okno KSIS a aktualizácia | Rozhodnuté: **ostáva**. Je to jediná cesta na „Toto som ja“, na prechádzanie KSIS a na živé krížiky v deň súťaže. Duplicitné je asi 120 riadkov (výber párov). Zužovať ho pred v1 je väčšie riziko než zisk; vrátime sa po spätnej väzbe. |
+
+## 2a. Prečo „Niektoré stránky sa nepodarilo uložiť“ a čo Trenčín
+
+- Server odmietol **stránku páru** dvakrát (23:11 a 23:12): `stránka páru: column 1 is "", expected "Dátum"` (HTTP 422). V databáze je to pár s KSIS číslom **17340** („Jakub Kalina – Nikoletta Kissová“, druhé číslo toho istého páru, KSIS ich drží dvakrát): 0 výsledkov, nikdy neprečítaný. Aktualizácia ho skúša pri každom behu, preto sa to hlási stále.
+- Pravdepodobná príčina: stránka toho čísla nemá tabuľku histórie (alebo má stĺpce inak). Tabuľku som ja **nevidel**: KSIS ma pustí len cez overenie a to neobchádzam.
+- Oprava: tabuľka sa hľadá podľa názvov stĺpcov (pridaný alebo posunutý stĺpec nevadí), stránka bez tabuľky je prázdna história (nie chyba), tabuľka s riadkami a bez známych názvov je zmenená stránka a log vypíše názvy, ktoré videl.
+- Súťaž z Trenčína: v databáze pre číslo 18978 nie je žiadna (najstaršia je 28. 9. 2025). V KSIS sú v Trenčíne „O pohár TK Dukla Trenčín“ 10. 5. 2026 a „ZA HRANICOU POHYBU“ 30. 4. – 3. 5. 2026. Ak ste tancovali pod číslom 17340, je to tá, ktorú stránka 17340 neprezradila. **Overí sa po nasadení: Aktualizovať a pozrieť log.**
+
+## 2b. Čo sa pri čítaní KSIS môže stať a čo appka urobí
+
+| Prípad | Čo sa stane |
+|--------|-------------|
+| Overenie Cloudflare namiesto stránky | Aktualizácia čaká, kým ho dancer prejde; server vráti `blocked` a nič neuloží |
+| Prišla iná stránka než tá, o ktorú sa žiadalo (presmerovanie) | Počíta sa ako neúspešné čítanie, nič sa nepamätá natrvalo, pri ďalšej aktualizácii sa pýta znova |
+| Pár bez súťaží (druhé číslo páru) | Prázdna história, nie chyba |
+| Stĺpec pridaný alebo posunutý v tabuľke histórie | Stĺpce sa nájdu podľa názvov |
+| Tabuľka so zmenenými názvami | „Stránku „stránka páru“ KSIS sa nepodarilo prečítať…“ a log s názvami |
+| Hodnotenie porotcov ešte nezverejnené | „KSIS zatiaľ nezverejnil hodnotenie“; nedávna súťaž (do 14 dní) sa pýta znova, staršia sa zapamätá |
+| Séria pohára ešte nezačala | Prázdna tabuľka, nie chyba |
+| Tá istá súťaž dvakrát na stránke páru | Uloží sa raz (inak by zlyhalo celé uloženie) |
+| Dátum, ktorý ešte nenastal alebo je pred rokom 1995 | Neuloží sa |
+| Obrovský text, číslo alebo súčet | Text sa reže, číslo nad 9 číslic a súčet nad 100 000 sa neprečíta |
+| Príliš rýchle čítanie (skript) | 429, aktualizácia sa zastaví so správou |
+| Appka zabitá uprostred aktualizácie | Uložené stránky zostanú, zvyšok pri ďalšej aktualizácii (**iPhone**) |
+| Štart bez internetu | Posledné výsledky z iPhonu, kalendár aj pohár |
+| Sieť padne uprostred aktualizácie | Aktualizácia sa zastaví, uložené zostáva |
+| Odhlásenie alebo iný účet | Odpovede na ceste sa zahodia a kópia na iPhone sa zmaže |
+| Dve zariadenia | Server ukladá podľa kľúča; každé zariadenie ukáže svoj posledný stiahnutý stav |
 
 ## 3. Prípady, ktoré sú overené
 
