@@ -288,11 +288,11 @@ final class KSISUpdateRun {
             // The crosses page carries the place too. A competition KSIS has no crosses for keeps its place on
             // the results page.
             if result.rounds?.isEmpty == false || manager.isMissingMarks(result) {
-                outcome = try await savePage("hodnot_sut.php?sutaz_id=\(result.sutazId)")
+                outcome = try await savePage("hodnot_sut.php?sutaz_id=\(result.sutazId)", expecting: .marks)
                 if case .notThere = outcome { manager.noteNoMarks(result) }
             }
             if case .notThere = outcome, manager.isMissingVenue(result) {
-                outcome = try await savePage("sutaz.php?sutaz_id=\(result.sutazId)")
+                outcome = try await savePage("sutaz.php?sutaz_id=\(result.sutazId)", expecting: .results)
             }
             switch outcome {
             case .saved(venue: .none), .notThere:
@@ -312,11 +312,17 @@ final class KSISUpdateRun {
         case failed
     }
 
-    private func savePage(_ path: String) async throws -> SavedPage {
+    private func savePage(_ path: String, expecting kind: KSISPageReply.Kind) async throws -> SavedPage {
         guard let url = KSISBrowserView.page(path) else { return .failed }
         let page = try await open(url)
         do {
             let reply = try await manager.save(url: page.url, html: page.html, reloads: false)
+            // A redirect or a check page in place of the one asked for says nothing about the competition: it is not
+            // remembered as one KSIS has no crosses or place for, the next update asks again.
+            guard reply.kind == kind else {
+                failures += 1
+                return .failed
+            }
             return .saved(venue: reply.competition?.venue)
         } catch CompetitionManager.ActionError.notFound {
             return .notThere
