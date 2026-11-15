@@ -54,6 +54,14 @@ import {
 
 const HOST = "szts.ksis.eu";
 const MAX_HTML = 2_000_000;
+/** The body is the page as JSON: at most a few bytes per character. Larger is not read at all. */
+const MAX_BODY = 6_000_000;
+/** One dancer's update is about a hundred calls and browsing KSIS adds some; a script is stopped well above that. */
+const RATE_MAX = 240;
+const RATE_WINDOW = "10 minutes";
+/** A dancer has a few hundred results and about ten couples in a career. */
+const MAX_RESULTS_PER_USER = 2000;
+const MAX_COUPLES_PER_USER = 15;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Kind = "members_list" | "couples_list" | "search" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
@@ -98,6 +106,9 @@ Deno.serve(async (req: Request) => {
 
   const user = await getAuthenticatedUser(req);
   if (!user) return errorResponse("unauthorized", "Vyžaduje sa prihlásenie.", 401);
+  if (Number(req.headers.get("content-length") ?? 0) > MAX_BODY) {
+    return errorResponse("too_large", "Stránka je príliš veľká.", 413);
+  }
 
   let body: Body = {};
   try {
@@ -111,6 +122,9 @@ Deno.serve(async (req: Request) => {
     const { data: profile } = await admin.from("profiles").select("account_status").eq("id", user.id).maybeSingle();
     if (profile?.account_status === "banned" || profile?.account_status === "suspended") {
       return errorResponse("forbidden", "Tvoj účet je zablokovaný.", 403);
+    }
+    if (!await withinRateLimit(admin, user.id)) {
+      return errorResponse("rate_limited", "Čítaš príliš rýchlo. Počkaj chvíľu a skús to znova.", 429);
     }
 
     switch (body.action) {
@@ -130,10 +144,38 @@ Deno.serve(async (req: Request) => {
   }
 });
 
+/** Counts the call. The limit protects this function: when counting itself fails, the dancer's update goes on. */
+async function withinRateLimit(admin: Admin, userId: string): Promise<boolean> {
+  const { error } = await admin.rpc("check_user_rate_limit", {
+    p_user: userId,
+    p_action: "ksis_page",
+    p_max: RATE_MAX,
+    p_window: RATE_WINDOW,
+  });
+  if (!error) return true;
+  if (error.hint === "rate_limited") return false;
+  console.error("ksis-page rate limit check failed:", error.message);
+  return true;
+}
+
+/** A competition not danced yet, or from before KSIS, is not a result anybody has. */
+function isPlausibleDate(isoDate: string): boolean {
+  const tomorrow = new Date(Date.now() + 36 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return isoDate >= "1995-01-01" && isoDate <= tomorrow;
+}
+
+/** Room for `adding` more couples of this dancer, or the answer that says there is none. */
+function tooManyCouples(linked: LinkedCouple[], adding: number): Response | null {
+  if (adding === 0 || linked.length + adding <= MAX_COUPLES_PER_USER) return null;
+  return errorResponse("too_large", "Máš uložených príliš veľa párov.", 413);
+}
+
 // ── Page dispatch ────────────────────────────────────────────────────────────────────────────────
 
 function kindOf(url: URL): Kind | null {
-  if (url.protocol !== "https:" || url.hostname !== HOST) return null;
+  if (url.protocol !== "https:" || url.hostname !== HOST || url.port !== "" || url.username !== "" || url.password !== "") {
+    return null;
+  }
   switch (url.pathname) {
     case "/menu.php":
       switch (url.searchParams.get("akcia")) {
@@ -206,7 +248,13 @@ async function handlePage(admin: Admin, userId: string, body: Body): Promise<Res
     if (err instanceof KsisPageError) {
       if (err.kind === "blocked") return jsonResponse({ kind: "blocked" });
       console.error("ksis-page layout:", err.message);
-      return errorResponse("parse_failed", "Túto stránku KSIS sa nepodarilo prečítať. Ak sa to opakuje, napíš nám.", 422);
+      const which = err.page ? `Stránku „${err.page}“` : "Túto stránku";
+      return errorResponse(
+        "parse_failed",
+        `${which} KSIS sa nepodarilo prečítať, zobrazuje ju inak, než appka čaká. Ak sa to opakuje, napíš nám.`,
+        422,
+        { page: kind },
+      );
     }
     throw err;
   }
@@ -371,9 +419,10 @@ async function couplesList(
   if (mine.length === 0) {
     return errorResponse("not_found", "Na tejto stránke nie je tvoj pár. Vyhľadaj svoje priezvisko a odškrtni Aktívne.", 404);
   }
-  if (!consent && mine.some((row) => savedCouple(linked, row.pairNumber, row) === undefined)) {
-    return errorResponse("invalid_input", NEEDS_CONSENT, 400);
-  }
+  const newRows = mine.filter((row) => savedCouple(linked, row.pairNumber, row) === undefined).length;
+  if (!consent && newRows > 0) return errorResponse("invalid_input", NEEDS_CONSENT, 400);
+  const noRoom = tooManyCouples(linked, newRows);
+  if (noRoom) return noRoom;
 
   // KSIS writes "Aktívny" at the couple that dances now; a couple that ended has no status.
   const current = mine.find((row) => row.status === "Aktívny");
@@ -487,7 +536,10 @@ async function search(
   if (!dancer) return errorResponse("needs_dancer", NEEDS_DANCER, 409);
   const ticked = new Set(Array.isArray(parIds) ? parIds.filter((id): id is number => Number.isInteger(id)) : []);
   const chosen = steps.filter((step) => step.action !== "new" || ticked.has(step.couple.parId));
+  const newSteps = chosen.filter((step) => step.action === "new" || step.action === "same").length;
   if (!consent && chosen.some((step) => step.action === "new")) return errorResponse("invalid_input", NEEDS_CONSENT, 400);
+  const noRoom = tooManyCouples(linked, newSteps);
+  if (noRoom) return noRoom;
 
   const now = new Date().toISOString();
   let saved = 0;
@@ -547,6 +599,8 @@ async function coupleDetail(
     if (!dancer) return errorResponse("needs_dancer", NEEDS_DANCER, 409);
     if (!side) return errorResponse("forbidden", `Toto nie je pár tanečníka ${dancer.name}.`, 403);
     if (!consent) return errorResponse("invalid_input", NEEDS_CONSENT, 400);
+    const noRoom = tooManyCouples(linked, 1);
+    if (noRoom) return noRoom;
   }
 
   const now = new Date().toISOString();
@@ -599,7 +653,9 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
     lat: page.lat,
   };
   // WDSF competitions have no KSIS competition id and no results in KSIS, so they are not stored.
-  const stored = page.history.filter((row) => row.sutazId !== null && disciplineOf(row.category) !== null && row.date !== null);
+  const stored = page.history.filter((row) =>
+    row.sutazId !== null && disciplineOf(row.category) !== null && row.date !== null && isPlausibleDate(row.date)
+  );
   const competitions = stored.length;
   if (!save) {
     return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: own !== undefined, isLinked: linked.length > 0 });
@@ -622,9 +678,12 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
   }).eq("id", own.id);
   if (coupleError) throw coupleError;
 
+  // A competition twice on the page would make the whole save fail ("cannot affect a row a second time").
+  const seen = new Set<number>();
   const rows = stored.flatMap((entry) => {
     const discipline = disciplineOf(entry.category);
-    if (!discipline || !entry.date) return [];
+    if (!discipline || !entry.date || entry.sutazId === null || seen.has(entry.sutazId)) return [];
+    seen.add(entry.sutazId);
     return [{
       user_id: userId,
       sutaz_id: entry.sutazId,
@@ -648,6 +707,14 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
     }];
   });
   if (rows.length > 0) {
+    const { count, error: countError } = await admin
+      .from("competition_results")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if (countError) throw countError;
+    if ((count ?? 0) + rows.length > MAX_RESULTS_PER_USER) {
+      return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
+    }
     const { error } = await admin.from("competition_results").upsert(rows, { onConflict: "user_id,sutaz_id,couple_id" });
     if (error) throw error;
   }
@@ -670,6 +737,9 @@ async function results(admin: Admin, userId: string, html: string, linked: Linke
   const discipline = disciplineOf(page.competition.category);
   if (!discipline || !page.competition.date || page.competition.sutazId === null) {
     return errorResponse("parse_failed", "Pri tejto súťaži chýba disciplína alebo dátum, nedá sa uložiť.", 422);
+  }
+  if (!isPlausibleDate(page.competition.date)) {
+    return errorResponse("invalid_input", "Táto súťaž má dátum, ktorý ešte nenastal alebo je príliš starý.", 400);
   }
   await rememberCoupleId(admin, own, row.parId);
 
@@ -735,6 +805,9 @@ async function marks(admin: Admin, userId: string, url: URL, html: string, linke
   };
   if (!save) return jsonResponse(reply);
 
+  if (page.rounds.length === 0) {
+    return errorResponse("not_found", "KSIS zatiaľ nezverejnil hodnotenie porotcov k tejto súťaži.", 404);
+  }
   if (!entry || !own || !rounds) return errorResponse("not_found", "Tvoj prepojený pár v tomto hodnotení nie je.", 404);
   const sutazId = page.competition.sutazId ?? Number(sutazParam);
   if (!Number.isInteger(sutazId) || sutazId <= 0) {

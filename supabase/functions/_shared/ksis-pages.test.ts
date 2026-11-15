@@ -473,6 +473,7 @@ Deno.test("couple page: a history table with other titles is a changed page and 
   const html = fixture("couple_page_18978.html").replace(">Dátum<", ">Termín<");
   const error = assertThrows(() => parseCouplePage(html), KsisPageError);
   assertEquals(error.kind, "layout_changed");
+  assertEquals(error.page, "stránka páru");
   assert(error.message.includes("Termín"), error.message);
 });
 
@@ -507,4 +508,11 @@ Deno.test("a page cannot put a huge text or a huge sum into what is saved", () =
   const page = parseCouplePage(fixture("couple_page_18978.html").replace("Košice Grand Prix 2026 - Parket B", "x".repeat(100_000)));
   assert(page.history.every((row) => row.eventName.length <= 400));
   assertLayoutChanged(() => parseMarks(fixture("marks_12094.html").replace("<td>15</td><td>10</td><td>-</td>", "<td>1e30</td><td>10</td><td>-</td>")));
+});
+
+Deno.test("couple page: a table with rows and none of the known titles is a changed page", () => {
+  const other = '<table class="table"><thead><tr><th>Termín</th><th>Názov</th></tr></thead><tbody><tr><td>12.09.2026</td><td>GP</td></tr></tbody></table>';
+  const error = assertThrows(() => parseCouplePage(fixture("couple_page_18978.html").replace(/<table[\s\S]*<\/table>/, other)), KsisPageError);
+  assertEquals(error.kind, "layout_changed");
+  assert(error.message.includes("Termín | Názov"), error.message);
 });

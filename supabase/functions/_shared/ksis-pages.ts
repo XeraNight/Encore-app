@@ -21,7 +21,8 @@ import type { CheerioAPI } from "npm:cheerio@1.0.0";
 // ── Errors and shared helpers ────────────────────────────────────────────────────────────────────
 
 export class KsisPageError extends Error {
-  constructor(readonly kind: "blocked" | "layout_changed", message: string) {
+  /** `page` is the name of the page kind ("stránka páru"), for a message the dancer can read. */
+  constructor(readonly kind: "blocked" | "layout_changed", message: string, readonly page = "") {
     super(message);
     this.name = "KsisPageError";
   }
@@ -59,12 +60,12 @@ const MAX_TEXT = 400;
 const clean = (text: string): string => text.replace(/ /g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
 
 function load(html: string, page: string): CheerioAPI {
-  if (isChallengePage(html)) throw new KsisPageError("blocked", `${page}: Cloudflare challenge instead of the page`);
+  if (isChallengePage(html)) throw new KsisPageError("blocked", `${page}: Cloudflare challenge instead of the page`, page);
   return cheerio.load(html);
 }
 
 function layoutChanged(page: string, detail: string): KsisPageError {
-  return new KsisPageError("layout_changed", `${page}: ${detail}`);
+  return new KsisPageError("layout_changed", `${page}: ${detail}`, page);
 }
 
 /** Text lines of a cell, split where KSIS puts <br>. */
@@ -420,16 +421,22 @@ const HISTORY_TITLES = ["Dátum", "Podujatie", "Súťaž", "Počet párov", "Umi
 /**
  * The competitions in the couple page's table, found by the column titles and not by position: a column added or
  * moved does not hide the history. A couple without competitions has a page without that table, which is an empty
- * history; a table with some of the known titles but not all of them is a changed page.
+ * history; a table with some of the known titles but not all of them, or with rows and none of them, is a changed page.
  */
 function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
   const tables: TableElement[] = $("table").toArray();
   const starts = tables.map((table) => columnStarts($, table));
   const found = starts.findIndex((titles) => HISTORY_TITLES.every((title) => titles.has(title)));
   if (found < 0) {
-    if (starts.some((titles) => HISTORY_TITLES.some((title) => titles.has(title)))) {
-      throw layoutChanged(COUPLE_PAGE, `history table changed; ${outline($)}`);
-    }
+    const knownTitles = starts.some((titles) => HISTORY_TITLES.some((title) => titles.has(title)));
+    // A note in place of rows ("no records") is no data; a table with real rows and no title we know is a changed page.
+    const hasRows = tables.some((table) =>
+      $(table).find("tr").toArray().some((tr) => {
+        const td = $(tr).children("td").toArray();
+        return td.length > 1 || (td.length === 1 && $(td[0]).attr("colspan") === undefined);
+      })
+    );
+    if (knownTitles || hasRows) throw layoutChanged(COUPLE_PAGE, `history table changed; ${outline($)}`);
     return [];
   }
   const at = (title: string): number => starts[found].get(title) ?? 0;
