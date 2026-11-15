@@ -202,10 +202,10 @@ export function sideInPair(dancerName: string, couple: KsisPairNames): "partner"
   return nameKey(couple.partnerka) === name ? "partnerka" : null;
 }
 
-/** "Dospelí D ŠTT" → "STT". Only reads the discipline KSIS writes last; nothing else is inferred. */
+/** "Dospelí D ŠTT" → "STT". Only reads the discipline KSIS writes last ("ST" and "LA" in the WDSF categories); nothing else is inferred. */
 export function disciplineOf(category: string): "STT" | "LAT" | null {
   const last = clean(category).split(" ").at(-1);
-  return last === "ŠTT" ? "STT" : last === "LAT" ? "LAT" : null;
+  return last === "ŠTT" || last === "ST" ? "STT" : last === "LAT" || last === "LA" ? "LAT" : null;
 }
 
 // ── Couples list (menu.php?akcia=CZP) ────────────────────────────────────────────────────────────

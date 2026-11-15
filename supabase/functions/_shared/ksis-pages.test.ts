@@ -58,6 +58,12 @@ Deno.test("places, standings and points read exactly as KSIS writes them", () =>
   assertEquals(disciplineOf("Dospelí D ŠTT"), "STT");
   assertEquals(disciplineOf("Junior II C LAT"), "LAT");
   assertEquals(disciplineOf("Dospelí D"), null);
+  // WDSF competitions held in Slovakia have a KSIS id and write the discipline short.
+  assertEquals(disciplineOf("WDSF International Open ST"), "STT");
+  assertEquals(disciplineOf("WDSF Rising Stars LA"), "LAT");
+  // A ten-dance or an E class has no single discipline: not saved as one.
+  assertEquals(disciplineOf("Dospelí A 10T"), null);
+  assertEquals(disciplineOf("Deti II E"), null);
 });
 
 Deno.test("Cloudflare challenge is recognised, the normal page script is not", () => {
