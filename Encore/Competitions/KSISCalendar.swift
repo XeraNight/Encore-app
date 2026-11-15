@@ -58,11 +58,16 @@ nonisolated enum KSISCalendarPage {
         return challengeMarkers.contains { lower.contains($0) }
     }
 
+    /// The calendar of a year is about 50 kB. A page far bigger is not the calendar, and is not read.
+    private static let maxPageSize = 1_500_000
+
     static func parse(_ html: String) throws -> [KSISEvent] {
         if isChallengePage(html) { throw Failure.challenge }
         // The filter form is on every calendar page, also on one with no competition in the period.
-        guard html.contains("name=\"vekova_ktg\"") else { throw Failure.layoutChanged }
-        let rows = html.matches(of: row)
+        guard html.utf8.count <= maxPageSize, html.contains("name=\"vekova_ktg\"") else { throw Failure.layoutChanged }
+        // One row at a time. A pattern run over the whole page searches to the page's end from every row start, so a
+        // page of the wrong shape kept the app busy for minutes.
+        let rows = html.components(separatedBy: "<tr").dropFirst().compactMap { ("<tr" + $0).prefixMatch(of: row) }
         let events = rows.compactMap { event(rowClass: String($0.1), dateCell: String($0.2), body: String($0.3)) }
         guard events.count == rows.count else { throw Failure.layoutChanged }
         return events
