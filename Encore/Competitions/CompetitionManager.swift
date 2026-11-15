@@ -49,11 +49,13 @@ final class CompetitionManager: ObservableObject {
         case notFound(String)
         /// The user has not picked themselves in the members list yet.
         case needsDancer(String)
+        /// Too many calls in a short time: the run stops instead of hammering the server.
+        case rateLimited(String)
         case network
 
         var errorDescription: String? {
             switch self {
-            case .server(let message), .notFound(let message), .needsDancer(let message): return message
+            case .server(let message), .notFound(let message), .needsDancer(let message), .rateLimited(let message): return message
             case .network: return "Nepodarilo sa spojiť so serverom. Skontroluj internet a skús to znova."
             }
         }
@@ -215,6 +217,7 @@ final class CompetitionManager: ObservableObject {
             switch code {
             case "needs_dancer": throw ActionError.needsDancer(text)
             case "not_found": throw ActionError.notFound(text)
+            case "rate_limited": throw ActionError.rateLimited(text)
             default: throw ActionError.server(text)
             }
         } catch {

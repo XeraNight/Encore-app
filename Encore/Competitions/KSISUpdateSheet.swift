@@ -54,8 +54,8 @@ final class KSISUpdateRun {
     /// The found couples the dancer keeps ticked.
     var ticked: Set<Int> = []
     private var lastLabel = "Otváram KSIS…"
-    /// Pages that could not be saved, for the last line.
-    private var failures = 0
+    /// What could not be read or saved, for the last line.
+    private var problems = KSISUpdateProblems()
     private var isClosed = false
 
     init(job: KSISUpdateJob) {
@@ -124,7 +124,7 @@ final class KSISUpdateRun {
     /// The next crosses, without reading the rest again.
     func readMoreMarks() {
         guard isFinished else { return }
-        failures = 0
+        problems = KSISUpdateProblems()
         task = Task {
             do {
                 try await readMarks()
@@ -184,7 +184,7 @@ final class KSISUpdateRun {
         do {
             if let url = KSISEvent.calendarURL() { try rememberCalendar(try await open(url)) }
         } catch KSISCalendarPage.Failure.layoutChanged {
-            failures += 1
+            problems.note("KSIS zmenil stránku kalendára, ostáva posledný načítaný.")
         }
 
         let newResults = manager.results.count - resultsBefore
@@ -239,8 +239,8 @@ final class KSISUpdateRun {
         let found: [KSISPageReply.FoundCouple]
         do {
             found = try await manager.read(url: page.url, html: page.html, otherName: otherName).found ?? []
-        } catch CompetitionManager.ActionError.server {
-            failures += 1
+        } catch CompetitionManager.ActionError.server(let message) {
+            problems.note(message)
             return
         }
         let notMine = KSISNotMine.ids(for: dancer.personNumber)
@@ -320,14 +320,14 @@ final class KSISUpdateRun {
             // A redirect or a check page in place of the one asked for says nothing about the competition: it is not
             // remembered as one KSIS has no crosses or place for, the next update asks again.
             guard reply.kind == kind else {
-                failures += 1
+                problems.note("KSIS poslal inú stránku, než sa žiadala. Skús to o chvíľu znova.")
                 return .failed
             }
             return .saved(venue: reply.competition?.venue)
         } catch CompetitionManager.ActionError.notFound {
             return .notThere
-        } catch CompetitionManager.ActionError.server {
-            failures += 1
+        } catch CompetitionManager.ActionError.server(let message) {
+            problems.note(message)
             return .failed
         }
     }
@@ -343,8 +343,8 @@ final class KSISUpdateRun {
                 if let standings = try await manager.read(url: page.url, html: page.html).standings {
                     SlovakCupStore.shared.remember(standings)
                 }
-            } catch CompetitionManager.ActionError.server {
-                failures += 1
+            } catch CompetitionManager.ActionError.server(let message) {
+                problems.note(message)
             }
         }
     }
@@ -368,8 +368,8 @@ final class KSISUpdateRun {
         do {
             _ = try await manager.save(url: page.url, html: page.html, consent: consent, parIds: parIds, otherName: otherName,
                                        reloads: false)
-        } catch CompetitionManager.ActionError.server, CompetitionManager.ActionError.notFound {
-            failures += 1
+        } catch CompetitionManager.ActionError.server(let message), CompetitionManager.ActionError.notFound(let message) {
+            problems.note(message)
             Logger.sync.error("KSIS update: page not saved")
         }
     }
@@ -383,12 +383,28 @@ final class KSISUpdateRun {
         if newResults > 0 { lines.append(slovakCount(newResults, one: "nová súťaž", few: "nové súťaže", many: "nových súťaží")) }
         if newMarks > 0 { lines.append("krížiky k \(slovakCount(newMarks, one: "súťaži", few: "súťažiam", many: "súťažiam"))") }
         let withoutHistory = manager.couples.filter { $0.coupleId == nil }.count
-        var text = lines.isEmpty ? (withoutHistory > 0 || marksLeft > 0 ? "" : "Všetko je aktuálne.") : "Uložené: \(lines.joined(separator: ", ")). "
+        let nothingToSay = withoutHistory > 0 || marksLeft > 0 || problems.sentence != nil
+        var text = lines.isEmpty ? (nothingToSay ? "" : "Všetko je aktuálne.") : "Uložené: \(lines.joined(separator: ", ")). "
         if withoutHistory > 0 {
             text += "História chýba pri \(slovakCount(withoutHistory, one: "páre", few: "pároch", many: "pároch")), pozri Moje výsledky."
         }
-        if failures > 0 { text += " Niektoré stránky sa nepodarilo uložiť, skús to znova." }
+        if let sentence = problems.sentence { text += " \(sentence)" }
         return text.trimmingCharacters(in: .whitespaces)
+    }
+}
+
+// MARK: - What went wrong
+/// What could not be read or saved in one update, each message once and at most two in the last line, so the dancer
+/// is told which page and why, not only that "some pages" failed.
+struct KSISUpdateProblems: Equatable {
+    private(set) var messages: [String] = []
+
+    mutating func note(_ message: String) {
+        if !messages.contains(message) { messages.append(message) }
+    }
+
+    var sentence: String? {
+        messages.isEmpty ? nil : "Nepodarilo sa: " + messages.prefix(2).joined(separator: " ")
     }
 }
 

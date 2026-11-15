@@ -261,6 +261,17 @@ struct SutazeEdgeCaseTests {
         #expect(competition.intent == .interested)
     }
 
+    // MARK: What went wrong in an update
+    @Test func theLastLineNamesWhatFailedEachOnceAndAtMostTwo() {
+        var problems = KSISUpdateProblems()
+        #expect(problems.sentence == nil)
+        problems.note("Prvá.")
+        problems.note("Prvá.")
+        problems.note("Druhá.")
+        problems.note("Tretia.")
+        #expect(problems.sentence == "Nepodarilo sa: Prvá. Druhá.")
+    }
+
     // MARK: The KSIS calendar page
     @Test func nothingAtAllIsNotACalendar() {
         #expect(throws: KSISCalendarPage.Failure.layoutChanged) { try KSISCalendarPage.parse("") }
