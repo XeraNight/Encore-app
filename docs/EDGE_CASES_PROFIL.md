@@ -16,7 +16,7 @@ Značky: **test** = overené automatickým testom · **kód** = overené čítan
 
 ## 2. Čo si Jakub vyžiadal 15. 11. večer (P1 až P10), stav
 
-Všetko je commitnuté. **Čaká len na dve nasadenia:** migrácia databázy a funkcia `ksis-page` (nižšie).
+Všetko je commitnuté a **nasadené 16. 11. 2026**: migrácia `ksis_rate_limit_and_grants` je použitá (práv `TRUNCATE`/`TRIGGER`/`REFERENCES` pre `anon` a `authenticated`: 96 → 0) a `ksis-page` beží vo verzii 13. Aplikačné zmeny (kópia výsledkov na iPhone, hlásenie problémov, Plánovač) sú až v ďalšom TestFlight builde; server je so starým buildom 323 zlučiteľný.
 
 | # | Čo | Rozhodnutie a stav |
 |---|----|--------------------|
@@ -58,6 +58,30 @@ Všetko je commitnuté. **Čaká len na dve nasadenia:** migrácia databázy a f
 | Sieť padne uprostred aktualizácie | Aktualizácia sa zastaví, uložené zostáva |
 | Odhlásenie alebo iný účet | Odpovede na ceste sa zahodia a kópia na iPhone sa zmaže |
 | Dve zariadenia | Server ukladá podľa kľúča; každé zariadenie ukáže svoj posledný stiahnutý stav |
+
+## 2c. Ďalšie prípady, ktoré môžu nastať (16. 11.)
+
+**Opravené:**
+
+| Prípad | Čo sa dialo | Oprava |
+|--------|-------------|--------|
+| Telefón s buddhistickým alebo japonským kalendárom | Rok pohára z `Calendar.current` bol iné číslo (2569) a KSIS dostal rok, ktorý neexistuje | `SlovakCup.currentYear`, jedno miesto namiesto štyroch kópií |
+| WDSF súťaž na Slovensku („… ST“, „… LA“) | Má KSIS číslo aj výsledky, ale poznali sa len „ŠTT“ a „LAT“, takže ju server mlčky zahodil | „ST“ a „LA“ sa ukladajú ako Štandard a Latina |
+| 429 od samotnej platformy (bez nášho tela) | Aktualizácia ďalej pýtala jednu stránku za druhou | Je to `rate_limited`, aktualizácia sa zastaví |
+
+**Overené čítaním kódu, nie je treba nič robiť:** KSIS odpovie chybovou stránkou so stavom 200 (pomenovaná chyba, nič sa nepamätá) · dve zariadenia ukladajú naraz (kľúče; jedno zariadenie dostane chybu a opakuje) · účet sa prepne počas aktualizácie (odpovede sa zahodia, kópia je po účtoch) · poškodený alebo napoly zapísaný súbor kópie (zápis naraz, nečitateľné sa ignoruje) · plný disk (zapíše sa do logu) · dve súťaže s rovnakým názvom v ten deň (kľúč s miestom) · tá istá súťaž pod dvoma číslami páru (nemôže nastať, pár nemôže tancovať tú istú kategóriu dvakrát).
+
+**Otvorené, s odporúčaním:**
+
+| Prípad | Dôsledok | Odporúčanie |
+|--------|----------|-------------|
+| Trieda E (deti) a desaťtance nemajú ŠTT ani LAT | **Neukladajú sa vôbec**, deti v E triede nemajú výsledky | Rozhodnúť: uložiť s disciplínou „ALL“ a ukázať ako triedu E. Dotkne sa databázy a zobrazenia, preto až po tvojom ÁNO |
+| Krížiky sa čítajú raz | Oprava výsledku organizátorom sa nenačíta; krížiky zverejnené po 14 dňoch sa nenačítajú nikdy (pamätá sa „nemá“) | Pri aktualizácii prečítať znova krížiky z posledných 14 dní a „nemá krížiky“ zabudnúť po 30 dňoch |
+| Súťaž zmazaná alebo zmenená v KSIS | V appke ostane, kým sa pár neodpojí | Nechať; dá sa odpojiť a načítať znova |
+| Stránka páru 17340 | Neviem, ako vyzerá (overenie Cloudflare) | Po nasadení Aktualizovať a pozrieť log |
+| Zlé hodiny v telefóne | „Minulé“ a „nadchádzajúce“ sa prehodia | Len na iPhone; server používa vlastný čas |
+| Telefón v inom jazyku | Dátumy v Plánovači sa píšu v jazyku telefónu aj v slovenskom texte | Kozmetika, po v1 |
+| Zvyšných 46 `try? save()` mimo Plánovača | Zlyhanie uloženia sa nezapíše | Mechanická zmena, povedz |
 
 ## 3. Prípady, ktoré sú overené
 
