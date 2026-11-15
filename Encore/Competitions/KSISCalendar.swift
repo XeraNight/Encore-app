@@ -35,7 +35,8 @@ nonisolated struct KSISEvent: Codable, Equatable, Identifiable, Sendable {
     /// KSIS shows the Harmonogram link only once the timetable is published.
     let hasTimetable: Bool
 
-    var id: String { propId.map(String.init) ?? "\(date) \(name)" }
+    /// The propositions' number, or without it the day, name and place: two lines of one competition never share it.
+    var id: String { propId.map(String.init) ?? "\(date) \(name) \(venue)" }
 }
 
 // MARK: - Reading the page
@@ -70,7 +71,9 @@ nonisolated enum KSISCalendarPage {
         let rows = html.components(separatedBy: "<tr").dropFirst().compactMap { ("<tr" + $0).prefixMatch(of: row) }
         let events = rows.compactMap { event(rowClass: String($0.1), dateCell: String($0.2), body: String($0.3)) }
         guard events.count == rows.count else { throw Failure.layoutChanged }
-        return events
+        // A line listed twice is one competition: the list is keyed by `id`, and two of the same would confuse it.
+        var seen: Set<String> = []
+        return events.filter { seen.insert($0.id).inserted }
     }
 
     private static let row = /<tr[^>]*>\s*<td([^>]*)valign="top"[^>]*>\s*<strong>(.*?)<\/strong>\s*<\/td>\s*<td[^>]*valign="top"[^>]*>(.*?)<\/td>\s*<\/tr>/
@@ -245,10 +248,11 @@ final class KSISCalendarStore: ObservableObject {
 
     @Published private(set) var events: [KSISEvent] = []
     @Published private(set) var readAt: Date?
-    private let key = "encore.ksisCalendar"
+    private let file = LocalFile("ksis-calendar.json")
 
     private init() {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return }
+        UserDefaults.standard.removeObject(forKey: "encore.ksisCalendar")   // an earlier version kept it there
+        guard let data = file.read() else { return }
         do {
             let saved = try JSONDecoder().decode(Saved.self, from: data)
             events = saved.events
@@ -263,7 +267,9 @@ final class KSISCalendarStore: ObservableObject {
         readAt = Date()
         if let context = AppContainer.shared?.mainContext { PlannedCompetition.follow(events, context: context) }
         do {
-            UserDefaults.standard.set(try JSONEncoder().encode(Saved(events: events, readAt: Date())), forKey: key)
+            let data = try JSONEncoder().encode(Saved(events: events, readAt: Date()))
+            let file = file
+            Task.detached(priority: .utility) { file.write(data) }
         } catch {
             Logger.general.error("KSIS calendar cache not saved: \(error.localizedDescription, privacy: .public)")
         }

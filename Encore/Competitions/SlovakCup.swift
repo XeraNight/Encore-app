@@ -119,10 +119,11 @@ final class SlovakCupStore: ObservableObject {
     }
 
     @Published private(set) var saved: [String: Saved] = [:]
-    private let key = "encore.slovakCup.standings"
+    private let file = LocalFile("slovak-cup.json")
 
     private init() {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return }
+        UserDefaults.standard.removeObject(forKey: "encore.slovakCup.standings")   // an earlier version kept it there
+        guard let data = file.read() else { return }
         do {
             saved = try JSONDecoder().decode([String: Saved].self, from: data)
         } catch {
@@ -148,7 +149,9 @@ final class SlovakCupStore: ObservableObject {
         let discipline: SlovakCup.Discipline = standings.category.lowercased().contains("latin") ? .latin : .standard
         saved[Self.key(group, discipline)] = Saved(standings: standings, readAt: Date())
         do {
-            UserDefaults.standard.set(try JSONEncoder().encode(saved), forKey: key)
+            let data = try JSONEncoder().encode(saved)
+            let file = file
+            Task.detached(priority: .utility) { file.write(data) }
         } catch {
             Logger.general.error("Slovak Cup cache not saved: \(error.localizedDescription, privacy: .public)")
         }
@@ -157,7 +160,7 @@ final class SlovakCupStore: ObservableObject {
     /// Another account signed in on this iPhone.
     func clear() {
         saved = [:]
-        UserDefaults.standard.removeObject(forKey: key)
+        file.remove()
     }
 
     private static func key(_ group: SlovakCup.Group, _ discipline: SlovakCup.Discipline) -> String {

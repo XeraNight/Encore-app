@@ -1007,7 +1007,8 @@ struct KSISWebView: UIViewRepresentable {
             // Pages for other frames (e.g. the Cloudflare check) load as they want.
             guard navigationAction.targetFrame?.isMainFrame ?? true else { return .allow }
             guard url.host?.lowercased() == KSISBrowserView.host else {
-                await UIApplication.shared.open(url)
+                // Another site opens in Safari only after a tap on a link; a page that sends the dancer away by itself stays put.
+                if navigationAction.navigationType == .linkActivated { await UIApplication.shared.open(url) }
                 return .cancel
             }
             if navigationAction.targetFrame == nil {   // "open in new window" stays in this view

@@ -73,9 +73,13 @@ final class CompetitionManager: ObservableObject {
             .receive(on: RunLoop.main)
             .sink { [weak self] userId in
                 if let userId {
+                    self?.cachedUser = userId
                     self?.competitionsWithoutMarks = Self.savedCompetitions(Self.withoutMarksKey(userId))
                     self?.competitionsWithoutVenue = Self.savedCompetitions(Self.withoutVenueKey(userId))
-                    Task { await self?.loadAllData() }
+                    Task {
+                        await self?.restoreFromDisk(for: userId)
+                        await self?.loadAllData()
+                    }
                 } else {
                     self?.resetState()
                 }
@@ -84,7 +88,9 @@ final class CompetitionManager: ObservableObject {
     }
 
     func resetState() {
-        loadNumber += 1   // an answer still on its way belongs to the account that left
+        dropLoadsInFlight()   // an answer still on its way belongs to the account that left
+        dropKeptCopy()
+        cachedUser = nil
         dancer = nil
         couples = []
         results = []
@@ -97,6 +103,99 @@ final class CompetitionManager: ObservableObject {
     /// has just reloaded, and an answer for an account that has since signed out is dropped.
     private var loadNumber = 0
 
+    // MARK: Kept on the iPhone
+    /// What one load gives, decoded.
+    private struct Loaded: Sendable {
+        let dancer: KSISDancer?
+        let couples: [UserCouple]
+        let results: [CompetitionResult]
+        let skipped: Int
+    }
+
+    /// The three answers of the server as they came. The same bytes are read again after a start without internet.
+    private struct Answers: Sendable {
+        let dancers: Data
+        let couples: Data
+        let results: Data
+    }
+
+    /// The last answers of one account, kept in files so the diary shows at once and also without internet.
+    private struct Cache: Sendable {
+        private let dancers: LocalFile
+        private let couples: LocalFile
+        private let results: LocalFile
+
+        init(user: UUID) {
+            let id = user.uuidString.lowercased()
+            dancers = LocalFile("ksis-\(id)-dancers.json")
+            couples = LocalFile("ksis-\(id)-couples.json")
+            results = LocalFile("ksis-\(id)-results.json")
+        }
+
+        func read() -> Answers? {
+            guard let dancers = dancers.read(), let couples = couples.read(), let results = results.read() else { return nil }
+            return Answers(dancers: dancers, couples: couples, results: results)
+        }
+
+        func write(_ answers: Answers) {
+            dancers.write(answers.dancers)
+            couples.write(answers.couples)
+            results.write(answers.results)
+        }
+
+        func remove() {
+            dancers.remove()
+            couples.remove()
+            results.remove()
+        }
+    }
+
+    nonisolated private static func decode(_ answers: Answers) throws -> Loaded {
+        let decoder = JSONDecoder()
+        let dancers = try decoder.decode([KSISDancer].self, from: answers.dancers)
+        let couples = try decoder.decode([UserCouple].self, from: answers.couples)
+        let results = try decoder.decode(LossyList<CompetitionResult>.self, from: answers.results)
+        return Loaded(dancer: dancers.first, couples: couples, results: results.elements, skipped: results.skipped)
+    }
+
+    /// An answer still on its way is dropped: it was asked for before something changed.
+    private func dropLoadsInFlight() {
+        loadNumber += 1
+        isLoading = false
+    }
+
+    /// The account whose answers are kept; its files go when it signs out or the copy stops matching.
+    private var cachedUser: UUID?
+
+    private func apply(_ loaded: Loaded) {
+        dancer = loaded.dancer
+        couples = loaded.couples
+        results = loaded.results
+        if loaded.skipped > 0 {
+            Logger.sync.error("KSIS diary: \(loaded.skipped, privacy: .public) unreadable result rows left out")
+        }
+    }
+
+    /// The last load of this account: the results show at once, also in a hall without a signal. The server's answer
+    /// follows and replaces it; a load already finished is never overwritten by this older copy.
+    private func restoreFromDisk(for userId: UUID) async {
+        let started = loadNumber
+        let cache = Cache(user: userId)
+        let kept = await Task.detached(priority: .userInitiated) { () -> Loaded? in
+            guard let answers = cache.read() else { return nil }
+            return try? Self.decode(answers)
+        }.value
+        guard let kept, loadNumber == started, AuthManager.shared.currentUser?.id == userId else { return }
+        apply(kept)
+    }
+
+    /// The kept copy no longer matches (a result was deleted, the account left); the next load writes a new one.
+    private func dropKeptCopy() {
+        guard let user = cachedUser else { return }
+        let cache = Cache(user: user)
+        Task.detached(priority: .utility) { cache.remove() }
+    }
+
     /// Own rows only. RLS also lets connections see each other's couple, so the query names the user itself.
     func loadAllData() async {
         guard AuthManager.shared.isAuthenticated, let myId = AuthManager.shared.currentUser?.id else { return }
@@ -106,13 +205,13 @@ final class CompetitionManager: ObservableObject {
         defer { if mine == loadNumber { isLoading = false } }
         do {
             let client = SupabaseConfig.client
-            async let loadedDancers: [KSISDancer] = client
+            async let dancersAnswer = client
                 .from("ksis_dancers")
                 .select("person_number, name, club")
                 .eq("user_id", value: myId)
                 .execute()
-                .value
-            async let loadedCouples: [UserCouple] = client
+                .data
+            async let couplesAnswer = client
                 .from("user_couples")
                 .select("id, is_current, pair_number, couple_id, partner_names, club, age_category, stt_class, stt_points, stt_finals, stt_last_change, lat_class, lat_points, lat_finals, lat_last_change, ksis_refreshed_at")
                 .eq("user_id", value: myId)
@@ -121,23 +220,22 @@ final class CompetitionManager: ObservableObject {
                 .order("is_current", ascending: false)
                 .order("created_at", ascending: false)
                 .execute()
-                .value
-            async let loadedResults: LossyList<CompetitionResult> = client
+                .data
+            async let resultsAnswer = client
                 .from("competition_results")
                 .select("id, sutaz_id, couple_id, event_name, category_name, discipline, date, couple_count, placement_text, placement, points_earned, cumulative_stats, start_number, venue, rounds, judges")
                 .eq("user_id", value: myId)
                 .eq("is_deleted", value: false)
                 .order("date", ascending: false)
                 .execute()
-                .value
-            let (newDancer, newCouples, newResults) = try await (loadedDancers.first, loadedCouples, loadedResults)
+                .data
+            let answers = try await Answers(dancers: dancersAnswer, couples: couplesAnswer, results: resultsAnswer)
+            // Decoded off the main thread: the marks of a hundred competitions are about a megabyte.
+            let loaded = try await Task.detached { try Self.decode(answers) }.value
             guard mine == loadNumber, AuthManager.shared.currentUser?.id == myId else { return }
-            dancer = newDancer
-            couples = newCouples
-            results = newResults.elements
-            if newResults.skipped > 0 {
-                Logger.sync.error("KSIS diary: \(newResults.skipped, privacy: .public) unreadable result rows left out")
-            }
+            apply(loaded)
+            let cache = Cache(user: myId)
+            Task.detached(priority: .utility) { cache.write(answers) }
             loadFailed = false
         } catch {
             guard mine == loadNumber else { return }
@@ -206,7 +304,9 @@ final class CompetitionManager: ObservableObject {
 
     func delete(_ result: CompetitionResult) async throws {
         let _: KSISOkReply = try await call(KSISPageRequest(action: "delete_result", resultId: result.id.uuidString.lowercased()))
+        dropLoadsInFlight()   // a load that started before cannot bring the deleted result back
         results.removeAll { $0.id == result.id }
+        dropKeptCopy()
     }
 
     private func call<Reply: Decodable>(_ request: KSISPageRequest) async throws -> Reply {

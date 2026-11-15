@@ -318,6 +318,8 @@ struct SutazeEdgeCaseTests {
         let root = URL(filePath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let html = try String(contentsOf: root.appending(path: "fixtures/ksis/calendar.html"), encoding: .utf8)
         let events = try KSISCalendarPage.parse(html + html)
-        #expect(events.count >= 46)
+        // A line listed twice is one competition: the list is keyed by id.
+        #expect(events.count == 46)
+        #expect(Set(events.map(\.id)).count == events.count)
     }
 }
