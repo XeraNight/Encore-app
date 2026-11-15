@@ -54,7 +54,9 @@ export function normalizeDancerName(name: string): string {
     .trim();
 }
 
-const clean = (text: string): string => text.replace(/ /g, " ").replace(/\s+/g, " ").trim();
+/** No name, title or place of a real page is longer: a page cannot put a megabyte into one. */
+const MAX_TEXT = 400;
+const clean = (text: string): string => text.replace(/ /g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_TEXT);
 
 function load(html: string, page: string): CheerioAPI {
   if (isChallengePage(html)) throw new KsisPageError("blocked", `${page}: Cloudflare challenge instead of the page`);
@@ -80,24 +82,56 @@ function columnTitles($: CheerioAPI, table: string): string[][] {
 function expectColumns(page: string, actual: string[][], expected: string[]): void {
   expected.forEach((title, i) => {
     const found = actual[i]?.join(" ") ?? "";
-    if (found !== title) throw layoutChanged(page, `column ${i + 1} is "${found}", expected "${title}"`);
+    if (found !== title) {
+      const headers = actual.slice(0, 12).map((lines) => lines.join(" ").slice(0, 24)).join(" | ");
+      throw layoutChanged(page, `column ${i + 1} is "${found}", expected "${title}"; headers [${headers}]`);
+    }
   });
 }
 
+/** What the page's tables looked like, for the log when a reader gives up: only the column titles, never the content. */
+function outline($: CheerioAPI): string {
+  const tables = $("table").toArray().slice(0, 4).map((table, index) => {
+    const titles = $(table).find("th").toArray().slice(0, 12).map((th) => clean($(th).text()).slice(0, 24));
+    return `table ${index + 1} [${titles.join(" | ")}] ${$(table).find("tr").length} rows`;
+  });
+  return tables.length > 0 ? tables.join("; ") : "no table";
+}
+
+// deno-lint-ignore no-explicit-any
+type TableElement = any;
+
+/** Where each column title starts among the cells of a row: a title can span more columns ("Dátum" takes two). */
+function columnStarts($: CheerioAPI, table: TableElement): Map<string, number> {
+  const starts = new Map<string, number>();
+  let position = 0;
+  for (const th of $(table).find("th").toArray()) {
+    const title = lines($(th).html()).join(" ");
+    if (title !== "" && !starts.has(title)) starts.set(title, position);
+    position += Math.max(1, Number($(th).attr("colspan")) || 1);
+  }
+  return starts;
+}
+
+/** A whole number of at most nine digits: what the database columns hold, and more than any pair number or count. */
 function intOrNull(text: string): number | null {
   const value = clean(text);
-  return /^\d+$/.test(value) ? Number(value) : null;
+  return /^\d{1,9}$/.test(value) ? Number(value) : null;
 }
 
 function idFrom(href: string | undefined, param: string): number | null {
-  const match = href?.match(new RegExp(`[?&]${param}=(\\d+)`));
+  const match = href?.match(new RegExp(`[?&]${param}=(\\d{1,9})(?!\\d)`));
   return match ? Number(match[1]) : null;
 }
 
-/** "12.09.2026" → "2026-09-12". */
+/** "12.09.2026" → "2026-09-12"; a day that does not exist ("31.02.2026") is no date. */
 export function parseKsisDate(text: string): string | null {
   const match = clean(text).match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
-  return match ? `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` : null;
+  if (!match) return null;
+  const [day, month, year] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  const real = new Date(Date.UTC(year, month - 1, day));
+  if (real.getUTCFullYear() !== year || real.getUTCMonth() !== month - 1 || real.getUTCDate() !== day) return null;
+  return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
 
 /** A placing; shared places keep both ends ("12. - 13." → 12…13). */
@@ -110,7 +144,7 @@ export interface KsisPlace {
 /** "3.", "12. - 13.", "1 - 2", "10". */
 export function parsePlace(text: string): KsisPlace | null {
   const value = clean(text);
-  const match = value.match(/^(\d+)\.?(?:\s*-\s*(\d+)\.?)?$/);
+  const match = value.match(/^(\d{1,4})\.?(?:\s*-\s*(\d{1,4})\.?)?$/);
   if (!match) return null;
   const from = Number(match[1]);
   return { from, to: match[2] ? Number(match[2]) : from, text: value };
@@ -123,7 +157,7 @@ export interface KsisStanding {
 }
 
 export function parseStanding(text: string): KsisStanding | null {
-  const match = clean(text).match(/^(\d+)\s*\/\s*(\d+)\s*F$/i);
+  const match = clean(text).match(/^(\d{1,6})\s*\/\s*(\d{1,6})\s*F$/i);
   return match ? { points: Number(match[1]), finals: Number(match[2]) } : null;
 }
 
@@ -134,7 +168,7 @@ export interface KsisEarned {
 }
 
 export function parseEarned(text: string): KsisEarned | null {
-  const match = clean(text).match(/^(\d+)(\s*\/\s*F)?$/i);
+  const match = clean(text).match(/^(\d{1,6})(\s*\/\s*F)?$/i);
   return match ? { points: Number(match[1]), final: Boolean(match[2]) } : null;
 }
 
@@ -380,6 +414,54 @@ export interface KsisCouplePage extends KsisPairNames {
 
 const COUPLE_PAGE = "stránka páru";
 
+const MAX_HISTORY_ROWS = 1000;
+const HISTORY_TITLES = ["Dátum", "Podujatie", "Súťaž", "Počet párov", "Umiestnenie", "Body", "Body po"];
+
+/**
+ * The competitions in the couple page's table, found by the column titles and not by position: a column added or
+ * moved does not hide the history. A couple without competitions has a page without that table, which is an empty
+ * history; a table with some of the known titles but not all of them is a changed page.
+ */
+function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
+  const tables: TableElement[] = $("table").toArray();
+  const starts = tables.map((table) => columnStarts($, table));
+  const found = starts.findIndex((titles) => HISTORY_TITLES.every((title) => titles.has(title)));
+  if (found < 0) {
+    if (starts.some((titles) => HISTORY_TITLES.some((title) => titles.has(title)))) {
+      throw layoutChanged(COUPLE_PAGE, `history table changed; ${outline($)}`);
+    }
+    return [];
+  }
+  const at = (title: string): number => starts[found].get(title) ?? 0;
+  const last = Math.max(...HISTORY_TITLES.map(at));
+  // A career has a few hundred competitions; the newest come first.
+  return $(tables[found]).find("tr").toArray().slice(0, MAX_HISTORY_ROWS + 1).flatMap((tr) => {
+    const td = $(tr).children("td").toArray();
+    if (td.length === 0) return [];
+    // A note in place of a row ("no records") is not a competition.
+    if (td.length === 1 && $(td[0]).attr("colspan") !== undefined) return [];
+    const event = $(td[at("Podujatie")]).find("a");
+    const competition = $(td[at("Súťaž")]).find("a");
+    const href = competition.attr("href") ?? "";
+    const sutazId = idFrom(href, "sutaz_id");
+    if (td.length <= last || (sutazId === null && !href.includes("worlddancesport.org"))) {
+      throw layoutChanged(COUPLE_PAGE, `history row; ${outline($)}`);
+    }
+    return [{
+      date: parseKsisDate($(td[at("Dátum")]).text()),
+      eventId: idFrom(event.attr("href"), "pod_id"),
+      eventName: clean(event.text()),
+      sutazId,
+      category: clean(competition.text()),
+      couples: intOrNull($(td[at("Počet párov")]).text()),
+      place: parsePlace($(td[at("Umiestnenie")]).text()),
+      earned: parseEarned($(td[at("Body")]).text()),
+      after: parseStanding($(td[at("Body po")]).text()),
+      hasCheckMark: $(tr).find(".glyphicon-ok").length > 0,
+    }];
+  });
+}
+
 export function parseCouplePage(html: string): KsisCouplePage {
   const $ = load(html, COUPLE_PAGE);
   const header = $("div.jumbotron");
@@ -392,30 +474,7 @@ export function parseCouplePage(html: string): KsisCouplePage {
   };
   const age = info.match(/Veková kategória:\s*(.+?)\s*(?:Výkonnostná|$)/);
 
-  expectColumns(COUPLE_PAGE, columnTitles($, "table"), ["Dátum", "Podujatie", "Súťaž", "Počet párov", "Umiestnenie", "Body", "Body po"]);
-  const history = $("table").first().find("tbody tr").toArray().flatMap((tr) => {
-    const td = $(tr).find("td").toArray();
-    if (td.length === 0) return [];
-    const event = $(td[2]).find("a");
-    const competition = $(td[3]).find("a");
-    const href = competition.attr("href") ?? "";
-    const sutazId = idFrom(href, "sutaz_id");
-    if (td.length < 8 || (sutazId === null && !href.includes("worlddancesport.org"))) {
-      throw layoutChanged(COUPLE_PAGE, "history row");
-    }
-    return [{
-      date: parseKsisDate($(td[0]).text()),
-      eventId: idFrom(event.attr("href"), "pod_id"),
-      eventName: clean(event.text()),
-      sutazId,
-      category: clean(competition.text()),
-      couples: intOrNull($(td[4]).text()),
-      place: parsePlace($(td[5]).text()),
-      earned: parseEarned($(td[6]).text()),
-      after: parseStanding($(td[7]).text()),
-      hasCheckMark: $(tr).find(".glyphicon-ok").length > 0,
-    }];
-  });
+  const history = coupleHistory($);
 
   return {
     ...splitPair(title),
@@ -621,10 +680,14 @@ export interface KsisMarks {
 }
 
 const MARKS = "hodnotenie porotcov";
+/** "Suma" of a round is crosses or placings (tens) or a score (hundreds); nothing near this. */
+const MAX_SUM = 100_000;
 
 export function parseMarks(html: string): KsisMarks {
   const $ = load(html, MARKS);
   const competition = parseCompetition($, MARKS);
+  // A competition whose marks KSIS has not published has its header and no table.
+  if ($("table.table").length === 0) return { competition, dances: [], judgeColumns: 0, rounds: [] };
   const titles = columnTitles($, "table.table");
   const tail = titles.slice(-3).map((title) => title.join(" "));
   const danceTitles = titles.slice(2, -3);
@@ -653,7 +716,7 @@ export function parseMarks(html: string): KsisMarks {
     if (!round || parId === null || td.length !== dances.length + 5) throw layoutChanged(MARKS, "marks row");
     const [sumText, placeText, advancedText] = td.slice(-3).map((cell) => clean($(cell).text()));
     const sum = Number(sumText);
-    if (sumText === "" || !Number.isFinite(sum)) throw layoutChanged(MARKS, `sum in ${round.name}`);
+    if (sumText === "" || !Number.isFinite(sum) || Math.abs(sum) > MAX_SUM) throw layoutChanged(MARKS, `sum in ${round.name}`);
     round.entries.push({
       startNumber: clean($(td[0]).text()),
       parId,
@@ -668,7 +731,7 @@ export function parseMarks(html: string): KsisMarks {
 
   for (const round of rounds) {
     const marks = round.entries.flatMap((entry) => entry.marks);
-    if (marks.length > 0 && marks.every((mark) => /^\d+\.\d+$/.test(mark))) {
+    if (marks.length > 0 && marks.every((mark) => /^\d{1,6}\.\d{1,6}$/.test(mark))) {
       round.kind = "scores";
       continue;
     }
@@ -857,6 +920,10 @@ export function parseSlpStandings(html: string): KsisSlpStandings {
   const cut = rest.indexOf(" - ");
   if (cut < 0) throw layoutChanged(SLP, "title");
   const counted = clean(header.find("p").first().text()).match(/(\d+)\s+najlepš/);
+  // A series that has not started has its title and no table yet.
+  if ($("table.table").length === 0) {
+    return { year: intOrNull(rest.slice(0, cut)), category: rest.slice(cut + 3), countedRounds: counted ? Number(counted[1]) : null, rounds: [], entries: [] };
+  }
 
   const table = $("table.table").first();
   const headers = table.find("thead th").toArray();

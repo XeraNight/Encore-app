@@ -12,6 +12,7 @@ import {
   parseCouplePage,
   parseCouplesList,
   parseEarned,
+  parseKsisDate,
   parseMarks,
   parseMembersList,
   parsePlace,
@@ -441,4 +442,69 @@ Deno.test("Slovenský pohár standings: places, every round and the sum of the 4
     const best = entry.rounds.flatMap((round) => round ? [round.points] : []).sort((a, b) => b - a).slice(0, 4);
     assertEquals(best.reduce((sum, points) => sum + points, 0), entry.total);
   }
+});
+
+// ── Pages that are not as expected ───────────────────────────────────────────────────────────────
+
+Deno.test("couple page without a history table is an empty history, not a changed page", () => {
+  // A couple KSIS also knows under a second id, with no competition under it.
+  const page = parseCouplePage(fixture("couple_page_18978.html").replace(/<table[\s\S]*<\/table>/, ""));
+  assertEquals(page.history, []);
+  assertEquals([page.partner, page.partnerka], [COUPLE.partner, COUPLE.partnerka]);
+});
+
+Deno.test("couple page: a table that only says there is nothing is an empty history", () => {
+  const note = '<table class="table"><tbody><tr><td colspan="10">Nenašli sa žiadne záznamy</td></tr></tbody></table>';
+  const page = parseCouplePage(fixture("couple_page_18978.html").replace(/<table[\s\S]*<\/table>/, note));
+  assertEquals(page.history, []);
+});
+
+Deno.test("couple page: a column added in front of the history does not hide it", () => {
+  const original = parseCouplePage(fixture("couple_page_18978.html"));
+  const html = fixture("couple_page_18978.html")
+    .replace("<thead><tr>", '<thead><tr><th class="titulka"></th>')
+    .replaceAll("<tr><td>", "<tr><td></td><td>");
+  const page = parseCouplePage(html);
+  assertEquals(page.history.length, 18);
+  assertEquals(page.history, original.history);
+});
+
+Deno.test("couple page: a history table with other titles is a changed page and the report names the titles", () => {
+  const html = fixture("couple_page_18978.html").replace(">Dátum<", ">Termín<");
+  const error = assertThrows(() => parseCouplePage(html), KsisPageError);
+  assertEquals(error.kind, "layout_changed");
+  assert(error.message.includes("Termín"), error.message);
+});
+
+Deno.test("a changed column title in another page's table is reported with all the titles", () => {
+  const html = fixture("couples_list_95397.html").replace(">Klub<", ">Oddiel<");
+  const error = assertThrows(() => parseCouplesList(html), KsisPageError);
+  assertEquals(error.kind, "layout_changed");
+  assert(error.message.includes("Oddiel"), error.message);
+});
+
+Deno.test("marks KSIS has not published: no rounds, not a changed page", () => {
+  const page = parseMarks(fixture("marks_12094.html").replace(/<table[\s\S]*<\/table>/, ""));
+  assertEquals(page.rounds, []);
+  assertEquals(page.competition.sutazId, 12094);
+});
+
+Deno.test("a cup series that has not started: no entries, not a changed page", () => {
+  const page = parseSlpStandings(fixture("slp_standings_dospeli_stt.html").replace(/<table[\s\S]*<\/table>/, ""));
+  assertEquals([page.category, page.entries, page.rounds], ["Dospelí Štandard", [], []]);
+});
+
+Deno.test("dates and numbers that cannot be real are not read", () => {
+  assertEquals(parseKsisDate("31.02.2026"), null);
+  assertEquals(parseKsisDate("99.99.2026"), null);
+  assertEquals(parseKsisDate("29.02.2028"), "2028-02-29");
+  assertEquals(parsePlace("9".repeat(30)), null);
+  assertEquals(parseStanding(`${"9".repeat(30)}/5F`), null);
+  assertEquals(parseEarned("9".repeat(30)), null);
+});
+
+Deno.test("a page cannot put a huge text or a huge sum into what is saved", () => {
+  const page = parseCouplePage(fixture("couple_page_18978.html").replace("Košice Grand Prix 2026 - Parket B", "x".repeat(100_000)));
+  assert(page.history.every((row) => row.eventName.length <= 400));
+  assertLayoutChanged(() => parseMarks(fixture("marks_12094.html").replace("<td>15</td><td>10</td><td>-</td>", "<td>1e30</td><td>10</td><td>-</td>")));
 });
