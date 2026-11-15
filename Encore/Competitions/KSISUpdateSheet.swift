@@ -334,10 +334,9 @@ final class KSISUpdateRun {
 
     private func updateCup() async throws {
         guard let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory) else { return }
-        let year = Calendar.current.component(.year, from: Date())
         for discipline in SlovakCup.disciplines(for: couple) {
             say("Slovenský pohár \(discipline.title)…")
-            guard let url = SlovakCup.standingsURL(year: year, group: group, discipline: discipline) else { continue }
+            guard let url = SlovakCup.standingsURL(group: group, discipline: discipline) else { continue }
             let page = try await open(url)
             do {
                 if let standings = try await manager.read(url: page.url, html: page.html).standings {

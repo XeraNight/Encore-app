@@ -74,7 +74,13 @@ nonisolated enum SlovakCup {
         }
     }
 
-    static func standingsURL(year: Int, group: Group, discipline: Discipline) -> URL? {
+    /// The year the cup is named by (`rok=` in KSIS), always the Gregorian one: on a phone set to a Buddhist or Japanese
+    /// calendar the year of `Calendar.current` is another number, and KSIS would answer for a year that does not exist.
+    static func currentYear(_ date: Date = Date()) -> Int {
+        Calendar(identifier: .gregorian).component(.year, from: date)
+    }
+
+    static func standingsURL(year: Int = currentYear(), group: Group, discipline: Discipline) -> URL? {
         URL(string: "https://szts.ksis.eu/slp_poradie.php?rok=\(year)&druh=\(group.rawValue)&s_l=\(discipline.rawValue)")
     }
 

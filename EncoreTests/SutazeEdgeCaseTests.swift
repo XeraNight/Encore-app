@@ -261,6 +261,37 @@ struct SutazeEdgeCaseTests {
         #expect(competition.intent == .interested)
     }
 
+    // MARK: Reading KSIS when the world is odd
+    @Test func aCallRefusedByThePlatformIsKnownAsALimit() {
+        guard case .server(let code, let message) = EdgeFunctionClient.failure(status: 429, data: Data()) else {
+            Issue.record("a refused call is a server failure")
+            return
+        }
+        #expect(code == "rate_limited")
+        #expect(message == nil)
+        guard case .server(let own, let text) = EdgeFunctionClient.failure(
+            status: 422, data: Data(#"{"error":"parse_failed","message":"Zle."}"#.utf8)) else {
+            Issue.record("an error answer of ours is a server failure")
+            return
+        }
+        #expect(own == "parse_failed")
+        #expect(text == "Zle.")
+        guard case .server(let none, _) = EdgeFunctionClient.failure(status: 502, data: Data("<html>".utf8)) else {
+            Issue.record("a bad gateway is a server failure")
+            return
+        }
+        #expect(none == nil)
+    }
+
+    @Test func theCupYearIsTheGregorianOneWhateverTheCalendarOfThePhone() throws {
+        let date = try #require(DateComponents(calendar: Calendar(identifier: .gregorian), year: 2026, month: 11, day: 16, hour: 12).date)
+        #expect(SlovakCup.currentYear(date) == 2026)
+        // What Calendar.current would give on a phone set to a Buddhist calendar.
+        #expect(Calendar(identifier: .buddhist).component(.year, from: date) == 2569)
+        let url = try #require(SlovakCup.standingsURL(year: SlovakCup.currentYear(date), group: .adults, discipline: .standard))
+        #expect(url.absoluteString.contains("rok=2026"))
+    }
+
     // MARK: What went wrong in an update
     @Test func theLastLineNamesWhatFailedEachOnceAndAtMostTwo() {
         var problems = KSISUpdateProblems()

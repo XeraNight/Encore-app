@@ -17,12 +17,18 @@ enum EdgeFunctionClient {
         let message: String?
     }
 
+    /// What an error answer says. A call refused by the platform itself (too many calls) has no body of ours, but
+    /// callers still need to know it was a limit, so a run can stop instead of asking on.
+    static func failure(status: Int, data: Data) -> Failure {
+        let reply = try? JSONDecoder().decode(ServerError.self, from: data)
+        return .server(code: reply?.error ?? (status == 429 ? "rate_limited" : nil), message: reply?.message)
+    }
+
     static func call<Body: Encodable, Reply: Decodable>(_ name: String, _ body: Body) async throws -> Reply {
         do {
             return try await SupabaseConfig.client.functions.invoke(name, options: FunctionInvokeOptions(body: body))
-        } catch FunctionsError.httpError(_, let data) {
-            let reply = try? JSONDecoder().decode(ServerError.self, from: data)
-            throw Failure.server(code: reply?.error, message: reply?.message)
+        } catch FunctionsError.httpError(let status, let data) {
+            throw failure(status: status, data: data)
         } catch {
             Logger.sync.error("\(name, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             throw Failure.network

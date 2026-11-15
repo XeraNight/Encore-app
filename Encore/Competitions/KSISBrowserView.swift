@@ -561,9 +561,8 @@ struct KSISBrowserView: View {
     /// The cup standings of the current couple, in the disciplines it dances the cup in.
     private var cupLinks: [(title: String, url: URL?)] {
         guard let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory) else { return [] }
-        let year = Calendar.current.component(.year, from: Date())
         return SlovakCup.disciplines(for: couple).map {
-            ("Pohár \($0.title)", SlovakCup.standingsURL(year: year, group: group, discipline: $0))
+            ("Pohár \($0.title)", SlovakCup.standingsURL(group: group, discipline: $0))
         }
     }
 
@@ -571,7 +570,7 @@ struct KSISBrowserView: View {
     private func cupURL(for category: String) -> URL? {
         guard let group = SlovakCup.Group(ageCategory: category) else { return nil }
         let discipline: SlovakCup.Discipline = category.hasSuffix("LAT") ? .latin : .standard
-        return SlovakCup.standingsURL(year: Calendar.current.component(.year, from: Date()), group: group, discipline: discipline)
+        return SlovakCup.standingsURL(group: group, discipline: discipline)
     }
 
     // MARK: Pieces

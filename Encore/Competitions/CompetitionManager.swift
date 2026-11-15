@@ -313,7 +313,7 @@ final class CompetitionManager: ObservableObject {
         do {
             return try await EdgeFunctionClient.call("ksis-page", request)
         } catch EdgeFunctionClient.Failure.server(let code, let message) {
-            let text = message ?? "Nepodarilo sa to. Skús to znova."
+            let text = message ?? (code == "rate_limited" ? "Čítaš príliš rýchlo. Počkaj chvíľu a skús to znova." : "Nepodarilo sa to. Skús to znova.")
             switch code {
             case "needs_dancer": throw ActionError.needsDancer(text)
             case "not_found": throw ActionError.notFound(text)

@@ -226,8 +226,7 @@ struct DisciplineStatsView: View {
                         }
                         Spacer(minLength: 8)
                         Button {
-                            let year = Calendar.current.component(.year, from: Date())
-                            if let url = SlovakCup.standingsURL(year: year, group: group, discipline: cupDiscipline) {
+                            if let url = SlovakCup.standingsURL(group: group, discipline: cupDiscipline) {
                                 browser = KSISBrowserTarget(url: url)
                             }
                         } label: {
