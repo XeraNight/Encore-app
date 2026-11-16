@@ -31,12 +31,11 @@ Všetko je commitnuté a **nasadené 16. 11. 2026**: migrácia `ksis_rate_limit_
 | P9 | Počet volaní `ksis-page` | Hotové: 240 volaní za 10 minút na človeka (aktualizácia má asi sto), `429 rate_limited` zastaví aktualizáciu so správou. Ak sa počítadlo pokazí, aktualizácia ide ďalej. Čaká na migráciu a nasadenie. |
 | P10 | Ručné okno KSIS a aktualizácia | Rozhodnuté: **ostáva**. Je to jediná cesta na „Toto som ja“, na prechádzanie KSIS a na živé krížiky v deň súťaže. Duplicitné je asi 120 riadkov (výber párov). Zužovať ho pred v1 je väčšie riziko než zisk; vrátime sa po spätnej väzbe. |
 
-## 2a. Prečo „Niektoré stránky sa nepodarilo uložiť“ a čo Trenčín
+## 2a. Prečo „Niektoré stránky sa nepodarilo uložiť“ a čo Trenčín (vyriešené 16. 11.)
 
-- Server odmietol **stránku páru** dvakrát (23:11 a 23:12): `stránka páru: column 1 is "", expected "Dátum"` (HTTP 422). V databáze je to pár s KSIS číslom **17340** („Jakub Kalina – Nikoletta Kissová“, druhé číslo toho istého páru, KSIS ich drží dvakrát): 0 výsledkov, nikdy neprečítaný. Aktualizácia ho skúša pri každom behu, preto sa to hlási stále.
-- Pravdepodobná príčina: stránka toho čísla nemá tabuľku histórie (alebo má stĺpce inak). Tabuľku som ja **nevidel**: KSIS ma pustí len cez overenie a to neobchádzam.
-- Oprava: tabuľka sa hľadá podľa názvov stĺpcov (pridaný alebo posunutý stĺpec nevadí), stránka bez tabuľky je prázdna história (nie chyba), tabuľka s riadkami a bez známych názvov je zmenená stránka a log vypíše názvy, ktoré videl.
-- Súťaž z Trenčína: v databáze pre číslo 18978 nie je žiadna (najstaršia je 28. 9. 2025). V KSIS sú v Trenčíne „O pohár TK Dukla Trenčín“ 10. 5. 2026 a „ZA HRANICOU POHYBU“ 30. 4. – 3. 5. 2026. Ak ste tancovali pod číslom 17340, je to tá, ktorú stránka 17340 neprezradila. **Overí sa po nasadení: Aktualizovať a pozrieť log.**
+- Server odmietal **stránku páru** pre KSIS číslo **17340** (druhé číslo vášho páru): `stránka páru: column 1 is ""` (HTTP 422). Jakub stránku otvoril v prehliadači: ukazuje „Nenašli sa žiadne záznamy…“, teda pár bez súťaží. Prázdna história sa teraz berie ako prázdna, nie ako zmenená stránka (server v13). Po nasadení prešlo 28 volaní aktualizácie so stavom 200 a žiadne 422 a počítadlo `rate_limits` zaznamenalo 38 volaní, teda obmedzenie v ostrej prevádzke funguje.
+- Číslo 18978: 12 súťaží, v každej ŠTT aj LAT, teda 24 riadkov, a to sedí s KSIS.
+- „Trenčín“ na mape je v skutočnosti **Nové Mesto nad Váhom** (O Pohár Primátora Mesta Nové Mesto nad Váhom, 16. 11. 2025). **KSIS ukladá adresu najviac na 50 znakov**: „… 91501 Nové Mest“, takže appka mesto nespoznala a súťaž bola „Mimo mapy“. Štyri z deviatich dlhých adries v databáze majú takto odrezané mesto (aj Zvol, Kež, Trna). Oprava: odrezané mesto sa rozpozná, ak ide o adresu od 49 znakov, od začiatku slova, aspoň tri písmená a práve jedno mesto, ktoré tak začína (`SlovakCity.find`).
 
 ## 2b. Čo sa pri čítaní KSIS môže stať a čo appka urobí
 
