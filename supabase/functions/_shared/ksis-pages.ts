@@ -507,7 +507,8 @@ export function parseCouplePage(html: string): KsisCouplePage {
   const info = clean(header.find("h5").first().text());
   const classLabel = (label: string): KsisClassLabel | null => {
     const match = info.match(new RegExp(`Výkonnostná trieda ${label}:\\s*([^\\s(]+)(?:\\s*\\(([^)]*)\\))?`));
-    return match ? { className: match[1], standing: match[2] ? parseStanding(match[2]) : null } : null;
+    // KSIS writes "-" for no class (a couple that has no competition): that is no class.
+    return match && match[1] !== "-" ? { className: match[1], standing: match[2] ? parseStanding(match[2]) : null } : null;
   };
   const age = info.match(/Veková kategória:\s*(.+?)\s*(?:Výkonnostná|$)/);
 
@@ -518,7 +519,7 @@ export function parseCouplePage(html: string): KsisCouplePage {
     // The "Rozdeliť ŠTT a LAT" button links back to this page and is the only place with its id.
     parId: idFrom($("a[href*='par.php?id=']").first().attr("href"), "id"),
     club: clean(header.find("p").first().text()),
-    ageCategory: age ? age[1] : null,
+    ageCategory: age && age[1] !== "-" ? age[1] : null,
     stt: classLabel("ŠTT"),
     lat: classLabel("LAT"),
     history,

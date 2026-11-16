@@ -567,3 +567,12 @@ Deno.test("a result from the future or from long before KSIS is not kept", () =>
   assert(!kept.some((row) => row.sutazId === 999_999 || row.sutazId === 999_998));
   assertEquals(kept.length, history.length);
 });
+
+Deno.test("couple page of a couple without competitions: no age and no class, not a dash", () => {
+  // As KSIS shows the second id of a couple that never danced under it.
+  const html = fixture("couple_page_18978.html")
+    .replace(/<table[\s\S]*<\/table>/, "<p>Nenašli sa žiadne záznamy...</p>")
+    .replace(/<h5>[\s\S]*?<\/h5>/, "<h5>Veková kategória: -<br> Výkonnostná trieda ŠTT: -<br> Výkonnostná trieda LAT: -<br> </h5>");
+  const page = parseCouplePage(html);
+  assertEquals([page.ageCategory, page.stt, page.lat, page.history], [null, null, null, []]);
+});
