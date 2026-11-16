@@ -43,7 +43,7 @@ nonisolated struct SlovakCity: Equatable, Identifiable, Sendable {
         SlovakCity(name: "Senec", latitude: 48.220, longitude: 17.400, forms: ["Senci"]),
         SlovakCity(name: "Šamorín", latitude: 48.031, longitude: 17.312, forms: ["Šamoríne"]),
         SlovakCity(name: "Pezinok", latitude: 48.289, longitude: 17.267, forms: ["Pezinku"]),
-        SlovakCity(name: "Nové Mesto nad Váhom", latitude: 48.755, longitude: 17.831),
+        SlovakCity(name: "Nové Mesto nad Váhom", latitude: 48.755, longitude: 17.831, forms: ["Novom Meste nad Váhom"]),
         SlovakCity(name: "Žiar nad Hronom", latitude: 48.592, longitude: 18.853),
         SlovakCity(name: "Dunajská Streda", latitude: 47.994, longitude: 17.619, forms: ["Dunajskej Strede"]),
         SlovakCity(name: "Rimavská Sobota", latitude: 48.383, longitude: 20.022, forms: ["Rimavskej Sobote"]),
@@ -67,19 +67,49 @@ nonisolated struct SlovakCity: Equatable, Identifiable, Sendable {
         SlovakCity(name: "Čadca", latitude: 49.439, longitude: 18.788, forms: ["Čadci"]),
     ]
 
+    /// KSIS keeps an address only up to this many characters.
+    private static let ksisAddressLimit = 50
+
     /// The town in a KSIS address. A town closes the address, so the last one found wins over a street named
     /// after another; nil when there is none, never a guess.
     static func find(in venue: String) -> SlovakCity? {
         let text = folded(venue)
+        if let cut = cutTown(closing: text) { return cut }
         var best: (city: SlovakCity, end: String.Index)?
         for city in all {
             for form in [city.name] + city.forms {
                 for range in text.ranges(of: folded(form)) where isWhole(range, in: text) {
-                    if best == nil || range.upperBound > best!.end { best = (city, range.upperBound) }
+                    if best.map({ range.upperBound > $0.end }) ?? true { best = (city, range.upperBound) }
                 }
             }
         }
         return best?.city
+    }
+
+    /// A long address ends where KSIS cut it, possibly in the middle of the town ("… 91501 Nové Mest", "… 960 01 Zvol").
+    /// That is a town only when exactly one town begins with the end of the address, from the start of a word and with
+    /// at least three letters; two towns that could be meant ("Nov") or a short address give none.
+    private static func cutTown(closing text: String) -> SlovakCity? {
+        guard text.count >= ksisAddressLimit - 1 else { return nil }
+        var longest = 0
+        var towns: [SlovakCity] = []
+        for city in all {
+            for form in [city.name] + city.forms {
+                let name = folded(form)
+                for length in stride(from: name.count - 1, through: 3, by: -1) {
+                    let part = String(name.prefix(length))
+                    guard text.hasSuffix(part), !(text.dropLast(part.count).last?.isLetter ?? false) else { continue }
+                    if length > longest {
+                        longest = length
+                        towns = [city]
+                    } else if length == longest, !towns.contains(city) {
+                        towns.append(city)
+                    }
+                    break
+                }
+            }
+        }
+        return towns.count == 1 ? towns.first : nil
     }
 
     private static func isWhole(_ range: Range<String.Index>, in text: String) -> Bool {

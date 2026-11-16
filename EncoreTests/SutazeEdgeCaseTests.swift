@@ -180,6 +180,27 @@ struct SutazeEdgeCaseTests {
         #expect(value == "Jakub Kalina & Niky ?x=1")
     }
 
+    @Test func aTownCutByKSISAtFiftyCharactersIsStillFound() {
+        // KSIS keeps an address only up to 50 characters, so the town that closes a long one can be cut in its middle.
+        #expect(SlovakCity.find(in: "Športová hala, Javorinská 1952/19, 91501 Nové Mest")?.name == "Nové Mesto nad Váhom")
+        #expect(SlovakCity.find(in: "RATES ARENA, Neresnická cesta 1074/13, 960 01 Zvol")?.name == "Zvolen")
+        #expect(SlovakCity.find(in: "Mestská športová hala V.Jančeka Nižná brána 17 Kež")?.name == "Kežmarok")
+        #expect(SlovakCity.find(in: "Mestská športová hala v Trnave, Rybníkova 15, Trna")?.name == "Trnava")
+        // The whole town closing an address is found as before, and so is a town in the middle.
+        #expect(SlovakCity.find(in: "Gymnázium Nové Zámky (vchod z ulice Podzámska 34)")?.name == "Nové Zámky")
+        #expect(SlovakCity.find(in: "Mestská športová hala TRENČÍN, Mládežnícka 1444/1,")?.name == "Trenčín")
+        #expect(SlovakCity.find(in: "OC Optima, Moldavská cesta 32, Košice")?.name == "Košice")
+    }
+
+    @Test func aCutThatTwoTownsCouldBeIsNoTownAndAShortAddressIsNeverCut() {
+        // "Nov" could be Nové Mesto nad Váhom or Nové Zámky: no pin, never a guess.
+        #expect(SlovakCity.find(in: "Veľmi dlhý názov športovej haly pri ulici 1234/56 Nov") == nil)
+        // Under 49 characters KSIS did not cut anything.
+        #expect(SlovakCity.find(in: "Hala, Nové Mest") == nil)
+        // A cut inside a word that is not the start of a town is not a town.
+        #expect(SlovakCity.find(in: "Veľmi dlhý názov športovej haly pri ulici 1234/56 Zvolenská") == nil)
+    }
+
     // MARK: Seasons at their edges
     @Test func theSeasonTurnsOverOnTheFirstOfSeptember() {
         #expect(SeasonStats.seasonStartYear(of: day(2026, 8, 31, hour: 23)) == 2025)
