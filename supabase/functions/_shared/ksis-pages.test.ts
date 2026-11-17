@@ -576,3 +576,40 @@ Deno.test("couple page of a couple without competitions: no age and no class, no
   const page = parseCouplePage(html);
   assertEquals([page.ageCategory, page.stt, page.lat, page.history], [null, null, null, []]);
 });
+
+// ── Ten-dance and WDSF competitions: real pages (anonymized) ────────────────────────────────────
+
+const OTHER_PAR_ID = 18967;
+
+Deno.test("ten-dance of the Slovak championship: results without points, ten dances, crosses then scores", () => {
+  const results = parseResults(fixture("results_10t_11517.html"));
+  assertEquals(results.competition.category, "MSR Dospelí 10T");
+  assertEquals(disciplineOf(results.competition.category), "10T");
+  assertEquals([results.scoring, results.rows.length, results.competition.couples], ["none", 12, 12]);
+  const own = results.rows.find((row) => isSameCouple(row, COUPLE));
+  assertEquals([own?.round, own?.place?.text, own?.parId], ["Semifinále", "10. - 11.", OTHER_PAR_ID]);
+
+  const marks = parseMarks(fixture("marks_10t_11517.html"));
+  assertEquals(marks.dances, [
+    "WALTZ", "TANGO", "VIENNESE WALTZ", "SLOW FOXTROT", "QUICKSTEP", "SAMBA", "CHA CHA CHA", "RUMBA", "PASO DOBLE", "JIVE",
+  ]);
+  assertEquals([marks.judgeColumns, marks.competition.judges.length, marks.competition.shadowJudges.length], [12, 12, 5]);
+  assertEquals(marks.rounds.map((round) => `${round.name}:${round.kind}:${round.entries.length}`), ["Semifinále:crosses:12", "Finále:scores:6"]);
+  // The couple that went out in the semifinal has the crosses of the ten dances; a finalist has one score per dance.
+  const [semi] = coupleRounds(marks, OTHER_PAR_ID);
+  assertEquals([semi.kind, semi.sum, semi.place?.text, semi.advanced, semi.dances.length], ["crosses", 4, "10 - 11", false, 10]);
+  const finalist = coupleRounds(marks, marks.rounds[1].entries[0].parId).find((round) => round.kind === "scores");
+  assert(finalist);
+  assertEquals(finalist.dances.length, 10);
+  assert(finalist.dances.every((dance) => dance.score !== null && dance.score > 0 && dance.marks.length === 0));
+});
+
+Deno.test("WDSF competition held in Slovakia: a KSIS competition with crosses and a final of placings", () => {
+  const marks = parseMarks(fixture("marks_wdsf_11197.html"));
+  assertEquals(marks.competition.category, "WDSF Rising Stars ST");
+  assertEquals(disciplineOf(marks.competition.category), "STT");
+  assertEquals([marks.dances.length, marks.judgeColumns, marks.competition.shadowJudges.length], [5, 11, 0]);
+  assertEquals(marks.rounds.map((round) => `${round.name}:${round.kind}:${round.entries.length}`), ["Semifinále:crosses:10", "Finále:final:6"]);
+  const [semi] = coupleRounds(marks, OTHER_PAR_ID);
+  assertEquals([semi.kind, semi.sum, semi.place?.text, semi.advanced], ["crosses", 11, "8", false]);
+});
