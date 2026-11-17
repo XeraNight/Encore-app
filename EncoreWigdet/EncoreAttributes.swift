@@ -22,7 +22,8 @@ struct RecordingActivityAttributes: ActivityAttributes {
         var startDate: Date
         var sessionTitle: String
         var metronomeName: String
-        var bpm: Int
+        /// Takty za minútu, the number dancers speak in; 0 without a metronome.
+        var measuresPerMinute: Int
         var beatsPerMeasure: Int
     }
 

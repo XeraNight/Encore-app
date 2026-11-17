@@ -90,29 +90,55 @@ struct EncoreApp: App {
 
         do {
             let existing = try bgContext.fetch(fetch)
-            guard existing.isEmpty else { return }   // already seeded
+            guard existing.isEmpty else {   // already seeded
+                updateSeededTempoTexts(in: bgContext)
+                return
+            }
             populateDefaultData(context: bgContext)
         } catch {
             Logger.general.error("Seed check failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
+    /// The tempo texts the library was seeded with before it spoke in takty ("28–30 MPM (84–90 BPM)", Samba with the range
+    /// of another organisation). A dance whose text is still exactly that gets the one SZTŠ prescribes; a text the
+    /// dancer edited stays.
+    private static let formerSeedTempo: [String: String] = [
+        "Waltz": "28–30 MPM (84–90 BPM)", "Tango": "31–33 MPM (124–132 BPM)", "Viennese Waltz": "58–60 MPM (174–180 BPM)",
+        "Slowfoxtrot": "28–30 MPM (112–120 BPM)", "Quickstep": "50–52 MPM (200–208 BPM)", "Samba": "48–50 MPM (96–100 BPM)",
+        "Cha-Cha-Cha": "30–32 MPM (120–128 BPM)", "Rumba": "25–27 MPM (100–108 BPM)", "Paso Doble": "60–62 MPM (120–124 BPM)",
+        "Jive": "42–44 MPM (168–176 BPM)",
+    ]
+
+    static func updateSeededTempoTexts(in context: ModelContext) {
+        guard let dances = try? context.fetch(FetchDescriptor<Dance>()) else { return }
+        var changed = false
+        for dance in dances {
+            guard let former = formerSeedTempo[dance.name], dance.tempo == former,
+                  let text = DanceMetronomePreset.forLibraryDance(dance.name)?.tempoText else { continue }
+            dance.tempo = text
+            changed = true
+        }
+        if changed { context.saveOrLog() }
+    }
+
     private static func populateDefaultData(context: ModelContext) {
         // Standard Dances
-        let dances: [(String, String, String, String)] = [
-            ("Waltz",          "Standard", "28–30 MPM (84–90 BPM)",   "Sústreď sa na Rise & Fall. Klesanie prebieha na konci doby 3, zdvih začína na 1. Dôležitý je aj Sway."),
-            ("Tango",          "Standard", "31–33 MPM (124–132 BPM)", "Tango nemá Rise & Fall. Pohyb je ostrý, staccato. Držanie je kompaktnejšie a kolená sú neustále mierne pokrčené."),
-            ("Viennese Waltz", "Standard", "58–60 MPM (174–180 BPM)", "Pri tej rýchlosti je kľúčová rotácia a plynulosť. Sústreď sa na čisté otáčky a prechodové kroky."),
-            ("Slowfoxtrot",    "Standard", "28–30 MPM (112–120 BPM)", "Najťažší tanec na techniku. Vyžaduje lineárny pohyb a extrémne tiché dopady. Rytmizácia je väčšinou Slow, Quick, Quick."),
-            ("Quickstep",      "Standard", "50–52 MPM (200–208 BPM)", "Vyhýbaj sa skákaniu. Pruženie vychádza z členkov a kolien, zatiaľ čo vrchná časť tela zostáva pokojná."),
-            ("Samba",          "Latin",    "48–50 MPM (96–100 BPM)",  "Základom je Samba Bounce. Nejde o skákanie, ale o prácu s panvou v rytme 1 a 2."),
-            ("Cha-Cha-Cha",    "Latin",    "30–32 MPM (120–128 BPM)", "Akcent je na dobu 1. Kroky musia byť ostré, nohy prepnuté a váha musí byť vpredu na bruškách chodidiel."),
-            ("Rumba",          "Latin",    "25–27 MPM (100–108 BPM)", "Tanec lásky. Veď pohyb z centra tela a doťahuj každý krok. Jednotka sa netancuje."),
-            ("Paso Doble",     "Latin",    "60–62 MPM (120–124 BPM)", "Muž je toreador, žena muleta. Vysoké držanie, podsadená panva a silný očný kontakt."),
-            ("Jive",           "Latin",    "42–44 MPM (168–176 BPM)", "Vyžaduje kondíciu. Odraz z brušiek a swingový charakter. Jive nie je len o nohách.")
+        let dances: [(String, String, String)] = [
+            ("Waltz",          "Standard", "Sústreď sa na Rise & Fall. Klesanie prebieha na konci doby 3, zdvih začína na 1. Dôležitý je aj Sway."),
+            ("Tango",          "Standard", "Tango nemá Rise & Fall. Pohyb je ostrý, staccato. Držanie je kompaktnejšie a kolená sú neustále mierne pokrčené."),
+            ("Viennese Waltz", "Standard", "Pri tej rýchlosti je kľúčová rotácia a plynulosť. Sústreď sa na čisté otáčky a prechodové kroky."),
+            ("Slowfoxtrot",    "Standard", "Najťažší tanec na techniku. Vyžaduje lineárny pohyb a extrémne tiché dopady. Rytmizácia je väčšinou Slow, Quick, Quick."),
+            ("Quickstep",      "Standard", "Vyhýbaj sa skákaniu. Pruženie vychádza z členkov a kolien, zatiaľ čo vrchná časť tela zostáva pokojná."),
+            ("Samba",          "Latin",    "Základom je Samba Bounce. Nejde o skákanie, ale o prácu s panvou v rytme 1 a 2."),
+            ("Cha-Cha-Cha",    "Latin",    "Akcent je na dobu 1. Kroky musia byť ostré, nohy prepnuté a váha musí byť vpredu na bruškách chodidiel."),
+            ("Rumba",          "Latin",    "Tanec lásky. Veď pohyb z centra tela a doťahuj každý krok. Jednotka sa netancuje."),
+            ("Paso Doble",     "Latin",    "Muž je toreador, žena muleta. Vysoké držanie, podsadená panva a silný očný kontakt."),
+            ("Jive",           "Latin",    "Vyžaduje kondíciu. Odraz z brušiek a swingový charakter. Jive nie je len o nohách.")
         ]
-        for (name, cat, tempo, info) in dances {
-            context.insert(Dance(name: name, category: cat, tempo: tempo, info: info))
+        // The tempo of each dance is the one SZTŠ prescribes, from the metronome's table.
+        for (name, cat, info) in dances {
+            context.insert(Dance(name: name, category: cat, tempo: DanceMetronomePreset.forLibraryDance(name)?.tempoText ?? "", info: info))
         }
 
         FigureLibraryItem.seedDefaultFigures(in: context)

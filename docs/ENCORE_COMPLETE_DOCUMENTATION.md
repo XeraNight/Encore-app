@@ -148,7 +148,7 @@ MainTabView
 | `ProfileView.swift` | Profil, VideoVault, nastavenia, výzvy |
 | `VideoVaultView.swift` | Knižnica tréningových videí |
 | `DualVideoComparisonView.swift` | Side-by-side porovnanie videa |
-| `DanceMetronomeView.swift` | Plnohodnotný BPM tréner s vizuálnym pulzom |
+| `DanceMetronomeView.swift` | Metronóm v taktoch za minútu (podľa SZTŠ) s vizuálnym pulzom |
 | `StudioToolsView.swift` | Studio nástroje (metronóm, AirPlay, speed trainer) |
 | `CompetitionOrganizerView.swift` | Organizátor súťaží |
 | `CompetitionFinalSimulatorView.swift` | Simulátor finálového súťažného programu |

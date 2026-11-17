@@ -113,7 +113,7 @@ Všetky obrazovky majú implementovaný **Auto-Padding systém** (8–10 % šír
 
 ### 2. Domovská Obrazovka (`ContentView.swift`)
 * Karty 10 tancov rozdelené na Štandard a Latinu.
-* Zobrazenie tempa (MPM/BPM), počtu naučených figúr a ukážkového tréningového videa ku každému tancu.
+* Zobrazenie tempa (takty za minútu a údery), počtu naučených figúr a ukážkového tréningového videa ku každému tancu.
 * Rýchly import zostáv cez naskenovanie QR kódu alebo vložením textového kódu.
 
 ### 3. Hub Zostáv — "Moje Zostavy" (`CanvasRoutinesHubView.swift`)
@@ -240,7 +240,7 @@ Aplikácia obsahuje komplexnú výbavu, ktorá ďaleko presahuje bežné poznám
 Nápady na rozšírenie nastavení a ďalšie nástroje pripravené na realizáciu:
 
 1. **Rýchly Tanečný Metronóm:**
-   * Prednastavené oficiálne tempá pre všetkých 10 tancov (napr. Waltz 28–30 MPM, Jive 42–44 MPM).
+   * Prednastavené oficiálne tempá pre všetkých 10 tancov v taktoch za minútu podľa SZTŠ (napr. Waltz 28–30, Jive 42–44). Veľké číslo na metronóme sú takty, údery (takty × doby v takte) sú malý riadok; vysvetlenie je v appke (ikona i pri „Takty za minútu“).
    * Zvukový signál s výrazným úderom na 1. dobu + vizuálne blikanie na displeji.
 2. **Offline Data Mode prepínač v nastaveniach:**
    * Možnosť manuálne zablokovať synchronizáciu dát na zahraničných súťažiach v roamingu.

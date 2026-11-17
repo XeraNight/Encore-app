@@ -224,7 +224,7 @@ private struct RecordingLockScreenView: View {
             icon: .symbol("video.fill"),
             title: Text(state.sessionTitle.isEmpty ? "Nahrávam" : state.sessionTitle),
             detailIcon: "record.circle",
-            detail: state.bpm > 0 ? Text("\(timer) · \(state.bpm) BPM") : timer
+            detail: state.measuresPerMinute > 0 ? Text("\(timer) · \(state.measuresPerMinute) taktov/min") : timer
         ) {
             if #available(iOSApplicationExtension 17.0, *) {
                 HStack(spacing: 10) {

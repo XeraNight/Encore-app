@@ -504,7 +504,7 @@ private enum RecordingActivity {
             // Empty: the Lock Screen says "Nahrávam".
             sessionTitle: on ? "\(metronome.selectedPreset.shortCode) tréning" : "",
             metronomeName: on ? metronome.selectedPreset.shortCode : "",
-            bpm: metronome.effectiveBpm,
+            measuresPerMinute: metronome.effectiveMpm,
             beatsPerMeasure: on ? metronome.beatsPerMeasure : 0
         )
     }

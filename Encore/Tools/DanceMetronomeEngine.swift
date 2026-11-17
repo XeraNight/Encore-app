@@ -6,6 +6,13 @@ import Combine
 import OSLog
 
 // MARK: - Dance Metronome Preset
+/// A tempo against the one SZTŠ prescribes, in takty za minútu.
+public enum CompetitionTempo: Equatable {
+    case slower(by: Int)
+    case within
+    case faster(by: Int)
+}
+
 public enum DanceMetronomePreset: String, CaseIterable, Identifiable {
     case off = "Vypnuté"
     case waltz = "Waltz (29 MPM)"
@@ -18,7 +25,6 @@ public enum DanceMetronomePreset: String, CaseIterable, Identifiable {
     case rumba = "Rumba (26 MPM)"
     case pasoDoble = "Paso Doble (61 MPM)"
     case jive = "Jive (43 MPM)"
-    case custom = "Vlastné tempo"
     
     public var id: String { rawValue }
     
@@ -35,7 +41,6 @@ public enum DanceMetronomePreset: String, CaseIterable, Identifiable {
         case .rumba: return "Rumba"
         case .pasoDoble: return "Paso doble"
         case .jive: return "Jive"
-        case .custom: return "Vlastné"
         }
     }
 
@@ -60,7 +65,6 @@ public enum DanceMetronomePreset: String, CaseIterable, Identifiable {
         case .rumba: return "Rumba"
         case .pasoDoble: return "Paso Doble"
         case .jive: return "Jive"
-        case .custom: return "Vlastné tempo"
         }
     }
     
@@ -75,38 +79,65 @@ public enum DanceMetronomePreset: String, CaseIterable, Identifiable {
         }
     }
     
-    public var mpm: Double {
+    /// The tempo SZTŠ prescribes, in takty za minútu (Súťažný poriadok SZTŠ 2023, čl. 8 bod 2: "podľa pravidiel WDSF").
+    /// The one table the other numbers come from.
+    public var competitionMeasures: ClosedRange<Int>? {
         switch self {
-        case .off: return 0
-        case .waltz: return 29.0
-        case .tango: return 32.0
-        case .vienneseWaltz: return 59.0
-        case .slowfox: return 29.0
-        case .quickstep: return 51.0
-        case .samba: return 51.0
-        case .chacha: return 31.0
-        case .rumba: return 26.0
-        case .pasoDoble: return 61.0
-        case .jive: return 43.0
-        case .custom: return 0
+        case .waltz: return 28...30
+        case .tango: return 31...33
+        case .vienneseWaltz: return 58...60
+        case .slowfox: return 28...30
+        case .quickstep: return 50...52
+        case .samba: return 50...52
+        case .chacha: return 30...32
+        case .rumba: return 25...27
+        case .pasoDoble: return 60...62
+        case .jive: return 42...44
+        case .off: return nil
         }
     }
-    
-    public var bpm: Double {
-        switch self {
-        case .off: return 0
-        case .waltz: return 87.0        // 29 * 3
-        case .tango: return 128.0       // 32 * 4
-        case .vienneseWaltz: return 177.0 // 59 * 3
-        case .slowfox: return 116.0     // 29 * 4
-        case .quickstep: return 204.0   // 51 * 4
-        case .samba: return 102.0       // 51 * 2
-        case .chacha: return 124.0      // 31 * 4
-        case .rumba: return 104.0       // 26 * 4
-        case .pasoDoble: return 122.0   // 61 * 2
-        case .jive: return 172.0        // 43 * 4
-        case .custom: return 120.0
+
+    /// The tempo as the dance library writes it: "28–30 taktov za minútu (84–90 úderov)". The numbers in the brackets
+    /// are the clicks; `RoutineTiming` reads the takty before them.
+    public var tempoText: String? {
+        guard let range = competitionMeasures else { return nil }
+        let beats = beatsPerMeasure
+        return "\(range.lowerBound)–\(range.upperBound) taktov za minútu (\(range.lowerBound * beats)–\(range.upperBound * beats) úderov)"
+    }
+
+    /// The preset of a dance as the library names it ("Slowfoxtrot", "Cha-Cha-Cha"); nil for any other name.
+    public static func forLibraryDance(_ name: String) -> DanceMetronomePreset? {
+        switch name {
+        case "Waltz": return .waltz
+        case "Tango": return .tango
+        case "Viennese Waltz": return .vienneseWaltz
+        case "Slowfoxtrot": return .slowfox
+        case "Quickstep": return .quickstep
+        case "Samba": return .samba
+        case "Cha-Cha-Cha": return .chacha
+        case "Rumba": return .rumba
+        case "Paso Doble": return .pasoDoble
+        case "Jive": return .jive
+        default: return nil
         }
+    }
+
+    /// Takty za minútu in the middle of the competition range: the basic tempo of the dance.
+    public var mpm: Double {
+        competitionMeasures.map { Double($0.lowerBound + $0.upperBound) / 2 } ?? 0
+    }
+
+    /// Údery za minútu (what a metronome clicks): takty × doby v takte.
+    public var bpm: Double {
+        self == .off ? 0 : mpm * Double(beatsPerMeasure)
+    }
+
+    /// How `measures` (takty za minútu) compares with the tempo SZTŠ prescribes for this dance; nil without one.
+    public func compare(measures: Int) -> CompetitionTempo? {
+        guard let range = competitionMeasures else { return nil }
+        if measures < range.lowerBound { return .slower(by: range.lowerBound - measures) }
+        if measures > range.upperBound { return .faster(by: measures - range.upperBound) }
+        return .within
     }
     
     public var beatsPerMeasure: Int {
@@ -129,29 +160,24 @@ public final class DanceMetronomeEngine: ObservableObject {
     @Published public private(set) var isPulse: Bool = false
     @Published public var selectedPreset: DanceMetronomePreset = .off
     @Published public var tempoMultiplier: Double = 1.0
-    @Published public var customBpm: Int = 120
     @Published public var isSoundEnabled: Bool = true
     @Published public var isHapticEnabled: Bool = true
     @Published public var volume: Float = 1.0
     
-    // Effective calculated BPM
+    /// Údery za minútu at the tempo now playing: what the metronome clicks, whole numbers.
     public var effectiveBpm: Int {
-        if selectedPreset == .custom {
-            return Int(Double(customBpm) * tempoMultiplier)
-        } else if selectedPreset != .off {
-            return Int(selectedPreset.bpm * tempoMultiplier)
-        }
-        return 0
+        selectedPreset == .off ? 0 : Int((selectedPreset.bpm * tempoMultiplier).rounded())
     }
-    
+
+    /// Takty za minútu at the tempo now playing, the number dancers speak in.
     public var effectiveMpm: Int {
-        if selectedPreset == .custom {
-            let beats = selectedPreset.beatsPerMeasure
-            return beats > 0 ? effectiveBpm / beats : effectiveBpm
-        } else if selectedPreset != .off {
-            return Int(selectedPreset.mpm * tempoMultiplier)
-        }
-        return 0
+        guard selectedPreset != .off, beatsPerMeasure > 0 else { return 0 }
+        return Int((Double(effectiveBpm) / Double(beatsPerMeasure)).rounded())
+    }
+
+    /// The tempo now playing against the one SZTŠ prescribes for the dance; nil for no dance.
+    public var againstCompetition: CompetitionTempo? {
+        selectedPreset.compare(measures: effectiveMpm)
     }
     
     public var beatsPerMeasure: Int {

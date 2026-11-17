@@ -39,7 +39,7 @@ struct CameraMetronomeChip: View {
         Button(action: toggle) {
             HStack(spacing: 5) {
                 Image(systemName: "metronome.fill")
-                Text(isOn ? "\(metronome.selectedPreset.shortCode) • \(metronome.effectiveBpm)" : "Metronóm")
+                Text(isOn ? "\(metronome.selectedPreset.shortCode) • \(metronome.effectiveMpm)" : "Metronóm")
                     .contentTransition(.numericText())
                 Image(systemName: "chevron.up")
                     .font(.system(size: 9, weight: .black))
@@ -50,7 +50,7 @@ struct CameraMetronomeChip: View {
         }
         .buttonStyle(.pressable)
         .sensoryFeedback(.selection, trigger: isOpen)
-        .accessibilityLabel(isOn ? "Metronóm, \(metronome.selectedPreset.shortCode), \(metronome.effectiveBpm) úderov za minútu" : "Metronóm")
+        .accessibilityLabel(isOn ? "Metronóm, \(metronome.selectedPreset.shortCode), \(metronome.effectiveMpm) taktov za minútu" : "Metronóm")
     }
 }
 
@@ -59,7 +59,7 @@ struct CameraMetronomeTray: View {
     @ObservedObject private var metronome = DanceMetronomeEngine.shared
     let openFullMetronome: () -> Void
 
-    private let dances = DanceMetronomePreset.allCases.filter { $0 != .off && $0 != .custom }
+    private let dances = DanceMetronomePreset.allCases.filter { $0 != .off }
 
     var body: some View {
         let isOn = metronome.selectedPreset != .off
@@ -91,7 +91,7 @@ struct CameraMetronomeTray: View {
                         metronome.start(multiplier: max(0.7, metronome.tempoMultiplier - 0.05))
                     }
                     VStack(spacing: 1) {
-                        Text("\(metronome.effectiveBpm) BPM")
+                        Text("\(metronome.effectiveMpm) taktov/min")
                             .font(.system(size: 15, weight: .heavy, design: .rounded))
                             .contentTransition(.numericText())
                         Text("\(Int((metronome.tempoMultiplier * 100).rounded())) % tempa")
@@ -100,7 +100,7 @@ struct CameraMetronomeTray: View {
                     }
                     .foregroundStyle(.white)
                     .frame(minWidth: 84)
-                    .animation(.snappy, value: metronome.effectiveBpm)
+                    .animation(.snappy, value: metronome.effectiveMpm)
                     tempoButton("plus", label: "Svižnejšie o 5 %") {
                         metronome.start(multiplier: min(1.3, metronome.tempoMultiplier + 0.05))
                     }
@@ -144,7 +144,7 @@ struct CameraBeatDot: View {
     }
 }
 
-/// "W • 84 BPM • Doba 1/3" above the controls while the metronome plays.
+/// "W • 29 taktov/min • Doba 1/3" above the controls while the metronome plays.
 struct CameraMetronomeStatusPill: View {
     @ObservedObject private var metronome = DanceMetronomeEngine.shared
 
@@ -152,7 +152,7 @@ struct CameraMetronomeStatusPill: View {
         if metronome.selectedPreset != .off {
             HStack(spacing: 7) {
                 CameraBeatDot()
-                Text("\(metronome.selectedPreset.shortCode) • \(metronome.effectiveBpm) BPM • Doba \(metronome.currentBeat)/\(metronome.beatsPerMeasure)")
+                Text("\(metronome.selectedPreset.shortCode) • \(metronome.effectiveMpm) taktov/min • Doba \(metronome.currentBeat)/\(metronome.beatsPerMeasure)")
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundColor(metronome.currentBeat == 1 ? Color.amberGold : .white)
                     .lineLimit(1)
@@ -187,7 +187,7 @@ struct CameraRecordingPill: View {
                     .frame(height: 14)
                     .overlay(Color.white.opacity(0.25))
                 CameraBeatDot()
-                Text("\(metronome.effectiveBpm) BPM")
+                Text("\(metronome.effectiveMpm) taktov/min")
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .foregroundColor(metronome.currentBeat == 1 ? Color.amberGold : .white)
             }

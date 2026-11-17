@@ -32,37 +32,37 @@ public enum PreviewSampleData {
             let waltz = Dance(
                 name: "Waltz",
                 category: "Standard",
-                tempo: "28–30 MPM",
+                tempo: DanceMetronomePreset.waltz.tempoText ?? "",
                 info: "Rise & Fall, Sway, plynulý swingový pohyb."
             )
             let tango = Dance(
                 name: "Tango",
                 category: "Standard",
-                tempo: "31–33 MPM",
+                tempo: DanceMetronomePreset.tango.tempoText ?? "",
                 info: "Staccato akcenty, kompaktné držanie, bez Rise & Fall."
             )
             let vienneseWaltz = Dance(
                 name: "Viennese Waltz",
                 category: "Standard",
-                tempo: "58–60 MPM",
+                tempo: DanceMetronomePreset.vienneseWaltz.tempoText ?? "",
                 info: "Rýchla rotácia a plynulosť."
             )
             let rumba = Dance(
                 name: "Rumba",
                 category: "Latin",
-                tempo: "25–27 MPM",
+                tempo: DanceMetronomePreset.rumba.tempoText ?? "",
                 info: "Pohyb panvy z centra tela, jednotka sa netancuje."
             )
             let chacha = Dance(
                 name: "Cha-Cha-Cha",
                 category: "Latin",
-                tempo: "30–32 MPM",
+                tempo: DanceMetronomePreset.chacha.tempoText ?? "",
                 info: "Ostrý rytmus, prepnuté kolená, akcent na 1."
             )
             let samba = Dance(
                 name: "Samba",
                 category: "Latin",
-                tempo: "48–50 MPM",
+                tempo: DanceMetronomePreset.samba.tempoText ?? "",
                 info: "Samba bounce, práca s ťažiskom v rytme 1 a 2."
             )
             

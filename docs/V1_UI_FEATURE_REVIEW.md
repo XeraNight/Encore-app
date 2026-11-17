@@ -122,7 +122,7 @@ Organizér súťažného dňa čaká na rozhodnutie.
 | Nástroj | Hodnota od D1 | Návrh |
 |---|---|---|
 | Trénerský roster zverencov | Vysoká: reálne prepojenia tréner–žiak, poznámky trénera, priradenie figúr | **Nechať**, redizajn |
-| Tanečný metronóm a BPM tréner | Vysoká | **Nechať.** Over tempá podľa oficiálnych pravidiel WDSF (nesmú byť odhadnuté), uveď zdroj. |
+| Tanečný metronóm (takty za minútu) | Vysoká | **Nechať.** Tempá sú overené podľa Súťažného poriadku SZTŠ 2023, čl. 8 (odkazuje na WDSF); zdroj je v appke aj v `DanceMetronomeEngine.swift` (hotovo 17. 11.). |
 | Music Speed & Pitch Trainer | Vysoká: vlastná hudba pomalšie bez zmeny tóniny | **Nechať**, slovenský názov („Hudba pomalšie / rýchlejšie“) |
 | Súťažný simulátor finále | Stredná: kondícia 5 tancov s prestávkami | **Nechať**, ak používa tempá z metronómu; dĺžky tancov a prestávok len podľa pravidiel, nie odhadom |
 | Camp & Seminar Splitter | Stredná až vysoká: rozstrihanie lekcie na figúry | **Nechať**, ale texty „inteligentný“ a „automatické pomenovanie“ len ak to naozaj robí |

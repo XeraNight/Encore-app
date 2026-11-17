@@ -9,6 +9,7 @@ public struct DanceMetronomeView: View {
     @StateObject private var engine = DanceMetronomeEngine.shared
     @AppStorage("metronome.lastDance") private var lastDance = DanceMetronomePreset.waltz.rawValue
     @State private var tapCount = 0
+    @State private var showsTempoInfo = false
 
     private static let standard: [DanceMetronomePreset] = [.waltz, .tango, .vienneseWaltz, .slowfox, .quickstep]
     private static let latin: [DanceMetronomePreset] = [.samba, .chacha, .rumba, .pasoDoble, .jive]
@@ -68,30 +69,60 @@ public struct DanceMetronomeView: View {
                 .foregroundColor(Color.gold400)
                 .contentTransition(.opacity)
 
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text("\(engine.effectiveBpm)")
-                    .font(.system(size: 76, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
-                    .contentTransition(.numericText())
-                    .shadow(color: engine.isPlaying && engine.isPulse ? Color.gold400.opacity(0.45) : .clear, radius: 16)
-                Text("BPM")
-                    .font(.headline.weight(.bold))
-                    .foregroundColor(Color.textSecondary)
-            }
-            .scaleEffect(engine.isPlaying && engine.isPulse && !reduceMotion ? 1.03 : 1)
-            .animation(.spring(response: 0.12, dampingFraction: 0.6), value: engine.isPulse)
+            // Takty, as dancers and SZTŠ say it: "29". The clicks per minute are the small line below.
+            Text("\(engine.effectiveMpm)")
+                .font(.system(size: 76, weight: .black, design: .rounded))
+                .foregroundColor(.white)
+                .contentTransition(.numericText())
+                .shadow(color: engine.isPlaying && engine.isPulse ? Color.gold400.opacity(0.45) : .clear, radius: 16)
+                .scaleEffect(engine.isPlaying && engine.isPulse && !reduceMotion ? 1.03 : 1)
+                .animation(.spring(response: 0.12, dampingFraction: 0.6), value: engine.isPulse)
 
-            if engine.effectiveMpm > 0 {
-                Text("\(engine.effectiveMpm) taktov za minútu · \(engine.beatsPerMeasure) doby v takte")
-                    .font(.footnote)
-                    .foregroundColor(.white.opacity(0.65))
-                    .contentTransition(.numericText())
+            Button { showsTempoInfo = true } label: {
+                Label("TAKTY ZA MINÚTU", systemImage: "info.circle")
+                    .font(.system(.caption, design: .rounded).weight(.black))
+                    .tracking(1.2)
+                    .foregroundColor(Color.textSecondary)
+                    .frame(minHeight: 32)
             }
+            .buttonStyle(.pressable)
+            .accessibilityLabel("Takty za minútu")
+            .accessibilityHint("Vysvetlí, čo sú takty a čo údery")
+
+            if let range = engine.selectedPreset.competitionMeasures {
+                competitionLine(range)
+            }
+            Text("\(engine.effectiveBpm) úderov za minútu · \(engine.beatsPerMeasure) doby v takte")
+                .font(.footnote)
+                .foregroundColor(.white.opacity(0.65))
+                .contentTransition(.numericText())
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 8)
-        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: engine.effectiveBpm)
-        .accessibilityElement(children: .combine)
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: engine.effectiveMpm)
+        .sheet(isPresented: $showsTempoInfo) { DanceTempoInfoSheet() }
+    }
+
+    /// The tempo SZTŠ prescribes for the dance, and whether the one playing is in it.
+    private func competitionLine(_ range: ClosedRange<Int>) -> some View {
+        let state = engine.againstCompetition
+        return HStack(spacing: 6) {
+            Image(systemName: state == .within ? "checkmark.circle.fill" : "gauge.with.dots.needle.67percent")
+            Text(competitionText(range, state))
+        }
+        .font(.footnote.weight(.semibold))
+        .foregroundColor(state == .within ? Color.gold400 : .white.opacity(0.65))
+        .contentTransition(.opacity)
+    }
+
+    private func competitionText(_ range: ClosedRange<Int>, _ state: CompetitionTempo?) -> String {
+        let rule = "Súťaž \(range.lowerBound)–\(range.upperBound)"
+        switch state {
+        case .within: return "\(rule) · v tempe súťaže"
+        case .slower(let by): return "\(rule) · o \(slovakCount(by, one: "takt", few: "takty", many: "taktov")) pomalšie"
+        case .faster(let by): return "\(rule) · o \(slovakCount(by, one: "takt", few: "takty", many: "taktov")) rýchlejšie"
+        case nil: return rule
+        }
     }
 
     private var beatRow: some View {
@@ -150,7 +181,7 @@ public struct DanceMetronomeView: View {
             HomeSectionHeader(title: "RÝCHLOSŤ", systemImage: "gauge.with.dots.needle.67percent")
 
             HStack(spacing: 16) {
-                LiquidGlassCircleButton(icon: "minus", label: "Pomalšie o 1 úder", size: 44) { nudge(by: -1) }
+                LiquidGlassCircleButton(icon: "minus", label: "Pomalšie o 1 takt", size: 44) { nudge(by: -1) }
                 VStack(spacing: 2) {
                     Text("\(Int((engine.tempoMultiplier * 100).rounded())) %")
                         .font(.system(.title2, design: .rounded).weight(.heavy))
@@ -162,7 +193,7 @@ public struct DanceMetronomeView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: engine.tempoMultiplier)
-                LiquidGlassCircleButton(icon: "plus", label: "Rýchlejšie o 1 úder", size: 44) { nudge(by: 1) }
+                LiquidGlassCircleButton(icon: "plus", label: "Rýchlejšie o 1 takt", size: 44) { nudge(by: 1) }
             }
 
             HStack(spacing: 8) {
@@ -253,11 +284,12 @@ public struct DanceMetronomeView: View {
     }
 
     // MARK: Actions
-    /// One beat per minute slower or faster than now.
+    /// One takt per minute slower or faster than now (the clicks stay within 40 to 260 a minute).
     private func nudge(by delta: Int) {
-        let bpm = max(40, min(260, engine.effectiveBpm + delta))
-        guard engine.selectedPreset.bpm > 0 else { return }
-        engine.tempoMultiplier = Double(bpm) / engine.selectedPreset.bpm
+        let preset = engine.selectedPreset
+        guard preset.bpm > 0 else { return }
+        let clicks = (engine.effectiveMpm + delta) * preset.beatsPerMeasure
+        engine.tempoMultiplier = Double(max(40, min(260, clicks))) / preset.bpm
         restartIfPlaying()
     }
 
