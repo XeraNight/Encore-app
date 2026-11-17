@@ -274,6 +274,7 @@ struct CompetitionTrackerView: View {
                     disciplineLink(couple, "STT")
                     disciplineLink(couple, "LAT")
                 }
+                tenDanceLink(couple)
 
                 if couple.coupleId == nil {
                     loadFromKSISButton("Načítať históriu súťaží")
@@ -300,6 +301,37 @@ struct CompetitionTrackerView: View {
                          cupPlace: cupPlace(couple, discipline == "LAT" ? .latin : .standard))
         }
         .buttonStyle(.pressable(scale: 0.96))
+    }
+
+    /// The ten-dance of the Slovak championship is its own title next to ŠTT and LAT, so it is a row of its own, and only
+    /// for a couple that has a result in it (KSIS lists it on the couple's page only then). KSIS gives it no class,
+    /// points or cup: a tap opens its statistics.
+    @ViewBuilder
+    private func tenDanceLink(_ couple: UserCouple) -> some View {
+        let results = manager.results(for: couple).filter { $0.discipline == "10T" }
+        if !results.isEmpty {
+            NavigationLink {
+                DisciplineStatsView(couple: couple, discipline: "10T")
+            } label: {
+                HStack(spacing: 8) {
+                    Text("DESAŤTANCE")
+                        .font(.system(.caption2, design: .rounded).weight(.black))
+                        .tracking(1.2)
+                        .foregroundColor(Color.gold400)
+                    Spacer(minLength: 4)
+                    Text(slovakCount(results.count, one: "súťaž", few: "súťaže", many: "súťaží"))
+                        .font(.caption.weight(.bold))
+                        .foregroundColor(.white.opacity(0.8))
+                    Image(systemName: "chevron.right")
+                        .font(.caption2.weight(.bold))
+                        .foregroundColor(.white.opacity(0.45))
+                }
+                .contentShape(Rectangle())
+                .tileStyle()
+                .accessibilityElement(children: .combine)
+            }
+            .buttonStyle(.pressable(scale: 0.96))
+        }
     }
 
     /// "Pohár 5." from the last table read; nil outside the cup or before a table was read.
@@ -347,9 +379,7 @@ struct CompetitionTrackerView: View {
             }
         }
         .contentShape(Rectangle())
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .tileStyle()
         .accessibilityElement(children: .combine)
     }
 
@@ -553,6 +583,15 @@ struct KSISBrowserTarget: Identifiable {
     var id: String { url.absoluteString }
 }
 
+private extension View {
+    /// The calm tile on a couple's card: Štandard, Latina and Desaťtance.
+    func tileStyle() -> some View {
+        padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+    }
+}
+
 /// One saved competition: date, category, event, place and points. Used in the list and in the calendar.
 struct CompetitionResultRow: View {
     let result: CompetitionResult
@@ -608,9 +647,11 @@ struct CompetitionResultRow: View {
                             .foregroundColor(Color.gold300)
                             .accessibilityLabel("Krížiky chýbajú")
                     }
-                    Text("+\(result.pointsEarned) b")
-                        .font(.caption.weight(.semibold))
-                        .foregroundColor(.white.opacity(0.7))
+                    if result.givesPoints {
+                        Text("+\(result.pointsEarned) b")
+                            .font(.caption.weight(.semibold))
+                            .foregroundColor(.white.opacity(0.7))
+                    }
                 }
             }
         }

@@ -107,4 +107,40 @@ struct MySeasonTests {
         #expect(DanceNames.stored(fromKSIS: "PASO DOBLE") == "Paso Doble")
         #expect(DanceNames.stored(fromKSIS: "POLKA") == "POLKA")
     }
+
+    // MARK: Ten-dance (10T)
+
+    /// A semifinal of crosses in all ten dances (KSIS spells two of them "SLOW FOXTROT" and "CHA CHA CHA") and a
+    /// final of scores, one per dance and no judge marks, as on the real MSR 10T pages.
+    private func tenDanceResult(date: String) throws -> CompetitionResult {
+        let dances = ["WALTZ", "TANGO", "VIENNESE WALTZ", "SLOW FOXTROT", "QUICKSTEP", "SAMBA", "CHA CHA CHA", "RUMBA", "PASO DOBLE", "JIVE"]
+        let crosses = dances.map { #"{"dance":"\#($0)","marks":[{"letter":"A","mark":"X"},{"letter":"B","mark":"."}],"crosses":1}"# }
+        let scores = dances.map { #"{"dance":"\#($0)","marks":[],"crosses":null,"score":7.5}"# }
+        let json = """
+        {"id":"\(UUID().uuidString)","sutaz_id":11517,"couple_id":7,"event_name":"MSR","category_name":"MSR Dospelí 10T",
+         "discipline":"10T","date":"\(date)","couple_count":12,"placement_text":"4.","placement":4,"points_earned":0,
+         "judges":[{"letter":"A","name":"Rozhodca A","city":null,"hidden":false},
+                   {"letter":"B","name":"Rozhodca B","city":null,"hidden":false}],
+         "rounds":[{"round":"Semifinále","kind":"crosses","dances":[\(crosses.joined(separator: ","))],"sum":10,"couplesInRound":12},
+                   {"round":"Finále","kind":"scores","dances":[\(scores.joined(separator: ","))],"sum":75,"couplesInRound":6}]}
+        """
+        return try JSONDecoder().decode(CompetitionResult.self, from: Data(json.utf8))
+    }
+
+    @Test func tenDanceIsItsOwnBlockWithAllTenDances() throws {
+        let stats = SeasonStats(results: [try tenDanceResult(date: "2026-11-14"), try result(date: "2026-10-03")], seasonStartYear: nil)
+        #expect(stats.disciplines.map(\.code) == ["STT", "10T"])
+        let ten = try #require(stats.disciplines.first { $0.code == "10T" })
+        #expect(ten.title == "Desaťtance")
+        #expect(ten.dances.map(\.dance) == ["Waltz", "Tango", "Viennese Waltz", "Slowfoxtrot", "Quickstep", "Samba", "Cha-Cha-Cha", "Rumba", "Paso Doble", "Jive"])
+        #expect(ten.dances.allSatisfy { $0.crosses == 1 && $0.marks == 2 })
+        // The final of scores has no judge marks: it adds no crosses and no placings.
+        #expect(ten.finals.isEmpty)
+    }
+
+    @Test func tenDanceGivesNoPoints() throws {
+        #expect(try tenDanceResult(date: "2026-11-14").givesPoints == false)
+        #expect(try result(date: "2026-10-03", discipline: "STT").givesPoints)
+        #expect(try result(date: "2026-10-03", discipline: "LAT").givesPoints)
+    }
 }

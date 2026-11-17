@@ -1,13 +1,14 @@
 import Charts
 import SwiftUI
 
-// MARK: - Štandard / Latina
+// MARK: - Štandard / Latina / Desaťtance
 /// One couple in one discipline: class and points as KSIS has them, the Slovenský pohár, and with Plus where the
 /// couple placed, how each dance fared and who judged it. Only what KSIS publishes is counted: dances are rated,
-/// judges are listed by how often they judged the couple, never ranked.
+/// judges are listed by how often they judged the couple, never ranked. The ten-dance has no class, points or cup in
+/// KSIS, so it shows none of the three.
 struct DisciplineStatsView: View {
     let couple: UserCouple
-    /// "STT" or "LAT".
+    /// "STT", "LAT" or "10T".
     let discipline: String
 
     @ObservedObject private var manager = CompetitionManager.shared
@@ -53,7 +54,10 @@ struct DisciplineStatsView: View {
         let value: Double
     }
 
-    private var title: String { discipline == "LAT" ? "Latina" : "Štandard" }
+    private var title: String { CompetitionResult.disciplineTitle(of: discipline) }
+    private var isTenDance: Bool { discipline == "10T" }
+    /// The discipline as the "in …" of a sentence.
+    private var inDiscipline: String { isTenDance ? "desaťtancoch" : discipline == "LAT" ? "latine" : "štandarde" }
     private var standing: UserCouple.Standing { discipline == "LAT" ? couple.lat : couple.stt }
     private var hasPlus: Bool { subscriptionManager.currentTier >= .plus }
     private var spring: Animation? { reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85) }
@@ -82,12 +86,12 @@ struct DisciplineStatsView: View {
             EllegancePageBackground()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    standingCard
+                    if !isTenDance { standingCard }
                     scopePicker
                     tiles(results, stats)
-                    cupSection
+                    if !isTenDance { cupSection }
                     if results.isEmpty {
-                        note("V tomto období nemáte v \(discipline == "LAT" ? "latine" : "štandarde") uloženú žiadnu súťaž.")
+                        note("V tomto období nemáte v \(inDiscipline) uloženú žiadnu súťaž.")
                     } else if hasPlus {
                         chartCard(results, stats)
                         dancesSection(stats)

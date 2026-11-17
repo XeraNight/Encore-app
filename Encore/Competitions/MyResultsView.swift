@@ -230,7 +230,9 @@ struct MyResultsView: View {
         HStack(spacing: 10) {
             stat(shown.count, caption: "súťaží")
             stat(shown.filter { ($0.placement ?? .max) <= 3 }.count, caption: "na pódiu")
-            stat(shown.map(\.pointsEarned).reduce(0, +), caption: "získané body")
+            if shown.isEmpty || shown.contains(where: \.givesPoints) {
+                stat(shown.map(\.pointsEarned).reduce(0, +), caption: "získané body")
+            }
         }
     }
 

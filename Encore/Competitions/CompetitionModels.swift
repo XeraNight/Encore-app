@@ -191,6 +191,10 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
     /// it has no results page and no crosses to read, and its number is made up here (negative).
     var hasKSISPage: Bool { sutazId > 0 }
 
+    /// False in the ten-dance: KSIS gives no points for it (its "Body" is empty), so "+0 b" would claim the couple
+    /// earned nothing.
+    var givesPoints: Bool { discipline != "10T" }
+
     private static let isoDay: DateFormatter = {
         let formatter = DateFormatter()
         formatter.calendar = Calendar(identifier: .gregorian)

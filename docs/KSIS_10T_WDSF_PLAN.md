@@ -21,10 +21,10 @@ Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú
 
 | Obrazovka | 10T | WDSF | Stav |
 |---|---|---|---|
-| **Profil › Súťaže** (prehľad, dlaždice ŠTANDARD a LATINA) | tretia dlaždica **DESAŤTANCE**, len keď aspoň jedna existuje; otvorí tú istú obrazovku štatistík bez triedy a pohára | bez dlaždice, WDSF je len v zozname | **treba** |
-| **Moje výsledky** (zoznam, kalendár, mapa, filter) | chip „10T“ | chip **„WDSF“**; riadok s odznakom WDSF; názov „WDSF · Košice“ namiesto „Kosice,Slovakia“; skryté „+0 b“ | chip 10T hotový, zvyšok **treba** |
-| **Štatistiky disciplíny** (ŠTT a LAT: graf, tance, rozhodcovia, miesta) | vlastný blok Desaťtance (krížiky po tancoch z desiatich tancov) | v zozname áno, **do grafu umiestnení a „najlepšieho miesta“ nie** (iná úroveň: „33. z 35“ vs „3. z 13“) | **treba** |
-| **Detail výsledku** | karta krížikov ako inde; bez bodov | karta „Súťaž WDSF“, bez bodov a odkazov | karta hotová, bodový dlaždicový prvok skryť **treba** |
+| **Profil › Súťaže** (prehľad, dlaždice ŠTANDARD a LATINA) | riadok **DESAŤTANCE** pod dlaždicami (nie tretia dlaždica, tri by boli na telefóne tesné), len keď aspoň jedna existuje; otvorí tú istú obrazovku štatistík bez triedy a pohára | bez dlaždice, WDSF je len v zozname | 10T **hotové 17. 11.** |
+| **Moje výsledky** (zoznam, kalendár, mapa, filter) | chip „10T“, skryté „+0 b“ (riadok aj súhrn) | chip **„WDSF“**; riadok s odznakom WDSF; názov „WDSF · Košice“ namiesto „Kosice,Slovakia“; skryté „+0 b“ | 10T **hotové**, WDSF **treba** |
+| **Štatistiky disciplíny** (ŠTT a LAT: graf, tance, rozhodcovia, miesta) | tá istá obrazovka s „10T“: bez triedy, bodov a pohára; v „Krížiky podľa tancov“ všetkých desať tancov; kolo so skóre nepridá krížiky | v zozname áno, **do grafu umiestnení a „najlepšieho miesta“ nie** (iná úroveň: „33. z 35“ vs „3. z 13“) | 10T **hotové**, WDSF **treba** |
+| **Detail výsledku** | karta krížikov ako inde; bez bodov (dlaždica „body“ skrytá) | karta „Súťaž WDSF“, bez bodov a odkazov | 10T **hotové**, WDSF karta hotová, bodovú dlaždicu skryť **treba** |
 | **Kalendár Plánovača** (bodky, deň so súťažou) | zlatá bodka | farba podľa ŠTT/LAT | hotové |
 | **Mapa** | podľa miesta | Košice pod pinom, zahraničie v „Mimo mapy“ | hotové |
 | **Spojenia** (výsledky priateľa) | rovnako ako vlastné | rovnako | po úpravách vyššie |
@@ -53,7 +53,7 @@ Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú
 ## 6. Rozhodnutia pre teba (s odporúčaním)
 
 1. **Mieša sa WDSF do grafov umiestnení a „najlepšieho miesta“?** Odporúčam **nie**: „6. zo 16“ na WDSF a „2. z 12“ na národnej súťaži sa nedajú porovnať. V súhrne (počet, pódium) a v zoznamoch sú všetky.
-2. **Desaťtance ako vlastná dlaždica a blok?** Odporúčam **áno**, len keď existuje aspoň jedna súťaž. Ročne ide o jednu súťaž, takže ju nemiešať do ŠTT.
+2. **Desaťtance ako vlastná dlaždica a blok?** Odporúčam **áno**, len keď existuje aspoň jedna súťaž. Ročne ide o jednu súťaž, takže ju nemiešať do ŠTT. **Rozhodnuté 17. 11.: áno, postavené** (riadok pod dlaždicami; 10T sa číta z histórie páru pri Aktualizovať, bez ďalších volaní).
 3. **Názov WDSF súťaže bez čísla:** odporúčam „WDSF · Košice“ (mesto pred čiarkou, so slovenskou podobou, ak ho poznáme). Zahraničné ako „WDSF · Budapest“.
 4. **Počítať v „súťaží“ aj ďalej každú kategóriu zvlášť?** Odporúčam **áno** (12 podujatí so ŠTT a LAT = 24). Neskôr môžeme ukázať „24 súťaží z 12 podujatí“.
 

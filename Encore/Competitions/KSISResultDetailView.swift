@@ -103,7 +103,7 @@ struct KSISResultDetailView: View {
             }
             HStack(spacing: 10) {
                 tile(result.placeLine, caption: "miesto")
-                tile("+\(result.pointsEarned)", caption: "body")
+                if result.givesPoints { tile("+\(result.pointsEarned)", caption: "body") }
                 if let total = result.cumulativeStats {
                     tile(total, caption: "spolu po súťaži")
                 }
