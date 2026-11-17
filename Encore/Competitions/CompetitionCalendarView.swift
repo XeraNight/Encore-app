@@ -75,8 +75,10 @@ struct CompetitionCalendarView: View {
         }
         let count = monthResults.count
         guard count > 0 else { return "V tomto mesiaci žiadna súťaž" }
-        let points = monthResults.reduce(0) { $0 + $1.pointsEarned }
-        return "\(slovakCount(count, one: "súťaž", few: "súťaže", many: "súťaží")) · +\(points) b"
+        let total = slovakCount(count, one: "súťaž", few: "súťaže", many: "súťaží")
+        // The ten-dance gives no points, so a month of only that has none to add up.
+        guard monthResults.contains(where: \.givesPoints) else { return total }
+        return "\(total) · +\(monthResults.reduce(0) { $0 + $1.pointsEarned }) b"
     }
 
     @ViewBuilder
