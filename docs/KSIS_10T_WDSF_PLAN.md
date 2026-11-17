@@ -6,8 +6,8 @@ Stav z 16. 11. 2026. Návrh, ktorý čaká na tvoje rozhodnutia (sekcia 6). Čí
 
 | | Čo KSIS ukazuje | KSIS číslo súťaže | Body | Krížiky |
 |---|---|---|---|---|
-| **10T**: „MSR Dospelí 10T“ | Majstrovstvá SR v desiatich tancoch (5 štandardných + 5 latinských), nie pohár | áno (11517) | nie, pole „Body“ je prázdne | stránka hodnotenia pravdepodobne áno, **neoverené** |
-| **WDSF so slovenským číslom**: „WDSF Rising Stars ST“ (Košice GP) | bežná súťaž v KSIS | áno | nie | áno (krížiky, vo finále skóre) |
+| **10T**: „MSR Dospelí 10T“ | Majstrovstvá SR v desiatich tancoch (5 štandardných + 5 latinských), nie pohár | áno (11517) | nie, pole „Body“ je prázdne | **áno, overené 17. 11. na skutočnej stránke:** 10 tancov, 12 rozhodcov a 5 tieňových; v semifinále krížiky všetkých desiatich tancov, vo finále skóre za každý tanec |
+| **WDSF so slovenským číslom**: „WDSF Rising Stars ST“ (Košice GP) | bežná súťaž v KSIS | áno | nie | **áno, overené 17. 11. (11197):** semifinále krížiky, vo finále umiestnenia rozhodcov |
 | **WDSF bez čísla**: Budapešť, Košice 2026 | na stránke páru len dátum, názov podujatia („Kosice,Slovakia“), kategória („Adult Latin“), počet párov a umiestnenie | **nie** | nie | nie, stránka neexistuje |
 
 Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú dvakrát (raz s číslom, raz bez) a ukladáme tú s číslom. Zahraničné a novšie slovenské (Košice 2026) majú len záznam bez čísla.
@@ -59,11 +59,7 @@ Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú
 
 ## 7. Poradie práce
 
-1. **Skutočné stránky** (ty, 2 minúty): otvor v Chrome a ulož zdroj stránky
-   - https://szts.ksis.eu/hodnot_sut.php?sutaz_id=11517 (10T, hodnotenie),
-   - https://szts.ksis.eu/sutaz.php?sutaz_id=11517 (10T, výsledky),
-   - https://szts.ksis.eu/hodnot_sut.php?sutaz_id=11197 (WDSF Rising Stars ST, Košice).
-   Z nich spravím fixtúry a testy, že desať tancov a skóre WDSF sa čítajú správne. Dnes ich overené nemáme.
+1. **Skutočné stránky: hotové 17. 11.** Jakub uložil tri stránky (10T výsledky a hodnotenie, WDSF Rising Stars ST). Čítajú sa **bez akejkoľvek zmeny** čítačiek; anonymizované fixtúry a testy sú v `fixtures/ksis/` (`results_10t_11517.html`, `marks_10t_11517.html`, `marks_wdsf_11197.html`) a v `ksis-pages.test.ts`.
 2. **Pravidlá počítania** (malé): vlastnosť `isWDSF` (bez KSIS čísla, alebo kategória začína „WDSF“), vynechanie z grafu umiestnení a „najlepšieho miesta“, skrytie „+0 b“. Testy.
 3. **Obrazovky** (stredné): dlaždica Desaťtance, štatistiky bez triedy a pohára, chip WDSF, názov „WDSF · mesto“.
 4. **Nasadenie**: nový build, priateľom, potom server (`ksis-page`), oznam pre Antigravity.
