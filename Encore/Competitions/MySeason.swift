@@ -123,7 +123,11 @@ struct SeasonStats: Equatable {
             }
         }
 
-        let codes = Set(crosses.keys).union(placings.keys).sorted { $0 == "STT" && $1 != "STT" }
+        // Štandard, Latina, then the ten-dance. A fixed order: a Set has another one in every launch of the app.
+        let known = ["STT", "LAT", "10T"]
+        let codes = Set(crosses.keys).union(placings.keys).sorted {
+            (known.firstIndex(of: $0) ?? known.count, $0) < (known.firstIndex(of: $1) ?? known.count, $1)
+        }
         disciplines = codes.map { code in
             Discipline(
                 code: code,

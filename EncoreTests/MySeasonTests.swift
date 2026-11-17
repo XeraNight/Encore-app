@@ -138,6 +138,14 @@ struct MySeasonTests {
         #expect(ten.finals.isEmpty)
     }
 
+    /// The blocks were sorted out of a Set, so Latina and Desaťtance could swap places from one launch to the next.
+    @Test func disciplinesKeepOneOrderWhateverTheInput() throws {
+        let results = [try tenDanceResult(date: "2026-11-14"), try result(date: "2026-10-03", discipline: "LAT"), try result(date: "2026-09-12", discipline: "STT")]
+        for input in [results, Array(results.reversed()), [results[1], results[0], results[2]]] {
+            #expect(SeasonStats(results: input, seasonStartYear: nil).disciplines.map(\.code) == ["STT", "LAT", "10T"])
+        }
+    }
+
     @Test func tenDanceGivesNoPoints() throws {
         #expect(try tenDanceResult(date: "2026-11-14").givesPoints == false)
         #expect(try result(date: "2026-10-03", discipline: "STT").givesPoints)
