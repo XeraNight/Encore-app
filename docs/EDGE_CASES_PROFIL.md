@@ -88,13 +88,13 @@ Na vzorovej stránke páru s 41 riadkami histórie sa ukladalo 22; po opravách 
 | Čo | Koľko na vzorovej stránke | Stav |
 |----|---------------------------|------|
 | WDSF „ST“ a „LA“ so slovenským číslom (Košice GP) | 4 | Hotové a nasadené (v13) |
-| MSR Dospelí 10T (desaťtance, majstrovstvá, nie pohár) | 1 | Pripravené, **nenasadené** (pozri nižšie) |
-| WDSF bez KSIS čísla (Košice, Budapešť; len miesto a počet párov) | 14, z toho 4 sú tie isté ako tie s číslom, ostáva 10 | Pripravené, **nenasadené** |
+| MSR Dospelí 10T (desaťtance, majstrovstvá, nie pohár) | 1 | Hotové a nasadené 18. 11. (server v14, build 360) |
+| WDSF bez KSIS čísla (Košice, Budapešť; len miesto a počet párov) | 14, z toho 4 sú tie isté ako tie s číslom, ostáva 10 | Nasadené 18. 11. (server v14, build 360); obrazovky WDSF čakajú na rozhodnutia (`docs/KSIS_10T_WDSF_PLAN.md` §6) |
 | Trieda E (deti) | | Nečíta sa: v KSIS ju Jakub nemá (rozhodnuté 16. 11.) |
 | Sólo, formácie, choreo, showdance | | Nie sú na stránke páru. Neoverené, nečítame |
 | Harmonogram, propozície | | Len odkazy z kalendára |
 
-WDSF výsledok nemá KSIS číslo súťaže, preto dostane záporné číslo vyrobené z dátumu, podujatia a kategórie (rovnaké pri každom čítaní). Miesto je názov podujatia („Kosice,Slovakia“), takže sa ukáže na mape; zahraničné ide do „Mimo mapy“. Appka také súťaže nikdy nepýta v KSIS (nemajú stránku) a v detaile ukáže, že ide o WDSF. **Server aj appka sa musia nasadiť naraz**: starší build by pýtal stránky so záporným číslom. Webová appka (Antigravity): riadky so záporným `sutaz_id` nemajú KSIS stránku, odkazy z nich treba skryť.
+WDSF výsledok nemá KSIS číslo súťaže, preto dostane záporné číslo vyrobené z dátumu, podujatia a kategórie (rovnaké pri každom čítaní). Miesto je názov podujatia („Kosice,Slovakia“), takže sa ukáže na mape; zahraničné ide do „Mimo mapy“. Appka také súťaže nikdy nepýta v KSIS (nemajú stránku) a v detaile ukáže, že ide o WDSF. **Nasadené naraz 18. 11.** (najprv build 360, potom server v14): starší build (349) by pýtal stránky so záporným číslom a desaťtance by ukázal ako Štandard. Webová appka (Antigravity): riadky so záporným `sutaz_id` nemajú KSIS stránku, odkazy z nich treba skryť.
 
 ## 3. Prípady, ktoré sú overené
 
@@ -105,6 +105,8 @@ WDSF výsledok nemá KSIS číslo súťaže, preto dostane záporné číslo vyr
 **Adresy a hľadanie (test):** meno so špeciálnymi znakmi · číslo ide do poľa čísla, ostatné do mena · prázdne hľadanie otvorí obyčajnú stránku · päťmiestne čísla párov · priezvisko = prvé slovo · kódovanie toho, čo tanečník napíše.
 
 **Sezóny (test):** sezóna sa mení 1. septembra · názvy sezón sa nerozbijú · bez výsledkov je prázdna sezóna · krížiky zapísané čudne sa počítajú len keď sú krížiky.
+
+**Desaťtance (test):** vlastný blok so všetkými desiatimi tancami · kolo so skóre nepridá krížiky ani umiestnenia · bez bodov (riadok, detail, súhrn) · bloky Štandard, Latina, Desaťtance majú vždy to isté poradie (predtým sa radili zo `Set` a pri každom spustení sa mohli vymeniť). Mesačný popis v kalendári výsledkov nepíše „+0 b“, keď je v mesiaci len desaťtanec (bez testu, čítaním kódu a buildom).
 
 **Plán a výsledky dňa (test):** dva výsledky v ten istý deň patria k tomu dňu · deň bez výsledkov nemá žeton miesta · vyhráva najlepšie miesto · súťaž neskoro večer sedí na svoj deň · prepojenie sa týka len minulých súťaží bez prepojenia · neznámy zámer súťaže sa otvorí ako „Zvažujem“.
 

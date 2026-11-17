@@ -1,6 +1,6 @@
 # Desaťtance (10T) a WDSF v appke: plán
 
-Stav z 16. 11. 2026. Návrh, ktorý čaká na tvoje rozhodnutia (sekcia 6). Čítanie a ukladanie je v kóde hotové, ale **nenasadené** (server commit `925eae4`, appka `0929fe9`).
+Stav z 18. 11. 2026. Čítanie a ukladanie je **nasadené 18. 11.** (server `ksis-page` v14, appka v builde 360 v TestFlighte). Čaká len rozhodnutie o WDSF obrazovkách (sekcia 6): dovtedy sa WDSF výsledok ukáže ako obyčajný (s „+0 b“, v grafoch umiestnení, s názvom z KSIS).
 
 ## 1. Čo to je v KSIS
 
@@ -12,7 +12,7 @@ Stav z 16. 11. 2026. Návrh, ktorý čaká na tvoje rozhodnutia (sekcia 6). Čí
 
 Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú dvakrát (raz s číslom, raz bez) a ukladáme tú s číslom. Zahraničné a novšie slovenské (Košice 2026) majú len záznam bez čísla.
 
-## 2. Čo je už v kóde (nenasadené)
+## 2. Čo je už v kóde (nasadené 18. 11.)
 
 - Server ukladá 10T s disciplínou „10T“ (databáza ju už povoľuje) a WDSF bez čísla so záporným `sutaz_id` vyrobeným z dátumu, podujatia a kategórie; miesto je názov podujatia, takže ide na mapu (Košice) alebo do „Mimo mapy“ (zahraničie). Duplicity so slovenskými WDSF sa preskočia (rovnaký dátum, disciplína, počet párov a miesto). Riadky bez čísla sledujú stránku: čo tam už nie je, zmizne.
 - Appka: názov „Desaťtance“, chip „10T“ v Moje výsledky, zlatá bodka v kalendári, pri WDSF bez čísla sa nikdy nepýta KSIS na krížiky a miesto, v detaile je karta „Súťaž WDSF“ a skryté odkazy do KSIS.
@@ -47,7 +47,7 @@ Niektoré slovenské WDSF súťaže (Košice 2025) sa na stránke páru ukazujú
 
 - WDSF bez čísla dostane záporné číslo, preto sa v appke nikdy nepýta v KSIS (`hasKSISPage`). Alternatíva (samostatná tabuľka `wdsf_results`) je čistejšia, ale pridá migráciu, druhé sťahovanie a spájanie v každej obrazovke. Pre pár desiatok riadkov na človeka sa nevyplatí, vrátime sa k nej, ak WDSF narastie.
 - Kategórie WDSF iné než „Standard“ a „Latin“ (napr. desaťtance WDSF) sa preskakujú, kým ich neuvidíme na reálnej stránke.
-- Poradie nasadenia: **appka aj server naraz**. Starší build by pýtal v KSIS stránky s vymysleným číslom a desaťtance by ukázal ako Štandard. Preto nový build najprv priateľom, potom server.
+- Poradie nasadenia: **appka aj server naraz**. Starší build by pýtal v KSIS stránky s vymysleným číslom a desaťtance by ukázal ako Štandard. Preto nový build najprv, potom server. **Hotové 18. 11.:** build 360 nahraný o 00:32, potom `ksis-page` v14. Priateľ, ktorý má ešte 349 a ťukne Aktualizovať, uvidí desaťtance ako Štandard (len zobrazenie), kým si neaktualizuje build. V databáze je dnes 9 účtov, z toho 3 s výsledkami.
 - Zmazanie WDSF výsledku v appke ho zmaže na serveri, ale ďalšia aktualizácia ho prečíta znova (rovnako ako iné výsledky).
 
 ## 6. Rozhodnutia pre teba (s odporúčaním)
