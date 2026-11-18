@@ -60,6 +60,8 @@ final class KSISUpdateRun {
 
     init(job: KSISUpdateJob) {
         self.job = job
+        // Without a dancer there is no first page; saying so beats a spinner that never ends.
+        if startURL == nil { phase = .failed("Najprv sa nájdi v KSIS: v zozname členov ťukni Som to ja pri svojom mene.") }
     }
 
     /// The first page. Nil only without a dancer, and the update is not offered then.

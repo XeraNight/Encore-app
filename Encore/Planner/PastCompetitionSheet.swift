@@ -87,18 +87,23 @@ struct PastCompetitionSheet: View {
             Label("Výsledky z tejto súťaže nemáš uložené", systemImage: "tray")
                 .font(.subheadline.weight(.bold))
                 .foregroundColor(.white)
-            Text("Ak si tancoval, Encore ich vie prečítať z KSIS: miesto, body aj hodnotenie rozhodcov.")
+            // The update starts from the dancer's couples, so without a picked dancer KSIS opens first and says what to do.
+            Text(manager.dancer == nil
+                 ? "Najprv sa nájdi v KSIS. Potom ti Encore vie prečítať výsledky: miesto, body aj hodnotenie rozhodcov."
+                 : "Ak si tancoval, Encore ich vie prečítať z KSIS: miesto, body aj hodnotenie rozhodcov.")
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.7))
                 .fixedSize(horizontal: false, vertical: true)
-            Button { updateJob = .everything } label: {
-                Label("Načítať výsledky z KSIS", systemImage: "arrow.down.circle")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Color.obsidian900)
-                    .frame(maxWidth: .infinity, minHeight: 46)
-                    .background(Color.gold400, in: Capsule())
+            if manager.dancer != nil {
+                Button { updateJob = .everything } label: {
+                    Label("Načítať výsledky z KSIS", systemImage: "arrow.down.circle")
+                        .font(.subheadline.weight(.bold))
+                        .foregroundColor(Color.obsidian900)
+                        .frame(maxWidth: .infinity, minHeight: 46)
+                        .background(Color.gold400, in: Capsule())
+                }
+                .buttonStyle(.pressable)
             }
-            .buttonStyle(.pressable)
             Button {
                 if let url = KSISBrowserView.page("menu.php?akcia=S") { browser = KSISBrowserTarget(url: url) }
             } label: {
