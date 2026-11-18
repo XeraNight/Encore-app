@@ -91,6 +91,8 @@ struct DanceCameraView: View {
     @Namespace private var zoomSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    /// Restarts the ghost video when it ends; kept so it can be taken down.
+    @State private var ghostLoop: NSObjectProtocol?
 
     var body: some View {
         ZStack {
@@ -207,9 +209,12 @@ struct DanceCameraView: View {
             let item = AVPlayerItem(url: url)
             let player = AVPlayer(playerItem: item)
             player.actionAtItemEnd = .none
-            NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { _ in
-                player.seek(to: .zero)
-                player.play()
+            removeGhostLoop()
+            // The loop: back to the start when the video ends. The observer does not hold the player, and is taken
+            // down with it, so a ghost does not outlive the screen.
+            ghostLoop = NotificationCenter.default.addObserver(forName: .AVPlayerItemDidPlayToEndTime, object: item, queue: .main) { [weak player] _ in
+                player?.seek(to: .zero)
+                player?.play()
             }
             self.ghostPlayer = player
         }
@@ -217,6 +222,7 @@ struct DanceCameraView: View {
             DanceMetronomeEngine.shared.stop()
             ghostPlayer?.pause()
             ghostPlayer = nil
+            removeGhostLoop()
             level.stop()
             camera.stop()
         }
@@ -505,6 +511,11 @@ struct DanceCameraView: View {
         }
     }
     
+    private func removeGhostLoop() {
+        if let ghostLoop { NotificationCenter.default.removeObserver(ghostLoop) }
+        ghostLoop = nil
+    }
+
     // MARK: - Bookmark from the Lock Screen
     private func saveInstantMemoryBookmark() {
         let metronome = DanceMetronomeEngine.shared
