@@ -303,6 +303,8 @@ final class DanceCameraModel {
     @ObservationIgnored private var countdownTask: Task<Void, Never>?
     @ObservationIgnored private var metronomeChanges: AnyCancellable?
     @ObservationIgnored private var pinchStartZoom: Double = 1
+    /// The camera was refused, now or before: no picture to show and nothing to record, and the screen says so.
+    private(set) var accessDenied = false
 
     nonisolated var session: AVCaptureSession { capture.session }
 
@@ -313,8 +315,22 @@ final class DanceCameraModel {
 
     func start() {
         Task {
+            guard await Self.hasCameraAccess() else {
+                accessDenied = true
+                return
+            }
+            accessDenied = false
             await capture.start()
             await readLens()
+        }
+    }
+
+    /// Asks the first time (the system's question); no when the answer was no, before or now.
+    private static func hasCameraAccess() async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: return true
+        case .notDetermined: return await AVCaptureDevice.requestAccess(for: .video)
+        default: return false
         }
     }
 
@@ -335,6 +351,7 @@ final class DanceCameraModel {
 
     /// The shutter: stops a recording, cancels a countdown, or starts one (with the self-timer, after it).
     func shutter() {
+        guard !accessDenied else { return }
         if isRecording {
             stopRecording()
         } else if isCountingDown {

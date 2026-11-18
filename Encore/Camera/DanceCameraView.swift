@@ -90,6 +90,7 @@ struct DanceCameraView: View {
 
     @Namespace private var zoomSelection
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         ZStack {
@@ -103,6 +104,11 @@ struct DanceCameraView: View {
             }
             .ignoresSafeArea()
             
+            if camera.accessDenied {
+                CameraAccessNotice()
+                    .transition(.opacity)
+            }
+
             if let focusMark {
                 CameraFocusSquare(mark: focusMark)
                     .ignoresSafeArea()
@@ -188,6 +194,10 @@ struct DanceCameraView: View {
         .onAppear {
             camera.start()
             if showGridAndLevel { level.start() }
+        }
+        // Back from Nastavenia with the camera allowed: it starts without leaving the screen.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active && camera.accessDenied { camera.start() }
         }
         .task(id: ghostVideoPath) {
             // The ghost video may live in Fotky, so it is looked up asynchronously; leaving cancels the task.
@@ -468,6 +478,8 @@ struct DanceCameraView: View {
                 .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.7), value: camera.isRecording)
             }
             .buttonStyle(.pressable(scale: 0.92))
+            .disabled(camera.accessDenied)
+            .opacity(camera.accessDenied ? 0.4 : 1)
             .sensoryFeedback(.impact(weight: .medium), trigger: camera.isRecording)
             .accessibilityLabel(camera.isRecording ? "Zastaviť nahrávanie" : (camera.isCountingDown ? "Zrušiť odpočet" : "Nahrávať"))
             
@@ -513,5 +525,36 @@ struct DanceCameraView: View {
                 bookmarkToastText = nil
             }
         }
+    }
+}
+
+// MARK: - The camera was refused
+/// A black screen says nothing: this says what is wrong and takes the dancer to the switch in Nastavenia.
+private struct CameraAccessNotice: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            Image(systemName: "camera.fill")
+                .font(.largeTitle)
+                .foregroundColor(Color.amberGold)
+            Text("Encore nemá prístup ku kamere")
+                .font(.headline)
+                .foregroundColor(.white)
+            Text("Povoľ ho v Nastaveniach iPhonu. Keď sa vrátiš, kamera sa spustí sama.")
+                .font(.subheadline)
+                .foregroundColor(.white.opacity(0.7))
+                .multilineTextAlignment(.center)
+            Button {
+                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+            } label: {
+                Text("Otvoriť Nastavenia")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(Color.obsidian900)
+                    .padding(.horizontal, 22)
+                    .frame(minHeight: 44)
+                    .background(Color.amberGold, in: Capsule())
+            }
+            .buttonStyle(.pressable)
+        }
+        .padding(.horizontal, 36)
     }
 }
