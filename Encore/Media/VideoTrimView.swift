@@ -421,7 +421,8 @@ struct VideoTrimPlayerRepresentable: UIViewControllerRepresentable {
         let controller = AVPlayerViewController()
         controller.player = player
         controller.showsPlaybackControls = false
-        controller.videoGravity = .resizeAspectFill
+        // The whole picture: a take filmed upright keeps its head and feet (the frame is 16:9, bars fill the rest).
+        controller.videoGravity = .resizeAspect
         controller.view.backgroundColor = .black
         return controller
     }
