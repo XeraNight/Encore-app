@@ -81,12 +81,7 @@ struct PlannerTodayView: View {
                     .font(.callout.weight(.bold))
                     .foregroundColor(.white)
                 Spacer(minLength: 8)
-                Text(comp.intent.title)
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(comp.intent == .going ? Color.obsidian900 : Color.gold300)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(comp.intent == .going ? Color.gold400 : Color.gold500.opacity(0.14), in: Capsule())
+                CompetitionIntentChip(intent: comp.intent)
             }
             if !comp.city.isEmpty {
                 Text(comp.city)

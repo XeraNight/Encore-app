@@ -763,12 +763,12 @@ struct KSISBrowserView: View {
         web.load(url)
     }
 
-    /// The number of the competition comes from the page's address, so the plan gets its Propozície, entries and Mapa,
-    /// and is told when KSIS changes the competition.
+    /// Registered in KSIS means going. The number of the competition comes from the page's address, so the plan gets its
+    /// Propozície, entries and Mapa, and is told when KSIS changes the competition.
     private func addToPlan(event: KSISPageReply.Event, categories: [String], propId: Int?) {
         guard let date = event.date.flatMap({ Self.isoDay.date(from: $0) }) else { return }
-        PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue ?? "", date: date, categories: categories,
-                                         propId: propId, context: modelContext)
+        PlannedCompetition.addFromKSIS(name: event.name, venue: event.venue ?? "", date: date, categories: categories,
+                                       propId: propId, intent: .going, context: modelContext)
         successTick += 1
         notice = "Súťaž je v kalendári aj s vašimi kategóriami."
     }

@@ -177,9 +177,10 @@ struct SlovakiaMapLayoutTests {
     }
 }
 
-/// Idem from the KSIS calendar: one competition in Kalendár however many times it is sent there.
+/// Pridať from the KSIS calendar: one competition in Kalendár however many times it is sent there, undecided until the
+/// dancer says Idem (or KSIS says the dancer is registered).
 @MainActor
-struct GoingFromKSISTests {
+struct AddFromKSISTests {
     private func context() throws -> ModelContext {
         let container = try ModelContainer(for: PlannedCompetition.self, configurations: ModelConfiguration(isStoredInMemoryOnly: true))
         return ModelContext(container)
@@ -187,15 +188,38 @@ struct GoingFromKSISTests {
 
     private let day = Date(timeIntervalSince1970: 1_800_000_000)
 
-    @Test func addsTheCompetitionAsGoing() throws {
+    @Test func addsTheCompetitionUndecided() throws {
         let context = try context()
-        PlannedCompetition.goingFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: ["Dospelí D ŠTT"],
-                                         propId: 2277, context: context)
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: ["Dospelí D ŠTT"],
+                                       propId: 2277, context: context)
         let saved = try context.fetch(FetchDescriptor<PlannedCompetition>())
         #expect(saved.count == 1)
-        #expect(saved.first?.intent == .going)
+        #expect(saved.first?.intent == .interested)
         #expect(saved.first?.ksisPropId == 2277)
         #expect(saved.first?.targetCategories == ["Dospelí D ŠTT"])
+    }
+
+    @Test func aDancerRegisteredInKSISGoes() throws {
+        let context = try context()
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: ["Dospelí D ŠTT"],
+                                       propId: 2277, intent: .going, context: context)
+        #expect(try context.fetch(FetchDescriptor<PlannedCompetition>()).first?.intent == .going)
+    }
+
+    @Test func addingAgainKeepsWhatTheDancerDecided() throws {
+        let context = try context()
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: [], propId: 2277, context: context)
+        let plan = try #require(try context.fetch(FetchDescriptor<PlannedCompetition>()).first)
+        plan.intent = .declined
+
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: [], propId: 2277, context: context)
+        #expect(try context.fetch(FetchDescriptor<PlannedCompetition>()).count == 1)
+        #expect(plan.intent == .declined)
+
+        // KSIS saying the dancer is registered is a stronger word than an earlier Neidem.
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: [], propId: 2277,
+                                       intent: .going, context: context)
+        #expect(plan.intent == .going)
     }
 
     @Test func aCompetitionAddedByHandIsLinkedNotDoubled() throws {
@@ -205,18 +229,18 @@ struct GoingFromKSISTests {
         context.insert(byHand)
         try context.save()
 
-        PlannedCompetition.goingFromKSIS(name: "Optima dance cup", venue: "OC Optima", date: day, categories: [], propId: 2277, context: context)
+        PlannedCompetition.addFromKSIS(name: "Optima dance cup", venue: "OC Optima", date: day, categories: [], propId: 2277, context: context)
 
         let saved = try context.fetch(FetchDescriptor<PlannedCompetition>())
         #expect(saved.count == 1)
         #expect(saved.first?.ksisPropId == 2277)
-        #expect(saved.first?.intent == .going)
+        #expect(saved.first?.intent == .interested)
         #expect(saved.first?.targetCategories == ["Štandard"])
         #expect(saved.first?.city == "Košice")
     }
 }
 
-/// What KSIS changed about a competition the dancer said Idem to: a category gone from the list, the competition
+/// What KSIS changed about a competition the dancer added: a category gone from the list, the competition
 /// cancelled, KSIS's own note.
 @MainActor
 struct KSISChangeTests {

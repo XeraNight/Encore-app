@@ -3,8 +3,8 @@ import SwiftData
 
 // MARK: - Kalendár súťaží
 /// The KSIS calendar: what is coming, filtered as on KSIS, as a list or with the map of Slovakia above it, where a
-/// town picks its competitions for the list. Reading only: the competitions the dancer goes to live in Kalendár, sent
-/// there with Idem. The last read stays on the iPhone.
+/// town picks its competitions for the list. Reading only: a competition goes to Kalendár with Pridať, and the dancer
+/// decides there whether to go. The last read stays on the iPhone.
 struct KSISCalendarView: View {
     @ObservedObject private var store = KSISCalendarStore.shared
     @ObservedObject private var manager = CompetitionManager.shared
@@ -237,7 +237,7 @@ struct KSISCalendarView: View {
                     VStack(spacing: 0) {
                         ForEach(month.events) { event in
                             Button { selected = event } label: {
-                                KSISEventRow(event: event, couple: couple, isGoing: isGoing(to: event))
+                                KSISEventRow(event: event, couple: couple, intent: intent(of: event))
                             }
                             .buttonStyle(.pressable(scale: 0.98))
                             .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
@@ -251,8 +251,9 @@ struct KSISCalendarView: View {
         }
     }
 
-    private func isGoing(to event: KSISEvent) -> Bool {
-        planned.contains { $0.ksisPropId != nil && $0.ksisPropId == event.propId && $0.intent == .going }
+    /// What the dancer decided about a competition added to Kalendár; nil while it is not there.
+    private func intent(of event: KSISEvent) -> CompetitionIntent? {
+        planned.first { $0.ksisPropId != nil && $0.ksisPropId == event.propId }?.intent
     }
 }
 
@@ -260,7 +261,7 @@ struct KSISCalendarView: View {
 private struct KSISEventRow: View {
     let event: KSISEvent
     let couple: UserCouple?
-    let isGoing: Bool
+    let intent: CompetitionIntent?
 
     private var myCategories: [String] { couple.map(event.categories(for:)) ?? [] }
 
@@ -304,13 +305,8 @@ private struct KSISEventRow: View {
 
             Spacer(minLength: 6)
 
-            if isGoing {
-                Text("Idem")
-                    .font(.caption2.weight(.bold))
-                    .foregroundColor(Color.obsidian900)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.gold400, in: Capsule())
+            if let intent {
+                CompetitionIntentChip(intent: intent)
             }
         }
         .padding(.horizontal, 14)
@@ -336,8 +332,8 @@ struct KSISEventNote: View {
 }
 
 // MARK: - One competition
-/// Everything KSIS says about a competition, Idem, and its pages. Idem sends it to Kalendár, the one place for
-/// the competitions the dancer goes to.
+/// Everything KSIS says about a competition, Pridať, and its pages. Pridať sends it to Kalendár, the one place for
+/// the competitions the dancer follows, and there the dancer decides whether to go.
 struct KSISEventSheet: View {
     let event: KSISEvent
     let couple: UserCouple?
@@ -347,11 +343,12 @@ struct KSISEventSheet: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var planned: [PlannedCompetition]
     @State private var browser: KSISBrowserTarget?
-    @State private var goingTick = 0
-    @State private var declineTick = 0
+    @State private var confirmsRemoval = false
+    @State private var addedTick = 0
+    @State private var removedTick = 0
 
     private var plannedHere: PlannedCompetition? { planned.first { $0.ksisPropId != nil && $0.ksisPropId == event.propId } }
-    private var isGoing: Bool { plannedHere?.intent == .going }
+    private var isAdded: Bool { plannedHere != nil }
     private var myCategories: [String] { couple.map(event.categories(for:)) ?? [] }
 
     var body: some View {
@@ -362,15 +359,15 @@ struct KSISEventSheet: View {
                     VStack(alignment: .leading, spacing: 18) {
                         header
                         facts
-                        if !event.isCancelled, event.dateValue != nil { goingButton }
+                        if !event.isCancelled, event.dateValue != nil { addButton }
                         KSISEventLinks(propId: event.propId, registered: event.registered, hasTimetable: event.hasTimetable,
                                        venue: event.venue) { browser = KSISBrowserTarget(url: $0) }
                         categories
                     }
                     .padding(20)
-                    // Idem and Neidem move the same way: the button grows into the row (or back), and what is below makes
-                    // room with it instead of jumping.
-                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.72), value: isGoing)
+                    // Pridať and Odstrániť move the same way: the button grows into the row (or back), and what is below
+                    // makes room with it instead of jumping.
+                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.72), value: isAdded)
                 }
                 .softTopEdge()
             }
@@ -383,8 +380,13 @@ struct KSISEventSheet: View {
                 }
             }
         }
-        .sensoryFeedback(.success, trigger: goingTick)
-        .sensoryFeedback(.impact(weight: .light), trigger: declineTick)
+        .sensoryFeedback(.success, trigger: addedTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: removedTick)
+        .confirmationDialog("Odstrániť z Kalendára?", isPresented: $confirmsRemoval, titleVisibility: .visible) {
+            Button("Odstrániť", role: .destructive, action: remove)
+        } message: {
+            Text("Zmizne z Encore aj z Apple Kalendára.")
+        }
         .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
         .preferredColorScheme(.dark)
     }
@@ -430,26 +432,26 @@ struct KSISEventSheet: View {
     }
 
     @ViewBuilder
-    private var goingButton: some View {
-        if isGoing {
-            GoingConfirmation(decline: decline)
+    private var addButton: some View {
+        if isAdded {
+            AddedConfirmation { confirmsRemoval = true }
                 .transition(.scale(scale: 0.92).combined(with: .opacity))
         } else {
-            PrimarySheetButton(title: "Idem", isLoading: false, isEnabled: true, action: go)
+            PrimarySheetButton(title: "Pridať", isLoading: false, isEnabled: true, action: add)
                 .transition(.scale(scale: 0.96).combined(with: .opacity))
         }
     }
 
-    private func go() {
+    private func add() {
         guard let date = event.dateValue else { return }
-        PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
-                                         propId: event.propId, context: modelContext)
-        goingTick += 1
+        PlannedCompetition.addFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
+                                       propId: event.propId, context: modelContext)
+        addedTick += 1
     }
 
-    private func decline() {
-        plannedHere?.setIntent(.declined, context: modelContext)
-        declineTick += 1
+    private func remove() {
+        plannedHere?.delete(in: modelContext)
+        removedTick += 1
     }
 
     private var categories: some View {
@@ -468,10 +470,10 @@ struct KSISEventSheet: View {
     }
 }
 
-/// What Idem did, in words: where the competition went and what it has there. The check pops and a gold line draws
-/// round the row as it arrives.
-private struct GoingConfirmation: View {
-    let decline: () -> Void
+/// What Pridať did, in words: where the competition went, that the decision is there, and what it has there. The check
+/// pops and a gold line draws round the row as it arrives.
+private struct AddedConfirmation: View {
+    let remove: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var arrived = false
@@ -489,16 +491,16 @@ private struct GoingConfirmation: View {
                 .animation(.spring(response: 0.45, dampingFraction: 0.5).delay(0.08), value: arrived)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
-                Text("Súťaž je v tvojom Kalendári")
+                Text("Pridané do Kalendára")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(Color.gold300)
-                Text("Nájdeš ju tam aj s Propozíciami, zoznamom prihlásených a Mapou.")
+                Text("Tam vyberieš, či ideš, a nájdeš Propozície aj Mapu.")
                     .font(.caption)
                     .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
-            Button("Neidem", action: decline)
+            Button("Odstrániť", action: remove)
                 .font(.footnote.weight(.semibold))
                 .foregroundColor(.white.opacity(0.7))
                 .frame(minHeight: 44)

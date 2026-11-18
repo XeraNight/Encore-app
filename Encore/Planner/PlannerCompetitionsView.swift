@@ -17,6 +17,7 @@ struct PlannerCompetitionsView: View {
     @State private var showsOlderSeasons = false
     /// The visible read of the KSIS calendar, asked for from the line under the title.
     @State private var job: KSISUpdateJob?
+    @State private var decidedTick = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
@@ -49,7 +50,7 @@ struct PlannerCompetitionsView: View {
             }
 
             if upcoming.isEmpty {
-                Text("Pridaj súťaž alebo ju vyber v Kalendári KSIS a nastav Idem. Appka ti pripomenie deň pred súťažou.")
+                Text("Pridaj súťaž ručne alebo z Kalendára KSIS a potom vyber, či ideš. Ak ideš, appka ti pripomenie deň pred súťažou.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -59,6 +60,7 @@ struct PlannerCompetitionsView: View {
             ForEach(upcoming) { competition in
                 VStack(alignment: .leading, spacing: 8) {
                     card(competition)
+                    intentRow(competition)
                     links(competition)
                 }
             }
@@ -106,6 +108,7 @@ struct PlannerCompetitionsView: View {
         // A read that finds something to warn about makes room for it and taps once.
         .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: ksisCalendar.readAt)
         .sensoryFeedback(.warning, trigger: warningCount) { old, new in new > old }
+        .sensoryFeedback(.selection, trigger: decidedTick)
         .sheet(isPresented: $showNew) { CompetitionEditorSheet(competition: nil) }
         .sheet(item: $editing) { CompetitionEditorSheet(competition: $0) }
         .sheet(item: $openedPast) { PastCompetitionSheet(competition: $0) }
@@ -161,12 +164,7 @@ struct PlannerCompetitionsView: View {
                     if let place = comp.dancedPlaceLine(in: ksis.results) {
                         DancedPlaceChip(place: place)
                     } else {
-                        Text(comp.intent.title)
-                            .font(.caption2.weight(.bold))
-                            .foregroundColor(chipText(comp.intent))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(chipFill(comp.intent), in: Capsule())
+                        CompetitionIntentChip(intent: comp.intent)
                     }
                 }
                 Text(comp.name)
@@ -195,7 +193,49 @@ struct PlannerCompetitionsView: View {
         }
     }
 
-    private func chipFill(_ intent: CompetitionIntent) -> Color {
+    /// Idem, Zvažujem or Neidem, one tap under the card: where a competition added from KSIS gets decided. Reminders come
+    /// with Idem.
+    private func intentRow(_ comp: PlannedCompetition) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                ForEach([CompetitionIntent.going, .interested, .declined]) { intent in
+                    Button { choose(intent, for: comp) } label: {
+                        FilterChip(title: intent.title, isOn: comp.intent == intent)
+                    }
+                    .buttonStyle(.pressable)
+                }
+            }
+            if comp.intent == .interested {
+                Text("Vyber, či ideš. Pripomienky dostaneš, keď dáš Idem.")
+                    .font(.caption2)
+                    .foregroundColor(Color.textSecondary)
+                    .transition(.opacity)
+            }
+        }
+    }
+
+    private func choose(_ intent: CompetitionIntent, for comp: PlannedCompetition) {
+        guard comp.intent != intent else { return }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) { comp.setIntent(intent, context: modelContext) }
+        decidedTick += 1
+    }
+}
+
+// MARK: - What the dancer decided
+/// "Idem", "Zvažujem" or "Neidem" as a small capsule.
+struct CompetitionIntentChip: View {
+    let intent: CompetitionIntent
+
+    var body: some View {
+        Text(intent.title)
+            .font(.caption2.weight(.bold))
+            .foregroundColor(textColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(fill, in: Capsule())
+    }
+
+    private var fill: Color {
         switch intent {
         case .going: return Color.gold400
         case .interested: return Color.gold500.opacity(0.14)
@@ -203,7 +243,7 @@ struct PlannerCompetitionsView: View {
         }
     }
 
-    private func chipText(_ intent: CompetitionIntent) -> Color {
+    private var textColor: Color {
         switch intent {
         case .going: return Color.obsidian900
         case .interested: return Color.gold300
@@ -424,10 +464,11 @@ extension PlannedCompetition {
         if changed { context.saveOrLog() }
     }
 
-    /// A competition from KSIS as Idem: the one already planned with its KSIS id (KSIS may rename it), or for that day
-    /// under that name, or a new one.
-    static func goingFromKSIS(name: String, venue: String, date: Date, categories: [String], propId: Int? = nil,
-                              context: ModelContext) {
+    /// A competition from KSIS in Kalendár: the one already planned with its KSIS id (KSIS may rename it), or for that day
+    /// under that name, or a new one. A new one starts as `intent`, undecided unless the dancer is registered in KSIS;
+    /// one already there keeps what the dancer decided, except that being registered means going.
+    static func addFromKSIS(name: String, venue: String, date: Date, categories: [String], propId: Int? = nil,
+                            intent: CompetitionIntent = .interested, context: ModelContext) {
         let samePropId = propId.flatMap { id in
             try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.ksisPropId == id })).first
         }
@@ -435,13 +476,14 @@ extension PlannedCompetition {
         let competition: PlannedCompetition
         if let existing = samePropId ?? sameName.first(where: { PlannerCalendar.calendar.isDate($0.date, inSameDayAs: date) }) {
             competition = existing
+            if intent == .going { competition.intent = .going }
         } else {
             competition = PlannedCompetition(name: name, city: venue, date: date)
+            competition.intent = intent
             context.insert(competition)
         }
         if !categories.isEmpty { competition.targetCategories = categories }
         competition.ksisPropId = propId ?? competition.ksisPropId
-        competition.intent = .going
         context.saveOrLog()
     }
 
