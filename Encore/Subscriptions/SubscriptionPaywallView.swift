@@ -11,7 +11,8 @@ public struct SubscriptionPaywallView: View {
     @State private var isAnnual = true
     @State private var selectedTier: SubscriptionTier
     @State private var errorMessage: String?
-    @State private var showLegalSheet = false
+    /// Each link opens its own part of the legal sheet: the terms, or the privacy policy (App Review 3.1.2).
+    @State private var legalTab: LegalComplianceView.LegalTab?
     @State private var choiceTaps = 0
 
     public init(initialTier: SubscriptionTier = .plus) {
@@ -105,7 +106,7 @@ public struct SubscriptionPaywallView: View {
                     .accessibilityLabel("Zavrieť")
                 }
             }
-            .sheet(isPresented: $showLegalSheet) { LegalComplianceView() }
+            .sheet(item: $legalTab) { LegalComplianceView(initialTab: $0) }
             .sensoryFeedback(.selection, trigger: choiceTaps)
             .task {
                 AnalyticsManager.shared.paywallViewed(source: "paywall_modal", initialTier: selectedTier.rawValue)
@@ -292,9 +293,9 @@ public struct SubscriptionPaywallView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 16) {
-                Button("Podmienky používania") { showLegalSheet = true }
+                Button("Podmienky používania") { legalTab = .terms }
                 Text("·").foregroundColor(.white.opacity(0.3))
-                Button("Ochrana súkromia") { showLegalSheet = true }
+                Button("Ochrana súkromia") { legalTab = .privacy }
             }
             .font(.caption.weight(.medium))
             .foregroundColor(.white.opacity(0.65))
