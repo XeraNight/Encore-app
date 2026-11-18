@@ -28,7 +28,6 @@ struct KSISCalendarTests {
         #expect(cup.date == "2026-11-07")
         #expect(cup.venue == "ŠH Milénium, Nové Zámky")
         #expect(cup.organizer == "TŠK VIVA Nové Zámky")
-        #expect(cup.entryDeadline == "2026-11-04")
         #expect(cup.kind == .slovakCup)
         #expect(cup.registered == 139)
         #expect(cup.hasTimetable)
@@ -178,12 +177,11 @@ struct GoingFromKSISTests {
     @Test func addsTheCompetitionAsGoing() throws {
         let context = try context()
         PlannedCompetition.goingFromKSIS(name: "Optima dance cup", venue: "Košice", date: day, categories: ["Dospelí D ŠTT"],
-                                         entryDeadline: day, propId: 2277, context: context)
+                                         propId: 2277, context: context)
         let saved = try context.fetch(FetchDescriptor<PlannedCompetition>())
         #expect(saved.count == 1)
         #expect(saved.first?.intent == .going)
         #expect(saved.first?.ksisPropId == 2277)
-        #expect(saved.first?.entryDeadline == day)
         #expect(saved.first?.targetCategories == ["Dospelí D ŠTT"])
     }
 

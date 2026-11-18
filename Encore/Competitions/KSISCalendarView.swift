@@ -410,10 +410,6 @@ struct KSISEventSheet: View {
         VStack(alignment: .leading, spacing: 10) {
             if !event.venue.isEmpty { fact("mappin.and.ellipse", event.venue) }
             if !event.organizer.isEmpty { fact("person.2", event.organizer) }
-            if let deadline = event.entryDeadlineValue {
-                let day = deadline.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "sk")))
-                fact("clock", deadline < PlannerCalendar.startOfDay(Date()) ? "Termín prihlášok bol \(day)" : "Prihlášky do \(day)")
-            }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -447,7 +443,7 @@ struct KSISEventSheet: View {
     private func go() {
         guard let date = event.dateValue else { return }
         PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
-                                         entryDeadline: event.entryDeadlineValue, propId: event.propId, context: modelContext)
+                                         propId: event.propId, context: modelContext)
         goingTick += 1
     }
 

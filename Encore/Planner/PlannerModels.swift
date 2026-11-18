@@ -173,6 +173,8 @@ final class PlannedCompetition {
     var name: String = ""
     var city: String = ""
     var date: Date = Date()
+    /// Not shown or set since 18. 11. 2026, the entry deadline is left out of the app for now. The field stays so that
+    /// what is stored on the iPhone and in backups keeps loading.
     var entryDeadline: Date? = nil
     var targetCategories: [String] = []
     var intentRaw: String = CompetitionIntent.interested.rawValue

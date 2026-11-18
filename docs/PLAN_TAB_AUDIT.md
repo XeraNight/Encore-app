@@ -15,7 +15,7 @@
 | S3 | Tréning cez polnoc (22:30–0:30) | ✅ čas aj pripomienka po skončení idú na ďalší deň. |
 | S4 | Appka ostane otvorená cez polnoc | ⚠️ Dnes ukazuje včerajšie tréningy a dátum, kým na niečo neťukneš. |
 | S5 | Tréning zapísaný spätne (včera bez plánu) | ✅ cez Pridať v kalendári, aj s reflexiou. |
-| S6 | Uzávierka prihlášok neskôr ako súťaž | ⚠️ dá sa uložiť. |
+| S6 | Uzávierka prihlášok neskôr ako súťaž | ✅ uzávierka je od 18. 11. z appky preč (pre teraz), nie je čo zle zadať. |
 | S7 | Súťaž z KSIS bez dátumu | ⚠️ potichu sa uloží na dnes. |
 | S8 | Súťaž v zahraničí, iné časové pásmo (Blackpool) | ⚠️ dni sa rátajú od polnoci na Slovensku, v Londýne sa môžu posunúť o deň. Zatiaľ nechať. |
 
@@ -97,7 +97,7 @@ Tab **Kalendár**, nadpis KALENDÁR, sekcie **Dnes · Mesiac · Režim**. Texty 
 2. **Notifikácia → reflexia (S10, S42, S43):** ťuk otvorí Kalendár a reflexiu toho tréningu. Po zapísanej reflexii nepríde. Text bez rodu.
 3. **Apple Kalendár (S14, S15, S27, S40):** pauza tréningu ho z kalendára zoberie a zapnutie vráti; úprava nevráti zrušené dni; Neidem pri súťaži zmaže udalosť; hláška, keď chýba prístup.
 4. **Reflexia (S33–S37):** diktát sa pridá za text, chyba mikrofónu sa ukáže, pri zatvorení s textom sa opýta, nadpis podľa dňa, prázdny text zmaže poznámku.
-5. **Editory (S6, S19, S23–S25, S28):** jedno uloženie, uzávierka najneskôr v deň súťaže, KSIS kategórie ostanú, potvrdenie pri mazaní podržaním, otázka pri zatvorení so zmenami.
+5. **Editory (S6, S19, S23–S25, S28):** jedno uloženie, KSIS kategórie ostanú, potvrdenie pri mazaní podržaním, otázka pri zatvorení so zmenami.
 6. **Dnes (S4, S18):** obnova o polnoci, najbližší tréning vrátane samotréningov a bez zrušených. **Notifikácie (S39):** jemná karta, keď sú vypnuté.
 7. **Vzhľad a názov (S29, S30, S47–S49):** textové štýly, jeden štýl kariet, premenovanie na Kalendár, minulé súťaže len z tejto sezóny + Zobraziť všetky.
 

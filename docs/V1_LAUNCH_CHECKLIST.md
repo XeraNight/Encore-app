@@ -142,7 +142,7 @@ Connect), nakoniec **F** (testy) a **G** (deň spustenia).
 >
 > KALENDÁR
 > • Týždenný režim, samotréningy, lekcie a súťaže na jednom mieste, aj v Apple Kalendári.
-> • Po tréningu krátka reflexia, pripomienka uzávierky prihlášok.
+> • Po tréningu krátka reflexia, pripomienka deň pred súťažou.
 >
 > SÚŤAŽE
 > • Výsledky a krížiky tvojho páru z verejného systému KSIS.

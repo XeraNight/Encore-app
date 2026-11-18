@@ -43,7 +43,7 @@ struct PlannerTodayView: View {
                 Text("Pripomienky sú vypnuté")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(.white)
-                Text("Nepríde ti pripomienka pred tréningom, výzva na reflexiu ani uzávierka prihlášok.")
+                Text("Nepríde ti pripomienka pred tréningom, výzva na reflexiu ani pripomienka súťaže.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -92,14 +92,6 @@ struct PlannerTodayView: View {
                 Text(comp.city)
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
-            }
-            if let deadline = comp.entryDeadline,
-               PlannerCalendar.startOfDay(deadline) >= today,
-               (PlannerCalendar.calendar.dateComponents([.day], from: today, to: PlannerCalendar.startOfDay(deadline)).day ?? 99) <= 7 {
-                Label("Uzávierka prihlášok: \(deadline.formatted(.dateTime.weekday(.wide).day().month()))",
-                      systemImage: "exclamationmark.circle.fill")
-                    .font(.caption.weight(.semibold))
-                    .foregroundColor(Color.latinCrimson)
             }
             // The day before and on the day: the dances with the coach's Top 3 (Plus).
             if (0...1).contains(PlannerCalendar.calendar.dateComponents([.day], from: today, to: PlannerCalendar.startOfDay(comp.date)).day ?? -1) {

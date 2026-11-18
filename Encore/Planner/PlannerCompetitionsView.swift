@@ -34,7 +34,7 @@ struct PlannerCompetitionsView: View {
             plannerSectionTitle("NADCHÁDZAJÚCE SÚŤAŽE")
 
             if upcoming.isEmpty {
-                Text("Pridaj súťaž alebo ju vyber v Kalendári KSIS a nastav Idem. Appka ti pripomenie uzávierku prihlášok a deň pred súťažou.")
+                Text("Pridaj súťaž alebo ju vyber v Kalendári KSIS a nastav Idem. Appka ti pripomenie deň pred súťažou.")
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -149,11 +149,6 @@ struct PlannerCompetitionsView: View {
                         .font(.caption2.weight(.medium))
                         .foregroundColor(Color.gold300.opacity(0.85))
                 }
-                if let deadline = comp.entryDeadline {
-                    Label("Uzávierka: \(deadline.formatted(.dateTime.day().month()))", systemImage: "clock")
-                        .font(.caption2)
-                        .foregroundColor(Color.textSecondary)
-                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .plannerCard()
@@ -198,8 +193,6 @@ struct CompetitionEditorSheet: View {
     @State private var city = ""
     @State private var date = Date()
     @State private var discipline = "Štandard"
-    @State private var hasDeadline = false
-    @State private var deadline = Date()
     @State private var intent: CompetitionIntent = .interested
     @State private var isTarget = false
     @State private var inCalendar = false
@@ -210,20 +203,15 @@ struct CompetitionEditorSheet: View {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    private var deadlineIsValid: Bool {
-        !hasDeadline || PlannerCalendar.startOfDay(deadline) <= PlannerCalendar.startOfDay(date)
-    }
-
     private var signature: String {
-        [name, city, "\(date.timeIntervalSince1970)", discipline, "\(hasDeadline)", "\(deadline.timeIntervalSince1970)",
-         intent.rawValue, "\(isTarget)", "\(inCalendar)"].joined(separator: "|")
+        [name, city, "\(date.timeIntervalSince1970)", discipline, intent.rawValue, "\(isTarget)", "\(inCalendar)"].joined(separator: "|")
     }
 
     var body: some View {
         PlannerEditorScaffold(
             title: competition == nil ? "Nová súťaž" : "Upraviť súťaž",
-            canSave: !trimmedName.isEmpty && deadlineIsValid,
-            disabledHint: trimmedName.isEmpty ? "Doplň názov súťaže." : "Uzávierka musí byť najneskôr v deň súťaže.",
+            canSave: !trimmedName.isEmpty,
+            disabledHint: "Doplň názov súťaže.",
             hasChanges: loaded.map { $0 != signature } ?? false,
             onSave: save,
             delete: competition.map { competition in
@@ -240,19 +228,6 @@ struct CompetitionEditorSheet: View {
                 PlannerTextField(placeholder: "Mesto", text: $city, systemImage: "mappin.and.ellipse")
                 PlannerDateRow(title: "Dátum", systemImage: "calendar", date: $date)
                 PlannerChoice(options: PlannerDisciplineChoice.competition, selection: $discipline)
-            }
-
-            PlannerFormSection(title: "PRIHLÁŠKY", systemImage: "envelope.fill") {
-                PlannerToggleRow(
-                    title: "Uzávierka prihlášok",
-                    subtitle: "Pripomenieme ti ju 3 dni a 1 deň vopred.",
-                    systemImage: "clock.badge.exclamationmark",
-                    isOn: $hasDeadline
-                )
-                if hasDeadline {
-                    PlannerDateRow(title: "Uzávierka", systemImage: "calendar.badge.clock", date: $deadline)
-                        .transition(.move(edge: .top).combined(with: .opacity))
-                }
             }
 
             PlannerFormSection(title: "MOJA ÚČASŤ", systemImage: "flag.fill") {
@@ -285,8 +260,6 @@ struct CompetitionEditorSheet: View {
         city = competition.city
         date = competition.date
         discipline = PlannerDisciplineChoice.competitionValue(from: competition.targetCategories)
-        hasDeadline = competition.entryDeadline != nil
-        deadline = competition.entryDeadline ?? competition.date
         intent = competition.intent
         isTarget = competition.isTargetCompetition
         inCalendar = competition.calendarEventId != nil
@@ -305,7 +278,6 @@ struct CompetitionEditorSheet: View {
         target.name = trimmedName
         target.city = city.trimmingCharacters(in: .whitespacesAndNewlines)
         target.date = date
-        target.entryDeadline = hasDeadline ? deadline : nil
         if discipline != loadedDiscipline {
             target.targetCategories = PlannerDisciplineChoice.competitionCategories(for: discipline)
         }
@@ -385,8 +357,8 @@ extension PlannedCompetition {
 
     /// A competition from KSIS as Idem: the one already planned with its KSIS id (KSIS may rename it), or for that day
     /// under that name, or a new one.
-    static func goingFromKSIS(name: String, venue: String, date: Date, categories: [String], entryDeadline: Date? = nil,
-                              propId: Int? = nil, context: ModelContext) {
+    static func goingFromKSIS(name: String, venue: String, date: Date, categories: [String], propId: Int? = nil,
+                              context: ModelContext) {
         let samePropId = propId.flatMap { id in
             try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.ksisPropId == id })).first
         }
@@ -399,24 +371,19 @@ extension PlannedCompetition {
             context.insert(competition)
         }
         if !categories.isEmpty { competition.targetCategories = categories }
-        competition.entryDeadline = entryDeadline ?? competition.entryDeadline
         competition.ksisPropId = propId ?? competition.ksisPropId
         competition.intent = .going
         context.saveOrLog()
     }
 
-    /// KSIS moved a competition planned from its calendar, or changed its entry deadline: the plan follows, and so does
-    /// its event in Apple Calendar. The name stays as the dancer has it.
+    /// KSIS moved a competition planned from its calendar: the plan follows, and so does its event in Apple Calendar.
+    /// The name stays as the dancer has it.
     static func follow(_ events: [KSISEvent], context: ModelContext) {
         let byPropId = Dictionary(events.compactMap { event in event.propId.map { ($0, event) } }, uniquingKeysWith: { first, _ in first })
         let planned = (try? context.fetch(FetchDescriptor<PlannedCompetition>(predicate: #Predicate { $0.ksisPropId != nil }))) ?? []
         var changed = false
         for competition in planned {
             guard let propId = competition.ksisPropId, let event = byPropId[propId], let date = event.dateValue else { continue }
-            if let deadline = event.entryDeadlineValue, competition.entryDeadline != deadline {
-                competition.entryDeadline = deadline
-                changed = true
-            }
             guard !PlannerCalendar.calendar.isDate(competition.date, inSameDayAs: date) else { continue }
             competition.date = date
             changed = true

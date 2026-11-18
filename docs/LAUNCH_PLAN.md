@@ -61,7 +61,7 @@ Zdroj nápadu: návrh z Antigravity, upravený po kontrole. Dock: Domov / Canvas
 - Notifikácie: opakujúci týždenný trigger nevie preskočiť deň, keď si „Dnes vynechávam“. Plánovať kĺzavo najbližších ~14 dní a obnoviť pri otvorení appky (limit iOS je 64 čakajúcich).
 - Stav účasti ako výber (naplánované / idem / vynechávam / absolvované), nie len Bool. Hodnotenie energie voliteľné (nie predvolene 5).
 - Reflexia sa uloží ako `InstantNote` (tag #Reflexia + tanec), takže ide rovnakou schránkou a importom k figúram. `TrainingLogEntry` ju len odkazuje.
-- Zoznam súťaží z KSIS: dnešné funkcie importujú výsledky párov, nie kalendár všetkých turnajov. Zoznam turnajov a uzávierky prihlášok by si vyžiadal nový zdroj dát a podľa docs/KSIS_PHASE2_NOTES.md nesmieme nič odhadovať. Do launchu: súťaže zadávané ručne (názov, mesto, dátum, kategórie, uzávierka); import z KSIS až po odpovedi SZTŠ.
+- Zoznam súťaží z KSIS: dnešné funkcie importujú výsledky párov, nie kalendár všetkých turnajov. Zoznam turnajov a uzávierky prihlášok by si vyžiadal nový zdroj dát a podľa docs/KSIS_PHASE2_NOTES.md nesmieme nič odhadovať. Do launchu: súťaže zadávané ručne (názov, mesto, dátum, kategórie); import z KSIS až po odpovedi SZTŠ.
 - Live Activity sa nedá spustiť sama v čase tréningu bez push notifikácie (vyžaduje Developer účet). Preto: lokálna notifikácia + widget; Live Activity len keď ju používateľ spustí v appke.
 - Widget [Idem / Neidem]: použiť App Intents (AppIntent.swift vo widgete už existuje) a malý JSON snapshot v App Group; NEpresúvať SwiftData úložisko do App Group (riziko straty dát).
 - Partner dostane „Idem“ cez Supabase: nová tabuľka s RLS (SQL najprv ukázať) a push vyžaduje Developer účet. Do vtedy len pri otvorenej appke.

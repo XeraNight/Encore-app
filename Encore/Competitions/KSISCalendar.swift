@@ -22,8 +22,6 @@ nonisolated struct KSISEvent: Codable, Equatable, Identifiable, Sendable {
     /// The town found in `venue`; nil abroad or for a place not in `SlovakCity`, never a guess.
     let city: String?
     let organizer: String
-    /// "Termín prihlášok", yyyy-MM-dd.
-    let entryDeadline: String?
     /// The red "Pozor zmena !!!" line.
     let note: String?
     /// "Dospelí D ŠTT" and so on, exactly as KSIS lists them.
@@ -92,7 +90,6 @@ nonisolated enum KSISCalendarPage {
             venue: venue,
             city: SlovakCity.find(in: venue)?.name,
             organizer: body.firstMatch(of: /Organizátor:(.*?)<\/strong>/.dotMatchesNewlines()).map { plain(String($0.1)) } ?? "",
-            entryDeadline: body.firstMatch(of: /Termín prihlášok:\s*(\d{2}\.\d{2}\.\d{4})/).flatMap { isoDate(String($0.1)) },
             note: body.firstMatch(of: /<font color="red">(.*?)<\/font>/.dotMatchesNewlines()).map { plain(String($0.1)) },
             categories: categories(in: body),
             kind: kind(of: rowClass),
@@ -139,7 +136,6 @@ nonisolated enum KSISCalendarPage {
 // MARK: - Pages of one competition
 extension KSISEvent {
     var dateValue: Date? { Self.day(date) }
-    var entryDeadlineValue: Date? { entryDeadline.flatMap(Self.day) }
     var isCompetition: Bool { kind != .other }
 
     private static func day(_ iso: String) -> Date? {
