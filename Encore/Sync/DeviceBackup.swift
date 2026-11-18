@@ -299,27 +299,23 @@ extension PlannedCompetition: BackedUp {
         let name: String
         let city: String
         let date: Date
-        let entryDeadline: Date?
         let targetCategories: [String]
         let intentRaw: String
-        let isTargetCompetition: Bool
     }
 
     static var backupKind: String { "planned_competition" }
 
     var backup: Backup {
-        Backup(id: id, ksisCompetitionId: ksisCompetitionId, ksisPropId: ksisPropId, name: name, city: city, date: date, entryDeadline: entryDeadline,
-               targetCategories: targetCategories, intentRaw: intentRaw, isTargetCompetition: isTargetCompetition)
+        Backup(id: id, ksisCompetitionId: ksisCompetitionId, ksisPropId: ksisPropId, name: name, city: city, date: date,
+               targetCategories: targetCategories, intentRaw: intentRaw)
     }
 
     convenience init(backup b: Backup) {
         self.init(id: b.id, name: b.name, city: b.city, date: b.date)
         ksisCompetitionId = b.ksisCompetitionId
         ksisPropId = b.ksisPropId
-        entryDeadline = b.entryDeadline
         targetCategories = b.targetCategories
         intentRaw = b.intentRaw
-        isTargetCompetition = b.isTargetCompetition
     }
 }
 

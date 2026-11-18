@@ -114,10 +114,8 @@ private nonisolated struct DeviceData: Encodable, Sendable {
         let name: String
         let city: String
         let date: Date
-        let entryDeadline: Date?
         let categories: [String]
         let intent: String
-        let isTarget: Bool
         let ksisCompetitionId: String?
         let ksisPropId: Int?
     }
@@ -253,10 +251,8 @@ private extension DeviceData {
                     name: $0.name,
                     city: $0.city,
                     date: $0.date,
-                    entryDeadline: $0.entryDeadline,
                     categories: $0.targetCategories,
                     intent: $0.intentRaw,
-                    isTarget: $0.isTargetCompetition,
                     ksisCompetitionId: $0.ksisCompetitionId,
                     ksisPropId: $0.ksisPropId
                 )

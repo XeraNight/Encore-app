@@ -51,8 +51,6 @@ struct DeviceBackupTests {
 
         let competition = PlannedCompetition(name: "Košice GP", city: "Košice", date: day)
         competition.targetCategories = ["Dospelí D ŠTT", "Dospelí D LAT"]
-        competition.entryDeadline = day
-        competition.isTargetCompetition = true
 
         let cadence = TrainingCadence(weekday: 2, title: "Klubový tréning", startMinutes: 18 * 60, location: "Košice")
         cadence.createdAt = day
@@ -88,6 +86,21 @@ struct DeviceBackupTests {
         // The names the database accepts (device_records.kind).
         #expect(Set(kinds) == ["training_log", "planned_session", "planned_competition",
                                "training_cadence", "lesson_priority", "instant_note"])
+    }
+
+    /// A backup made before the entry deadline and the main competition of the season were taken out still comes back.
+    @Test func anOlderBackupWithTheRemovedFieldsStillComesBack() throws {
+        let id = UUID().uuidString
+        let json = """
+        {"id":"\(id)","name":"Košice GP","city":"Košice","date":"2026-11-14T10:00:00Z","entryDeadline":"2026-11-11T10:00:00Z",
+         "targetCategories":["Dospelí D ŠTT"],"intentRaw":"going","isTargetCompetition":true,"ksisPropId":2277}
+        """
+        let competition = PlannedCompetition(backup: try decoder.decode(PlannedCompetition.Backup.self, from: Data(json.utf8)))
+        #expect(competition.id.uuidString == id)
+        #expect(competition.name == "Košice GP")
+        #expect(competition.targetCategories == ["Dospelí D ŠTT"])
+        #expect(competition.intent == .going)
+        #expect(competition.ksisPropId == 2277)
     }
 
     /// A database started empty again must not send what went up before as deleted, and must be filled from the cloud.
