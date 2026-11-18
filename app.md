@@ -125,7 +125,7 @@ Všetky obrazovky majú implementovaný **Auto-Padding systém** (8–10 % šír
 ### 4. Interaktívny Tancodrom (`RoutineCanvasView.swift`)
 * **Edge-to-Edge:** Plátno (3000 × 3000 pt) sa rozprestiera cez celú obrazovku a podchádza pod hornú lištu aj spodný dok — žiadne čierne pásy.
 * Plynulý 2-prstový Pan a Pinch Zoom cez natívny UIKit koordinátor (`CanvasGestureView`).
-* Podklad s parketovým značením (Line of Dance, stred sály, štvrťkruhy rohov).
+* Podklad s parketovým značením (Line of Dance, štvrťkruhy rohov). Stred sály sa neznačí.
 * Figúry ako samostatné kartičky s rytmickou osou (`BeatsTimelineView`), spojené Bezier krivkami.
 * **Bočné ovládače v dosahu palca (odsadené 24 pt od bokov, plávajúce nad dokom):**
   * Vľavo: AirPlay vysielanie na TV, prepínač voľného kreslenia (Ceruza).

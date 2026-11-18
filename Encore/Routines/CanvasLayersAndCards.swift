@@ -224,9 +224,6 @@ struct BallroomMarkingsView: View {
                 isVertical: false
             )
             .offset(y: height / 2 - 36)
-            
-            // ── 4. STRED PARKETU (Ballroom Center Compass Rose) ──
-            centerCompassRose
         }
         .position(x: roomSize / 2, y: roomSize / 2)
     }
@@ -273,45 +270,6 @@ struct BallroomMarkingsView: View {
                 .shadow(color: Color.gold500.opacity(0.50), radius: 10)
         )
         .rotationEffect(.degrees(isVertical ? -90 : 0))
-    }
-    
-    // MARK: - Center Ballroom Compass
-    private var centerCompassRose: some View {
-        ZStack {
-            // Outer golden boundary ring
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.gold400.opacity(0.60), Color.gold500.opacity(0.20), Color.gold400.opacity(0.60)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 2
-                )
-                .frame(width: 220, height: 220)
-            
-            // Inset dashed ring
-            Circle()
-                .stroke(Color.gold400.opacity(0.35), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                .frame(width: 190, height: 190)
-            
-            // Center crosshair lines
-            Path { p in
-                p.move(to: CGPoint(x: -110, y: 0))
-                p.addLine(to: CGPoint(x: 110, y: 0))
-                p.move(to: CGPoint(x: 0, y: -110))
-                p.addLine(to: CGPoint(x: 0, y: 110))
-            }
-            .stroke(Color.gold400.opacity(0.20), lineWidth: 1)
-            
-            // A quiet floor marking: figures placed in the middle cover it, as on a real floor.
-            Text("STRED")
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .tracking(2.2)
-                .foregroundColor(Color.gold400.opacity(0.55))
-                .offset(y: 16)
-        }
-        .accessibilityHidden(true)
     }
 }
 
