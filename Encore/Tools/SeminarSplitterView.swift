@@ -368,7 +368,15 @@ struct SeminarSplitterView: View {
     private func togglePlay() {
         guard let player else { return }
         clearBoundary()
-        if player.timeControlStatus == .paused { player.play() } else { player.pause() }
+        if player.timeControlStatus == .paused { play(player) } else { player.pause() }
+    }
+
+    /// The playback session first: a lesson is for listening, so the trainer is heard with the silent switch on too.
+    private func play(_ player: AVPlayer) {
+        Task {
+            try? await AudioSessionCoordinator.shared.activate(.player)
+            player.play()
+        }
     }
 
     private func seek(to seconds: Double) {
@@ -386,7 +394,7 @@ struct SeminarSplitterView: View {
         boundaryObserver = player.addBoundaryTimeObserver(forTimes: [end], queue: .main) { [weak player] in
             player?.pause()
         }
-        player.play()
+        play(player)
     }
 
     private func clearBoundary() {
@@ -401,6 +409,7 @@ struct SeminarSplitterView: View {
         timeObserver = nil
         // The imported copy of a long video can take gigabytes; it is only needed while this screen is open.
         if let sourceURL { try? FileManager.default.removeItem(at: sourceURL) }
+        Task { await AudioSessionCoordinator.shared.deactivate(.player) }
     }
 
     // MARK: Saving
