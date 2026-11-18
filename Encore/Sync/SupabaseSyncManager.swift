@@ -274,6 +274,18 @@ final class SupabaseSyncManager: Sendable {
         }
     }
 
+    /// What a routine takes from the cloud when it opens (what waited here has gone up first, so the cloud holds all
+    /// of this iPhone's work). The cloud's version wins when it is newer, or when this iPhone holds no figures but the
+    /// cloud does (a routine that came down without them: its date is the cloud's, so the date alone would keep it
+    /// empty). The figures the cloud has and this iPhone lacks come down whatever the dates say: a routine opened
+    /// offline first and given a figure there looks newer than the cloud's, and would never get the rest.
+    nonisolated static func openingPlan(cloudUpdatedAt: Date, localUpdatedAt: Date, localFigureIds: Set<UUID>,
+                                        cloudFigureIds: [UUID]) -> (adoptsCloud: Bool, reconcilesFigures: Bool) {
+        let adoptsCloud = cloudUpdatedAt > localUpdatedAt || (localFigureIds.isEmpty && !cloudFigureIds.isEmpty)
+        let cloudHasMore = cloudFigureIds.contains { !localFigureIds.contains($0) }
+        return (adoptsCloud, adoptsCloud || cloudHasMore)
+    }
+
     @SyncActor
     func fetchRoutine(_ routineId: UUID) async -> (DBRoutineRow, [DBCanvasNodeRow])? {
         guard let client else { return nil }

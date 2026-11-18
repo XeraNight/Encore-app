@@ -708,18 +708,20 @@ struct RoutineCanvasView: View {
             Task {
                 guard await SupabaseSyncManager.shared.sendIfPending(routine) else { return }
                 if let (dbRoutine, dbNodes) = await SupabaseSyncManager.shared.fetchRoutine(routine.id) {
-                    // Newer in the cloud, or a routine that came down without its figures (a new iPhone, or this one
-                    // after another account used it): its date is the cloud's, so the date alone would keep it empty.
-                    if dbRoutine.updated_at > routine.updatedAt || (routine.canvasNodes.isEmpty && !dbNodes.isEmpty) {
-                        await MainActor.run {
+                    await MainActor.run {
+                        let plan = SupabaseSyncManager.openingPlan(
+                            cloudUpdatedAt: dbRoutine.updated_at, localUpdatedAt: routine.updatedAt,
+                            localFigureIds: Set(routine.canvasNodes.map(\.id)), cloudFigureIds: dbNodes.map(\.id))
+                        guard plan.reconcilesFigures else { return }
+                        if plan.adoptsCloud {
                             routine.name = dbRoutine.name
                             routine.danceName = dbRoutine.dance_name
                             routine.danceCategory = dbRoutine.dance_category
                             routine.updatedAt = dbRoutine.updated_at
                             routine.lastModifiedBy = dbRoutine.last_modified_by
-                            reconcileNodes(with: dbNodes)
-                            Logger.canvas.info("Routine fully synchronized with remote DB.")
                         }
+                        reconcileNodes(with: dbNodes)
+                        Logger.canvas.info("Routine fully synchronized with remote DB.")
                     }
                 }
             }
