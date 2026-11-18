@@ -410,7 +410,7 @@ struct TrainingJournalView: View {
             }
             if note.isImported {
                 Button { restore(note) } label: { Label("Vrátiť medzi nové", systemImage: "arrow.uturn.backward") }
-            } else if note.hasText || note.audioPath != nil || note.videoPath != nil {
+            } else if note.canGoToFigure {
                 Button { noteForFigure = note } label: { Label("Pridať k figúre", systemImage: "plus.circle") }
             }
             Button(role: .destructive) { noteToDelete = note } label: { Label("Zmazať", systemImage: "trash") }
@@ -582,6 +582,8 @@ private func disciplineColor(_ dance: String) -> Color {
 
 extension InstantNote {
     var hasText: Bool { !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+    /// What a figure can take: words, a voice note or a video (a photo only sits in the diary).
+    var canGoToFigure: Bool { hasText || audioPath != nil || videoPath != nil }
     /// Short recordings sit inside the sentence; longer ones get their own row with speed and seeking.
     var hasInlineVoice: Bool { audioPath != nil && hasText && (audioDuration ?? 0) <= 20 }
 }
@@ -677,7 +679,7 @@ private struct JournalNoteCard: View {
             Spacer(minLength: 6)
             if let figureName {
                 figureChip(figureName)
-            } else if note.hasText && !note.isImported {
+            } else if note.canGoToFigure && !note.isImported {
                 Button(action: onAddToFigure) {
                     Label("K figúre", systemImage: "plus")
                         .font(.caption.weight(.semibold))
