@@ -21,6 +21,7 @@
 // number is the partner's personal number, a partnerka is found by her name. Couples are a history with one current.
 // Errors: { error, message } with a Slovak message the app shows as is.
 
+import { countNewResults, resultKey } from "../_shared/ksis-limit.ts";
 import {
   corsHeaders,
   errorResponse,
@@ -703,8 +704,13 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId);
     if (countError) throw countError;
+    // The save overwrites a result the user already has, so only the new ones count against the cap. Looked up only
+    // when the whole batch would go over it: a dancer far from the cap costs no second query.
     if ((count ?? 0) + rows.length + wdsfRows.length > MAX_RESULTS_PER_USER) {
-      return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
+      const added = await countNewOfUser(admin, userId, [...rows, ...wdsfRows]);
+      if ((count ?? 0) + added > MAX_RESULTS_PER_USER) {
+        return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
+      }
     }
   }
   if (rows.length > 0) {
@@ -907,4 +913,24 @@ async function deleteResult(admin: Admin, userId: string, resultId: unknown): Pr
   const { error } = await admin.from("competition_results").delete().eq("id", resultId).eq("user_id", userId);
   if (error) throw error;
   return jsonResponse({ ok: true });
+}
+
+/** How many of the rows are not saved for the user yet. The saved ones are looked up by competition, in small groups. */
+async function countNewOfUser(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  batch: { sutaz_id: number; couple_id: number | null }[],
+): Promise<number> {
+  const saved = new Set<string>();
+  const ids = [...new Set(batch.map((row) => row.sutaz_id))];
+  for (let start = 0; start < ids.length; start += 200) {
+    const { data, error } = await admin
+      .from("competition_results")
+      .select("sutaz_id, couple_id")
+      .eq("user_id", userId)
+      .in("sutaz_id", ids.slice(start, start + 200));
+    if (error) throw error;
+    for (const row of data ?? []) saved.add(resultKey(row as { sutaz_id: number; couple_id: number | null }));
+  }
+  return countNewResults(batch, saved);
 }
