@@ -157,6 +157,11 @@ extension KSISEvent {
             + "&vekova_ktg=&trieda=&druh_sut=&typ_sut=&sut_akcia=ALL")
     }
 
+    /// The `id_prop` of any page of a competition (propositions, entries, timetable): the number that ties a plan to its line.
+    static func propId(in url: URL) -> Int? {
+        URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "id_prop" }?.value.flatMap { Int($0) }
+    }
+
     static func propositionsURL(_ propId: Int) -> URL? { KSISBrowserView.page("prop.php?id_prop=\(propId)") }
     static func entriesURL(_ propId: Int) -> URL? { KSISBrowserView.page("zoznam_prihl.php?id_prop=\(propId)") }
     static func timetableURL(_ propId: Int) -> URL? { KSISBrowserView.page("propharmonogram.php?id_prop=\(propId)") }

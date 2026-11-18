@@ -113,6 +113,14 @@ struct KSISCalendarTests {
 /// The town in a free-text KSIS address: real addresses from the calendar, and a street named after another town.
 @MainActor
 struct SlovakCityTests {
+    @Test func theNumberOfACompetitionIsReadFromAnyOfItsPages() throws {
+        #expect(KSISEvent.propId(in: try #require(KSISEvent.entriesURL(2271))) == 2271)
+        #expect(KSISEvent.propId(in: try #require(KSISEvent.propositionsURL(2406))) == 2406)
+        #expect(KSISEvent.propId(in: try #require(KSISEvent.timetableURL(2410))) == 2410)
+        #expect(KSISEvent.propId(in: try #require(URL(string: "https://szts.ksis.eu/menu.php?akcia=KS"))) == nil)
+        #expect(KSISEvent.propId(in: try #require(URL(string: "https://szts.ksis.eu/zoznam_prihl.php?id_prop=abc"))) == nil)
+    }
+
     @Test func findsTheTownInRealAddresses() {
         let addresses = [
             "ŠH Milénium, Nové Zámky": "Nové Zámky",

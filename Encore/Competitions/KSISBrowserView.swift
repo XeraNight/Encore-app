@@ -262,7 +262,7 @@ struct KSISBrowserView: View {
             case .couplePage: couplePage(reply)
             case .results: resultsPage(reply)
             case .marks: marksPage(reply)
-            case .registrations: registrations(reply)
+            case .registrations: registrations(reply, url: url)
             case .slpStandings: slovakCup(reply)
             case .blocked: hint("Dokonči overenie na stránke vyššie. Potom sa panel sám obnoví.")
             case .unsupported: guide(url)
@@ -516,7 +516,7 @@ struct KSISBrowserView: View {
     }
 
     @ViewBuilder
-    private func registrations(_ reply: KSISPageReply) -> some View {
+    private func registrations(_ reply: KSISPageReply, url: URL) -> some View {
         if let event = reply.event {
             Text(event.name)
                 .font(.subheadline.weight(.bold))
@@ -526,7 +526,9 @@ struct KSISBrowserView: View {
                     .font(.footnote)
                     .foregroundColor(.white.opacity(0.85))
                 if event.date.flatMap({ Self.isoDay.date(from: $0) }) != nil {
-                    primaryButton("Pridať do kalendára") { addToPlan(event: event, categories: categories) }
+                    primaryButton("Pridať do kalendára") {
+                        addToPlan(event: event, categories: categories, propId: KSISEvent.propId(in: url))
+                    }
                 } else {
                     // Without a date it would land on today; better to add it by hand with the right day.
                     hint("KSIS tu neuvádza dátum súťaže. Pridaj ju v Kalendári s dátumom ručne.")
@@ -761,10 +763,12 @@ struct KSISBrowserView: View {
         web.load(url)
     }
 
-    private func addToPlan(event: KSISPageReply.Event, categories: [String]) {
+    /// The number of the competition comes from the page's address, so the plan gets its Propozície, entries and Mapa,
+    /// and is told when KSIS changes the competition.
+    private func addToPlan(event: KSISPageReply.Event, categories: [String], propId: Int?) {
         guard let date = event.date.flatMap({ Self.isoDay.date(from: $0) }) else { return }
         PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue ?? "", date: date, categories: categories,
-                                         context: modelContext)
+                                         propId: propId, context: modelContext)
         successTick += 1
         notice = "Súťaž je v kalendári aj s vašimi kategóriami."
     }
