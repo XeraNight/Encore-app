@@ -570,6 +570,9 @@ extension CanvasNodeCardView {
                     .offset(x: 5, y: -5)
             }
         }
+        // The circle is drawn small so the floor stays visible, but a finger needs 44 pt (Apple's minimum): the
+        // touch area is larger than the picture, the layout is not.
+        .contentShape(Circle().inset(by: -max(0, (44 - circleSize) / 2)))
     }
 
     /// Dark text straight on the parquet; the light halo keeps it readable where a line runs under it.
