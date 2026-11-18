@@ -61,6 +61,11 @@ struct KSISCalendarTests {
         #expect(cup.categories(for: adultsD).isEmpty)
     }
 
+    @Test func aCategoryOfTheRealPageThatIsNotListedIsMissingFromAPlan() throws {
+        let optima = try #require(try fixture().first { $0.propId == 2277 })
+        #expect(optima.missing(from: ["Dospelí D ŠTT", "Dospelí A ŠTT"]) == ["Dospelí A ŠTT"])
+    }
+
     @Test func aCoupleInTheCupSeesItsRound() throws {
         let adultsB = try couple(age: "Dospelí", stt: "B", lat: "C")
         let cup = try #require(try fixture().first { $0.propId == 2406 })
@@ -200,6 +205,75 @@ struct GoingFromKSISTests {
         #expect(saved.first?.intent == .going)
         #expect(saved.first?.targetCategories == ["Štandard"])
         #expect(saved.first?.city == "Košice")
+    }
+}
+
+/// What KSIS changed about a competition the dancer said Idem to: a category gone from the list, the competition
+/// cancelled, KSIS's own note.
+@MainActor
+struct KSISChangeTests {
+    private func event(categories: [String], note: String? = nil, isCancelled: Bool = false) -> KSISEvent {
+        KSISEvent(propId: 2277, name: "Optima dance cup", date: "2026-12-13", venue: "Košice", city: "Košice", organizer: "TC Meteor",
+                  note: note, categories: categories, kind: .competition, isCancelled: isCancelled, registered: nil, hasTimetable: false)
+    }
+
+    private func plan(_ categories: [String], intent: CompetitionIntent = .going, daysAhead: Int = 10) -> PlannedCompetition {
+        let plan = PlannedCompetition(name: "Optima dance cup", city: "Košice", date: Date().addingTimeInterval(Double(daysAhead) * 86_400))
+        plan.targetCategories = categories
+        plan.intent = intent
+        return plan
+    }
+
+    @Test func aCategoryKSISNoLongerListsIsMissing() {
+        let listed = event(categories: ["Dospelí C ŠTT", "Dospelí C LAT"])
+        #expect(listed.missing(from: ["Dospelí D ŠTT", "Dospelí D LAT"]) == ["Dospelí D ŠTT", "Dospelí D LAT"])
+        #expect(listed.missing(from: ["Dospelí C ŠTT", "Dospelí D LAT"]) == ["Dospelí D LAT"])
+    }
+
+    @Test func namesAreComparedWithoutDiacriticsOrCase() {
+        #expect(event(categories: ["Dospelí C ŠTT"]).missing(from: ["dospeli c stt"]).isEmpty)
+    }
+
+    @Test func thePlannersOwnWordsAreNeverCompared() {
+        #expect(event(categories: []).missing(from: ["Štandard", "Latina"]).isEmpty)
+    }
+
+    @Test func anOlderFreeTextIsReadAsTheNamesItHolds() {
+        #expect(event(categories: ["Dospelí C ŠTT"]).missing(from: ["Dospelí C ŠTT, Dospelí D LAT"]) == ["Dospelí D LAT"])
+    }
+
+    @Test func aCancelledCompetitionIsSaidOnce() {
+        let lines = KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"]), event: event(categories: [], isCancelled: true))
+        #expect(lines == ["KSIS súťaž zrušil."])
+    }
+
+    @Test func aGoneCategoryIsNamed() {
+        let lines = KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT", "Dospelí D LAT"]), event: event(categories: ["Dospelí D LAT"]))
+        #expect(lines == ["V KSIS už nie je tvoja kategória: Dospelí D ŠTT."])
+    }
+
+    @Test func theNoteOfKSISComesAfterTheRest() {
+        let note = "Pozor zmena !!! Zmena harmonogramu"
+        #expect(KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"]), event: event(categories: ["Dospelí D ŠTT"], note: note)) == [note])
+        let both = KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"]), event: event(categories: [], note: note))
+        #expect(both == ["V KSIS už nie je tvoja kategória: Dospelí D ŠTT.", note])
+    }
+
+    @Test func nothingChangedSaysNothing() {
+        #expect(KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"]), event: event(categories: ["Dospelí D ŠTT"])).isEmpty)
+        #expect(KSISChangeNotice.lines(for: plan([]), event: event(categories: ["Dospelí D ŠTT"])).isEmpty)
+    }
+
+    @Test func aCompetitionTurnedDownDancedOrUnknownSaysNothing() {
+        let gone = event(categories: [], isCancelled: true)
+        #expect(KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"], intent: .declined), event: gone).isEmpty)
+        #expect(KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"], daysAhead: -3), event: gone).isEmpty)
+        #expect(KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"]), event: nil).isEmpty)
+    }
+
+    @Test func theDayOfTheCompetitionStillWarns() {
+        let lines = KSISChangeNotice.lines(for: plan(["Dospelí D ŠTT"], daysAhead: 0), event: event(categories: [], isCancelled: true))
+        #expect(lines == ["KSIS súťaž zrušil."])
     }
 }
 

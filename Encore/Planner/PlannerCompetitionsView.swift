@@ -15,6 +15,9 @@ struct PlannerCompetitionsView: View {
     @State private var showNew = false
     @State private var pendingDelete: PlannedCompetition?
     @State private var showsOlderSeasons = false
+    /// The visible read of the KSIS calendar, asked for from the line under the title.
+    @State private var job: KSISUpdateJob?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var today: Date { PlannerCalendar.startOfDay(Date()) }
     private var upcoming: [PlannedCompetition] {
@@ -29,9 +32,21 @@ struct PlannerCompetitionsView: View {
         return showsOlderSeasons ? past : past.filter { $0.date >= seasonStart }
     }
 
+    /// When the KSIS calendar was last read, if a competition ahead was planned from it: what the warnings go by.
+    private var checkedAt: Date? {
+        upcoming.contains { ksisCalendar.event(propId: $0.ksisPropId) != nil && $0.intent != .declined } ? ksisCalendar.readAt : nil
+    }
+
+    private var warningCount: Int {
+        upcoming.reduce(0) { $0 + KSISChangeNotice.lines(for: $1, event: ksisCalendar.event(propId: $1.ksisPropId)).count }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            plannerSectionTitle("NADCHÁDZAJÚCE SÚŤAŽE")
+            VStack(alignment: .leading, spacing: 2) {
+                plannerSectionTitle("NADCHÁDZAJÚCE SÚŤAŽE")
+                if let readAt = checkedAt { checkLine(readAt) }
+            }
 
             if upcoming.isEmpty {
                 Text("Pridaj súťaž alebo ju vyber v Kalendári KSIS a nastav Idem. Appka ti pripomenie deň pred súťažou.")
@@ -88,10 +103,14 @@ struct PlannerCompetitionsView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .animation(.spring(response: 0.35, dampingFraction: 0.82), value: competitions.map(\.id))
+        // A read that finds something to warn about makes room for it and taps once.
+        .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.82), value: ksisCalendar.readAt)
+        .sensoryFeedback(.warning, trigger: warningCount) { old, new in new > old }
         .sheet(isPresented: $showNew) { CompetitionEditorSheet(competition: nil) }
         .sheet(item: $editing) { CompetitionEditorSheet(competition: $0) }
         .sheet(item: $openedPast) { PastCompetitionSheet(competition: $0) }
         .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
+        .fullScreenCover(item: $job) { KSISUpdateSheet(job: $0) }
         .confirmationDialog("Zmazať súťaž?", isPresented: Binding(get: { pendingDelete != nil }, set: { if !$0 { pendingDelete = nil } }),
                             titleVisibility: .visible, presenting: pendingDelete) { competition in
             Button("Zmazať „\(competition.name)“", role: .destructive) {
@@ -99,6 +118,23 @@ struct PlannerCompetitionsView: View {
             }
         } message: { _ in
             Text("Zmizne z Encore aj z Apple Kalendára.")
+        }
+    }
+
+    /// Where the warnings come from and the way to ask KSIS again: KSIS is read only after a tap, never by itself.
+    private func checkLine(_ readAt: Date) -> some View {
+        HStack(spacing: 8) {
+            Text("Podľa KSIS z \(EncoreTime.dayAndClock(readAt))")
+                .font(.caption)
+                .foregroundColor(Color.textSecondary)
+            Spacer(minLength: 8)
+            Button { job = .calendar } label: {
+                Label("Skontrolovať", systemImage: "arrow.clockwise")
+                    .font(.caption.weight(.bold))
+                    .foregroundColor(Color.gold400)
+                    .frame(minHeight: 34)
+            }
+            .buttonStyle(.pressable)
         }
     }
 
@@ -149,6 +185,7 @@ struct PlannerCompetitionsView: View {
                         .font(.caption2.weight(.medium))
                         .foregroundColor(Color.gold300.opacity(0.85))
                 }
+                KSISChangeNotice(competition: comp)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .plannerCard()
@@ -177,6 +214,47 @@ struct PlannerCompetitionsView: View {
         case .interested: return Color.gold300
         case .declined: return Color.white.opacity(0.5)
         }
+    }
+}
+
+// MARK: - What KSIS changed
+/// What KSIS has changed about a competition planned from its calendar, as of the last read: the competition cancelled,
+/// the dancer's category gone from the list, and KSIS's own "Pozor zmena" line. Nothing when nothing changed.
+struct KSISChangeNotice: View {
+    let competition: PlannedCompetition
+
+    @ObservedObject private var calendar = KSISCalendarStore.shared
+
+    var body: some View {
+        let lines = Self.lines(for: competition, event: calendar.event(propId: competition.ksisPropId))
+        if !lines.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                ForEach(lines, id: \.self) { line in
+                    KSISEventNote(text: line)
+                        .font(.caption.weight(.semibold))
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            // The words appear once the card has made room for them.
+            .transition(.opacity.animation(.easeIn(duration: 0.25).delay(0.12)))
+        }
+    }
+
+    /// What to say, the most important first. Nothing for a competition turned down or already danced, or one the last
+    /// read does not have.
+    static func lines(for competition: PlannedCompetition, event: KSISEvent?) -> [String] {
+        guard let event, competition.intent != .declined,
+              PlannerCalendar.startOfDay(competition.date) >= PlannerCalendar.startOfDay(Date()) else { return [] }
+        var lines: [String] = []
+        if event.isCancelled {
+            lines.append("KSIS súťaž zrušil.")
+        } else {
+            let gone = event.missing(from: competition.targetCategories)
+            if !gone.isEmpty { lines.append("V KSIS už nie je tvoja kategória: \(gone.joined(separator: ", ")).") }
+        }
+        if let note = event.note { lines.append(note) }
+        return lines
     }
 }
 

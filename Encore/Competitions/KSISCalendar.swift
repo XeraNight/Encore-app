@@ -197,6 +197,21 @@ extension KSISEvent {
     private static func folded(_ text: String) -> String {
         text.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "sk"))
     }
+
+    /// The categories the dancer went with that this line no longer lists. KSIS takes a cancelled category out of the
+    /// list and names it in its red note, so what is missing was cancelled or renamed. The planner's own "Štandard"
+    /// and "Latina" are not KSIS names and are never compared; an older free text ("Dospelí D ŠTT, Dospelí D LAT") is
+    /// read as the names it holds.
+    func missing(from chosen: [String]) -> [String] {
+        let listed = Set(categories.map(Self.folded))
+        let plannersOwn = Set(PlannerDisciplineChoice.competition
+            .flatMap { PlannerDisciplineChoice.competitionCategories(for: $0.value) }
+            .map(Self.folded))
+        return chosen
+            .flatMap { $0.split(separator: ",") }
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !plannersOwn.contains(Self.folded($0)) && !listed.contains(Self.folded($0)) }
+    }
 }
 
 // MARK: - Filter

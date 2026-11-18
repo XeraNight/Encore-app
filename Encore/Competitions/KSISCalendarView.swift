@@ -322,7 +322,7 @@ private struct KSISEventRow: View {
 }
 
 /// KSIS's warning on a competition. Red in KSIS, gold here: red text is lost on the crimson background.
-private struct KSISEventNote: View {
+struct KSISEventNote: View {
     let text: String
 
     var body: some View {
@@ -568,6 +568,8 @@ struct KSISLinkChip: View {
             .font(.caption.weight(.bold))
             .foregroundColor(.white)
             .lineLimit(1)
+            // "Prihlásení" gets its count after a read: the new title replaces the old one, it does not blend with it.
+            .contentTransition(.identity)
             .padding(.horizontal, 12)
             .frame(maxWidth: fills ? .infinity : nil, minHeight: 38)
             .background(Color.white.opacity(0.08), in: Capsule())

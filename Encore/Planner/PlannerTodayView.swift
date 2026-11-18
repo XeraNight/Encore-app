@@ -93,6 +93,7 @@ struct PlannerTodayView: View {
                     .font(.footnote)
                     .foregroundColor(Color.textSecondary)
             }
+            KSISChangeNotice(competition: comp)
             // The day before and on the day: the dances with the coach's Top 3 (Plus).
             if (0...1).contains(PlannerCalendar.calendar.dateComponents([.day], from: today, to: PlannerCalendar.startOfDay(comp.date)).day ?? -1) {
                 competitionDayButton(comp)
