@@ -344,9 +344,11 @@ struct KSISEventSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Query private var planned: [PlannedCompetition]
     @State private var browser: KSISBrowserTarget?
     @State private var goingTick = 0
+    @State private var declineTick = 0
 
     private var plannedHere: PlannedCompetition? { planned.first { $0.ksisPropId != nil && $0.ksisPropId == event.propId } }
     private var isGoing: Bool { plannedHere?.intent == .going }
@@ -366,6 +368,9 @@ struct KSISEventSheet: View {
                         categories
                     }
                     .padding(20)
+                    // Idem and Neidem move the same way: the button grows into the row (or back), and what is below makes
+                    // room with it instead of jumping.
+                    .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.72), value: isGoing)
                 }
                 .softTopEdge()
             }
@@ -379,6 +384,7 @@ struct KSISEventSheet: View {
             }
         }
         .sensoryFeedback(.success, trigger: goingTick)
+        .sensoryFeedback(.impact(weight: .light), trigger: declineTick)
         .fullScreenCover(item: $browser) { KSISBrowserView(startURL: $0.url) }
         .preferredColorScheme(.dark)
     }
@@ -430,31 +436,24 @@ struct KSISEventSheet: View {
     @ViewBuilder
     private var goingButton: some View {
         if isGoing {
-            HStack(spacing: 10) {
-                Label("V Kalendári: Idem", systemImage: "checkmark.circle.fill")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Color.gold300)
-                Spacer(minLength: 8)
-                Button("Neidem") { plannedHere?.setIntent(.declined, context: modelContext) }
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.7))
-                    .frame(minHeight: 44)
-                    .buttonStyle(.pressable)
-            }
-            .transition(.opacity)
+            GoingConfirmation(decline: decline)
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
         } else {
             PrimarySheetButton(title: "Idem", isLoading: false, isEnabled: true, action: go)
-                .transition(.opacity)
+                .transition(.scale(scale: 0.96).combined(with: .opacity))
         }
     }
 
     private func go() {
         guard let date = event.dateValue else { return }
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-            PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
-                                             entryDeadline: event.entryDeadlineValue, propId: event.propId, context: modelContext)
-        }
+        PlannedCompetition.goingFromKSIS(name: event.name, venue: event.venue, date: date, categories: myCategories,
+                                         entryDeadline: event.entryDeadlineValue, propId: event.propId, context: modelContext)
         goingTick += 1
+    }
+
+    private func decline() {
+        plannedHere?.setIntent(.declined, context: modelContext)
+        declineTick += 1
     }
 
     private var categories: some View {
@@ -470,6 +469,56 @@ struct KSISEventSheet: View {
                 .foregroundColor(Color.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+}
+
+/// What Idem did, in words: where the competition went and what it has there. The check pops and a gold line draws
+/// round the row as it arrives.
+private struct GoingConfirmation: View {
+    let decline: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var arrived = false
+
+    var body: some View {
+        // Reduce Motion shows the finished row at once.
+        let shown = arrived || reduceMotion
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark")
+                .font(.footnote.weight(.black))
+                .foregroundColor(Color.obsidian900)
+                .frame(width: 30, height: 30)
+                .background(Color.gold400, in: Circle())
+                .scaleEffect(shown ? 1 : 0.3)
+                .animation(.spring(response: 0.45, dampingFraction: 0.5).delay(0.08), value: arrived)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Súťaž je v tvojom Kalendári")
+                    .font(.subheadline.weight(.bold))
+                    .foregroundColor(Color.gold300)
+                Text("Nájdeš ju tam aj s Propozíciami, zoznamom prihlásených a Mapou.")
+                    .font(.caption)
+                    .foregroundColor(Color.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Button("Neidem", action: decline)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(.white.opacity(0.7))
+                .frame(minHeight: 44)
+                .buttonStyle(.pressable)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Color.gold500.opacity(0.14), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .trim(from: 0, to: shown ? 1 : 0)
+                .stroke(Color.gold400.opacity(0.4), lineWidth: 1)
+                .animation(.easeOut(duration: 0.6), value: arrived)
+        )
+        .accessibilityElement(children: .contain)
+        .onAppear { arrived = true }
     }
 }
 
