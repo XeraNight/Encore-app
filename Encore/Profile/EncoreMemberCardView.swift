@@ -3,9 +3,10 @@ import CoreImage.CIFilterBuiltins
 
 // MARK: - Členský lístok
 /// The member ticket, drawn like the pass in Apple Wallet (flat colour from Vzhľad, gold lettering, the QR code at
-/// the bottom) so what the dancer sees here and in Wallet is the same. The QR code is the invite link: whoever scans
-/// it can ask to connect. The name, club and ID come from the profile; the KSIS number and classes from the dancer's
-/// own Súťaže, never shown as "verified" (the dancer picks the number themselves).
+/// the bottom) so what the dancer sees here and in Wallet is the same: the same fields with the same names, the same
+/// words under the code (the server builds the pass in web/src/app/api/wallet/pass/route.ts). The QR code is the
+/// invite link: whoever scans it can ask to connect. The name, club and ID come from the profile; the KSIS number and
+/// classes from the dancer's own Súťaže, never shown as "verified" (the dancer picks the number themselves).
 struct EncoreMemberCardView: View {
     @ObservedObject private var appearance = AppearanceStore.shared
     var name: String
@@ -33,11 +34,6 @@ struct EncoreMemberCardView: View {
         guard let couple = competitions.activeCouple else { return nil }
         let parts = [("ŠTT", couple.stt.className), ("LAT", couple.lat.className)].compactMap { label, name in name.map { "\(label) \($0)" } }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
-    }
-
-    private var groupsText: String? {
-        let groups = UserProfileStore.shared.dancerGroups
-        return groups.isEmpty ? nil : groups.joined(separator: " · ")
     }
 
     private var qrString: String { friendManager.buildMemberCardURL() }
@@ -89,11 +85,8 @@ struct EncoreMemberCardView: View {
                     field("KSIS Č.", ksisNumber, mono: true)
                 }
             }
-            if classesText != nil || groupsText != nil {
-                HStack(alignment: .top, spacing: 16) {
-                    if let classesText { field("TRIEDY", classesText) }
-                    if let groupsText { field("SKUPINY", groupsText) }
-                }
+            if let classesText {
+                field("TRIEDY", classesText)
             }
 
             qrBox
@@ -141,7 +134,7 @@ struct EncoreMemberCardView: View {
             }
             .frame(width: 168, height: 168)
             .accessibilityLabel("QR kód na pridanie do spojení")
-            Text("Naskenuj a pošli žiadosť o spojenie")
+            Text("Naskenuj a prepoj sa v Encore")
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Self.label)
         }
@@ -214,7 +207,7 @@ struct EncoreMemberCardView: View {
                 }
             }
 
-            Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o spojenie. Kód platí 30 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a lístok v Peňaženke ho dostane sám" : "").")
+            Text("\(AppFeatures.coachTools ? "Partner alebo tréner" : "Partner") naskenuje QR kód a pošle ti žiadosť o prepojenie. Kód platí 30 dní, nový zneplatní ten starý\(walletManager.isPassInWallet ? " a lístok v Peňaženke ho dostane sám" : "").")
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.65))
                 .fixedSize(horizontal: false, vertical: true)
