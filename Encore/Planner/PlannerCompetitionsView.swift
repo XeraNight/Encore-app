@@ -157,11 +157,6 @@ struct PlannerCompetitionsView: View {
                     Text(PlannerCalendar.daysText(until: comp.date))
                         .font(.system(.caption, design: .rounded).weight(.bold))
                         .foregroundColor(Color.gold400)
-                    if comp.isTargetCompetition {
-                        Image(systemName: "star.fill")
-                            .font(.caption2)
-                            .foregroundColor(Color.gold300)
-                    }
                     Spacer()
                     if let place = comp.dancedPlaceLine(in: ksis.results) {
                         DancedPlaceChip(place: place)
@@ -272,7 +267,6 @@ struct CompetitionEditorSheet: View {
     @State private var date = Date()
     @State private var discipline = "Štandard"
     @State private var intent: CompetitionIntent = .interested
-    @State private var isTarget = false
     @State private var inCalendar = false
     @State private var saveTick = 0
     @State private var loaded: String?
@@ -282,7 +276,7 @@ struct CompetitionEditorSheet: View {
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
     private var signature: String {
-        [name, city, "\(date.timeIntervalSince1970)", discipline, intent.rawValue, "\(isTarget)", "\(inCalendar)"].joined(separator: "|")
+        [name, city, "\(date.timeIntervalSince1970)", discipline, intent.rawValue, "\(inCalendar)"].joined(separator: "|")
     }
 
     var body: some View {
@@ -313,7 +307,6 @@ struct CompetitionEditorSheet: View {
                     options: CompetitionIntent.allCases.map { ($0, $0.title) },
                     selection: $intent
                 )
-                PlannerToggleRow(title: "Hlavná súťaž sezóny", systemImage: "star.fill", isOn: $isTarget)
                 PlannerCalendarToggle(
                     subtitle: intent == .declined
                         ? "Pri Neidem súťaž v Apple Kalendári nebude."
@@ -339,7 +332,6 @@ struct CompetitionEditorSheet: View {
         date = competition.date
         discipline = PlannerDisciplineChoice.competitionValue(from: competition.targetCategories)
         intent = competition.intent
-        isTarget = competition.isTargetCompetition
         inCalendar = competition.calendarEventId != nil
         loadedDiscipline = discipline
     }
@@ -360,7 +352,6 @@ struct CompetitionEditorSheet: View {
             target.targetCategories = PlannerDisciplineChoice.competitionCategories(for: discipline)
         }
         target.intent = intent
-        target.isTargetCompetition = isTarget
         modelContext.saveOrLog()
         saveTick += 1
 

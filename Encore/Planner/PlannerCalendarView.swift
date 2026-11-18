@@ -536,7 +536,7 @@ struct PlannerCalendarView: View {
     private func competitionRow(_ competition: PlannedCompetition) -> some View {
         Button { editingCompetition = competition } label: {
             HStack(spacing: 12) {
-                Image(systemName: competition.isTargetCompetition ? "star.circle.fill" : "trophy.circle.fill")
+                Image(systemName: "trophy.circle.fill")
                     .font(.title2)
                     .foregroundColor(Color.gold400)
                 VStack(alignment: .leading, spacing: 3) {

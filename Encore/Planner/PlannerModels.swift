@@ -178,7 +178,8 @@ final class PlannedCompetition {
     var entryDeadline: Date? = nil
     var targetCategories: [String] = []
     var intentRaw: String = CompetitionIntent.interested.rawValue
-    /// Main peak of the season.
+    /// Not shown or set since 18. 11. 2026, like `entryDeadline`: the main competition of the season is left out of the
+    /// app for now. The field stays so that what is stored on the iPhone and in backups keeps loading.
     var isTargetCompetition: Bool = false
     var calendarEventId: String? = nil
 
