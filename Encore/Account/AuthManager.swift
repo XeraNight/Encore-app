@@ -88,6 +88,9 @@ final class AuthManager: ObservableObject {
             // Even if the access token is expired, Supabase refreshes it with the refresh token.
             if let local = client.auth.currentSession {
                 applySession(local)
+                // Locked before the network is asked: on a slow connection the splash is gone long before the answer
+                // comes, and until then the app would be open without Face ID.
+                if isBiometricsEnabled { isAppLocked = true }
             }
 
             do {
