@@ -16,6 +16,8 @@ struct LessonPrioritiesSection: View {
     @State private var showPaywall = false
     @State private var tickCount = 0
     @State private var finishedCount = 0
+    /// What the target icon in the header answers: a tick, and a tap that opens the editor.
+    @State private var targetBounce = 0
     /// With many dances the cards fold to the next thing to do; a tap on the header opens one.
     @State private var expanded: Set<String> = []
 
@@ -29,7 +31,7 @@ struct LessonPrioritiesSection: View {
                 HomeSectionHeader(
                     title: "TOP 3 PRIORITY",
                     systemImage: "target",
-                    count: sets.reduce(0) { $0 + $1.openCount }
+                    iconBounce: targetBounce
                 ) {
                     Button {
                         openEditor(dance: nil)
@@ -181,10 +183,12 @@ struct LessonPrioritiesSection: View {
         }
         modelContext.saveOrLog()
         tickCount += 1
+        targetBounce += 1
         if set.items.allSatisfy({ $0.doneAt != nil }) { finishedCount += 1 }
     }
 
     private func openEditor(dance: String?) {
+        targetBounce += 1
         if canWrite {
             editor = LessonPriorityEditorTarget(dance: dance)
         } else {

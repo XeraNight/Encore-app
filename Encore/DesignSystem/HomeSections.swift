@@ -20,6 +20,8 @@ struct HomeSectionHeader<Trailing: View>: View {
     let title: String
     var systemImage: String? = nil
     var count: Int? = nil
+    /// The icon bounces each time this changes. When it is not given, the count does that.
+    var iconBounce: Int? = nil
     @ViewBuilder var trailing: Trailing
 
     var body: some View {
@@ -28,7 +30,7 @@ struct HomeSectionHeader<Trailing: View>: View {
                 Image(systemName: systemImage)
                     .font(.caption.weight(.bold))
                     .foregroundColor(Color.gold400)
-                    .symbolEffect(.bounce, value: count ?? 0)
+                    .symbolEffect(.bounce, value: iconBounce ?? count ?? 0)
                     .accessibilityHidden(true)
             }
 
