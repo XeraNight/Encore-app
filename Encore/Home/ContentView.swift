@@ -10,7 +10,6 @@ struct ContentView: View {
     @Query(sort: \Routine.updatedAt, order: .reverse, animation: .easeInOut) private var routines: [Routine]
     @Query(filter: #Predicate<InstantNote> { $0.importedAt == nil },
            sort: \InstantNote.createdAt, order: .reverse) private var inboxNotes: [InstantNote]
-    @Query(sort: \FigureLibraryItem.name) private var allFigures: [FigureLibraryItem]
 
     // Capture
     @State private var isTyping = false
@@ -21,7 +20,6 @@ struct ContentView: View {
 
     // Logo hub & command palette
     @State private var isRadialHubOpen = false
-    @State private var showLogoCommandPalette = false
 
     // Sheets opened from the hub or the palette
     @State private var showNewRoutineCategorySheet = false
@@ -137,21 +135,6 @@ struct ContentView: View {
             .navigationDestination(item: $selectedRoutineForNavigation) { routine in
                 RoutineCanvasView(routine: routine)
             }
-            .sheet(isPresented: $showLogoCommandPalette) {
-                LogoCommandPaletteView(
-                    isPresented: $showLogoCommandPalette,
-                    onSelectNewRoutine: { showNewRoutineCategorySheet = true },
-                    onSelectCompare: { showCompareModeSheet = true },
-                    onSelectLibrary: { showGlobalLibrarySheet = true },
-                    onSelectCanvas: { showAllRoutinesSheet = true },
-                    onSelectCamera: { showCameraModal = true },
-                    onSelectRoutine: { selectedRoutineForNavigation = $0 },
-                    routines: routines,
-                    allFigures: allFigures
-                )
-                .presentationDetents([.fraction(0.85), .large])
-                .presentationDragIndicator(.visible)
-            }
             .sheet(isPresented: $showNotesInbox) {
                 TrainingJournalView()
             }
@@ -215,9 +198,6 @@ struct ContentView: View {
                 logoSize: logoSize,
                 onSelectAction: { action in
                     handleRadialAction(action)
-                },
-                onTogglePaletteFallback: {
-                    showLogoCommandPalette = true
                 }
             )
         }

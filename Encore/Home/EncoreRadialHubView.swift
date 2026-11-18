@@ -169,7 +169,6 @@ public struct EncoreRadialHubView: View {
     @Binding var isOpen: Bool
     var logoSize: CGFloat
     var onSelectAction: (RadialHubAction) -> Void
-    var onTogglePaletteFallback: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -192,13 +191,11 @@ public struct EncoreRadialHubView: View {
     public init(
         isOpen: Binding<Bool>,
         logoSize: CGFloat = 110,
-        onSelectAction: @escaping (RadialHubAction) -> Void,
-        onTogglePaletteFallback: @escaping () -> Void = {}
+        onSelectAction: @escaping (RadialHubAction) -> Void
     ) {
         self._isOpen = isOpen
         self.logoSize = logoSize
         self.onSelectAction = onSelectAction
-        self.onTogglePaletteFallback = onTogglePaletteFallback
     }
 
     public var body: some View {
