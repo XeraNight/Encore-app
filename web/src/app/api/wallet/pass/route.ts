@@ -12,8 +12,8 @@ export const dynamic = 'force-dynamic'
 // barcode = https://www.encore-sk.com/add?t=[the dancer's current invite token], the same QR as in the app
 export async function GET(request: NextRequest) {
   try {
-    const authHeader = request.headers.get('Authorization')
-    const token = authHeader?.replace(/^Bearer\s+/i, '') || new URL(request.url).searchParams.get('token')
+    // Only the Authorization header: a token in the address would end up in access logs.
+    const token = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '')
 
     if (!token) {
       return NextResponse.json(
@@ -43,12 +43,26 @@ export async function GET(request: NextRequest) {
 
     const user = userData.user
 
-    // Fetch user profile & invite code
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('id, name, invite_code, club, card_theme, dancer_code')
-      .eq('id', user.id)
-      .single()
+    // Everything the card shows, asked for at once: the profile, the KSIS number the dancer picked, the classes of the
+    // current couple and the current invite token. Row level security hands each user only their own.
+    const [{ data: profile }, { data: ksisDancer }, { data: couple }, { data: activeToken }] = await Promise.all([
+      supabase
+        .from('profiles')
+        .select('id, name, invite_code, club, card_theme, dancer_code')
+        .eq('id', user.id)
+        .single(),
+      supabase.from('ksis_dancers').select('person_number').eq('user_id', user.id).maybeSingle(),
+      supabase.from('user_couples').select('stt_class, lat_class').eq('user_id', user.id).eq('is_current', true).maybeSingle(),
+      supabase
+        .from('invite_tokens')
+        .select('token')
+        .eq('user_id', user.id)
+        .is('revoked_at', null)
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ])
 
     const userName = profile?.name || user.user_metadata?.full_name || 'Tanečník'
     // No made-up club: without one the pass simply says it is a member card.
@@ -57,17 +71,8 @@ export async function GET(request: NextRequest) {
     // The pass lives for years: always the real domain (the app's universal links), never an env leftover.
     const domain = 'www.encore-sk.com'
     // The QR code is the dancer's current invite token, the same one the card in Encore shows (random,
-    // 7 days, revoked by "Nový QR"). The app makes sure one exists before it asks and swaps the Wallet card
+    // 30 days, revoked by "Nový QR"). The app makes sure one exists before it asks and swaps the Wallet card
     // when it changes. Without a token: the dancer code link, as in the app.
-    const { data: activeToken } = await supabase
-      .from('invite_tokens')
-      .select('token')
-      .eq('user_id', user.id)
-      .is('revoked_at', null)
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle()
     const qrInviteUrl = activeToken?.token
       ? `https://${domain}/add?t=${activeToken.token}`
       : `https://${domain}/add${profile?.dancer_code ? `/${profile.dancer_code}` : ''}`
@@ -85,14 +90,7 @@ export async function GET(request: NextRequest) {
           error: 'certificates_missing',
           message: 'Apple PassKit certifikáty zatiaľ nie sú nahrané v prostredí Vercel. Karta sa vygeneruje po nahraní Base64 certifikátov.',
           passTypeIdentifier,
-          teamIdentifier,
-          invite_code: inviteCode,
-          qr_url: qrInviteUrl,
-          user: {
-            id: user.id,
-            name: userName,
-            club: userClub
-          }
+          teamIdentifier
         },
         { status: 503 }
       )
@@ -149,6 +147,15 @@ export async function GET(request: NextRequest) {
     })
 
     const dancerId = profile?.dancer_code || inviteCode
+    // The two facts the card in Encore shows besides the name and the club, written the same way: the KSIS number the
+    // dancer picked, and the classes of the current couple ("ŠTT D · LAT D").
+    const facts: { key: string; label: string; value: string }[] = []
+    if (ksisDancer?.person_number) facts.push({ key: 'ksis', label: 'KSIS Č.', value: String(ksisDancer.person_number) })
+    const classes = [couple?.stt_class && `ŠTT ${couple.stt_class}`, couple?.lat_class && `LAT ${couple.lat_class}`]
+      .filter(Boolean)
+      .join(' · ')
+    if (classes) facts.push({ key: 'classes', label: 'TRIEDY', value: classes })
+
     const backFields = [
       {
         key: 'about',
@@ -169,20 +176,22 @@ export async function GET(request: NextRequest) {
     ]
 
     // iOS 27+: Poster Generic, the card's leather with the emblem in a gold sunburst above the QR code
-    // (background image). Only the name as the bold title (a primary field without a label) and the club
-    // in the footer, so the leather stays visible.
+    // (background image). The name as the bold title (a primary field without a label), the club in the footer and
+    // the KSIS facts as secondary fields, as in the app.
     const poster = new PassType('posterGeneric')
     poster.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
     poster.primaryFields.push({ key: 'member', value: userName })
+    poster.secondaryFields.push(...facts)
     poster.footerFields.push({ key: 'club', value: userClub ?? 'Členská karta' })
     poster.backFields.push(...backFields)
 
     // iOS 26 and earlier: store card with the leather strip. No primary field there: Wallet would print it
-    // large across the strip, over the emblem.
+    // large across the strip, over the emblem. The names of the fields are the ones on the card in the app.
     const storeCard = new PassType('storeCard')
     storeCard.headerFields.push({ key: 'dancer', label: 'ID TANEČNÍKA', value: dancerId })
     storeCard.secondaryFields.push({ key: 'member', label: 'TANEČNÍK', value: userName })
-    if (userClub) storeCard.secondaryFields.push({ key: 'club', label: 'TANEČNÝ KLUB', value: userClub })
+    if (userClub) storeCard.secondaryFields.push({ key: 'club', label: 'KLUB', value: userClub })
+    storeCard.auxiliaryFields.push(...facts)
     storeCard.backFields.push(...backFields)
 
     // Wallet prefers posterGeneric where it knows it and falls back to the store card elsewhere.
@@ -197,12 +206,10 @@ export async function GET(request: NextRequest) {
     // Icon from the public folder. No logo: the older store card stays clean at the top left (the emblem is
     // in its strip) and the poster shows its own primary logo.
     const publicDir = path.join(process.cwd(), 'public')
-    const iconPath = path.join(publicDir, 'logo.png')
-
-    if (fs.existsSync(iconPath)) {
-      const iconBuf = fs.readFileSync(iconPath)
-      pass.addBuffer('icon.png', iconBuf)
-      pass.addBuffer('icon@2x.png', iconBuf)
+    const icon = readAsset(path.join(publicDir, 'logo.png'))
+    if (icon) {
+      pass.addBuffer('icon.png', icon)
+      pass.addBuffer('icon@2x.png', icon)
     }
 
     // Art of the chosen theme, rendered from the app's card leather (public/wallet): the poster
@@ -214,13 +221,13 @@ export async function GET(request: NextRequest) {
     ]
     for (const [source, name] of art) {
       for (const scale of ['@2x', '@3x']) {
-        const artPath = path.join(publicDir, 'wallet', `${source}${scale}.png`)
-        if (fs.existsSync(artPath)) pass.addBuffer(`${name}${scale}.png`, fs.readFileSync(artPath))
+        const buffer = readAsset(path.join(publicDir, 'wallet', `${source}${scale}.png`))
+        if (buffer) pass.addBuffer(`${name}${scale}.png`, buffer)
       }
     }
     for (const scale of ['', '@2x', '@3x']) {
-      const logoArt = path.join(publicDir, 'wallet', `primaryLogo${scale}.png`)
-      if (fs.existsSync(logoArt)) pass.addBuffer(`primaryLogo${scale}.png`, fs.readFileSync(logoArt))
+      const buffer = readAsset(path.join(publicDir, 'wallet', `primaryLogo${scale}.png`))
+      if (buffer) pass.addBuffer(`primaryLogo${scale}.png`, buffer)
     }
 
     // Generate signed .pkpass binary buffer
@@ -234,10 +241,10 @@ export async function GET(request: NextRequest) {
         'Cache-Control': 'no-cache, no-store, must-revalidate'
       }
     })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Apple Wallet pass generation error:', error)
     return NextResponse.json(
-      { error: 'pass_generation_failed', message: error.message || 'Nepodarilo sa vygenerovať Apple Wallet preukaz.' },
+      { error: 'pass_generation_failed', message: error instanceof Error && error.message ? error.message : 'Nepodarilo sa vygenerovať Apple Wallet preukaz.' },
       { status: 500 }
     )
   }
@@ -245,6 +252,19 @@ export async function GET(request: NextRequest) {
 
 /** Themes that have strip images in public/wallet (Profil → Vzhľad in the app). */
 const STRIP_THEMES = ['carmine', 'obsidian', 'midnight', 'emerald', 'mahogany']
+
+/** The pass art never changes while the server runs: each file is read once, not on every request. */
+const assetCache = new Map<string, Buffer | null>()
+function readAsset(file: string): Buffer | null {
+  if (!assetCache.has(file)) {
+    try {
+      assetCache.set(file, fs.readFileSync(file))
+    } catch {
+      assetCache.set(file, null)
+    }
+  }
+  return assetCache.get(file) ?? null
+}
 
 /** The PEM text from an env value that holds either base64 of the .pem file or the text itself. */
 function pemFrom(value: string, header: RegExp): string | null {
