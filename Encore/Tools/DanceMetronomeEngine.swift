@@ -160,9 +160,9 @@ public final class DanceMetronomeEngine: ObservableObject {
     @Published public private(set) var isPulse: Bool = false
     @Published public var selectedPreset: DanceMetronomePreset = .off
     @Published public var tempoMultiplier: Double = 1.0
-    @Published public var isSoundEnabled: Bool = true
+    @Published public var isSoundEnabled: Bool = true { didSet { updateAudioVolume() } }
     @Published public var isHapticEnabled: Bool = true
-    @Published public var volume: Float = 1.0
+    @Published public var volume: Float = 1.0 { didSet { updateAudioVolume() } }
     
     /// Údery za minútu at the tempo now playing: what the metronome clicks, whole numbers.
     public var effectiveBpm: Int {
@@ -185,29 +185,16 @@ public final class DanceMetronomeEngine: ObservableObject {
     }
     
     // Internal Audio & Timing
-    private var downbeatPlayer: AVAudioPlayer?
-    private var tickPlayer: AVAudioPlayer?
+    /// The clicks: one measure looped by an audio engine (MetronomeAudio), so the tempo is the audio clock's and the
+    /// app keeps playing with the screen locked. The timer below only drives the haptic and the pulse.
+    private let audio = MetronomeAudio()
     private var timerSource: DispatchSourceTimer?
     private let timerQueue = DispatchQueue(label: "dance.encore.metronome.timer", qos: .userInteractive)
     
-    private init() {
-        setupAudioPlayers()
-    }
-    
-    // MARK: - Audio Synthesis (Pure 16-bit PCM RIFF WAV in memory)
-    private func setupAudioPlayers() {
-        let downbeatData = Self.synthesizeClickWav(frequency: 1450, duration: 0.026, isDownbeat: true)
-        let tickData = Self.synthesizeClickWav(frequency: 920, duration: 0.018, isDownbeat: false)
-        
-        do {
-            downbeatPlayer = try AVAudioPlayer(data: downbeatData)
-            downbeatPlayer?.prepareToPlay()
-            
-            tickPlayer = try AVAudioPlayer(data: tickData)
-            tickPlayer?.prepareToPlay()
-        } catch {
-            Logger.audio.error("Metronome players setup failed: \(error.localizedDescription, privacy: .public)")
-        }
+    private init() {}
+
+    private func updateAudioVolume() {
+        audio.volume = isSoundEnabled ? volume : 0
     }
     
     // MARK: - Playback Session Activation
@@ -283,10 +270,12 @@ public final class DanceMetronomeEngine: ObservableObject {
     private func beginTicking(bpm targetBpm: Int) {
         let intervalSeconds = 60.0 / Double(targetBpm)
         
-        // Immediate downbeat on start
+        // The downbeat starts the looped measure; its haptic and pulse come with it.
+        updateAudioVolume()
+        audio.play(bpm: targetBpm, beatsPerMeasure: selectedPreset.beatsPerMeasure)
         triggerBeatTick(beatNumber: 1)
         
-        // High-precision DispatchSourceTimer on dedicated interactive queue
+        // The beat for the haptic and the pulse, on a dedicated interactive queue
         let timer = DispatchSource.makeTimerSource(flags: .strict, queue: timerQueue)
         timer.schedule(
             deadline: .now() + intervalSeconds,
@@ -310,6 +299,7 @@ public final class DanceMetronomeEngine: ObservableObject {
     // MARK: - Stop Metronome
     public func stop() {
         stopTimerOnly()
+        audio.stop()
         startNumber += 1
         isPlaying = false
         currentBeat = 1
@@ -334,24 +324,11 @@ public final class DanceMetronomeEngine: ObservableObject {
         }
     }
     
-    // MARK: - Trigger Beat Tick (Audio + Haptic + Visual Pulse)
+    // MARK: - Trigger Beat Tick (Haptic + Visual Pulse)
     private func triggerBeatTick(beatNumber: Int) {
         let isDownbeat = (beatNumber == 1)
         
-        // 1. Audio Click
-        if isSoundEnabled {
-            if isDownbeat {
-                downbeatPlayer?.volume = volume
-                downbeatPlayer?.currentTime = 0
-                downbeatPlayer?.play()
-            } else {
-                tickPlayer?.volume = volume * 0.85
-                tickPlayer?.currentTime = 0
-                tickPlayer?.play()
-            }
-        }
-        
-        // 2. Haptic Accent
+        // 1. Haptic Accent
         if isHapticEnabled {
             if isDownbeat {
                 let gen = UIImpactFeedbackGenerator(style: .heavy)
@@ -364,7 +341,7 @@ public final class DanceMetronomeEngine: ObservableObject {
             }
         }
         
-        // 3. UI Spring Pulse
+        // 2. UI Spring Pulse
         withAnimation(.spring(response: 0.12, dampingFraction: 0.55)) {
             self.isPulse = true
         }
@@ -374,74 +351,5 @@ public final class DanceMetronomeEngine: ObservableObject {
                 self.isPulse = false
             }
         }
-    }
-    
-    // MARK: - PCM Audio Generator
-    private static func synthesizeClickWav(frequency: Double, duration: Double, isDownbeat: Bool) -> Data {
-        let sampleRate = 44100.0
-        let numSamples = Int(sampleRate * duration)
-        let numChannels: UInt16 = 1
-        let bitsPerSample: UInt16 = 16
-        let byteRate = UInt32(sampleRate * Double(numChannels * bitsPerSample / 8))
-        let blockAlign = UInt16(numChannels * bitsPerSample / 8)
-        let dataSize = UInt32(numSamples * 2)
-        let chunkSize = 36 + dataSize
-        
-        var data = Data()
-        data.reserveCapacity(44 + Int(dataSize))
-        
-        // RIFF header
-        data.append(contentsOf: "RIFF".utf8)
-        var chunkSizeBytes = chunkSize.littleEndian
-        data.append(Data(bytes: &chunkSizeBytes, count: 4))
-        data.append(contentsOf: "WAVE".utf8)
-        
-        // "fmt " chunk
-        data.append(contentsOf: "fmt ".utf8)
-        var subchunk1Size: UInt32 = UInt32(16).littleEndian
-        data.append(Data(bytes: &subchunk1Size, count: 4))
-        var audioFormat: UInt16 = UInt16(1).littleEndian // PCM
-        data.append(Data(bytes: &audioFormat, count: 2))
-        var numChannelsBytes = numChannels.littleEndian
-        data.append(Data(bytes: &numChannelsBytes, count: 2))
-        var sampleRateBytes = UInt32(sampleRate).littleEndian
-        data.append(Data(bytes: &sampleRateBytes, count: 4))
-        var byteRateBytes = byteRate.littleEndian
-        data.append(Data(bytes: &byteRateBytes, count: 4))
-        var blockAlignBytes = blockAlign.littleEndian
-        data.append(Data(bytes: &blockAlignBytes, count: 2))
-        var bitsPerSampleBytes = bitsPerSample.littleEndian
-        data.append(Data(bytes: &bitsPerSampleBytes, count: 2))
-        
-        // "data" chunk
-        data.append(contentsOf: "data".utf8)
-        var dataSizeBytes = dataSize.littleEndian
-        data.append(Data(bytes: &dataSizeBytes, count: 4))
-        
-        // Synthesized woodblock click samples with natural exponential decay
-        let twoPi = 2.0 * Double.pi
-        let attackSamples = Int(sampleRate * 0.001) // 1ms attack to avoid audio pop
-        let decayLength = Double(numSamples - attackSamples)
-        
-        for i in 0..<numSamples {
-            let t = Double(i) / sampleRate
-            let envelope: Double
-            if i < attackSamples {
-                envelope = Double(i) / Double(attackSamples)
-            } else {
-                let progress = Double(i - attackSamples) / decayLength
-                envelope = exp(-6.0 * progress)
-            }
-            
-            // Primary tone + harmonic resonance
-            let primaryTone = sin(twoPi * frequency * t)
-            let harmonicTone = isDownbeat ? (0.35 * sin(twoPi * (frequency * 1.5) * t)) : 0.0
-            let sampleValue = (primaryTone + harmonicTone) * envelope * 0.90
-            let clamped = max(-1.0, min(1.0, sampleValue))
-            var pcm16 = Int16(clamped * 32767.0).littleEndian
-            data.append(Data(bytes: &pcm16, count: 2))
-        }
-        
-        return data
     }
 }
