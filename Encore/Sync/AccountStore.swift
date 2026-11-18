@@ -108,6 +108,8 @@ final class AccountStore: ObservableObject {
             Logger.general.error("ModelContainer init failed: \(error.localizedDescription, privacy: .public). Attempting recovery.")
             do {
                 container = try DatabaseRecoveryManager.recoverContainer(schema: schema, configuration: config)
+                // The database is empty now: what the cloud holds must come back, not be marked as deleted.
+                DeviceBackup.storeWasRebuilt(for: account)
             } catch {
                 fatalError("Could not initialize ModelContainer after recovery: \(error)")
             }

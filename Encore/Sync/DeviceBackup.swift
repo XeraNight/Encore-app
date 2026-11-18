@@ -17,11 +17,13 @@ import SwiftData
 @MainActor
 enum DeviceBackup {
     /// Each account's data on this iPhone goes up on its own (AccountStore), so its fingerprints are its own too.
-    private static var fingerprintsKey: String { "encore.deviceBackup.v1" + accountSuffix }
+    private static var fingerprintsKey: String { fingerprintsKey(for: AccountStore.shared.accountId) }
+    static func fingerprintsKey(for account: UUID?) -> String { "encore.deviceBackup.v1" + suffix(of: account) }
     /// The account whose backup was already brought back: the cloud is not asked again on every launch.
     /// v2: the first version came down only into an empty iPhone, so one record made after a wipe kept the rest away.
-    private static var checkedKey: String { "encore.deviceBackup.checkedUser.v2" + accountSuffix }
-    private static var accountSuffix: String { AccountStore.shared.accountId.map { ".\($0.uuidString)" } ?? "" }
+    private static var checkedKey: String { checkedKey(for: AccountStore.shared.accountId) }
+    static func checkedKey(for account: UUID?) -> String { "encore.deviceBackup.checkedUser.v2" + suffix(of: account) }
+    private static func suffix(of account: UUID?) -> String { account.map { ".\($0.uuidString)" } ?? "" }
     private static let batchSize = 200
     private static let pageSize = 1000
     private static var isUploading = false
@@ -158,6 +160,15 @@ enum DeviceBackup {
     /// Another account's data opened: work started for the one before remembers nothing under this one.
     static func accountChanged() {
         generation += 1
+    }
+
+    /// This account's database could not be opened and was started empty again (DatabaseRecoveryManager). What went up
+    /// before is not gone, only no longer here: without forgetting it, the next upload would send every record as
+    /// deleted, and the cloud would never be asked for them. Forgotten, the cloud fills the empty database again.
+    static func storeWasRebuilt(for account: UUID) {
+        generation += 1
+        UserDefaults.standard.removeObject(forKey: fingerprintsKey(for: account))
+        UserDefaults.standard.removeObject(forKey: checkedKey(for: account))
     }
 
     /// The open account's data was wiped (the account is being deleted): nothing of it went up any more.

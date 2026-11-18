@@ -89,4 +89,24 @@ struct DeviceBackupTests {
         #expect(Set(kinds) == ["training_log", "planned_session", "planned_competition",
                                "training_cadence", "lesson_priority", "instant_note"])
     }
+
+    /// A database started empty again must not send what went up before as deleted, and must be filled from the cloud.
+    @Test func aRebuiltStoreForgetsWhatWentUpOfThatAccountOnly() {
+        let defaults = UserDefaults.standard
+        let rebuilt = UUID(), other = UUID()
+        let keys = [DeviceBackup.fingerprintsKey(for: rebuilt), DeviceBackup.checkedKey(for: rebuilt),
+                    DeviceBackup.fingerprintsKey(for: other), DeviceBackup.checkedKey(for: other)]
+        defer { keys.forEach { defaults.removeObject(forKey: $0) } }
+        defaults.set(["training_log|\(UUID().uuidString)": "fingerprint"], forKey: DeviceBackup.fingerprintsKey(for: rebuilt))
+        defaults.set(rebuilt.uuidString, forKey: DeviceBackup.checkedKey(for: rebuilt))
+        defaults.set(["training_log|\(UUID().uuidString)": "fingerprint"], forKey: DeviceBackup.fingerprintsKey(for: other))
+        defaults.set(other.uuidString, forKey: DeviceBackup.checkedKey(for: other))
+
+        DeviceBackup.storeWasRebuilt(for: rebuilt)
+
+        #expect(defaults.object(forKey: DeviceBackup.fingerprintsKey(for: rebuilt)) == nil)
+        #expect(defaults.object(forKey: DeviceBackup.checkedKey(for: rebuilt)) == nil)
+        #expect(defaults.object(forKey: DeviceBackup.fingerprintsKey(for: other)) != nil)
+        #expect(defaults.object(forKey: DeviceBackup.checkedKey(for: other)) != nil)
+    }
 }
