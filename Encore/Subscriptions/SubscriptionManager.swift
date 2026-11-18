@@ -151,46 +151,45 @@ final class SubscriptionManager: ObservableObject {
             return
         }
         
-        // 3. Paralelné overenie Apple StoreKit 2 a manuálneho VIP grantu zo Supabase
+        // 3. Apple StoreKit 2 a darovaný plán zo Supabase
         let storeKitTier = await checkStoreKitEntitlements()
-        let supabaseGrant = await fetchSupabaseEntitlement()
-        
-        var effectiveTier: SubscriptionTier = .free
-        var effectiveSource: EntitlementSource = .none
-        
-        // StoreKit aktívne predplatné
-        if storeKitTier > .free {
-            effectiveTier = storeKitTier
-            effectiveSource = .storeKit
+        let grant = await fetchSupabaseEntitlement()
+        let resolved = Self.resolve(storeKit: storeKitTier, grant: grant, cached: loadCachedEntitlement())
+        currentTier = resolved.tier
+        entitlementSource = resolved.source
+        // A kept gift is not saved again: its 30 days run from the last real answer.
+        if !resolved.isKept { saveCachedEntitlement(tier: resolved.tier, source: resolved.source) }
+    }
+
+    /// What the server said about a plan the owner gave: a row, no row at all, or no answer (offline, an error).
+    enum GrantLookup {
+        case granted(UserEntitlementRecord)
+        case none
+        case unavailable
+    }
+
+    /// The plan from what Apple, the server and the last answer say. Apple answers by itself, offline too, so a plan
+    /// bought in the App Store is never kept from an old answer: when it ended, it ended. A row marked "storekit" on
+    /// the server proves nothing (a client could write it), only the owner's gift counts there. The gift is known only
+    /// to the server, so when the server cannot be asked it is kept for up to 30 days.
+    nonisolated static func resolve(storeKit: SubscriptionTier, grant: GrantLookup,
+                                    cached: (tier: SubscriptionTier, source: EntitlementSource)?
+    ) -> (tier: SubscriptionTier, source: EntitlementSource, isKept: Bool) {
+        var tier = SubscriptionTier.free
+        var source = EntitlementSource.none
+        if storeKit > .free {
+            tier = storeKit
+            source = .storeKit
         }
-        
-        // Darovanie od majiteľa. A row marked "storekit" proves nothing (a client could write it); a paid plan is
-        // proven only by StoreKit above, which Apple signs.
-        if let grant = supabaseGrant, grant.isValid, grant.tier > .free, grant.source == .ownerGrant {
-            if grant.tier >= effectiveTier {
-                effectiveTier = grant.tier
-                effectiveSource = grant.source
-            }
+        if case .granted(let gift) = grant, gift.isValid, gift.tier > .free, gift.source == .ownerGrant, gift.tier >= tier {
+            tier = gift.tier
+            source = gift.source
         }
-        
-        if effectiveTier > .free {
-            currentTier = effectiveTier
-            entitlementSource = effectiveSource
-            saveCachedEntitlement(tier: effectiveTier, source: effectiveSource)
-            return
+        if tier > .free { return (tier, source, false) }
+        if case .unavailable = grant, let cached, cached.tier > .free, cached.source == .ownerGrant {
+            return (cached.tier, cached.source, true)
         }
-        
-        // 4. Offline Fallback (ak je zariadenie offline a malo platnú licenciu)
-        if supabaseGrant == nil, let cached = loadCachedEntitlement(), cached.tier > .free {
-            currentTier = cached.tier
-            entitlementSource = cached.source
-            return
-        }
-        
-        // 5. Fallback na Free plán
-        currentTier = .free
-        entitlementSource = .none
-        saveCachedEntitlement(tier: .free, source: .none)
+        return (.free, .none, false)
     }
     
     // MARK: - Offline Entitlements Cache
@@ -309,10 +308,10 @@ final class SubscriptionManager: ObservableObject {
     }
     
     // MARK: - Supabase Entitlement Verification (VIP / Comped)
-    private func fetchSupabaseEntitlement() async -> UserEntitlementRecord? {
-        guard let userUUID = AuthManager.shared.currentUser?.id else { return nil }
+    private func fetchSupabaseEntitlement() async -> GrantLookup {
+        guard let userUUID = AuthManager.shared.currentUser?.id else { return .none }
         let client = SupabaseConfig.client
-        
+
         do {
             struct EntitlementDTO: Decodable {
                 let user_id: UUID
@@ -322,15 +321,17 @@ final class SubscriptionManager: ObservableObject {
                 let granted_by: UUID?
                 let notes: String?
             }
-            
-            let res: EntitlementDTO = try await client
+
+            // A list, not `.single()`: nobody has a row unless the owner gave a plan, and "no row" is an answer, not an error.
+            let rows: [EntitlementDTO] = try await client
                 .from("user_entitlements")
                 .select()
                 .eq("user_id", value: userUUID)
-                .single()
+                .limit(1)
                 .execute()
                 .value
-            
+            guard let res = rows.first else { return .none }
+
             let tier = SubscriptionTier(serverValue: res.tier) ?? .free
             let source = EntitlementSource(rawValue: res.source) ?? .none
             var expiresDate: Date? = nil
@@ -340,16 +341,16 @@ final class SubscriptionManager: ObservableObject {
                 expiresDate = iso.date(from: exp) ?? ISO8601DateFormatter().date(from: exp)
             }
             
-            return UserEntitlementRecord(
+            return .granted(UserEntitlementRecord(
                 userId: res.user_id,
                 tier: tier,
                 source: source,
                 expiresAt: expiresDate,
                 grantedBy: res.granted_by,
                 notes: res.notes
-            )
+            ))
         } catch {
-            return nil
+            return .unavailable
         }
     }
     
