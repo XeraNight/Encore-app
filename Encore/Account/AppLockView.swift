@@ -8,7 +8,7 @@ import UIKit
 struct AppLockView: View {
     @ObservedObject private var authManager = AuthManager.shared
     @State private var confirmSignOut = false
-    @State private var attempt = 0
+    @State private var taps = 0
 
     var body: some View {
         ZStack {
@@ -47,7 +47,8 @@ struct AppLockView: View {
                     isLoading: false,
                     isEnabled: true
                 ) {
-                    attempt += 1
+                    taps += 1
+                    Task { await authManager.unlockApp() }
                 }
 
                 Button("Odhlásiť sa") { confirmSignOut = true }
@@ -59,8 +60,7 @@ struct AppLockView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
         }
-        // Asks right away when the lock appears, and again on every tap of the button.
-        .task(id: attempt) { await authManager.unlockApp() }
+        // The first question is asked by AuthManager when Encore is in front (see AppLockState); the button asks again.
         .confirmationDialog("Odhlásiť sa?", isPresented: $confirmSignOut, titleVisibility: .visible) {
             Button("Odhlásiť sa", role: .destructive) {
                 Task { await authManager.signOut() }
@@ -68,7 +68,7 @@ struct AppLockView: View {
         } message: {
             Text("Potom sa prihlásiš e-mailom a heslom alebo cez Google.")
         }
-        .sensoryFeedback(.impact(weight: .medium), trigger: attempt)
+        .sensoryFeedback(.impact(weight: .medium), trigger: taps)
     }
 }
 

@@ -54,15 +54,19 @@ final class AuthManager: ObservableObject {
     @AppStorage("isBiometricsEnabled") var isBiometricsEnabled: Bool = false
 
     /// App lock: with Face ID sign-in on, the user stays signed in and unlocks Encore with Face ID
-    /// when opening it (after a restart or more than 5 minutes in the background).
-    @Published var isAppLocked = false
+    /// when opening it (after a restart or more than 5 minutes in the background). `lockState` decides, this mirrors it.
+    @Published private(set) var isAppLocked = false
+    private var lockState = AppLockState() {
+        didSet { if isAppLocked != lockState.isLocked { isAppLocked = lockState.isLocked } }
+    }
     /// Why the last unlock question did not open the lock, when it was neither a cancel nor a success. Shown on the lock.
     @Published private(set) var lockNote: String?
     private let ownerCheck = OwnerCheck()
     /// How this iPhone signed in to the account this time: "email", "google" or "apple"; nil until read.
     @Published private(set) var signInMethod: String?
-    private var backgroundedAt: Date?
-    private static let lockGracePeriod: TimeInterval = 5 * 60
+    /// Which biometrics this iPhone has. Read off the main thread (the check is an XPC call) and kept here, so no view
+    /// body asks the system; the name falls back to "Face ID" until the answer arrives.
+    @Published private(set) var biometryType: LABiometryType = .none
 
     private static let authCallbackURL = URL(string: "encore://auth-callback")!
     private static let pendingResetKey = "encore_pending_password_reset_at"
@@ -78,6 +82,7 @@ final class AuthManager: ObservableObject {
         // Older builds stored the password / a refresh-token copy; remove them.
         KeychainHelper.shared.purgeLegacySecrets()
 
+        refreshBiometryType()
         Task { await checkInitialAuth() }
     }
 
@@ -93,7 +98,7 @@ final class AuthManager: ObservableObject {
                 applySession(local)
                 // Locked before the network is asked: on a slow connection the splash is gone long before the answer
                 // comes, and until then the app would be open without Face ID.
-                if isBiometricsEnabled { isAppLocked = true }
+                lockForLaunch()
             }
 
             do {
@@ -111,8 +116,8 @@ final class AuthManager: ObservableObject {
             _ = await restoreGoogleSignInAsync(silent: true)
         }
 
-        // A restored session opens locked when Face ID sign-in is on; a fresh sign-in never does.
-        if isAuthenticated && isBiometricsEnabled { isAppLocked = true }
+        // A session restored without the first check (the silent Google sign-in) opens locked too.
+        lockForLaunch()
         isCheckingInitialAuth = false
     }
 
@@ -185,7 +190,7 @@ final class AuthManager: ObservableObject {
     }
 
     private func clearSession() {
-        isAppLocked = false
+        lockState.unlocked()
         currentUser = nil
         isAuthenticated = false
         userEmail = ""
@@ -246,10 +251,16 @@ final class AuthManager: ObservableObject {
         return false
     }
 
-    var biometryType: LABiometryType {
-        let context = LAContext()
-        _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
-        return context.biometryType
+    func refreshBiometryType() {
+        Task.detached(priority: .utility) { [weak self] in
+            let context = LAContext()
+            _ = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: nil)
+            await self?.setBiometryType(context.biometryType)
+        }
+    }
+
+    private func setBiometryType(_ type: LABiometryType) {
+        if biometryType != type { biometryType = type }
     }
 
     var biometryName: String {
@@ -527,14 +538,24 @@ final class AuthManager: ObservableObject {
 
     // MARK: - App lock
     func appDidEnterBackground() {
-        backgroundedAt = Date()
+        // The sheet that was waiting is gone with the screen; the next question starts fresh when Encore is back.
+        ownerCheck.cancelPending()
+        lockState.didEnterBackground(at: Date())
     }
 
+    /// Encore is in front. Called on every change to "active", so a trip to the background is told apart by the state.
     func appDidBecomeActive() {
-        defer { backgroundedAt = nil }
-        guard isAuthenticated, isBiometricsEnabled, let backgroundedAt,
-              Date().timeIntervalSince(backgroundedAt) > Self.lockGracePeriod else { return }
-        isAppLocked = true
+        lockState.didBecomeActive(at: Date(), canLock: isAuthenticated && isBiometricsEnabled)
+        if lockState.takeQuestion() { Task { await unlockApp() } }
+    }
+
+    /// The lock closes at launch (Face ID sign-in on, session restored). The question is asked right away when Encore is
+    /// already in front, otherwise it waits for `appDidBecomeActive`.
+    private func lockForLaunch() {
+        lockState.launched(canLock: isAuthenticated && isBiometricsEnabled)
+        if UIApplication.shared.applicationState == .active, lockState.takeQuestion() {
+            Task { await unlockApp() }
+        }
     }
 
     /// Asks for Face ID or the passcode over the lock. Every call is a fresh question that dismisses a waiting one, and a
@@ -543,7 +564,7 @@ final class AuthManager: ObservableObject {
         lockNote = nil
         switch await ownerCheck.verify(reason: String(localized: "Odomknúť Encore")) {
         case .confirmed, .noPasscode:
-            isAppLocked = false
+            lockState.unlocked()
         case .failed(let code):
             Logger.auth.error("[AuthManager] unlock check failed, code \(code, privacy: .public)")
             lockNote = String(localized: "Overenie sa nepodarilo (kód \(code)). Skús to znova.")

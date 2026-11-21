@@ -158,6 +158,8 @@ struct RootAppView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var dismissMaintenanceOffline = false
     @State private var isSplashActive = true
+    /// Set when Encore went to the background, consumed on the next "active" (see the scenePhase handler).
+    @State private var leftForBackground = false
 
     var body: some View {
         ZStack {
@@ -248,17 +250,22 @@ struct RootAppView: View {
             await PlannerNotifications.rescheduleFromStore()
             await remoteConfig.syncConfig()
         }
-        .onChange(of: scenePhase) { oldPhase, newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
+                leftForBackground = true
                 authManager.appDidEnterBackground()
                 // What was written just now goes up while iOS still gives the app a moment.
                 PendingSyncRunner.shared.run()
             }
-            if newPhase == .active && oldPhase == .background {
+            // SwiftUI reports a return as background, inactive, active, so the old phase is never "background" here:
+            // everything keys off "active", and the work that only a real trip needs checks `leftForBackground`.
+            if newPhase == .active {
                 authManager.appDidBecomeActive()
-                Task { await SubscriptionManager.shared.refreshEntitlementsAfterBackground() }
-            }
-            if newPhase == .active && (oldPhase == .background || oldPhase == .inactive) {
+                if leftForBackground {
+                    leftForBackground = false
+                    authManager.refreshBiometryType()
+                    Task { await SubscriptionManager.shared.refreshEntitlementsAfterBackground() }
+                }
                 // Device woke up from lock screen or returned from background!
                 UserProfileStore.shared.refreshForActiveUser()
                 friendManager.checkPendingInviteAfterLogin()
