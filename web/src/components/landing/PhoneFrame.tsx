@@ -1,16 +1,20 @@
 import Image from 'next/image'
+import PhoneVideo from './PhoneVideo'
 
 /**
- * An iPhone-shaped frame around a real screenshot from the app. Until the screenshot exists, a calm
- * branded screen with the label is shown instead (never a fake app UI).
+ * An iPhone-shaped frame around a real screenshot, or a short loop (`video`), from the app. Until either exists,
+ * a calm branded screen with the label is shown instead (never a fake app UI).
  */
 export default function PhoneFrame({
   src,
+  video,
   alt,
   priority = false,
   className = '',
 }: {
   src?: string
+  /** Name of a loop in /video/app (app-<name>.webm|mp4|jpg); wins over `src`. */
+  video?: string
   alt: string
   priority?: boolean
   className?: string
@@ -20,7 +24,9 @@ export default function PhoneFrame({
       className={`relative aspect-[1179/2556] w-full rounded-[2.75rem] bg-[#0c0c0e] p-[9px] shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)] ring-1 ring-white/15 ${className}`}
     >
       <div className="relative h-full w-full overflow-hidden rounded-[2.2rem] bg-[#16030a]">
-        {src ? (
+        {video ? (
+          <PhoneVideo name={video} alt={alt} />
+        ) : src ? (
           <Image
             src={src}
             alt={alt}

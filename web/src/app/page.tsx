@@ -4,6 +4,7 @@ import LandingNavbar from '@/components/landing/LandingNavbar'
 import AppStoreButton from '@/components/landing/AppStoreButton'
 import PhoneFrame from '@/components/landing/PhoneFrame'
 import Reveal from '@/components/landing/Reveal'
+import ShowreelVideo from '@/components/landing/ShowreelVideo'
 import AudienceTabs from '@/components/landing/AudienceTabs'
 import PricingSection from '@/components/landing/PricingSection'
 import Faq from '@/components/landing/Faq'
@@ -77,6 +78,8 @@ const FEATURES: {
   text: string
   points: string[]
   screen?: string
+  /** A loop of the real app in /video/app (app-<name>); shown instead of the screenshot. */
+  video?: string
   screenLabel: string
   note?: string
 }[] = [
@@ -92,6 +95,7 @@ const FEATURES: {
       'Top 3 priority na Domove, aby si pred lekciou hneď vedel, na čom pracuješ',
     ],
     screen: SCREENS.notes,
+    video: 'top3',
     screenLabel: 'Domov – Denník a Top 3 priority',
   },
   {
@@ -106,6 +110,7 @@ const FEATURES: {
       'Kreslenie na parket, zrkadlenie na obrazovku a zdieľanie zostavy partnerovi cez QR kód',
     ],
     screen: SCREENS.canvas,
+    video: 'canvas',
     screenLabel: 'Zostavy – Slowfox na parkete',
   },
   {
@@ -120,6 +125,7 @@ const FEATURES: {
       'Karta NAJBLIŽŠIA SÚŤAŽ s odpočtom dní, miestom konania a stavom (Zvažujem / Idem)',
     ],
     screen: SCREENS.plan,
+    video: 'plan',
     screenLabel: 'Kalendár a denný plán',
   },
   {
@@ -238,12 +244,26 @@ export default function HomePage() {
 
           <div className="relative mx-auto h-[520px] w-full max-w-[430px] sm:h-[610px]">
             <div className="absolute left-0 top-10 w-[58%] -rotate-6 opacity-95 transition duration-300 hover:rotate-0">
-              <PhoneFrame src={SCREENS.canvas} alt="Zostavy – Slowfox na parkete" />
+              <PhoneFrame src={SCREENS.canvas} video="canvas" alt="Zostavy – Slowfox na parkete" />
             </div>
             <div className="absolute right-0 top-0 w-[62%]">
-              <PhoneFrame src={SCREENS.home} alt="Domov – rýchly zápis, Denník a Top 3 priority" priority />
+              <PhoneFrame src={SCREENS.home} video="home" alt="Domov – rýchly zápis, Denník a Top 3 priority" priority />
             </div>
           </div>
+        </section>
+
+        {/* The 27-second film of the app (sample data), right under the hero */}
+        <section id="ukazka" aria-labelledby="ukazka-nadpis" className="mx-auto max-w-6xl px-5 pb-20 sm:px-6 lg:pb-28">
+          <Reveal className="mx-auto mb-8 max-w-2xl text-center">
+            <p className="font-rounded text-xs font-black uppercase tracking-[0.16em] text-[#FFE088]">27 SEKÚND S APPKOU</p>
+            <h2 id="ukazka-nadpis" className="font-rounded mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+              Tréner povie 20 vecí. V Encore ostanú tri.
+            </h2>
+          </Reveal>
+          <Reveal>
+            <ShowreelVideo />
+          </Reveal>
+          <p className="mt-4 text-center text-xs text-white/60">Ukážka z appky s ukážkovými dátami.</p>
         </section>
 
         {/* Trust facts: only what is true today */}
@@ -315,7 +335,7 @@ export default function HomePage() {
                   </div>
                 </Reveal>
                 <Reveal delay={120} className={`mx-auto w-full max-w-[300px] ${flipped ? 'lg:order-1' : ''}`}>
-                  <PhoneFrame src={feature.screen} alt={feature.screenLabel} />
+                  <PhoneFrame src={feature.screen} video={feature.video} alt={feature.screenLabel} />
                 </Reveal>
               </section>
             )
