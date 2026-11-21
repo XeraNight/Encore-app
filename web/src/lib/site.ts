@@ -13,12 +13,12 @@ export const APP_STORE_PATH = '/download/ios'
  * frame shows a neutral branded placeholder instead.
  */
 export const SCREENS: Record<'home' | 'canvas' | 'notes' | 'video' | 'plan' | 'competitions', string | undefined> = {
-  home: undefined,
-  canvas: undefined,
-  notes: undefined,
+  home: '/screens/home.jpg',
+  canvas: '/screens/canvas.jpg',
+  notes: '/screens/home.jpg',
   video: undefined,
-  plan: undefined,
-  competitions: undefined,
+  plan: '/screens/plan.jpg',
+  competitions: '/screens/competitions.jpg',
 }
 
 export type Billing = 'monthly' | 'annual'
@@ -56,12 +56,12 @@ export const PLANS: Plan[] = [
     features: [
       'Všetko z Free',
       'Neobmedzené zostavy na každý tanec',
-      'Top 3 priority od trénera po každej lekcii',
-      'Moja sezóna: krížiky podľa tancov a vývoj počas sezóny',
-      'Súťažný deň: tance v poradí a pri každom tvoje Top 3',
-      'Vývoj tréningov za mesiace a sezónu',
+      'Top 3 priority po lekcii: tri hlavné korekcie trénera na Domove',
+      'Moja sezóna: krížiky podľa tancov, finále a vývoj počas sezóny',
+      'Súťažný deň: tance v poradí a pri každom tvoje Top 3 pred kolom',
+      'Vývoj tréningov: hodiny po týždňoch, mesiace sezóny a zvládnuté priority',
       'Strih hodinovej lekcie na jednotlivé figúry',
-      'Vzhľad: ikony appky, motívy karty a rámiky profilovky',
+      'Vzhľad: ikony appky, motívy lístka v Encore aj v Apple Peňaženke a rámiky profilovky',
     ],
   },
   {
