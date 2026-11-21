@@ -31,6 +31,13 @@ struct AppLockView: View {
                     Text(authManager.userEmail)
                         .font(.footnote)
                         .foregroundColor(Color.white.opacity(0.65))
+                    if let note = authManager.lockNote {
+                        Text(note)
+                            .font(.footnote)
+                            .foregroundColor(.gold400)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4)
+                    }
                 }
 
                 Spacer()

@@ -56,6 +56,9 @@ final class AuthManager: ObservableObject {
     /// App lock: with Face ID sign-in on, the user stays signed in and unlocks Encore with Face ID
     /// when opening it (after a restart or more than 5 minutes in the background).
     @Published var isAppLocked = false
+    /// Why the last unlock question did not open the lock, when it was neither a cancel nor a success. Shown on the lock.
+    @Published private(set) var lockNote: String?
+    private let ownerCheck = OwnerCheck()
     /// How this iPhone signed in to the account this time: "email", "google" or "apple"; nil until read.
     @Published private(set) var signInMethod: String?
     private var backgroundedAt: Date?
@@ -516,10 +519,10 @@ final class AuthManager: ObservableObject {
     /// Used before sensitive actions (turning on quick sign-in, deleting the account).
     /// Returns true when the device has no passcode at all, because there is nothing to verify with.
     func confirmDeviceOwner(reason: String) async -> Bool {
-        let context = LAContext()
-        context.localizedCancelTitle = "Zrušiť"
-        guard context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil) else { return true }
-        return (try? await context.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: reason)) ?? false
+        switch await ownerCheck.verify(reason: reason) {
+        case .confirmed, .noPasscode: return true
+        case .cancelled, .failed, .superseded: return false
+        }
     }
 
     // MARK: - App lock
@@ -534,9 +537,18 @@ final class AuthManager: ObservableObject {
         isAppLocked = true
     }
 
+    /// Asks for Face ID or the passcode over the lock. Every call is a fresh question that dismisses a waiting one, and a
+    /// failure is shown with its code instead of vanishing, so the lock can never look dead.
     func unlockApp() async {
-        if await confirmDeviceOwner(reason: "Odomknúť Encore") {
+        lockNote = nil
+        switch await ownerCheck.verify(reason: String(localized: "Odomknúť Encore")) {
+        case .confirmed, .noPasscode:
             isAppLocked = false
+        case .failed(let code):
+            Logger.auth.error("[AuthManager] unlock check failed, code \(code, privacy: .public)")
+            lockNote = String(localized: "Overenie sa nepodarilo (kód \(code)). Skús to znova.")
+        case .cancelled, .superseded:
+            break
         }
     }
 
@@ -563,85 +575,60 @@ final class AuthManager: ObservableObject {
         }
     }
 
+    /// Sign-in with Face ID from the login screen: the owner is verified first, then the session this iPhone still holds
+    /// (or the previous Google sign-in) is restored.
     func authenticateWithBiometrics() async -> Bool {
-        let context = LAContext()
-        context.localizedCancelTitle = "Zrušiť"
-        var error: NSError?
         showSettingsLink = false
-
-        let canEvaluateBiometrics = context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error)
-        let canEvaluatePasscode = context.canEvaluatePolicy(.deviceOwnerAuthentication, error: nil)
-
-        guard canEvaluateBiometrics || canEvaluatePasscode else {
-            showSettingsLink = true
-            if let laError = error as? LAError, laError.code == .biometryLockout {
-                authErrorMessage = "\(biometryName) je zablokované. Odomkni iPhone kódom alebo prejdi do Nastavení."
-            } else {
-                authErrorMessage = "\(biometryName) nie je na tomto zariadení povolené. Povoľ ho v Nastaveniach iPhonu."
-            }
-            return false
-        }
-
-        let policy: LAPolicy = canEvaluateBiometrics ? .deviceOwnerAuthenticationWithBiometrics : .deviceOwnerAuthentication
-
         isLoading = true
         authErrorMessage = nil
         defer { isLoading = false }
 
-        do {
-            let reason = "Prihlásiť sa do Encore pomocou \(biometryName)"
-            let success = try await context.evaluatePolicy(policy, localizedReason: reason)
-            guard success else {
-                authErrorMessage = "\(biometryName) overenie nebolo úspešné."
-                return false
-            }
-
-            // 1. A refreshable Supabase session is still around.
-            if let client = self.client {
-                if let local = client.auth.currentSession {
-                    applySession(local)
-                    return true
-                }
-                if let session = try? await client.auth.session {
-                    applySession(session)
-                    return true
-                }
-            }
-
-            // 2. No restorable session: fall back to the previous Google sign-in, if any.
-            let saved = KeychainHelper.shared.readSession()
-            let email = saved?.email ?? userEmail
-            let provider = saved?.provider ?? "email"
-
-            if provider == "google" {
-                if await restoreGoogleSignInAsync(silent: false) { return true }
-                if authErrorMessage == nil {
-                    authErrorMessage = "Platnosť Google prihlásenia vypršala. Ťukni na Pokračovať cez Google."
-                }
-                return false
-            }
-
-            if !email.isEmpty {
-                authErrorMessage = "Platnosť prihlásenia pre \(email) vypršala. Prihlás sa heslom (môžeš použiť automatické dopĺňanie) alebo cez Google."
-            } else {
-                authErrorMessage = "Na tomto zariadení zatiaľ nie sú uložené prihlasovacie údaje. Prihlás sa najprv e-mailom, cez Google alebo Apple."
-            }
+        switch await ownerCheck.verify(reason: String(localized: "Prihlásiť sa do Encore pomocou \(biometryName)")) {
+        case .confirmed:
+            break
+        case .noPasscode:
+            showSettingsLink = true
+            authErrorMessage = String(localized: "\(biometryName) nie je na tomto zariadení povolené. Povoľ ho v Nastaveniach iPhonu.")
             return false
-
-        } catch let laError as LAError {
-            if laError.code == .biometryNotAvailable || laError.code == .biometryLockout {
-                showSettingsLink = true
-                authErrorMessage = "\(biometryName) je pre Encore zablokované. Povoľ ho v Nastaveniach iPhonu."
-            } else if laError.code == .userCancel || laError.code == .appCancel || laError.code == .systemCancel {
-                authErrorMessage = nil
-            } else {
-                authErrorMessage = "Biometrické overenie zlyhalo."
-            }
+        case .failed(let code):
+            Logger.auth.error("[AuthManager] biometric sign-in check failed, code \(code, privacy: .public)")
+            authErrorMessage = String(localized: "Biometrické overenie zlyhalo (kód \(code)).")
             return false
-        } catch {
-            authErrorMessage = "Biometrické overenie zlyhalo alebo bolo zrušené."
+        case .cancelled, .superseded:
             return false
         }
+
+        // 1. A refreshable Supabase session is still around.
+        if let client = self.client {
+            if let local = client.auth.currentSession {
+                applySession(local)
+                return true
+            }
+            if let session = try? await client.auth.session {
+                applySession(session)
+                return true
+            }
+        }
+
+        // 2. No restorable session: fall back to the previous Google sign-in, if any.
+        let saved = KeychainHelper.shared.readSession()
+        let email = saved?.email ?? userEmail
+        let provider = saved?.provider ?? "email"
+
+        if provider == "google" {
+            if await restoreGoogleSignInAsync(silent: false) { return true }
+            if authErrorMessage == nil {
+                authErrorMessage = "Platnosť Google prihlásenia vypršala. Ťukni na Pokračovať cez Google."
+            }
+            return false
+        }
+
+        if !email.isEmpty {
+            authErrorMessage = "Platnosť prihlásenia pre \(email) vypršala. Prihlás sa heslom (môžeš použiť automatické dopĺňanie) alebo cez Google."
+        } else {
+            authErrorMessage = "Na tomto zariadení zatiaľ nie sú uložené prihlasovacie údaje. Prihlás sa najprv e-mailom, cez Google alebo Apple."
+        }
+        return false
     }
 
     // MARK: - Friendly Error Translation
