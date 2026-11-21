@@ -5,11 +5,41 @@ import Combine
 import OSLog
 import Supabase
 
+
+// MARK: - Where a check gets its answers
+/// What the server said about the account's standing.
+struct BanAnswer: Equatable {
+    let isBanned: Bool
+    let reason: String
+}
+
+/// The four questions a check asks, as plain closures: the app passes the real ones, a test passes its own, so a slow
+/// check overtaken by a newer one, or an account switch in the middle of a check, can be played back exactly.
+/// A nil answer means "could not be asked" (offline, an error), which is not the same as "no".
+struct EntitlementSources {
+    var userId: @MainActor () -> UUID?
+    var storeKit: () async -> SubscriptionTier
+    var isOwner: () async -> Bool?
+    var ban: () async -> BanAnswer?
+    var grant: () async -> SubscriptionManager.GrantLookup
+}
+
+extension EntitlementSources {
+    /// The real questions: StoreKit on this iPhone and the Supabase server.
+    static let live = EntitlementSources(
+        userId: { AuthManager.shared.currentUser?.id },
+        storeKit: { await SubscriptionManager.currentStoreKitTier() },
+        isOwner: { await SubscriptionManager.fetchIsAppOwner() },
+        ban: { await SubscriptionManager.fetchBanAnswer() },
+        grant: { await SubscriptionManager.fetchSupabaseEntitlement() }
+    )
+}
+
 // MARK: - Subscription & Entitlements Manager
 @MainActor
 final class SubscriptionManager: ObservableObject {
-    static let shared = SubscriptionManager()
-    
+    static let shared = SubscriptionManager(sources: .live, listensToStore: true)
+
     // Published State
     @Published var currentTier: SubscriptionTier = .free
     @Published var entitlementSource: EntitlementSource = .none
@@ -23,26 +53,37 @@ final class SubscriptionManager: ObservableObject {
     /// The dancer whose plan is known (set when a check finishes). At launch the tier reads Free for a
     /// moment, so nothing bought is taken away before this matches the signed-in dancer.
     @Published private(set) var checkedUserId: UUID?
-    
+
     // Product IDs for Apple App Store (StoreKit 2)
-    public enum ProductID {
+    public nonisolated enum ProductID {
         static let plusMonthly = "com.jakub.encore.sub.plus.monthly"
         static let plusAnnual = "com.jakub.encore.sub.plus.annual"
         static let premiumMonthly = "com.jakub.encore.sub.premium.monthly"
         static let premiumAnnual = "com.jakub.encore.sub.premium.annual"
-        
+
         static let all: [String] = [plusMonthly, plusAnnual, premiumMonthly, premiumAnnual]
     }
-    
-    private var transactionListener: Task<Void, Error>? = nil
+
+    /// The plan a product stands for; Free for anything that is not one of ours.
+    nonisolated static func tier(forProductID id: String) -> SubscriptionTier {
+        switch id {
+        case ProductID.premiumMonthly, ProductID.premiumAnnual: return .premium
+        case ProductID.plusMonthly, ProductID.plusAnnual: return .plus
+        default: return .free
+        }
+    }
+
+    private let sources: EntitlementSources
     private var cancellables = Set<AnyCancellable>()
-    
-    private init() {
-        // Start listening to StoreKit 2 transactions
-        transactionListener = listenForTransactions()
-        
-        // React to auth changes to immediately refresh entitlements
-        // Only a real user change (not every token refresh) re-checks entitlements.
+
+    /// `listensToStore` is off in tests: no StoreKit listeners, no sign-in observer, no first check.
+    init(sources: EntitlementSources, listensToStore: Bool = false) {
+        self.sources = sources
+        guard listensToStore else { return }
+        listenForStoreChanges()
+
+        // Fires at once with the current dancer (the first check) and again only on a real user change,
+        // not on every token refresh.
         AuthManager.shared.$currentUser
             .map { $0?.id }
             .removeDuplicates()
@@ -53,38 +94,16 @@ final class SubscriptionManager: ObservableObject {
                 }
             }
             .store(in: &cancellables)
-        
-        Task {
-            await refreshEntitlements()
-            await loadProducts()
-        }
+
+        Task { await loadProducts() }
     }
-    
-    deinit {
-        transactionListener?.cancel()
-    }
-    
-    // MARK: - Owner Check
-    /// Asks the server. Every owner action is checked there again, this flag only shows the owner UI.
-    /// On a network error the last answer for the same user is kept.
-    private func refreshOwnerStatus() async {
-        guard AuthManager.shared.currentUser != nil else {
-            isAppOwner = false
-            return
-        }
-        do {
-            isAppOwner = try await SupabaseConfig.client.rpc("is_app_owner").execute().value
-        } catch {
-            Logger.general.notice("is_app_owner check failed: \(error.localizedDescription, privacy: .public)")
-        }
-    }
-    
+
     // MARK: - Capability Matrix
     /// Prístup k trénerskej sekcii Štúdio (Roster párov, hromadné figúry, video anotácie)
     public var canAccessStudioRoster: Bool {
         isAppOwner || currentTier == .premium
     }
-    
+
     /// Kontrola, či používateľ môže vytvoriť novú zostavu pre daný tanec.
     /// Free tier: 1 zostava na každý konkrétny tanec (1x Waltz, 1x Tango, 1x Samba...).
     /// Plus & Premium: Neobmedzený počet verzií/zostáv pre každý tanec.
@@ -94,10 +113,12 @@ final class SubscriptionManager: ObservableObject {
         }
         return existingCountForDance < 1
     }
-    
+
     // MARK: - Entitlements Refresh & Verification
     /// When the plan was last checked on the server.
     private var lastCheck: Date?
+    /// Counts the checks: only the newest one may publish what it found.
+    private var latestCheck = 0
 
     /// The plan is checked again when the app comes back, so a gift from the owner, or its end, shows without
     /// quitting the app. Not more often than every 10 minutes: the plan rarely changes.
@@ -108,42 +129,65 @@ final class SubscriptionManager: ObservableObject {
 
     public func refreshEntitlements() async {
         lastCheck = Date()
-        let checkedFor = AuthManager.shared.currentUser?.id
-        defer {
-            // A check that started for another dancer (account switch) says nothing about this one.
-            if let checkedFor, checkedFor == AuthManager.shared.currentUser?.id {
-                checkedUserId = checkedFor
-                AppearanceStore.shared.applyFreeLookIfNeeded()
-            }
+        latestCheck += 1
+        let ticket = latestCheck
+        let user = sources.userId()
+        // A check that a newer one overtook, or that began for another dancer, says nothing about the one on screen.
+        func isCurrent() -> Bool { ticket == latestCheck && user == sources.userId() }
+
+        // The server is asked all at once. Apple answers by itself (offline too), so it is read first and what was
+        // bought in the App Store shows at once, without waiting for the network.
+        async let ownerAnswer = sources.isOwner()
+        async let banAnswer = sources.ban()
+        async let grantAnswer = sources.grant()
+        let storeKit = await sources.storeKit()
+        guard isCurrent() else { return }
+        if storeKit > currentTier {
+            currentTier = storeKit
+            entitlementSource = .storeKit
         }
-        
-        // 1. Priorita: Majiteľ aplikácie (overené na serveri)
-        await refreshOwnerStatus()
+
+        let owner = await ownerAnswer
+        let ban = await banAnswer
+        let grant = await grantAnswer
+        guard isCurrent() else { return }
+
+        // An answer the server could not give leaves the last one in place, but only for the same dancer.
+        let sameDancer = checkedUserId == user
+        if let owner {
+            isAppOwner = owner
+        } else if !sameDancer {
+            isAppOwner = false
+        }
+        if let ban {
+            isAccountBanned = ban.isBanned
+            banReason = ban.reason
+        } else if !sameDancer {
+            isAccountBanned = false
+            banReason = ""
+        }
+
         if isAppOwner {
             currentTier = .premium
             entitlementSource = .appOwner
             isAccountBanned = false
             saveCachedEntitlement(tier: .premium, source: .appOwner)
-            return
-        }
-        
-        // 2. Skontrolovať moderátorský stav účtu (Ban status)
-        await checkAccountBanStatus()
-        if isAccountBanned {
+        } else if isAccountBanned {
             currentTier = .free
             entitlementSource = .none
             saveCachedEntitlement(tier: .free, source: .none)
-            return
+        } else {
+            let resolved = Self.resolve(storeKit: storeKit, grant: grant, cached: loadCachedEntitlement())
+            currentTier = resolved.tier
+            entitlementSource = resolved.source
+            // A kept gift is not saved again: its 30 days run from the last real answer.
+            if !resolved.isKept { saveCachedEntitlement(tier: resolved.tier, source: resolved.source) }
         }
-        
-        // 3. Apple StoreKit 2 a darovaný plán zo Supabase
-        let storeKitTier = await checkStoreKitEntitlements()
-        let grant = await fetchSupabaseEntitlement()
-        let resolved = Self.resolve(storeKit: storeKitTier, grant: grant, cached: loadCachedEntitlement())
-        currentTier = resolved.tier
-        entitlementSource = resolved.source
-        // A kept gift is not saved again: its 30 days run from the last real answer.
-        if !resolved.isKept { saveCachedEntitlement(tier: resolved.tier, source: resolved.source) }
+
+        if let user {
+            checkedUserId = user
+            AppearanceStore.shared.applyFreeLookIfNeeded()
+        }
     }
 
     /// What the server said about a plan the owner gave: a row, no row at all, or no answer (offline, an error).
@@ -176,17 +220,17 @@ final class SubscriptionManager: ObservableObject {
         }
         return (.free, .none, false)
     }
-    
+
     // MARK: - Offline Entitlements Cache
     private func saveCachedEntitlement(tier: SubscriptionTier, source: EntitlementSource) {
-        let uid = AuthManager.shared.currentUser?.id.uuidString ?? "guest"
+        let uid = sources.userId()?.uuidString ?? "guest"
         UserDefaults.standard.set(tier.rawValue, forKey: "encore_cached_tier_\(uid)")
         UserDefaults.standard.set(source.rawValue, forKey: "encore_cached_source_\(uid)")
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "encore_cached_time_\(uid)")
     }
-    
+
     private func loadCachedEntitlement() -> (tier: SubscriptionTier, source: EntitlementSource)? {
-        let uid = AuthManager.shared.currentUser?.id.uuidString ?? "guest"
+        let uid = sources.userId()?.uuidString ?? "guest"
         guard let tierRaw = UserDefaults.standard.string(forKey: "encore_cached_tier_\(uid)"),
               let tier = SubscriptionTier(serverValue: tierRaw),
               let sourceRaw = UserDefaults.standard.string(forKey: "encore_cached_source_\(uid)"),
@@ -200,24 +244,29 @@ final class SubscriptionManager: ObservableObject {
         }
         return nil
     }
-    
-    // MARK: - StoreKit 2 Transactions Listener
-    private func listenForTransactions() -> Task<Void, Error> {
-        return Task.detached { [weak self] in
+
+    // MARK: - StoreKit 2 listeners
+    /// Apple tells the app when a plan changes while it runs: a purchase or a renewal arrives as a transaction, an expiry or
+    /// a change of renewal as a status. Neither is guaranteed to arrive (an expiry often brings no transaction), so the
+    /// plan is also checked when the app comes back.
+    private func listenForStoreChanges() {
+        Task.detached { [weak self] in
             for await result in Transaction.updates {
-                do {
-                    let transaction = try Self.checkVerified(result)
-                    if let self = self {
-                        await self.refreshEntitlements()
-                    }
-                    await transaction.finish()
-                } catch {
-                    Logger.auth.error("StoreKit transaction update failed verification: \(error.localizedDescription, privacy: .public)")
+                guard let transaction = try? Self.checkVerified(result) else {
+                    Logger.auth.error("StoreKit transaction update failed verification")
+                    continue
                 }
+                await self?.refreshEntitlements()
+                await transaction.finish()
+            }
+        }
+        Task.detached { [weak self] in
+            for await _ in Product.SubscriptionInfo.Status.updates {
+                await self?.refreshEntitlements()
             }
         }
     }
-    
+
     nonisolated private static func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {
         case .unverified(_, let error):
@@ -226,26 +275,7 @@ final class SubscriptionManager: ObservableObject {
             return safe
         }
     }
-    
-    // MARK: - Check StoreKit 2 Entitlements (Returns highest active tier)
-    private func checkStoreKitEntitlements() async -> SubscriptionTier {
-        var highestTier: SubscriptionTier = .free
-        for await result in Transaction.currentEntitlements {
-            guard let transaction = try? Self.checkVerified(result) else { continue }
-            
-            // Check if transaction is still active / not revoked
-            if transaction.revocationDate == nil {
-                let pid = transaction.productID
-                if pid == ProductID.premiumMonthly || pid == ProductID.premiumAnnual {
-                    return .premium // Premium is the highest
-                } else if pid == ProductID.plusMonthly || pid == ProductID.plusAnnual {
-                    highestTier = .plus
-                }
-            }
-        }
-        return highestTier
-    }
-    
+
     // MARK: - Load Products
     public func loadProducts() async {
         do {
@@ -255,17 +285,17 @@ final class SubscriptionManager: ObservableObject {
             Logger.auth.warning("Failed to load StoreKit products: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
+
     // MARK: - Purchase
     public func purchase(product: Product) async throws -> Bool {
         isPurchasing = true
         defer { isPurchasing = false }
-        
+
         var options: Set<Product.PurchaseOption> = []
-        if let userUUID = AuthManager.shared.currentUser?.id {
+        if let userUUID = sources.userId() {
             options.insert(.appAccountToken(userUUID))
         }
-        
+
         let result = try await product.purchase(options: options)
         switch result {
         case .success(let verification):
@@ -281,7 +311,7 @@ final class SubscriptionManager: ObservableObject {
             return false
         }
     }
-    
+
     // MARK: - Restore Purchases
     public func restorePurchases() async {
         do {
@@ -291,11 +321,59 @@ final class SubscriptionManager: ObservableObject {
             Logger.auth.warning("StoreKit restorePurchases failed: \(error.localizedDescription, privacy: .public)")
         }
     }
-    
-    // MARK: - Supabase Entitlement Verification (VIP / Comped)
-    private func fetchSupabaseEntitlement() async -> GrantLookup {
+
+    // MARK: - The real answers
+    /// The highest plan among the subscriptions StoreKit says are active on this iPhone.
+    fileprivate static func currentStoreKitTier() async -> SubscriptionTier {
+        var highest = SubscriptionTier.free
+        for await result in Transaction.currentEntitlements {
+            guard let transaction = try? checkVerified(result), transaction.revocationDate == nil else { continue }
+            highest = max(highest, tier(forProductID: transaction.productID))
+        }
+        return highest
+    }
+
+    /// Asks the server. Every owner action is checked there again, this flag only shows the owner UI.
+    fileprivate static func fetchIsAppOwner() async -> Bool? {
+        guard AuthManager.shared.currentUser != nil else { return false }
+        do {
+            let isOwner: Bool = try await SupabaseConfig.client.rpc("is_app_owner").execute().value
+            return isOwner
+        } catch {
+            Logger.general.notice("is_app_owner check failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    fileprivate static func fetchBanAnswer() async -> BanAnswer? {
+        guard let userUUID = AuthManager.shared.currentUser?.id else { return nil }
+        do {
+            struct ProfileStatusDTO: Decodable {
+                let account_status: String?
+                let ban_reason: String?
+            }
+
+            let res: ProfileStatusDTO = try await SupabaseConfig.client
+                .from("profiles")
+                .select("account_status, ban_reason")
+                .eq("id", value: userUUID)
+                .single()
+                .execute()
+                .value
+
+            if let status = res.account_status, status == "banned" || status == "suspended" {
+                return BanAnswer(isBanned: true, reason: res.ban_reason ?? String(localized: "Porušenie pravidiel komunity a Podmienok používania aplikácie."))
+            }
+            return BanAnswer(isBanned: false, reason: "")
+        } catch {
+            // Offline, or the column is not there yet: no answer
+            return nil
+        }
+    }
+
+    /// The plan the owner gave this dancer (VIP / partner / trainer), read from the server.
+    fileprivate static func fetchSupabaseEntitlement() async -> GrantLookup {
         guard let userUUID = AuthManager.shared.currentUser?.id else { return .none }
-        let client = SupabaseConfig.client
 
         do {
             struct EntitlementDTO: Decodable {
@@ -308,7 +386,7 @@ final class SubscriptionManager: ObservableObject {
             }
 
             // A list, not `.single()`: nobody has a row unless the owner gave a plan, and "no row" is an answer, not an error.
-            let rows: [EntitlementDTO] = try await client
+            let rows: [EntitlementDTO] = try await SupabaseConfig.client
                 .from("user_entitlements")
                 .select()
                 .eq("user_id", value: userUUID)
@@ -325,7 +403,7 @@ final class SubscriptionManager: ObservableObject {
                 iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 expiresDate = iso.date(from: exp) ?? ISO8601DateFormatter().date(from: exp)
             }
-            
+
             return .granted(UserEntitlementRecord(
                 userId: res.user_id,
                 tier: tier,
@@ -338,38 +416,8 @@ final class SubscriptionManager: ObservableObject {
             return .unavailable
         }
     }
-    
-    // MARK: - Check Account Moderation / Ban Status
-    private func checkAccountBanStatus() async {
-        guard let userUUID = AuthManager.shared.currentUser?.id else { return }
-        let client = SupabaseConfig.client
-        
-        do {
-            struct ProfileStatusDTO: Decodable {
-                let account_status: String?
-                let ban_reason: String?
-            }
-            
-            let res: ProfileStatusDTO = try await client
-                .from("profiles")
-                .select("account_status, ban_reason")
-                .eq("id", value: userUUID)
-                .single()
-                .execute()
-                .value
-            
-            if let status = res.account_status, (status == "banned" || status == "suspended") {
-                self.isAccountBanned = true
-                self.banReason = res.ban_reason ?? "Porušenie pravidiel komunity a Podmienok používania aplikácie."
-            } else {
-                self.isAccountBanned = false
-                self.banReason = ""
-            }
-        } catch {
-            // Offline or table column not yet created -> default to active
-        }
-    }
-    
+
+
     // MARK: - Admin Actions (Exclusively for App Owner)
     
     /// Udeliť používateľovi bezplatný tier (VIP / Partner / Tréner)
