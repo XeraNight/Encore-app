@@ -13,12 +13,18 @@ struct BanAnswer: Equatable {
     let reason: String
 }
 
+/// What StoreKit says the dancer subscribes to: the plan and the product (monthly or annual) behind it.
+struct StoreKitPlan: Equatable {
+    var tier: SubscriptionTier = .free
+    var productID: String?
+}
+
 /// The four questions a check asks, as plain closures: the app passes the real ones, a test passes its own, so a slow
 /// check overtaken by a newer one, or an account switch in the middle of a check, can be played back exactly.
 /// A nil answer means "could not be asked" (offline, an error), which is not the same as "no".
 struct EntitlementSources {
     var userId: @MainActor () -> UUID?
-    var storeKit: () async -> SubscriptionTier
+    var storeKit: () async -> StoreKitPlan
     var isOwner: () async -> Bool?
     var ban: () async -> BanAnswer?
     var grant: () async -> SubscriptionManager.GrantLookup
@@ -28,7 +34,7 @@ extension EntitlementSources {
     /// The real questions: StoreKit on this iPhone and the Supabase server.
     static let live = EntitlementSources(
         userId: { AuthManager.shared.currentUser?.id },
-        storeKit: { await SubscriptionManager.currentStoreKitTier() },
+        storeKit: { await SubscriptionManager.currentStoreKitPlan() },
         isOwner: { await SubscriptionManager.fetchIsAppOwner() },
         ban: { await SubscriptionManager.fetchBanAnswer() },
         grant: { await SubscriptionManager.fetchSupabaseEntitlement() }
@@ -53,6 +59,9 @@ final class SubscriptionManager: ObservableObject {
     /// The dancer whose plan is known (set when a check finishes). At launch the tier reads Free for a
     /// moment, so nothing bought is taken away before this matches the signed-in dancer.
     @Published private(set) var checkedUserId: UUID?
+    /// The App Store product the dancer subscribes to right now (nil without one): the paywall tells "you have this" and
+    /// "switch to annual" apart by it, and Profile shows "change or cancel" for it.
+    @Published private(set) var activeProductID: String?
 
     // Product IDs for Apple App Store (StoreKit 2)
     public nonisolated enum ProductID {
@@ -142,8 +151,9 @@ final class SubscriptionManager: ObservableObject {
         async let grantAnswer = sources.grant()
         let storeKit = await sources.storeKit()
         guard isCurrent() else { return }
-        if storeKit > currentTier {
-            currentTier = storeKit
+        activeProductID = storeKit.productID
+        if storeKit.tier > currentTier {
+            currentTier = storeKit.tier
             entitlementSource = .storeKit
         }
 
@@ -177,7 +187,7 @@ final class SubscriptionManager: ObservableObject {
             entitlementSource = .none
             saveCachedEntitlement(tier: .free, source: .none)
         } else {
-            let resolved = Self.resolve(storeKit: storeKit, grant: grant, cached: loadCachedEntitlement())
+            let resolved = Self.resolve(storeKit: storeKit.tier, grant: grant, cached: loadCachedEntitlement())
             currentTier = resolved.tier
             entitlementSource = resolved.source
             // A kept gift is not saved again: its 30 days run from the last real answer.
@@ -287,7 +297,15 @@ final class SubscriptionManager: ObservableObject {
     }
 
     // MARK: - Purchase
-    public func purchase(product: Product) async throws -> Bool {
+    /// How a purchase ended. "Pending" is Ask to Buy (or a payment that is still being approved): the plan arrives later by
+    /// itself through the transaction listener.
+    enum PurchaseOutcome: Equatable {
+        case purchased, pending, cancelled
+    }
+
+    public func purchase(product: Product) async throws -> PurchaseOutcome {
+        // A second tap while the sheet is open starts nothing.
+        guard !isPurchasing else { return .cancelled }
         isPurchasing = true
         defer { isPurchasing = false }
 
@@ -302,35 +320,46 @@ final class SubscriptionManager: ObservableObject {
             let transaction = try Self.checkVerified(verification)
             await transaction.finish()
             await refreshEntitlements()
-            return true
+            return .purchased
         case .userCancelled:
-            return false
+            return .cancelled
         case .pending:
-            return false
+            return .pending
         @unknown default:
-            return false
+            return .cancelled
         }
     }
 
     // MARK: - Restore Purchases
-    public func restorePurchases() async {
+    enum RestoreOutcome: Equatable {
+        case restored(SubscriptionTier), nothingToRestore, cancelled, failed
+    }
+
+    /// Asks the App Store for the dancer's purchases and checks the plan again.
+    public func restorePurchases() async -> RestoreOutcome {
         do {
             try await AppStore.sync()
-            await refreshEntitlements()
+        } catch StoreKitError.userCancelled {
+            return .cancelled
         } catch {
             Logger.auth.warning("StoreKit restorePurchases failed: \(error.localizedDescription, privacy: .public)")
+            return .failed
         }
+        await refreshEntitlements()
+        guard let activeProductID else { return .nothingToRestore }
+        return .restored(Self.tier(forProductID: activeProductID))
     }
 
     // MARK: - The real answers
-    /// The highest plan among the subscriptions StoreKit says are active on this iPhone.
-    fileprivate static func currentStoreKitTier() async -> SubscriptionTier {
-        var highest = SubscriptionTier.free
+    /// The highest plan among the subscriptions StoreKit says are active on this iPhone, with its product.
+    fileprivate static func currentStoreKitPlan() async -> StoreKitPlan {
+        var best = StoreKitPlan()
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? checkVerified(result), transaction.revocationDate == nil else { continue }
-            highest = max(highest, tier(forProductID: transaction.productID))
+            let tier = tier(forProductID: transaction.productID)
+            if tier > best.tier { best = StoreKitPlan(tier: tier, productID: transaction.productID) }
         }
-        return highest
+        return best
     }
 
     /// Asks the server. Every owner action is checked there again, this flag only shows the owner UI.

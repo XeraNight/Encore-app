@@ -1,6 +1,14 @@
 import SwiftUI
 import StoreKit
 
+/// What the action area shows for the plan the dancer picked: decided by the product, not by the plan level, so a monthly
+/// subscriber can switch to annual.
+enum PaywallAction: Equatable {
+    case owner       // the owner has everything
+    case alreadyHave // this very product is the dancer's subscription
+    case buy
+}
+
 // MARK: - Plans (Plus, Premium)
 /// The paywall promises only what works today (App Review 2.3.1 and 3.1.2, docs/V1_PAYWALL_FEATURES_PLAN.md).
 /// A feature gets a row here when it is finished, never before. Prices come from the App Store.
@@ -11,12 +19,21 @@ public struct SubscriptionPaywallView: View {
     @State private var isAnnual = true
     @State private var selectedTier: SubscriptionTier
     @State private var errorMessage: String?
+    /// A neutral answer (waiting for approval, nothing to restore), shown under the button.
+    @State private var notice: String?
+    @State private var isRestoring = false
     /// Each link opens its own part of the legal sheet: the terms, or the privacy policy (App Review 3.1.2).
     @State private var legalTab: LegalComplianceView.LegalTab?
     @State private var choiceTaps = 0
 
     public init(initialTier: SubscriptionTier = .plus) {
         _selectedTier = State(initialValue: initialTier == .free ? .plus : initialTier)
+    }
+
+    static func action(isOwner: Bool, activeProductID: String?, selectedProductID: String?) -> PaywallAction {
+        if isOwner { return .owner }
+        if let selectedProductID, selectedProductID == activeProductID { return .alreadyHave }
+        return .buy
     }
 
     struct Feature: Identifiable {
@@ -243,25 +260,35 @@ public struct SubscriptionPaywallView: View {
     @ViewBuilder
     private var purchaseSection: some View {
         VStack(spacing: 10) {
-            if subscriptionManager.isAppOwner {
+            switch Self.action(isOwner: subscriptionManager.isAppOwner,
+                               activeProductID: subscriptionManager.activeProductID,
+                               selectedProductID: product(for: selectedTier, annual: isAnnual)?.id) {
+            case .owner:
                 Label("Si majiteľ appky, máš všetko.", systemImage: "crown.fill")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(Color.gold300)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .homeCard(cornerRadius: 16)
-            } else if subscriptionManager.currentTier == selectedTier {
+            case .alreadyHave:
                 Label("Tento plán už máš", systemImage: "checkmark.circle.fill")
                     .font(.subheadline.weight(.bold))
                     .foregroundColor(Color.syncEmerald)
                     .frame(maxWidth: .infinity, minHeight: 50)
                     .homeCard(cornerRadius: 16)
-            } else {
+            case .buy:
                 PrimarySheetButton(
                     title: "Pokračovať s \(selectedTier.rawValue)",
                     isLoading: subscriptionManager.isPurchasing,
                     isEnabled: true,
                     action: purchase
                 )
+            }
+
+            if let notice {
+                Text(notice)
+                    .font(.footnote.weight(.medium))
+                    .foregroundColor(Color.gold300)
+                    .multilineTextAlignment(.center)
             }
 
             if let errorMessage {
@@ -275,17 +302,19 @@ public struct SubscriptionPaywallView: View {
 
     private var footer: some View {
         VStack(spacing: 12) {
-            Button {
-                Task {
-                    errorMessage = nil
-                    await subscriptionManager.restorePurchases()
+            Button(action: restore) {
+                Group {
+                    if isRestoring {
+                        ProgressView().tint(Color.gold300)
+                    } else {
+                        Text("Obnoviť nákupy")
+                    }
                 }
-            } label: {
-                Text("Obnoviť nákupy")
-                    .font(.footnote.weight(.semibold))
-                    .foregroundColor(Color.gold300)
-                    .frame(minHeight: 44)
+                .font(.footnote.weight(.semibold))
+                .foregroundColor(Color.gold300)
+                .frame(minHeight: 44)
             }
+            .disabled(isRestoring)
 
             Text("Predplatné sa obnovuje automaticky, kým ho nezrušíš aspoň 24 hodín pred koncom obdobia. Spravuješ ho v Nastaveniach iPhonu pod svojím Apple ID.")
                 .font(.caption2)
@@ -339,19 +368,44 @@ public struct SubscriptionPaywallView: View {
 
     private func purchase() {
         errorMessage = nil
+        notice = nil
         guard let product = product(for: selectedTier, annual: isAnnual) else {
-            errorMessage = "Predplatné sa práve nedá načítať z App Store. Skús to o chvíľu."
+            errorMessage = String(localized: "Predplatné sa práve nedá načítať z App Store. Skús to o chvíľu.")
             return
         }
         AnalyticsManager.shared.subscriptionUpgradeInitiated(tier: selectedTier.rawValue, isAnnual: isAnnual)
         Task {
             do {
-                if try await subscriptionManager.purchase(product: product) {
+                switch try await subscriptionManager.purchase(product: product) {
+                case .purchased:
                     AnalyticsManager.shared.subscriptionPurchased(tier: selectedTier.rawValue, isAnnual: isAnnual)
                     dismiss()
+                case .pending:
+                    notice = String(localized: "Nákup čaká na schválenie. Plán sa zapne hneď, ako ho schvália.")
+                case .cancelled:
+                    break
                 }
             } catch {
-                errorMessage = "Nákup sa nepodaril: \(error.localizedDescription)"
+                errorMessage = String(localized: "Nákup sa nepodaril: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func restore() {
+        errorMessage = nil
+        notice = nil
+        isRestoring = true
+        Task {
+            defer { isRestoring = false }
+            switch await subscriptionManager.restorePurchases() {
+            case .restored(let tier):
+                notice = String(localized: "Nákupy sa obnovili. Máš plán \(tier.title).")
+            case .nothingToRestore:
+                notice = String(localized: "V tomto Apple ID sme nenašli žiadne predplatné.")
+            case .failed:
+                errorMessage = String(localized: "Obnovenie sa nepodarilo. Skús to znova.")
+            case .cancelled:
+                break
             }
         }
     }

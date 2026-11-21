@@ -277,7 +277,7 @@ struct ProfileView: View {
                     }
                     .buttonStyle(.pressable)
 
-                    if subscriptionManager.entitlementSource == .storeKit {
+                    if subscriptionManager.activeProductID != nil {
                         // Downgrade or cancel happens in Apple's own subscription screen.
                         Button { showManageSubscriptions = true } label: {
                             Text("Zmeniť alebo zrušiť")

@@ -11,6 +11,7 @@ struct SubscriptionRefreshTests {
     final class World: @unchecked Sendable {
         var user: UUID? = UUID()
         var storeKit: SubscriptionTier = .free
+        var storeKitProduct: String?
         var owner: Bool? = false
         var ban: BanAnswer? = BanAnswer(isBanned: false, reason: "")
         var grant: SubscriptionManager.GrantLookup = .none
@@ -50,7 +51,7 @@ struct SubscriptionRefreshTests {
         var sources: EntitlementSources {
             EntitlementSources(
                 userId: { self.user },
-                storeKit: { self.storeKit },
+                storeKit: { StoreKitPlan(tier: self.storeKit, productID: self.storeKitProduct) },
                 isOwner: { let answer = self.owner; await self.pause(); return answer },
                 ban: { let answer = self.ban; await self.pause(); return answer },
                 grant: { let answer = self.grant; await self.pause(); return answer }
@@ -121,6 +122,24 @@ struct SubscriptionRefreshTests {
         world.storeKit = .free
         await manager.refreshEntitlements()
         #expect(manager.currentTier == .free && manager.entitlementSource == .none)
+    }
+
+    @Test func theProductTheDancerHoldsIsKnownAtOnceAndForgottenWhenItEnds() async {
+        let world = World()
+        world.storeKit = .plus
+        world.storeKitProduct = SubscriptionManager.ProductID.plusMonthly
+        world.holdsServer = true
+        let manager = SubscriptionManager(sources: world.sources)
+        let check = Task { await manager.refreshEntitlements() }
+        await waitUntil { manager.activeProductID != nil }
+        #expect(manager.activeProductID == SubscriptionManager.ProductID.plusMonthly, "known before the server answers")
+        world.release()
+        await check.value
+
+        world.storeKit = .free
+        world.storeKitProduct = nil
+        await manager.refreshEntitlements()
+        #expect(manager.activeProductID == nil)
     }
 
     // MARK: Slow checks and account switches
