@@ -91,8 +91,8 @@ public enum EntitlementSource: String, Codable, Sendable {
     case none = "none"
 }
 
-// MARK: - User Entitlement Record (from Supabase or local cache)
-public struct UserEntitlementRecord: Codable, Sendable {
+// MARK: - User Entitlement Record (one row of `user_entitlements`, read by `SubscriptionManager`)
+public struct UserEntitlementRecord: Sendable {
     public let userId: UUID
     public let tier: SubscriptionTier
     public let source: EntitlementSource
@@ -103,14 +103,5 @@ public struct UserEntitlementRecord: Codable, Sendable {
     public var isValid: Bool {
         guard let exp = expiresAt else { return true } // nil means lifetime
         return exp > Date()
-    }
-    
-    enum CodingKeys: String, CodingKey {
-        case userId = "user_id"
-        case tier
-        case source
-        case expiresAt = "expires_at"
-        case grantedBy = "granted_by"
-        case notes
     }
 }

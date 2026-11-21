@@ -15,7 +15,6 @@ final class SubscriptionManager: ObservableObject {
     @Published var entitlementSource: EntitlementSource = .none
     @Published var isAccountBanned: Bool = false
     @Published var banReason: String = ""
-    @Published var isCheckingEntitlements: Bool = false
     @Published var availableProducts: [Product] = []
     @Published var isPurchasing: Bool = false
     /// Comes only from the server (`is_app_owner()`), so nobody can become the owner by changing the app
@@ -96,18 +95,6 @@ final class SubscriptionManager: ObservableObject {
         return existingCountForDance < 1
     }
     
-    /// Kontrola na základe zoznamu existujúcich zostáv používateľa
-    public func canCreateRoutine(forDance danceName: String, existingRoutines: [Routine]) -> Bool {
-        if isAppOwner || currentTier == .plus || currentTier == .premium {
-            return true
-        }
-        let normalized = danceName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let matchingCount = existingRoutines.filter {
-            $0.danceName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized
-        }.count
-        return matchingCount < 1
-    }
-    
     // MARK: - Entitlements Refresh & Verification
     /// When the plan was last checked on the server.
     private var lastCheck: Date?
@@ -120,11 +107,9 @@ final class SubscriptionManager: ObservableObject {
     }
 
     public func refreshEntitlements() async {
-        isCheckingEntitlements = true
         lastCheck = Date()
         let checkedFor = AuthManager.shared.currentUser?.id
         defer {
-            isCheckingEntitlements = false
             // A check that started for another dancer (account switch) says nothing about this one.
             if let checkedFor, checkedFor == AuthManager.shared.currentUser?.id {
                 checkedUserId = checkedFor
