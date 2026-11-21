@@ -148,7 +148,6 @@ struct TrainingJournalView: View {
             .sensoryFeedback(.selection, trigger: selectedDay)
             .sensoryFeedback(.selection, trigger: mode)
             .sensoryFeedback(.success, trigger: savedTick)
-            .environment(\.locale, Locale(identifier: "sk"))
             .task(id: notes.compactMap(\.linkedFigureId)) { loadFigureNames() }
             .onChange(of: mode) { _, newMode in newMode == .listen ? startListening() : stopListening() }
             .onChange(of: selectedDay) { _, _ in if mode == .listen { mode = .read } }
@@ -756,7 +755,7 @@ private struct VoiceRow: View {
                 Button {
                     player.rate = player.rate >= 2 ? 1 : player.rate + 0.5
                 } label: {
-                    Text(player.rate.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk"))) + "×")
+                    Text(player.rate.formatted(.number.precision(.fractionLength(0...1))) + "×")
                         .font(.caption.weight(.bold))
                         .monospacedDigit()
                         .foregroundColor(.white)

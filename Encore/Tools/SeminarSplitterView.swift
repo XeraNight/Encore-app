@@ -88,7 +88,6 @@ struct SeminarSplitterView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .environment(\.locale, Locale(identifier: "sk"))
         .sensoryFeedback(.impact(weight: .medium), trigger: markTick)
         .sensoryFeedback(.success, trigger: saveTick)
         .onChange(of: selectedPhotoItem) { _, item in load(item) }

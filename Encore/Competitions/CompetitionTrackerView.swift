@@ -281,7 +281,7 @@ struct CompetitionTrackerView: View {
                 }
 
                 if let refreshed = couple.refreshedAt.flatMap(Self.parseTimestamp) {
-                    Text("Z KSIS \(refreshed.formatted(.dateTime.day().month(.wide).hour().minute().locale(Locale(identifier: "sk"))))")
+                    Text("Z KSIS \(refreshed.formatted(.dateTime.day().month(.wide).hour().minute()))")
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.45))
                 }
@@ -604,7 +604,7 @@ struct CompetitionResultRow: View {
                 Text(result.dateValue?.formatted(.dateTime.day()) ?? "")
                     .font(.system(.headline, design: .rounded).weight(.heavy))
                     .foregroundColor(.white)
-                Text(result.dateValue?.formatted(.dateTime.month(.abbreviated).locale(Locale(identifier: "sk"))) ?? "")
+                Text(result.dateValue?.formatted(.dateTime.month(.abbreviated)) ?? "")
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(Color.textSecondary)
             }

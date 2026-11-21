@@ -129,7 +129,6 @@ struct ContentView: View {
                     }
                 }
             }
-            .environment(\.locale, Locale(identifier: "sk"))
             .toolbar(.hidden, for: .navigationBar)
             .sensoryFeedback(.impact(weight: .medium), trigger: refreshCount)
             .navigationDestination(item: $selectedRoutineForNavigation) { routine in

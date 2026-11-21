@@ -1115,7 +1115,7 @@ struct DualVideoComparisonView: View {
     static let rates: [Float] = [0.25, 0.5, 0.75, 1]
 
     static func rateText(_ rate: Float) -> String {
-        Double(rate).formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "sk_SK"))) + "×"
+        Double(rate).formatted(.number.precision(.fractionLength(0...2))) + "×"
     }
 
     private func formatTime(_ seconds: Double, precise: Bool = false) -> String {

@@ -345,11 +345,11 @@ enum LessonPriorities {
     }
 }
 
-// MARK: - Date helpers (ISO weekdays, Slovak labels)
+// MARK: - Date helpers (ISO weekdays, labels in the device language)
 enum PlannerCalendar {
     static let calendar: Calendar = {
         var c = Calendar(identifier: .gregorian)
-        c.locale = Locale(identifier: "sk")
+        c.locale = .current
         c.firstWeekday = 2
         return c
     }()

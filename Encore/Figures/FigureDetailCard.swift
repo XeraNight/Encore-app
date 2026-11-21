@@ -1147,11 +1147,8 @@ class SpeechRecognizerHelper: ObservableObject {
     private let recognizer: SFSpeechRecognizer?
     
     init() {
-        if let slovak = SFSpeechRecognizer(locale: Locale(identifier: "sk-SK")) {
-            self.recognizer = slovak
-        } else {
-            self.recognizer = SFSpeechRecognizer() // Fallback to system locale
-        }
+        // Dictation follows the device language; Slovak when that language has no recognizer.
+        self.recognizer = SFSpeechRecognizer() ?? SFSpeechRecognizer(locale: Locale(identifier: "sk-SK"))
     }
     
     func requestPermissions() {

@@ -265,12 +265,11 @@ struct OwnerUserDetailsView: View {
     }
 
     // MARK: Dates
-    private static let slovak = Locale(identifier: "sk")
     static func date(_ date: Date) -> String {
-        date.formatted(.dateTime.day().month().year().locale(slovak))
+        date.formatted(.dateTime.day().month().year())
     }
     static func dateTime(_ date: Date) -> String {
-        date.formatted(.dateTime.day().month().year().hour().minute().locale(slovak))
+        date.formatted(.dateTime.day().month().year().hour().minute())
     }
 }
 

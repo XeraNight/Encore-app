@@ -50,7 +50,6 @@ struct PlannerEditorScaffold<Content: View>: View {
             .safeAreaInset(edge: .top, spacing: 0) { header }
             .safeAreaInset(edge: .bottom, spacing: 0) { saveBar }
         }
-        .environment(\.locale, Locale(identifier: "sk"))
         .preferredColorScheme(.dark)
         .confirmationDialog(delete?.question ?? "", isPresented: $confirmDelete, titleVisibility: .visible) {
             if let delete {

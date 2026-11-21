@@ -75,7 +75,7 @@ public struct DanceMirrorView: View {
             VStack(spacing: 12) {
                 topBar
                 if showsZoomLabel {
-                    Text(Double(cameraManager.currentZoom).formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk"))) + "×")
+                    Text(Double(cameraManager.currentZoom).formatted(.number.precision(.fractionLength(1))) + "×")
                         .font(.system(.subheadline, design: .rounded).weight(.bold))
                         .monospacedDigit()
                         .foregroundColor(.white)

@@ -661,7 +661,7 @@ struct PlannerCalendarView: View {
         if Self.calendar.isDateInToday(day) { return "DNES" }
         if Self.calendar.isDateInTomorrow(day) { return "ZAJTRA" }
         if Self.calendar.isDateInYesterday(day) { return "VČERA" }
-        return day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "sk"))).uppercased()
+        return day.formatted(.dateTime.weekday(.wide).day().month(.wide)).uppercased()
     }
 }
 

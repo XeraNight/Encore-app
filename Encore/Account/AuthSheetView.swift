@@ -135,7 +135,6 @@ struct AuthSheetView: View {
                 .padding(.top, 14)
             }
         }
-        .environment(\.locale, Locale(identifier: "sk"))
         .preferredColorScheme(.dark)
         .sheet(item: $legalTab) { LegalComplianceView(initialTab: $0) }
         .sheet(isPresented: $showForgotPassword) { ForgotPasswordSheet(prefillEmail: email) }

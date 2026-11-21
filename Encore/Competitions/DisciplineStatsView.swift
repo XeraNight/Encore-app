@@ -413,7 +413,7 @@ struct DisciplineStatsView: View {
                                     .font(.subheadline.weight(.semibold))
                                     .foregroundColor(.white)
                                 Spacer()
-                                Text(final.average.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk"))))
+                                Text(final.average.formatted(.number.precision(.fractionLength(1))))
                                     .font(.system(.subheadline, design: .rounded).weight(.bold))
                                     .monospacedDigit()
                                     .foregroundColor(Color.gold300)
@@ -560,7 +560,7 @@ struct DisciplineStatsView: View {
                                         Text("\(judged.crosses) z \(judged.marks) ✕")
                                     }
                                     if let final = judged.finalAverage {
-                                        Text("finále Ø \(final.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk"))))")
+                                        Text("finále Ø \(final.formatted(.number.precision(.fractionLength(0...1))))")
                                     }
                                 }
                                 .font(.caption.weight(.bold).monospacedDigit())

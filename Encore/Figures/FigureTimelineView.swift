@@ -44,7 +44,7 @@ struct FigureTake: Identifiable, Equatable {
 
     /// "14. 10." for the comparison slots.
     var shortTitle: String {
-        date?.formatted(.dateTime.day().month(.defaultDigits).locale(Locale(identifier: "sk"))) ?? "Aktuálne"
+        date?.formatted(.dateTime.day().month(.defaultDigits)) ?? "Aktuálne"
     }
 }
 
@@ -155,7 +155,7 @@ struct FigureTimelineView: View {
                 MediaThumbnailView(path: take.path, cornerRadius: 10)
                     .frame(width: 72, height: 54)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(take.date?.formatted(.dateTime.day().month(.wide).year().locale(Locale(identifier: "sk"))) ?? "Dátum neznámy")
+                    Text(take.date?.formatted(.dateTime.day().month(.wide).year()) ?? "Dátum neznámy")
                         .font(.subheadline.weight(.bold))
                         .foregroundColor(.white)
                     if let date = take.date {

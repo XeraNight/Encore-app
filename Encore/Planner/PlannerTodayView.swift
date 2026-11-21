@@ -262,6 +262,6 @@ struct PlannerWeekSummary: View {
     private func hours(_ minutes: Int) -> String {
         if minutes > 0 && minutes < 60 { return "\(minutes) min" }
         let value = Double(minutes) / 60
-        return "\(value.formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h"
+        return "\(value.formatted(.number.precision(.fractionLength(0...1)))) h"
     }
 }

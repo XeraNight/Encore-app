@@ -47,7 +47,7 @@ struct KSISCalendarView: View {
         let groups = Dictionary(grouping: shown) { String($0.date.prefix(7)) }
         return groups.keys.sorted().map { key in
             let events = (groups[key] ?? []).sorted { $0.date < $1.date }
-            let title = events.first?.dateValue?.formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "sk"))) ?? key
+            let title = events.first?.dateValue?.formatted(.dateTime.month(.wide).year()) ?? key
             return (title.uppercased(), events)
         }
     }
@@ -271,7 +271,7 @@ private struct KSISEventRow: View {
                 Text(event.dateValue?.formatted(.dateTime.day()) ?? "")
                     .font(.system(.headline, design: .rounded).weight(.heavy))
                     .foregroundColor(.white)
-                Text(event.dateValue?.formatted(.dateTime.month(.abbreviated).locale(Locale(identifier: "sk"))) ?? "")
+                Text(event.dateValue?.formatted(.dateTime.month(.abbreviated)) ?? "")
                     .font(.caption2.weight(.semibold))
                     .foregroundColor(Color.textSecondary)
             }
@@ -371,7 +371,7 @@ struct KSISEventSheet: View {
                 }
                 .softTopEdge()
             }
-            .navigationTitle(event.dateValue?.formatted(.dateTime.day().month(.wide).year().locale(Locale(identifier: "sk"))) ?? "")
+            .navigationTitle(event.dateValue?.formatted(.dateTime.day().month(.wide).year()) ?? "")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

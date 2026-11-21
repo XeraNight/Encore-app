@@ -99,7 +99,6 @@ struct ProfileSettingsView: View {
             Text(exportError ?? "")
         }
         .sensoryFeedback(.selection, trigger: changeCount)
-        .environment(\.locale, Locale(identifier: "sk"))
     }
 
     // MARK: Account

@@ -281,11 +281,11 @@ struct KSISRound: Codable, Equatable, Sendable, Identifiable {
     var sumText: String {
         if isScores { return Self.scoreText(sum) }
         // Int(sum) stops the app for a number beyond Int: marks of a connection are read from their own saved page.
-        return sum.rounded() == sum && abs(sum) < 1e9 ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "sk_SK")))
+        return sum.rounded() == sum && abs(sum) < 1e9 ? String(Int(sum)) : sum.formatted(.number.precision(.fractionLength(1)))
     }
 
     static func scoreText(_ value: Double) -> String {
-        value.formatted(.number.precision(.fractionLength(3)).locale(Locale(identifier: "sk_SK")))
+        value.formatted(.number.precision(.fractionLength(3)))
     }
 }
 

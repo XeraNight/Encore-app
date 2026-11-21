@@ -785,7 +785,7 @@ struct KSISBrowserView: View {
     /// "12. septembra 2026", or "12. 9. 2026" where space is short.
     static func displayDate(_ iso: String, numeric: Bool = false) -> String? {
         let style = Date.FormatStyle.dateTime.day().month(numeric ? .defaultDigits : .wide).year()
-        return isoDay.date(from: iso)?.formatted(style.locale(Locale(identifier: "sk")))
+        return isoDay.date(from: iso)?.formatted(style)
     }
 
     static func page(_ path: String) -> URL? {

@@ -268,7 +268,6 @@ struct CoachLessonSheet: View {
                         VStack(alignment: .leading, spacing: 12) {
                             HomeSectionHeader(title: "DNEŠNÁ LEKCIA", systemImage: "square.and.pencil")
                             DatePicker("Dátum", selection: $date, in: ...Date(), displayedComponents: .date)
-                                .environment(\.locale, Locale(identifier: "sk"))
                                 .tint(Color.gold400)
                                 .foregroundColor(.white)
                             TextField("", text: $summary,

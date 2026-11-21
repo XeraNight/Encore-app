@@ -74,7 +74,7 @@ struct DebriefSheet: View {
                             .font(.system(.title2, design: .rounded).weight(.bold))
                             .foregroundColor(.white)
                         if !PlannerCalendar.calendar.isDateInToday(entry.day) {
-                            Text(entry.day.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Locale(identifier: "sk"))))
+                            Text(entry.day.formatted(.dateTime.weekday(.wide).day().month(.wide)))
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(Color.gold400)
                         }

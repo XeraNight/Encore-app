@@ -93,7 +93,7 @@ struct AttachedVideoSection: View {
     }
 
     private static func speedText(_ speed: Float) -> String {
-        Double(speed).formatted(.number.precision(.fractionLength(0...2)).locale(Locale(identifier: "sk_SK"))) + "×"
+        Double(speed).formatted(.number.precision(.fractionLength(0...2))) + "×"
     }
 }
 

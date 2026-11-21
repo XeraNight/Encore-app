@@ -103,7 +103,6 @@ struct DancePlannerView: View {
                 .padding(.top, 8)
             }
             .toolbar(.hidden, for: .navigationBar)
-            .environment(\.locale, Locale(identifier: "sk"))
         }
         .task(id: planSignature) { await reschedule() }
         .onChange(of: scenePhase) { _, phase in

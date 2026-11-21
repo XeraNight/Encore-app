@@ -59,7 +59,6 @@ struct JournalInsertSheet: View {
                 ToolbarItem(placement: .primaryAction) { Button("Celý denník") { showJournal = true } }
             }
             .sheet(isPresented: $showJournal) { TrainingJournalView() }
-            .environment(\.locale, Locale(identifier: "sk"))
             .onDisappear { player.stop() }
         }
         .preferredColorScheme(.dark)

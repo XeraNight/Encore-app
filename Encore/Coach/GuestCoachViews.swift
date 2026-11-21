@@ -110,7 +110,7 @@ struct GuestCoachKeysSheet: View {
                     .background(Color.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .accessibilityLabel("QR kód kľúča")
             }
-            Text("Tréner ho naskenuje v Encore: Domov → logo → Skenovať QR. Platí do \(expires.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "sk")))).")
+            Text("Tréner ho naskenuje v Encore: Domov → logo → Skenovať QR. Platí do \(expires.formatted(.dateTime.day().month(.wide))).")
                 .font(.footnote)
                 .foregroundColor(.white.opacity(0.8))
                 .multilineTextAlignment(.center)
@@ -168,7 +168,7 @@ struct GuestCoachKeysSheet: View {
     }
 
     private func statusText(_ key: GuestCoachKey) -> String {
-        let day = { (date: Date) in date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk"))) }
+        let day = { (date: Date) in date.formatted(.dateTime.day().month(.abbreviated)) }
         if key.revokedAt != nil { return "Zrušený" }
         if key.expiresAt <= Date() { return "Skončil \(day(key.expiresAt))" }
         return "Platí do \(day(key.expiresAt))"
@@ -307,7 +307,7 @@ struct GuestRoutineView: View {
                     Text(access.routineName)
                         .font(.system(.title2, design: .rounded).weight(.bold))
                         .foregroundColor(.white)
-                    Text("\(access.danceName) · od \(access.ownerName.isEmpty ? "tanečníka" : access.ownerName) · do \(access.expiresAt.formatted(.dateTime.day().month(.wide).locale(Locale(identifier: "sk"))))")
+                    Text("\(access.danceName) · od \(access.ownerName.isEmpty ? "tanečníka" : access.ownerName) · do \(access.expiresAt.formatted(.dateTime.day().month(.wide)))")
                         .font(.footnote)
                         .foregroundColor(Color.textSecondary)
                     Text("Tvoje poznámky uvidí len tanečník. Ostanú mu aj po skončení kľúča.")
@@ -457,7 +457,7 @@ struct GuestRoutinesListView: View {
                             HomeRow(
                                 icon: "key.fill",
                                 title: key.routine?.name ?? "Zostava",
-                                subtitle: "\(key.routine?.danceName ?? "") · do \(key.expiresAt.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk"))))"
+                                subtitle: "\(key.routine?.danceName ?? "") · do \(key.expiresAt.formatted(.dateTime.day().month(.abbreviated)))"
                             )
                             .homeCard(cornerRadius: 18)
                         }
@@ -494,7 +494,7 @@ struct GuestNotesOnFigure: View {
                             Text(note.body)
                                 .font(.subheadline)
                                 .foregroundColor(.white)
-                            Text([note.key?.guestName, note.createdAt.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk")))]
+                            Text([note.key?.guestName, note.createdAt.formatted(.dateTime.day().month(.abbreviated))]
                                 .compactMap { $0 }.joined(separator: " · "))
                                 .font(.caption)
                                 .foregroundColor(Color.textSecondary)

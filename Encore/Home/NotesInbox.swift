@@ -246,7 +246,6 @@ struct NoteDetailSheet: View {
             .onChange(of: isWriting) { _, writing in
                 if writing { sweepTrigger += 1 }
             }
-            .environment(\.locale, Locale(identifier: "sk"))
         }
         .preferredColorScheme(.dark)
     }

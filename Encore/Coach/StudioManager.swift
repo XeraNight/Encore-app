@@ -294,6 +294,6 @@ struct CoachLesson: Identifiable, Decodable, Sendable, Equatable {
         let calendar = Calendar.current
         if calendar.isDateInToday(date) { return "dnes" }
         if calendar.isDateInYesterday(date) { return "včera" }
-        return date.formatted(.dateTime.day().month(.abbreviated).locale(Locale(identifier: "sk")))
+        return date.formatted(.dateTime.day().month(.abbreviated))
     }
 }

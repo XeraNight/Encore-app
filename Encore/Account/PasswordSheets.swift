@@ -325,7 +325,6 @@ private struct AuthSheetScaffold<Content: View>: View {
                 .padding(.bottom, 4)
             }
         }
-        .environment(\.locale, Locale(identifier: "sk"))
         .interactiveDismissDisabled(isBusy)
         .preferredColorScheme(.dark)
     }

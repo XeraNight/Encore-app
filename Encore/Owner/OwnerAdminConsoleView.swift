@@ -521,6 +521,6 @@ struct AdminUserSearchItem: Identifiable, Equatable {
     var planText: String {
         guard tier != .free else { return "Plán: Free" }
         guard let expiresAt else { return "Plán: \(tier.title), navždy" }
-        return "Plán: \(tier.title) do \(expiresAt.formatted(.dateTime.day().month().year().locale(Locale(identifier: "sk"))))"
+        return "Plán: \(tier.title) do \(expiresAt.formatted(.dateTime.day().month().year()))"
     }
 }

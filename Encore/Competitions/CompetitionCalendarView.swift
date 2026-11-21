@@ -11,7 +11,6 @@ struct CompetitionCalendarView: View {
     @State private var selectedDay: Date?
 
     private static let calendar = PlannerCalendar.calendar
-    private static let slovak = Locale(identifier: "sk")
 
     init(results: [CompetitionResult], onSelect: @escaping (CompetitionResult) -> Void) {
         self.results = results
@@ -34,7 +33,7 @@ struct CompetitionCalendarView: View {
                     (CalendarDayMark(dots: [.latinPink]), "Latina"),
                 ],
                 accessibilityLabel: { day in
-                    let date = day.formatted(.dateTime.day().month(.wide).locale(Self.slovak))
+                    let date = day.formatted(.dateTime.day().month(.wide))
                     let places = (byDay[day] ?? []).map { "\($0.categoryName), \($0.placeLine)" }.joined(separator: "; ")
                     return "\(date): \(places)"
                 }
@@ -71,7 +70,7 @@ struct CompetitionCalendarView: View {
 
     private var captionText: String {
         if let selectedDay {
-            return selectedDay.formatted(.dateTime.weekday(.wide).day().month(.wide).locale(Self.slovak))
+            return selectedDay.formatted(.dateTime.weekday(.wide).day().month(.wide))
         }
         let count = monthResults.count
         guard count > 0 else { return "V tomto mesiaci žiadna súťaž" }

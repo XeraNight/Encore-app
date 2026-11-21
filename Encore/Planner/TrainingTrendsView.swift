@@ -150,7 +150,6 @@ struct TrainingTrendsView: View {
             }
         }
         .preferredColorScheme(.dark)
-        .environment(\.locale, Locale(identifier: "sk"))
         .task {
             // A season of days is counted once when the screen opens, not on every redraw.
             let counted = TrainingTrends(cadences: cadences, sessions: sessions, logs: logs, priorities: priorities)
@@ -208,7 +207,7 @@ struct TrainingTrendsContent: View {
                         AxisGridLine().foregroundStyle(ChartAxisText.grid)
                         // "0,5 h" instead of a second "0 h" when the weeks are short.
                         AxisValueLabel {
-                            ChartAxisText("\((value.as(Double.self) ?? 0).formatted(.number.precision(.fractionLength(0...1)).locale(Locale(identifier: "sk")))) h")
+                            ChartAxisText("\((value.as(Double.self) ?? 0).formatted(.number.precision(.fractionLength(0...1)))) h")
                         }
                     }
                 }
@@ -216,7 +215,7 @@ struct TrainingTrendsContent: View {
                     AxisMarks(values: .automatic(desiredCount: 4)) { value in
                         AxisValueLabel {
                             if let date = value.as(Date.self) {
-                                ChartAxisText(date.formatted(.dateTime.day().month(.defaultDigits).locale(Locale(identifier: "sk"))))
+                                ChartAxisText(date.formatted(.dateTime.day().month(.defaultDigits)))
                             }
                         }
                     }
@@ -235,7 +234,7 @@ struct TrainingTrendsContent: View {
             VStack(spacing: 0) {
                 ForEach(trends.months.reversed()) { month in
                     HStack(spacing: 12) {
-                        Text(month.start.formatted(.dateTime.month(.wide).locale(Locale(identifier: "sk"))).capitalized)
+                        Text(month.start.formatted(.dateTime.month(.wide)).capitalized)
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.white)
                             .lineLimit(1)

@@ -28,7 +28,6 @@ nonisolated enum EncoreTime {
     private static func format(_ date: Date, _ style: Date.FormatStyle) -> String {
         var style = style
         style.timeZone = home
-        style.locale = Locale(identifier: "sk")
         let text = date.formatted(style)
         return isAway(at: date) ? text + " (čas SR)" : text
     }

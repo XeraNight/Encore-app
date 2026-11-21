@@ -79,7 +79,6 @@ struct ProfileView: View {
                 withAnimation(.easeOut(duration: 0.3)) { showCopied = false }
             }
             .sensoryFeedback(.success, trigger: copyCount)
-            .environment(\.locale, Locale(identifier: "sk"))
         }
     }
 
