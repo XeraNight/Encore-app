@@ -196,11 +196,14 @@ export default function HomePage() {
   return (
     <div className="relative min-h-screen overflow-x-clip bg-[#140206] text-[#F5F5F5]">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }} />
-      {/* §1A EllegancePageBackground crimson velvet stage light */}
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 bg-[radial-gradient(75%_55%_at_50%_24%,rgba(154,13,31,0.44),rgba(120,5,20,0.22)_52%,transparent_80%),radial-gradient(50%_40%_at_82%_14%,rgba(212,175,55,0.08),transparent_70%)]"
-      />
+      {/* §1A EllegancePageBackground crimson velvet stage light; two soft pools of light and one spotlight beam drift
+          slowly over it (transform only, see .stage-light in globals.css) */}
+      <div aria-hidden className="pointer-events-none fixed inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[radial-gradient(75%_55%_at_50%_24%,rgba(154,13,31,0.44),rgba(120,5,20,0.22)_52%,transparent_80%),radial-gradient(50%_40%_at_82%_14%,rgba(212,175,55,0.08),transparent_70%)]" />
+        <div className="stage-light stage-light-a" />
+        <div className="stage-light stage-light-b" />
+        <div className="stage-beam" />
+      </div>
 
       <LandingNavbar />
 

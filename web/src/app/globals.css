@@ -563,3 +563,65 @@ html {
   scroll-behavior: smooth;
   scroll-padding-top: 88px;
 }
+
+/* ── Slow stage light behind the page ─────────────────────────────────────────
+   Two soft pools of light and one spotlight beam drift over the fixed velvet gradient. Only transform and opacity
+   change, so the browser composites it on the GPU and nothing repaints. Reduce Motion turns it off. */
+.stage-light {
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 9999px;
+  will-change: transform, opacity;
+}
+
+.stage-light-a {
+  left: -18vmax;
+  top: -22vmax;
+  background: radial-gradient(circle, rgba(170, 18, 40, 0.34), transparent 64%);
+  animation: stage-drift-a 38s ease-in-out infinite alternate;
+}
+
+.stage-light-b {
+  right: -26vmax;
+  top: 18vh;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.1), transparent 66%);
+  animation: stage-drift-b 52s ease-in-out infinite alternate;
+}
+
+.stage-beam {
+  position: absolute;
+  left: 50%;
+  top: -12vh;
+  width: 46vmax;
+  height: 120vh;
+  margin-left: -23vmax;
+  transform-origin: 50% 0;
+  background: linear-gradient(180deg, rgba(255, 224, 136, 0.11), rgba(255, 224, 136, 0.03) 55%, transparent 90%);
+  clip-path: polygon(46% 0, 54% 0, 100% 100%, 0 100%);
+  filter: blur(14px);
+  will-change: transform, opacity;
+  animation: stage-beam 17s ease-in-out infinite alternate;
+}
+
+@keyframes stage-drift-a {
+  from { transform: translate3d(0, 0, 0) scale(1); opacity: 0.95; }
+  to { transform: translate3d(34vmax, 20vh, 0) scale(1.16); opacity: 0.55; }
+}
+
+@keyframes stage-drift-b {
+  from { transform: translate3d(0, 0, 0) scale(1.1); opacity: 0.45; }
+  to { transform: translate3d(-30vmax, -14vh, 0) scale(0.9); opacity: 0.95; }
+}
+
+@keyframes stage-beam {
+  from { transform: rotate(-9deg); opacity: 0.55; }
+  to { transform: rotate(9deg); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-light,
+  .stage-beam {
+    animation: none;
+  }
+}
