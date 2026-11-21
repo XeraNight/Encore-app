@@ -36,7 +36,13 @@ export const metadata: Metadata = {
     type: 'website',
     url: SITE_URL,
     locale: 'sk_SK',
-    images: [{ url: '/encore_stage_bg.jpg', width: 1200, height: 630, alt: 'Encore' }],
+    images: [{ url: '/og/encore-og-1200x630.jpg', width: 1200, height: 630, alt: 'Encore – tréningový denník pre spoločenské tance' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Encore – tréningový denník pre spoločenské tance',
+    description: 'Zostavy, poznámky od trénera, plán a výsledky zo súťaží. Aplikácia pre iPhone.',
+    images: ['/og/encore-og-1200x630.jpg'],
   },
 }
 
