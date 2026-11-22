@@ -8,6 +8,7 @@ extension Color {
     static let gold300     = Color(red: 249/255, green: 241/255, blue: 204/255)       // #F9F1CC Light Champagne
     static let gold400     = Color(red: 255/255, green: 224/255, blue: 136/255)       // #FFE088 Bevel Specular
     static let gold500     = Color(red: 212/255, green: 175/255, blue: 55/255)        // #D4AF37 Core Gold
+    static let gold700     = Color(red: 154/255, green: 118/255, blue: 22/255)        // #9A7616 Gold Lip: the edge under a pressed gold button
     
     // MARK: - Encore Official Rebrand Palette (Crimson Velvet & Gold)
     static let encoreCrimson      = Color(red: 120/255, green: 5/255, blue: 20/255)   // #780514 Deep Crimson Velvet

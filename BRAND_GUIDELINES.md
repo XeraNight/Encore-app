@@ -50,7 +50,7 @@ Tento dokument definuje oficiálnu vizuálnu identitu, farebnú paletu, typograf
 * **Kontrast na zamate:** sekundárny text min. 60 % bielej, placeholder min. 50 %, nič pod 40 %.
 
 ### Ovládacie prvky
-* **Hlavná akcia:** plné šampanské zlato, čierny text, rohy 16 pt → `PrimarySheetButton`. Neaktívna = to isté tlačidlo stlmené na 40 % a pod ním krátka veta, prečo sa nedá.
+* **Hlavná akcia:** plné šampanské zlato na tmavšej zlatej hrane (`gold700`, 5 pt, ako v Duolingu), čierny text, rohy 16 pt; stlačená tvár sa prepadne do hrany a po pustení sa s malým odskočením vráti (`EncorePrimaryButtonStyle`, `.encorePrimary`) → `PrimarySheetButton`. Neaktívna = to isté tlačidlo stlmené na 40 % a pod ním krátka veta, prečo sa nedá.
 * **Prepínač režimov a filtrov:** rad kapsúl, vybraná výplň sa presúva (`matchedGeometryEffect`), zlatý lem 45 %.
 * **Výber tanca:** `DanceMenuCapsule` – menu rozdelené na Štandard / Latina, vybraný tanec má bodku vo farbe disciplíny (modrá Štandard, karmínová Latina).
 * **Sekundárne a ikonové akcie:** sklenené kruhy 36–44 pt → `.glassEffect(.regular.interactive(), in: .circle)`.
@@ -136,7 +136,7 @@ Oficiálnym symbolom Encore je **Sculptural Ribbon Mark (Variant 3B)**:
 ### 1. Primárne CTA Tlačidlo (Primary Luxury Button)
 * **Vzhľad**: Zamatovo čierne pozadie (`#0D0D0E`) so zlatým textom a ikonou (`#D4AF37`), alebo plné šampanské zlato s čiernym textom.
 * **Okraj**: Jemný `1px` svetlejší zlatý lem (`rgba(212, 175, 55, 0.35)`).
-* **Tieň**: Mäkký rozptýlený tieň `shadow(color: black.opacity(0.15), radius: 14, y: 5)`.
+* **Tieň**: Mäkký rozptýlený tieň; pri stlačení sa stiahne (`radius 12 → 4`). Pod tvárou je zlatá hrana (`gold700`), ktorá ostáva na mieste, keď sa tvár prepadne.
 * **Rohy**: Zaoblenie `16 pt` (moderná elegantná kapsula).
 * **Haptika**: `.sensoryFeedback(.impact(weight: .medium), trigger:)`.
 

@@ -68,7 +68,7 @@ struct PrimarySheetButton: View {
     let action: () -> Void
 
     var body: some View {
-        // Primary luxury button (BRAND_GUIDELINES §3): full champagne gold, black label.
+        // Primary luxury button (BRAND_GUIDELINES §3): a champagne gold face on a darker gold lip, black label.
         // Not ready yet = the same button, dimmed, so it still reads as the main action.
         Button(action: action) {
             HStack {
@@ -81,14 +81,9 @@ struct PrimarySheetButton: View {
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 50)
-            .background(
-                LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: RoundedRectangle(cornerRadius: 16, style: .continuous)
-            )
-            .shadow(color: Color.black.opacity(0.15), radius: 14, y: 5)
-            .opacity(isEnabled || isLoading ? 1 : 0.4)
         }
-        .buttonStyle(.pressable)
+        .buttonStyle(.encorePrimary)
+        .opacity(isEnabled || isLoading ? 1 : 0.4)
         .disabled(!isEnabled || isLoading)
         .animation(.easeOut(duration: 0.2), value: isEnabled)
     }
