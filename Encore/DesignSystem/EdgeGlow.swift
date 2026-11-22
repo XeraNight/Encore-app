@@ -21,12 +21,13 @@ struct EncoreEdgeGlow: View {
 
     @ViewBuilder
     private var glow: some View {
-        if reduceMotion {
+        // A slow glow needs no more than 30 images a second; in Low Power Mode it stands still, like with Reduce Motion.
+        if reduceMotion || ProcessInfo.processInfo.isLowPowerModeEnabled {
             // The line is centred on the screen's edge, so half of it is off the screen: twice the width shows once.
             ConcentricRectangle()
                 .stroke(Color.gold400.opacity(0.4), lineWidth: 4)
         } else {
-            TimelineView(.animation) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { timeline in
                 let lap = (timeline.date.timeIntervalSinceReferenceDate / 6).truncatingRemainder(dividingBy: 1)
                 ZStack {
                     ConcentricRectangle()

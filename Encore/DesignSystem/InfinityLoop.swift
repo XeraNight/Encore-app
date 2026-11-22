@@ -76,7 +76,8 @@ struct InfinityLoopView: View {
                     withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) { breathIn = true }
                 }
             } else {
-                TimelineView(.animation) { timeline in
+                // 60 images a second are enough for a light this small, also on a 120 Hz screen; in Low Power Mode 30.
+                TimelineView(.animation(minimumInterval: ProcessInfo.processInfo.isLowPowerModeEnabled ? 1.0 / 30 : 1.0 / 60)) { timeline in
                     let lap = (timeline.date.timeIntervalSinceReferenceDate / period).truncatingRemainder(dividingBy: 1)
                     Canvas { context, size in
                         Self.draw(&context, size: size, lap: lap, color: color, line: line, room: room, glow: glow)
