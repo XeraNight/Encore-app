@@ -34,6 +34,38 @@ private struct EncoreSkeleton: ViewModifier {
     }
 }
 
+// MARK: - A slow network
+/// How long a load may take before the screen says so.
+enum LoadWait {
+    static let slowAfter: TimeInterval = 8
+}
+
+/// A calm line under a loading list once the load takes longer than a person expects, so a weak network does not
+/// look like a frozen app.
+struct SlowLoadNotice: View {
+    let isLoading: Bool
+
+    @State private var isSlow = false
+
+    var body: some View {
+        Group {
+            if isLoading, isSlow {
+                Label("Slabé pripojenie, skúšam ďalej.", systemImage: "wifi.exclamationmark")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.gold300)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isSlow)
+        .task(id: isLoading) {
+            isSlow = false
+            guard isLoading else { return }
+            try? await Task.sleep(for: .seconds(LoadWait.slowAfter))
+            if !Task.isCancelled { isSlow = true }
+        }
+    }
+}
+
 /// A band of gold light that crosses a block from left to right, a little later on each row further down the
 /// screen, so a list shows one slow wave and not many flashes.
 private struct SkeletonLight: View {

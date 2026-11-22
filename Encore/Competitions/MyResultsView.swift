@@ -399,6 +399,7 @@ struct MyResultsView: View {
     private var resultsSkeleton: some View {
         VStack(alignment: .leading, spacing: 8) {
             HomeSectionHeader(title: "SÚŤAŽE", systemImage: "trophy.fill") { InfinityLoopView(width: 30) }
+            SlowLoadNotice(isLoading: manager.isLoading)
             VStack(spacing: 0) {
                 ForEach(CompetitionResult.placeholders) { result in
                     CompetitionResultRow(result: result, isMissingMarks: false)
