@@ -4,9 +4,12 @@ import SwiftUI
 struct PressableButtonStyle: ButtonStyle {
     var scale: CGFloat = 0.95
 
+    /// With Reduce Motion the button does not shrink; it only dims a little.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .scaleEffect(configuration.isPressed ? scale : 1)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? scale : 1)
             .opacity(configuration.isPressed ? 0.88 : 1)
             .animation(.spring(response: 0.22, dampingFraction: 0.6), value: configuration.isPressed)
             // The touch area stays full size while the picture shrinks. Without this a finger near the
