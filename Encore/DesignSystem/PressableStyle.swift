@@ -23,28 +23,40 @@ extension ButtonStyle where Self == PressableButtonStyle {
     static func pressable(scale: CGFloat) -> PressableButtonStyle { PressableButtonStyle(scale: scale) }
 }
 
-/// The main gold button: a gold face on a darker gold lip. Pressed, the face sinks into the lip, and on release it comes
-/// back with a small bounce. The touch area keeps its full size, lip included, so a tap at the edge is not lost.
+/// The main gold button: a soft, round gold face on a darker gold lip, with the rounded type of the brand. Pressed, the
+/// face sinks into the lip, and on release it comes back with a small bounce. The touch area keeps its full size, lip
+/// included, so a tap at the edge is not lost. The corners are as round as the label's height allows: a pill when the
+/// button is a line high, a soft rounded shape when it is taller.
 struct EncorePrimaryButtonStyle: ButtonStyle {
-    var cornerRadius: CGFloat = 16
-    /// How far the face sinks: the height of the lip.
-    var lip: CGFloat = 5
+    /// A small pill with a short label inside a row has a thinner lip than a full-width button.
+    var compact = false
+    /// Dims itself when the button is disabled. Off where the caller dims the button on its own.
+    var dimsWhenDisabled = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isEnabled) private var isEnabled
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let lip: CGFloat = compact ? 3.5 : 5
+        let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
         configuration.label
+            .font(.system(compact ? .subheadline : .headline, design: .rounded, weight: .bold))
+            .foregroundStyle(Color.obsidian900)
             .background(
-                LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
+                LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .top, endPoint: .bottom),
                 in: shape
             )
+            // A soft light along the top edge makes the face look round and a little raised.
+            .overlay {
+                shape.strokeBorder(LinearGradient(colors: [.white.opacity(0.55), .white.opacity(0)], startPoint: .top, endPoint: .center), lineWidth: 1.2)
+            }
             .offset(y: pressed ? lip : 0)
             // The lip is drawn behind the face, one lip lower; it stays where it is when the face sinks.
             .background(alignment: .top) { shape.fill(Color.gold700).offset(y: lip) }
             .padding(.bottom, lip)
-            .shadow(color: .black.opacity(0.22), radius: pressed ? 4 : 12, y: pressed ? 2 : 8)
+            .shadow(color: .black.opacity(0.22), radius: pressed ? 4 : (compact ? 8 : 12), y: pressed ? 2 : (compact ? 5 : 8))
+            .opacity(dimsWhenDisabled && !isEnabled ? 0.4 : 1)
             .animation(motion(pressed: pressed), value: pressed)
             .contentShape(Rectangle())
     }
@@ -58,4 +70,7 @@ struct EncorePrimaryButtonStyle: ButtonStyle {
 
 extension ButtonStyle where Self == EncorePrimaryButtonStyle {
     static var encorePrimary: EncorePrimaryButtonStyle { EncorePrimaryButtonStyle() }
+    static func encorePrimary(compact: Bool = false, dimsWhenDisabled: Bool = true) -> EncorePrimaryButtonStyle {
+        EncorePrimaryButtonStyle(compact: compact, dimsWhenDisabled: dimsWhenDisabled)
+    }
 }

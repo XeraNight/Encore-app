@@ -76,13 +76,11 @@ struct PrimarySheetButton: View {
                     InfinityLoopView(width: 46, color: Color.obsidian900, period: 1.4, glow: false)
                 } else {
                     Text(title)
-                        .font(.headline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 50)
         }
-        .buttonStyle(.encorePrimary)
+        .buttonStyle(.encorePrimary(dimsWhenDisabled: false))
         .opacity(isEnabled || isLoading ? 1 : 0.4)
         .disabled(!isEnabled || isLoading)
         .animation(.easeOut(duration: 0.2), value: isEnabled)
