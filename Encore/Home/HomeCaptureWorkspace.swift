@@ -168,16 +168,10 @@ struct HomeCaptureWorkspace: View {
 
                     Button(action: saveText) {
                         Label("Uložiť poznámku", systemImage: "arrow.up.circle.fill")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundColor(Color.obsidian900)
                             .padding(.horizontal, 18)
                             .padding(.vertical, 10)
-                            .background(
-                                LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing),
-                                in: Capsule()
-                            )
                     }
-                    .buttonStyle(.pressable)
+                    .buttonStyle(.encorePrimary(compact: true))
                 }
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
@@ -242,16 +236,10 @@ struct HomeCaptureWorkspace: View {
 
                 Button { isCameraPresented = true } label: {
                     Label("Otvoriť kameru", systemImage: "record.circle")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 22)
                         .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing),
-                            in: Capsule()
-                        )
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.encorePrimary(compact: true))
                 .padding(.bottom, 8)
             }
         }

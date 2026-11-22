@@ -100,13 +100,10 @@ struct DeferredInvitePasteSheet: View {
                         }
                     } label: {
                         Text("Pridať")
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(.black)
                             .padding(.horizontal, 18)
                             .padding(.vertical, 12)
-                            .background(Color.gold400)
-                            .cornerRadius(12)
                     }
+                    .buttonStyle(.encorePrimary(compact: true))
                     .disabled(manualCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding(.horizontal, 24)

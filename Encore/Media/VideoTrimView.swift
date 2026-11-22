@@ -114,31 +114,24 @@ struct VideoTrimView: View {
                         .foregroundColor(.white)
                         .padding(.vertical, 14)
                         .padding(.horizontal, 24)
-                        .background(Color.white.opacity(0.12))
-                        .cornerRadius(12)
+                        .background(Color.white.opacity(0.12), in: Capsule())
                         
                         Button {
                             exportTrimmedVideo()
                         } label: {
                             HStack(spacing: 8) {
                                 if isExporting {
-                                    ProgressView().tint(Color.obsidian900)
+                                    InfinityLoopView(width: 40, color: Color.obsidian900, period: 1.4, glow: false)
                                 } else {
                                     Image(systemName: "scissors")
-                                        .font(.system(size: 16, weight: .black))
                                     Text("Použiť orezané video")
-                                        .font(.system(size: 15, weight: .bold))
                                 }
                             }
-                            .foregroundColor(Color.obsidian900)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(
-                                LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing)
-                            )
-                            .cornerRadius(12)
-                            .shadow(color: Color.gold500.opacity(0.3), radius: 6, y: 3)
+                            .frame(maxWidth: .infinity, minHeight: 50)
                         }
+                        .buttonStyle(.encorePrimary(dimsWhenDisabled: false))
+                        // The loader stays bright while it exports; a clip that is too short only dims the button.
+                        .opacity(isExporting || (endTime - startTime) >= 0.2 ? 1 : 0.4)
                         .disabled(isExporting || (endTime - startTime) < 0.2)
                     }
                     .padding(.horizontal, 16)

@@ -160,16 +160,10 @@ public struct CanvasRoutinesHubView: View {
 
             Button { showNewRoutineSheet = true } label: {
                 Label("Nová", systemImage: "plus")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Color.obsidian900)
                     .padding(.horizontal, 16)
                     .frame(minHeight: 40)
-                    .background(
-                        LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
-                        in: Capsule()
-                    )
             }
-            .buttonStyle(.pressable)
+            .buttonStyle(.encorePrimary(compact: true))
             .accessibilityLabel("Nová zostava")
         }
     }
@@ -283,16 +277,10 @@ public struct CanvasRoutinesHubView: View {
             if routines.isEmpty {
                 Button { showNewRoutineSheet = true } label: {
                     Label("Vytvoriť prvú zostavu", systemImage: "plus.circle.fill")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 22)
                         .padding(.vertical, 12)
-                        .background(
-                            LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .leading, endPoint: .trailing),
-                            in: Capsule()
-                        )
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.encorePrimary(compact: true))
             }
         }
         .frame(maxWidth: .infinity)

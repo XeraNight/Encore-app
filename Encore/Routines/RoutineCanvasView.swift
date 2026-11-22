@@ -889,17 +889,10 @@ struct RoutineCanvasView: View {
     private var addFigureButton: some View {
         Button { showFiguresDrawer = true } label: {
             Label("Figúra", systemImage: "plus")
-                .font(.subheadline.weight(.bold))
-                .foregroundColor(Color.obsidian900)
                 .padding(.horizontal, 20)
                 .frame(minHeight: 46)
-                .background(
-                    LinearGradient(colors: [Color.gold400, Color.gold500], startPoint: .topLeading, endPoint: .bottomTrailing),
-                    in: Capsule()
-                )
-                .shadow(color: Color.black.opacity(0.3), radius: 12, y: 5)
         }
-        .buttonStyle(.pressable)
+        .buttonStyle(.encorePrimary(compact: true))
         .sensoryFeedback(.impact(weight: .medium), trigger: showFiguresDrawer)
         .accessibilityLabel("Pridať figúru")
     }

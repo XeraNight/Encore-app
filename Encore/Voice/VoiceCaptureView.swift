@@ -77,16 +77,10 @@ struct VoiceCaptureView: View {
 
                 Button(action: save) {
                     Text("Uložiť nahrávku")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 11)
-                        .background(
-                            LinearGradient(colors: [Color.gold500, Color.gold400], startPoint: .leading, endPoint: .trailing),
-                            in: Capsule()
-                        )
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.encorePrimary(compact: true))
             }
             .transition(.scale.combined(with: .opacity))
         }

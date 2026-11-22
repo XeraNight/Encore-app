@@ -470,13 +470,10 @@ struct PlannerCalendarView: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Button(action: onOpenRoutine) {
                     Text("Nastaviť režim")
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(Color.obsidian900)
                         .padding(.horizontal, 18)
                         .padding(.vertical, 10)
-                        .background(Color.gold400, in: Capsule())
                 }
-                .buttonStyle(.pressable)
+                .buttonStyle(.encorePrimary(compact: true))
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)

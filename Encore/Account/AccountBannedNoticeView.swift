@@ -70,13 +70,10 @@ struct AccountBannedNoticeView: View {
                             Image(systemName: "envelope.fill")
                             Text("Kontaktovať podporu")
                         }
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.black)
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .background(Color.gold400)
-                        .cornerRadius(25)
                     }
+                    .buttonStyle(.encorePrimary)
                     
                     Button {
                         onSignOut()
