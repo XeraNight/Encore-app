@@ -73,7 +73,7 @@ struct PrimarySheetButton: View {
         Button(action: action) {
             HStack {
                 if isLoading {
-                    ProgressView().tint(Color.obsidian900)
+                    InfinityLoopView(width: 46, color: Color.obsidian900, period: 1.4, glow: false)
                 } else {
                     Text(title)
                         .font(.headline.weight(.bold))
