@@ -358,7 +358,9 @@ struct MyResultsView: View {
     // MARK: Results
     @ViewBuilder
     private var results: some View {
-        if shown.isEmpty {
+        if shown.isEmpty, manager.isLoading, !manager.loadFailed {
+            resultsSkeleton
+        } else if shown.isEmpty {
             // With a couple missing its history, the card above already says what to do.
             if couplesWithoutHistory.isEmpty || manager.loadFailed {
                 VStack(alignment: .leading, spacing: 12) {
@@ -391,6 +393,22 @@ struct MyResultsView: View {
                 seasonList(shown)
             }
         }
+    }
+
+    /// Nothing is stored on this iPhone yet and the competitions are on their way: the real rows with made-up data.
+    private var resultsSkeleton: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HomeSectionHeader(title: "SÚŤAŽE", systemImage: "trophy.fill") { InfinityLoopView(width: 30) }
+            VStack(spacing: 0) {
+                ForEach(CompetitionResult.placeholders) { result in
+                    CompetitionResultRow(result: result, isMissingMarks: false)
+                    if result.id != CompetitionResult.placeholders.last?.id { HomeRowDivider() }
+                }
+            }
+            .homeCard(cornerRadius: 20)
+            .encoreSkeleton(true, cornerRadius: 20)
+        }
+        .transition(.opacity)
     }
 
     /// Seasons run from September to August, as the dancers count them.

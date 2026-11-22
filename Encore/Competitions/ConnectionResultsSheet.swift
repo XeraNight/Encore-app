@@ -22,9 +22,13 @@ struct ConnectionResultsSheet: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         header
-                        HomeSectionHeader(title: "SÚŤAŽE", systemImage: "trophy.fill", count: results.isEmpty ? nil : results.count)
+                        HomeSectionHeader(title: "SÚŤAŽE", systemImage: "trophy.fill", count: results.isEmpty ? nil : results.count) {
+                            if isLoading { InfinityLoopView(width: 30) }
+                        }
                         if isLoading {
-                            ProgressView().tint(Color.gold400).frame(maxWidth: .infinity).padding(.vertical, 24)
+                            // The real row with made-up data, drawn as blocks: the list does not jump when the rows arrive.
+                            ForEach(CompetitionResult.placeholders) { row($0) }
+                                .encoreSkeleton(true)
                         } else if loadFailed {
                             hint("Súťaže sa nepodarilo načítať. Skontroluj pripojenie.")
                         } else if results.isEmpty {

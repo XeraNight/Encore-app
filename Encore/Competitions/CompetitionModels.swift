@@ -204,6 +204,32 @@ struct CompetitionResult: Identifiable, Decodable, Equatable, Sendable {
     }()
 }
 
+extension CompetitionResult {
+    /// Made-up competitions for a loading skeleton, which draws the real row as blocks. They are never shown as data.
+    static let placeholders: [CompetitionResult] = [
+        "Pohár mesta Nitra", "Majstrovstvá Slovenska", "Vianočný turnaj", "Jarný pohár"
+    ].map { CompetitionResult(placeholderName: $0) }
+
+    private init(placeholderName: String) {
+        id = UUID()
+        sutazId = 0
+        coupleId = 0
+        eventName = placeholderName
+        categoryName = "Dospelí Open · Štandard"
+        discipline = "STT"
+        date = "2026-01-01"
+        coupleCount = 12
+        placementText = "3."
+        placement = 3
+        pointsEarned = 0
+        cumulativeStats = nil
+        startNumber = nil
+        venue = nil
+        rounds = nil
+        judges = nil
+    }
+}
+
 /// A list read row by row: a row that cannot be read is left out instead of failing the whole list.
 struct LossyList<Element: Decodable>: Decodable {
     let elements: [Element]
