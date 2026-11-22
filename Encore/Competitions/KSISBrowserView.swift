@@ -106,8 +106,7 @@ struct KSISBrowserView: View {
             }
             Spacer(minLength: 4)
             if web.isLoading {
-                ProgressView()
-                    .tint(Color.gold400)
+                InfinityLoopView(width: 34)
                     .frame(width: 40, height: 40)
             } else {
                 LiquidGlassCircleButton(icon: "arrow.clockwise", label: "Obnoviť stránku", size: 40) { web.reload() }
@@ -248,8 +247,7 @@ struct KSISBrowserView: View {
         case .idle:
             guide(nil)
         case .reading:
-            ProgressView()
-                .tint(Color.gold400)
+            InfinityLoopView(width: 52)
                 .frame(maxWidth: .infinity)
         case .failed(let message):
             hint(message)

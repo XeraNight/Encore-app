@@ -44,6 +44,8 @@ final class KSISUpdateRun {
     let job: KSISUpdateJob
     let web = KSISWebController()
     private(set) var phase: Phase = .reading("Otváram KSIS…")
+    /// Which step the update is on and how far, for the panel.
+    private(set) var progress: KSISReadingProgress
 
     private let manager = CompetitionManager.shared
     private var task: Task<Void, Never>?
@@ -60,6 +62,7 @@ final class KSISUpdateRun {
 
     init(job: KSISUpdateJob) {
         self.job = job
+        self.progress = KSISReadingProgress(stage: KSISReadingProgress.stages(for: job).first ?? .couples)
         // Without a dancer there is no first page; saying so beats a spinner that never ends.
         if startURL == nil { phase = .failed("Najprv sa nájdi v KSIS: v zozname členov ťukni Som to ja pri svojom mene.") }
     }
@@ -182,7 +185,7 @@ final class KSISUpdateRun {
         await manager.loadAllData()
         try await updateCup()
 
-        say("Kalendár súťaží…")
+        say("Kalendár súťaží…", stage: .calendar)
         do {
             if let url = KSISEvent.calendarURL() { try rememberCalendar(try await open(url)) }
         } catch KSISCalendarPage.Failure.layoutChanged {
@@ -196,7 +199,7 @@ final class KSISUpdateRun {
 
     /// The dancer's couples in KSIS, the ended ones too, recognised by the server from the dancer's KSIS number and name.
     private func updateCouples(_ page: Page) async throws {
-        say("Hľadám vaše páry…")
+        say("Hľadám vaše páry…", stage: .couples)
         let mine = (try await manager.read(url: page.url, html: page.html).couples ?? []).filter(\.isMine)
         guard !mine.isEmpty else { return }
         let new = mine.filter { !$0.isLinked }
@@ -236,7 +239,7 @@ final class KSISUpdateRun {
 
     private func searchCouples(surname: String, otherName: String?, of dancer: KSISDancer) async throws {
         guard let url = KSISBrowserView.nameSearchURL(surname) else { return }
-        say("Hľadám všetky vaše páry…")
+        say("Hľadám všetky vaše páry…", stage: .couples)
         let page = try await open(url)
         let found: [KSISPageReply.FoundCouple]
         do {
@@ -267,12 +270,13 @@ final class KSISUpdateRun {
     /// only its history: its pair number can belong to a new couple by now.
     private func updatePointsAndHistory() async throws {
         if let pair = manager.activeCouple?.pairNumber, let url = KSISBrowserView.coupleDetail(pair) {
-            say("Triedy a body…")
+            say("Triedy a body…", stage: .history)
             try await save(try await open(url))
         }
         let histories = manager.couples.compactMap(\.coupleId)
         for (index, coupleId) in histories.enumerated() {
-            say(histories.count == 1 ? "História súťaží…" : "História súťaží, pár \(index + 1) z \(histories.count)…")
+            say(histories.count == 1 ? "História súťaží…" : "História súťaží, pár \(index + 1) z \(histories.count)…",
+                stage: .history, done: index, of: histories.count)
             if let url = KSISBrowserView.page("par.php?id=\(coupleId)") {
                 try await save(try await open(url))
             }
@@ -285,7 +289,7 @@ final class KSISUpdateRun {
         let missing = manager.results.filter { manager.isMissingMarks($0) || manager.isMissingVenue($0) }
         let batch = missing.prefix(Self.marksPerRun)
         for (index, result) in batch.enumerated() {
-            say("Krížiky a miesta \(index + 1) z \(batch.count)…")
+            say("Krížiky a miesta \(index + 1) z \(batch.count)…", stage: .marks, done: index, of: batch.count)
             var outcome = SavedPage.notThere
             // The crosses page carries the place too. A competition KSIS has no crosses for keeps its place on
             // the results page.
@@ -336,8 +340,9 @@ final class KSISUpdateRun {
 
     private func updateCup() async throws {
         guard let couple = manager.activeCouple, let group = SlovakCup.Group(ageCategory: couple.ageCategory) else { return }
-        for discipline in SlovakCup.disciplines(for: couple) {
-            say("Slovenský pohár \(discipline.title)…")
+        let disciplines = SlovakCup.disciplines(for: couple)
+        for (index, discipline) in disciplines.enumerated() {
+            say("Slovenský pohár \(discipline.title)…", stage: .cup, done: index, of: disciplines.count)
             guard let url = SlovakCup.standingsURL(group: group, discipline: discipline) else { continue }
             let page = try await open(url)
             do {
@@ -351,8 +356,14 @@ final class KSISUpdateRun {
     }
 
     // MARK: Steps
-    private func say(_ label: String) {
+    private func say(_ label: String, stage: KSISReadingProgress.Stage, done: Int? = nil, of total: Int? = nil) {
         lastLabel = label
+        if progress.stage == stage {
+            progress.done = done
+            progress.total = total
+        } else {
+            progress = KSISReadingProgress(stage: stage, done: done, total: total)
+        }
         phase = .reading(label)
     }
 
@@ -476,6 +487,8 @@ struct KSISUpdateSheet: View {
             }
         }
         .background(EllegancePageBackground())
+        // A light runs round the edge while the update reads, so it is plain that something long is going on.
+        .overlay { EncoreEdgeGlow(isActive: isReading) }
         .sensoryFeedback(.success, trigger: doneTick)
         .onChange(of: run.isFinished) { _, isFinished in
             guard isFinished else { return }
@@ -484,6 +497,11 @@ struct KSISUpdateSheet: View {
         }
         .onDisappear { run.cancel() }
         .preferredColorScheme(.dark)
+    }
+
+    private var isReading: Bool {
+        if case .reading = run.phase { return true }
+        return false
     }
 
     private var title: String {
@@ -518,13 +536,7 @@ struct KSISUpdateSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             switch run.phase {
             case .reading(let label):
-                HStack(spacing: 10) {
-                    ProgressView().tint(Color.gold400)
-                    Text(label)
-                        .font(.subheadline.weight(.bold))
-                        .foregroundColor(.white)
-                        .contentTransition(.opacity)
-                }
+                KSISReadingPanel(label: label, progress: run.progress, stages: KSISReadingProgress.stages(for: run.job))
             case .waitingForCheck:
                 Label("Čakám na overenie KSIS", systemImage: "person.badge.shield.checkmark.fill")
                     .font(.subheadline.weight(.bold))
