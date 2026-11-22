@@ -6,6 +6,8 @@ struct KSISReadingPanel: View {
     let label: String
     let progress: KSISReadingProgress
     let stages: [KSISReadingProgress.Stage]
+    /// The page being read is taking long.
+    var isSlow = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -38,10 +40,17 @@ struct KSISReadingPanel: View {
                     .monospacedDigit()
             }
 
-            Text("Appka otvára stránky KSIS jednu po druhej, tak ako by ich otvoril človek. Preto to chvíľu trvá. Nechaj túto obrazovku otvorenú.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.7))
-                .fixedSize(horizontal: false, vertical: true)
+            if isSlow {
+                Label("KSIS odpovedá pomaly. Čakám ďalej, nič sa nestratí.", systemImage: "hourglass")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(Color.gold400)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                Text("Appka otvára stránky KSIS jednu po druhej, tak ako by ich otvoril človek. Preto to chvíľu trvá. Nechaj túto obrazovku otvorenú.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.7))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .accessibilityElement(children: .combine)
     }

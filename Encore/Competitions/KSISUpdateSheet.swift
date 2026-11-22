@@ -21,6 +21,8 @@ enum KSISUpdateJob: String, Identifiable {
 final class KSISUpdateRun {
     enum Phase {
         case reading(String)
+        /// The connection is gone; the update waits for it and goes on by itself.
+        case waitingForNetwork
         case waitingForCheck
         /// Couples of this dancer not saved yet: saving them needs the partner's yes.
         case newCouples([KSISPageReply.ListedCouple])
@@ -31,10 +33,7 @@ final class KSISUpdateRun {
         case failed(String)
     }
 
-    private struct Page {
-        let url: URL
-        let html: String
-    }
+    private typealias Page = KSISPage
 
     /// Crosses read in one update; the next update goes on with the rest.
     private static let marksPerRun = 30
@@ -46,10 +45,12 @@ final class KSISUpdateRun {
     private(set) var phase: Phase = .reading("Otváram KSIS…")
     /// Which step the update is on and how far, for the panel.
     private(set) var progress: KSISReadingProgress
+    /// The page being read is taking long (KSIS is slow, or the network is weak).
+    var isSlow: Bool { waiter.isSlow }
 
     private let manager = CompetitionManager.shared
     private var task: Task<Void, Never>?
-    private var pageWaiter: CheckedContinuation<Page, Error>?
+    private let waiter = KSISPageWaiter()
     private var consentWaiter: CheckedContinuation<Bool, Never>?
     /// The ticked couples, or nil when the dancer skipped the question.
     private var foundWaiter: CheckedContinuation<[Int]?, Never>?
@@ -64,6 +65,7 @@ final class KSISUpdateRun {
         self.job = job
         self.progress = KSISReadingProgress(stage: KSISReadingProgress.stages(for: job).first ?? .couples)
         // Without a dancer there is no first page; saying so beats a spinner that never ends.
+        waiter.isPaused = { [weak self] in self?.isWaitingForCheck ?? false }
         if startURL == nil { phase = .failed("Najprv sa nájdi v KSIS: v zozname členov ťukni Som to ja pri svojom mene.") }
     }
 
@@ -98,19 +100,17 @@ final class KSISUpdateRun {
             return
         }
         let page = Page(url: url, html: html)
-        if let pageWaiter {
-            self.pageWaiter = nil
+        if waiter.isWaiting {
             phase = .reading(lastLabel)
-            pageWaiter.resume(returning: page)
+            waiter.deliver(page)
         } else if task == nil {
             task = Task { await run(first: page) }
         }
     }
 
     func pageFailed() {
-        if let pageWaiter {
-            self.pageWaiter = nil
-            pageWaiter.resume(throwing: CompetitionManager.ActionError.network)
+        if waiter.isWaiting {
+            waiter.fail(.network)
         } else if task == nil {
             phase = .failed(CompetitionManager.ActionError.network.localizedDescription)
         }
@@ -144,9 +144,9 @@ final class KSISUpdateRun {
     /// The window closed: what is saved stays, the next update goes on from there.
     func cancel() {
         isClosed = true
+        web.stopLoading()
         task?.cancel()
-        pageWaiter?.resume(throwing: CancellationError())
-        pageWaiter = nil
+        waiter.cancel()
         answerNewCouples(save: false)
         answerFoundCouples(save: false)
     }
@@ -367,12 +367,33 @@ final class KSISUpdateRun {
         phase = .reading(label)
     }
 
+    /// The page, tried again (after the network is back) when it did not come; the update stops only after the tries.
     private func open(_ url: URL) async throws -> Page {
         try await Task.sleep(for: Self.pause)
-        return try await withCheckedThrowingContinuation { continuation in
-            pageWaiter = continuation
-            web.load(url)
+        var retriesLeft = KSISWaitPolicy.retries
+        while true {
+            do {
+                return try await waiter.page(start: { web.load(url) }, stop: { [web] in web.stopLoading() })
+            } catch let failure as KSISPageWaiter.Failure {
+                guard retriesLeft > 0 else { throw failure }
+                retriesLeft -= 1
+                try await waitForConnection()
+            }
         }
+    }
+
+    /// With the network gone, waits for it and says so; with the network there, takes a short breath first.
+    private func waitForConnection() async throws {
+        if NetworkMonitor.shared.isOnline {
+            try await Task.sleep(for: .seconds(3))
+            return
+        }
+        phase = .waitingForNetwork
+        let isBack = await NetworkMonitor.shared.waitUntilOnline(timeout: KSISWaitPolicy.offlineWait)
+        try Task.checkCancellation()
+        guard isBack else { throw KSISPageWaiter.Failure.network }
+        phase = .reading(lastLabel)
+        try await Task.sleep(for: .seconds(1))
     }
 
     /// One page that cannot be saved does not stop the rest; without internet nothing can go on.
@@ -462,6 +483,8 @@ struct KSISUpdateSheet: View {
     @State private var run: KSISUpdateRun
     @State private var consent = false
     @State private var doneTick = 0
+    /// Counts the tries, so a new try gets a new page view.
+    @State private var attempt = 0
 
     init(job: KSISUpdateJob) {
         _run = State(initialValue: KSISUpdateRun(job: job))
@@ -477,6 +500,7 @@ struct KSISUpdateSheet: View {
                     } onPageFailed: {
                         run.pageFailed()
                     }
+                    .id(attempt)
                     .ignoresSafeArea(edges: .bottom)
                     .allowsHitTesting(run.isWaitingForCheck)
                 }
@@ -495,13 +519,38 @@ struct KSISUpdateSheet: View {
             doneTick += 1
             if run.job == .calendar, case .finished = run.phase { dismiss() }
         }
-        .onDisappear { run.cancel() }
+        // A locked screen would stop the pages; the screen stays on while the update works.
+        .onAppear { UIApplication.shared.isIdleTimerDisabled = isWorking }
+        .onChange(of: isWorking) { _, working in UIApplication.shared.isIdleTimerDisabled = working }
+        .onChange(of: run.progress.stage) { _, stage in
+            AccessibilityNotification.Announcement("Sťahujem z KSIS: \(stage.title)").post()
+        }
+        .onDisappear {
+            run.cancel()
+            UIApplication.shared.isIdleTimerDisabled = false
+        }
         .preferredColorScheme(.dark)
+    }
+
+    /// A new update from the start; what was saved stays and is not read again.
+    private func retry() {
+        run.cancel()
+        run = KSISUpdateRun(job: run.job)
+        consent = false
+        attempt += 1
     }
 
     private var isReading: Bool {
         if case .reading = run.phase { return true }
         return false
+    }
+
+    /// Reading, or waiting for the network to come back: the screen must not lock.
+    private var isWorking: Bool {
+        switch run.phase {
+        case .reading, .waitingForNetwork: return true
+        default: return false
+        }
     }
 
     private var title: String {
@@ -536,7 +585,21 @@ struct KSISUpdateSheet: View {
         VStack(alignment: .leading, spacing: 12) {
             switch run.phase {
             case .reading(let label):
-                KSISReadingPanel(label: label, progress: run.progress, stages: KSISReadingProgress.stages(for: run.job))
+                KSISReadingPanel(label: label, progress: run.progress, stages: KSISReadingProgress.stages(for: run.job),
+                                 isSlow: run.isSlow)
+            case .waitingForNetwork:
+                HStack(spacing: 14) {
+                    InfinityLoopView(width: 46, color: Color.gold400.opacity(0.55))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Čakám na pripojenie")
+                            .font(.system(.headline, design: .rounded).weight(.bold))
+                            .foregroundColor(.white)
+                        Text("Zapni Wi-Fi alebo dáta. Appka pokračuje sama, čo je uložené, ostáva.")
+                            .font(.footnote)
+                            .foregroundColor(.white.opacity(0.75))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
             case .waitingForCheck:
                 Label("Čakám na overenie KSIS", systemImage: "person.badge.shield.checkmark.fill")
                     .font(.subheadline.weight(.bold))
@@ -567,7 +630,12 @@ struct KSISUpdateSheet: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.white)
                     .fixedSize(horizontal: false, vertical: true)
-                PrimarySheetButton(title: "Zavrieť", isLoading: false, isEnabled: true) { dismiss() }
+                if run.startURL != nil {
+                    PrimarySheetButton(title: "Skúsiť znova", isLoading: false, isEnabled: true) { retry() }
+                    secondaryButton("Zavrieť") { dismiss() }
+                } else {
+                    PrimarySheetButton(title: "Zavrieť", isLoading: false, isEnabled: true) { dismiss() }
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

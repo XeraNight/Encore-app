@@ -945,6 +945,7 @@ final class KSISWebController: ObservableObject {
 
     func load(_ url: URL) { webView?.load(URLRequest(url: url)) }
     func reload() { webView?.reload() }
+    func stopLoading() { webView?.stopLoading() }
     func goBack() { webView?.goBack() }
 
     /// Room under the page for the panel that floats over it.
