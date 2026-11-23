@@ -65,9 +65,14 @@ enum DeviceBackup {
     }
 
     // MARK: Up
-    /// Sends what changed since it last went up and what was deleted here.
-    static func upload(in context: ModelContext) async {
-        guard !isUploading, let userId = SupabaseConfig.client.auth.currentUser?.id else { return }
+    /// Sends what changed since it last went up and what was deleted here. False after a bad moment (the cloud did not
+    /// take it): what is left is kept and the caller should try again soon.
+    @discardableResult
+    static func upload(in context: ModelContext) async -> Bool {
+        // The open account's data goes up only under that same account: right after another one signs in, the session can
+        // be a moment ahead of the store.
+        guard !isUploading, let userId = SupabaseConfig.client.auth.currentUser?.id,
+              AccountStore.shared.accountId == userId else { return true }
         isUploading = true
         defer { isUploading = false }
         let startedIn = generation
@@ -96,12 +101,13 @@ enum DeviceBackup {
                     .execute()
             } catch {
                 Logger.sync.error("Device backup failed, kept for the next try: \(error.localizedDescription, privacy: .public)")
-                return
+                return false
             }
-            guard generation == startedIn else { return }
+            guard generation == startedIn else { return true }
             for item in batch { fingerprints[item.key] = item.fingerprint }
             UserDefaults.standard.set(fingerprints, forKey: fingerprintsKey)
         }
+        return true
     }
 
     // MARK: Down
@@ -111,6 +117,7 @@ enum DeviceBackup {
     static func restoreIfNeeded() async {
         guard let context = AppContainer.shared?.mainContext,
               let userId = SupabaseConfig.client.auth.currentUser?.id,
+              AccountStore.shared.accountId == userId,
               UserDefaults.standard.string(forKey: checkedKey) != userId.uuidString else { return }
         let startedIn = generation
 

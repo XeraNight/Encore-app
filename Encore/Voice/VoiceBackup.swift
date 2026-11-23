@@ -11,7 +11,8 @@ import SwiftData
 ///
 /// What must hold, whatever the network or the dancer does:
 /// - A recording the cloud will never take (too big, a name it does not know) is left out and the others go on. A bad
-///   moment (no network, a busy server, the plan's space full) stops the run, and what is left waits for the next one.
+///   moment (no network, a busy server) stops the run, and the caller tries again soon (PendingSyncRunner). A full plan
+///   stops the sending too, but a retry would not help, so it waits for the next ordinary run.
 /// - A recording is asked for again after a bad moment; only the cloud saying "no copy" is remembered, and only until the
 ///   app is closed.
 /// - Every step checks that the account whose data is open is still the one signed in, so a recording never goes up
@@ -24,9 +25,9 @@ final class VoiceBackup {
 
     /// What the backup asks of the cloud. The live one is `media-share` and the private storage; tests bring their own.
     struct Cloud {
-        /// What went wrong, as far as the backup has to tell: the recording has no copy, the cloud will never take it,
-        /// or it is only a bad moment.
-        enum Failure: Error { case notFound, refused, later }
+        /// What went wrong, as far as the backup has to tell: the recording has no copy, the cloud will never take it, the
+        /// plan's space is full, or it is only a bad moment.
+        enum Failure: Error { case notFound, refused, full, later }
 
         var upload: (_ name: String, _ file: URL, _ size: Int) async throws -> Void
         var download: (_ name: String, _ file: URL) async throws -> Void
@@ -62,42 +63,49 @@ final class VoiceBackup {
     }
 
     // MARK: Up
-    /// Sends the recordings not in the cloud yet and removes the copies of deleted notes. Runs with the other
-    /// changes waiting to go up (PendingSyncRunner); what fails is tried on the next run.
-    func sync(in context: ModelContext) async {
-        guard !isSyncing, let account = currentAccount() else { return }
+    /// Sends the recordings not in the cloud yet and removes the copies of deleted notes. Runs with the other changes
+    /// waiting to go up (PendingSyncRunner). False after a bad moment (no network, a busy server): what is left is kept and
+    /// the caller should try again soon. Everything else is true: done, a refused file (it will never go), a full plan
+    /// (trying again would not help), another account opened meanwhile (its own run sends its recordings).
+    @discardableResult
+    func sync(in context: ModelContext) async -> Bool {
+        guard !isSyncing, let account = currentAccount() else { return true }
         isSyncing = true
         defer { isSyncing = false }
         let key = Self.savedKey(for: account)
         let (referenced, isComplete) = Self.recordings(in: context)
         var saved = Set(UserDefaults.standard.stringArray(forKey: key) ?? [])
         for name in referenced.subtracting(saved).subtracting(refused).sorted() where exists(name) {
-            guard currentAccount() == account else { return }
+            guard currentAccount() == account else { return true }
             do {
                 try await upload(name)
                 saved.insert(name)
                 UserDefaults.standard.set(Array(saved), forKey: key)
             } catch Cloud.Failure.refused {
                 refused.insert(name)
+            } catch Cloud.Failure.full {
+                // Nothing more goes up now, but the copies of deleted notes below still free the space.
+                break
             } catch {
-                return
+                return false
             }
         }
         // A copy goes only when every note was read (a note that could not be read may still hold its recording) and
         // the notes were brought back from their backup (an empty database may only be one that was just rebuilt).
-        guard isComplete, hasRestored(account) else { return }
+        guard isComplete, hasRestored(account) else { return true }
         for name in saved.subtracting(referenced).sorted() {
-            guard currentAccount() == account else { return }
+            guard currentAccount() == account else { return true }
             do {
                 try await cloud.remove(name)
             } catch Cloud.Failure.refused {
                 // A name the cloud never took has no copy to remove.
             } catch {
-                return
+                return false
             }
             saved.remove(name)
             UserDefaults.standard.set(Array(saved), forKey: key)
         }
+        return true
     }
 
     /// Every recording the open account's data points to: Denník notes and the voice notes inside figures' notes.
@@ -215,8 +223,8 @@ extension VoiceBackup.Cloud {
         }
     )
 
-    /// One call to `media-share`, its errors told as the backup needs them: no copy, refused for good, or a bad moment
-    /// (no network, not signed in, too many calls, the plan's space full, a server error).
+    /// One call to `media-share`, its errors told as the backup needs them: no copy, refused for good, the plan's space
+    /// full, or a bad moment (no network, not signed in, too many calls, a server error).
     private static func ask<Reply: Decodable>(_ request: VoiceRequest) async throws -> Reply {
         do {
             return try await EdgeFunctionClient.call("media-share", request)
@@ -224,6 +232,7 @@ extension VoiceBackup.Cloud {
             switch code {
             case "not_found": throw Failure.notFound
             case "invalid_input", "too_large": throw Failure.refused
+            case "quota_exceeded": throw Failure.full
             default: throw Failure.later
             }
         } catch {

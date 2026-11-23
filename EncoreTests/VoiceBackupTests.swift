@@ -97,7 +97,9 @@ struct VoiceBackupTests {
             Set(UserDefaults.standard.stringArray(forKey: VoiceBackup.savedKey(for: id)) ?? [])
         }
 
-        func sync(_ id: UUID) async { await backup.sync(in: context(of: id)) }
+        /// False when the run asks to be tried again soon.
+        @discardableResult
+        func sync(_ id: UUID) async -> Bool { await backup.sync(in: context(of: id)) }
 
         func cleanUp() {
             for id in accounts {
@@ -196,6 +198,82 @@ struct VoiceBackupTests {
         // It is not asked about again and again while the app stays open.
         await rig.sync(a)
         #expect(rig.tried.filter { $0 == bad }.count == 1)
+    }
+
+    // MARK: Retry
+
+    /// A bad moment is the only thing that asks PendingSyncRunner to try again soon.
+    @Test func aBadMomentAsksForARetry() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+        rig.account = a
+        try rig.record(for: a)
+        rig.uploadFails = { _ in .later }
+
+        #expect(await rig.sync(a) == false)
+
+        rig.uploadFails = { _ in nil }
+        #expect(await rig.sync(a) == true)
+    }
+
+    @Test func nothingToSendAndNobodySignedInNeedNoRetry() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+
+        #expect(await rig.sync(a) == true)
+        rig.account = a
+        try rig.record(for: a)
+        rig.account = nil
+        #expect(await rig.sync(a) == true)
+        #expect(rig.tried.isEmpty)
+    }
+
+    @Test func aRefusedFileNeedsNoRetry() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+        rig.account = a
+        let bad = try rig.record(for: a)
+        try rig.record(for: a)
+        rig.uploadFails = { $0 == bad ? .refused : nil }
+
+        #expect(await rig.sync(a) == true)
+        #expect(rig.uploads.count == 1)
+    }
+
+    /// A full plan stops the sending but a retry every few minutes would not help; the copies of deleted notes still go.
+    @Test func aFullPlanNeedsNoRetryAndStillFreesTheSpace() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+        rig.account = a
+        let gone = try rig.record(for: a)
+        await rig.sync(a)
+        let context = rig.context(of: a)
+        for note in try context.fetch(FetchDescriptor<InstantNote>()) { context.delete(note) }
+        try context.save()
+        let waiting = try rig.record(for: a)
+        rig.uploadFails = { _ in .full }
+
+        #expect(await rig.sync(a) == true)
+        #expect(rig.uploads == [gone])
+        #expect(rig.removals == [gone])
+        #expect(!rig.saved(of: a).contains(waiting))
+    }
+
+    @Test func anotherAccountOpenedMeanwhileNeedsNoRetry() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+        let b = try rig.newAccount()
+        rig.account = a
+        try (0..<2).forEach { _ in try rig.record(for: a) }
+        rig.afterUpload = { _ in rig.account = b }
+
+        #expect(await rig.sync(a) == true)
+        #expect(rig.uploads.count == 1)
     }
 
     // MARK: Accounts
@@ -336,7 +414,7 @@ struct VoiceBackupTests {
         let flaky = VoiceBackup(cloud: VoiceBackup.Cloud(
             upload: { _, _, _ in }, download: { _, _ in }, remove: { _ in throw Failure.later }
         ), currentAccount: { rig.account }, folder: rig.folder)
-        await flaky.sync(in: context)
+        #expect(await flaky.sync(in: context) == false)
         #expect(rig.saved(of: a) == saved)
 
         await rig.sync(a)

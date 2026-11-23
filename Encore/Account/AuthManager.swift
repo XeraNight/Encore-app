@@ -186,6 +186,8 @@ final class AuthManager: ObservableObject {
             UserProfileStore.shared.refreshForActiveUser()
             Task { await SupabaseSyncManager.shared.pullRoutinesIntoApp() }
             Task { await DeviceBackup.restoreIfNeeded() }
+            // What this account left waiting (also after a cold start, when the first run found nobody signed in) goes now.
+            PendingSyncRunner.shared.run()
         }
     }
 

@@ -175,13 +175,14 @@ final class PendingSyncRunner {
         isRunning = true
         retryTask?.cancel()
         Task {
-            let allSent = await SupabaseSyncManager.shared.sendPending(in: container.mainContext)
-            // The diary, plan and notes: their own fingerprints, a failure waits for the next run.
-            await DeviceBackup.upload(in: container.mainContext)
+            let routinesSent = await SupabaseSyncManager.shared.sendPending(in: container.mainContext)
+            // The diary, plan and notes: their own fingerprints.
+            let diarySent = await DeviceBackup.upload(in: container.mainContext)
             // Voice recordings: their copies in the cloud, so a new iPhone gets them back.
-            await VoiceBackup.shared.sync(in: container.mainContext)
+            let voiceSent = await VoiceBackup.shared.sync(in: container.mainContext)
             isRunning = false
-            if allSent { attempt = 0 } else { scheduleRetry() }
+            // Anything that did not go up waits for a retry with the same growing pauses.
+            if routinesSent && diarySent && voiceSent { attempt = 0 } else { scheduleRetry() }
         }
     }
 
