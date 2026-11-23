@@ -1,46 +1,66 @@
 import SwiftUI
 
 // MARK: - The curve
-/// A figure of eight lying on its side: the path of the Encore loader, the line of dance in one stroke.
-/// x = cos t, y = ½ sin 2t, walked at an even pace by length so the light does not rush through the middle.
+/// A figure of eight lying on its side, the path of the Encore loader and the line of dance in one stroke. Its shape
+/// follows the loop picked on 21st.dev: two round lobes joined by gentle S-curves, with no sharp corner anywhere. It is
+/// six cubic curves, walked at an even pace by length so the light does not rush through the middle.
 enum InfinityCurve {
     /// Height over width.
-    nonisolated static let heightRatio: CGFloat = 0.5
+    nonisolated static let heightRatio: CGFloat = 0.444
 
-    /// How far along the curve's length each sample is, 0...1. Sample `i` is at t = 2π · i / (count - 1).
-    private nonisolated static let lengths: [Double] = {
-        let count = 360
-        var cumulative = [0.0]
-        var previous = raw(0)
-        var total = 0.0
-        for i in 1...count {
-            let next = raw(2 * Double.pi * Double(i) / Double(count))
-            total += hypot(next.x - previous.x, next.y - previous.y)
-            cumulative.append(total)
-            previous = next
-        }
-        return cumulative.map { $0 / total }
+    /// The six curves (start, two controls, end), in unit coordinates: x in -1...1, y in -0.444...0.444, y down.
+    /// It starts at the right end and runs down, so the first stretch is the lower half of the right lobe.
+    private nonisolated static let curves: [[(x: Double, y: Double)]] = {
+        let centre = 0.57   // where the S-curves meet a lobe, left or right of the middle
+        let height = 0.444  // how far a lobe reaches up and down
+        let reach = 0.29    // how far the lobe's controls stand out sideways
+        let round = 0.15    // how far the controls at the lobe's end stand up and down
+        let glide = 0.43    // how long the S-curve's controls are
+        return [
+            [(1, 0), (1, round), (centre + reach, height), (centre, height)],
+            [(centre, height), (centre - glide, height), (-(centre - glide), -height), (-centre, -height)],
+            [(-centre, -height), (-(centre + reach), -height), (-1, -round), (-1, 0)],
+            [(-1, 0), (-1, round), (-(centre + reach), height), (-centre, height)],
+            [(-centre, height), (-(centre - glide), height), (centre - glide, -height), (centre, -height)],
+            [(centre, -height), (centre + reach, -height), (1, -round), (1, 0)]
+        ]
     }()
 
-    private nonisolated static func raw(_ t: Double) -> (x: Double, y: Double) {
-        (cos(t), 0.5 * sin(2 * t))
-    }
+    /// Points along the curve with the length walked so far, 0...1.
+    private nonisolated static let samples: [(x: Double, y: Double, length: Double)] = {
+        let steps = 48
+        var points: [(x: Double, y: Double)] = []
+        for curve in curves {
+            for i in 0..<steps {
+                let t = Double(i) / Double(steps)
+                let u = 1 - t
+                let x = u * u * u * curve[0].x + 3 * u * u * t * curve[1].x + 3 * u * t * t * curve[2].x + t * t * t * curve[3].x
+                let y = u * u * u * curve[0].y + 3 * u * u * t * curve[1].y + 3 * u * t * t * curve[2].y + t * t * t * curve[3].y
+                points.append((x, y))
+            }
+        }
+        points.append((1, 0))
+        var walked = [0.0]
+        for i in 1..<points.count {
+            walked.append(walked[i - 1] + hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y))
+        }
+        let total = walked[walked.count - 1]
+        return points.enumerated().map { (x: $0.element.x, y: $0.element.y, length: walked[$0.offset] / total) }
+    }()
 
     /// The point `progress` of the way along the curve's length (0...1, anything else wraps round).
-    /// x is in -1...1 and y in -0.5...0.5.
     nonisolated static func point(at progress: Double) -> CGPoint {
         let wrapped = progress - progress.rounded(.down)
         var low = 0
-        var high = lengths.count - 1
+        var high = samples.count - 1
         while high - low > 1 {
             let middle = (low + high) / 2
-            if lengths[middle] <= wrapped { low = middle } else { high = middle }
+            if samples[middle].length <= wrapped { low = middle } else { high = middle }
         }
-        let span = lengths[high] - lengths[low]
-        let fraction = span > 0 ? (wrapped - lengths[low]) / span : 0
-        let t = 2 * Double.pi * (Double(low) + fraction) / Double(lengths.count - 1)
-        let p = raw(t)
-        return CGPoint(x: p.x, y: p.y)
+        let span = samples[high].length - samples[low].length
+        let fraction = span > 0 ? (wrapped - samples[low].length) / span : 0
+        return CGPoint(x: samples[low].x + (samples[high].x - samples[low].x) * fraction,
+                       y: samples[low].y + (samples[high].y - samples[low].y) * fraction)
     }
 }
 
@@ -59,8 +79,8 @@ struct InfinityLoopView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var breathIn = false
 
-    private var line: CGFloat { max(2.2, width * 0.075) }
-    private var height: CGFloat { (width - 2 * line) * InfinityCurve.heightRatio + 2 * line }
+    private var line: CGFloat { max(2.5, width * 0.10) }
+    private var height: CGFloat { (width - line) * InfinityCurve.heightRatio + line }
     /// Room round the figure for the glow, so it fades out instead of being cut at the edge of the drawing.
     private var room: CGFloat { glow ? line * 4 : 0 }
 
@@ -94,7 +114,8 @@ struct InfinityLoopView: View {
     /// `lap` is where the light is on its way round (0...1); nil draws the figure alone.
     nonisolated private static func draw(_ context: inout GraphicsContext, size: CGSize, lap: Double?, color: Color,
                                          line: CGFloat, room: CGFloat, glow: Bool) {
-        let scale = (size.width - 2 * room - 2 * line) / 2
+        // The curve's half width: the stroke's round ends add half a line on each side, and the whole is `width` wide.
+        let scale = (size.width - 2 * room - line) / 2
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
         func place(_ progress: Double) -> CGPoint {
             let p = InfinityCurve.point(at: progress)
@@ -109,18 +130,17 @@ struct InfinityLoopView: View {
                        style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
         guard let lap else { return }
 
-        // The tail: layers of the same path laid over each other, each shorter and thicker than the one before. Where
-        // more layers meet the light is brighter, so it fades smoothly, with no beads and no gaps at the bends.
-        let layers = 18
+        // The tail: the same stretch of the path stroked many times, each time one step shorter than before, always as thick
+        // as the figure with round ends. Where more strokes meet the light is brighter, so it fades smoothly towards the end
+        // with no beads, no gaps at the bends and no thin sharp tip. The steps are small enough that no stair shows.
+        let steps = 48
         let tail = 0.4
-        for k in 0..<layers {
-            let covers = Double(k + 1) / Double(layers)
-            let points = max(3, Int(covers * 44))
+        let spots = (0...steps).map { place(lap - tail * Double($0) / Double(steps)) }
+        for length in 1...steps {
             var path = Path()
-            path.move(to: place(lap))
-            for j in 1...points { path.addLine(to: place(lap - tail * covers * Double(j) / Double(points))) }
-            context.stroke(path, with: .color(color.opacity(k >= layers - 3 ? 0.08 : 0.16)),
-                           style: StrokeStyle(lineWidth: line * (1 - 0.55 * covers), lineCap: .round, lineJoin: .round))
+            path.addLines(Array(spots[0...length]))
+            context.stroke(path, with: .color(color.opacity(0.06)),
+                           style: StrokeStyle(lineWidth: line, lineCap: .round, lineJoin: .round))
         }
 
         // The head: a soft glow with a bright point in it.
@@ -128,14 +148,14 @@ struct InfinityLoopView: View {
         if glow {
             context.drawLayer { layer in
                 layer.addFilter(.blur(radius: line * 1.2))
-                layer.fill(Path(ellipseIn: CGRect(x: head.x - line * 1.1, y: head.y - line * 1.1, width: line * 2.2, height: line * 2.2)),
+                layer.fill(Path(ellipseIn: CGRect(x: head.x - line * 0.9, y: head.y - line * 0.9, width: line * 1.8, height: line * 1.8)),
                            with: .color(color.opacity(0.85)))
             }
         }
-        context.fill(Path(ellipseIn: CGRect(x: head.x - line * 0.62, y: head.y - line * 0.62, width: line * 1.24, height: line * 1.24)),
+        context.fill(Path(ellipseIn: CGRect(x: head.x - line * 0.5, y: head.y - line * 0.5, width: line, height: line)),
                      with: .color(color))
         if glow {
-            context.fill(Path(ellipseIn: CGRect(x: head.x - line * 0.3, y: head.y - line * 0.3, width: line * 0.6, height: line * 0.6)),
+            context.fill(Path(ellipseIn: CGRect(x: head.x - line * 0.22, y: head.y - line * 0.22, width: line * 0.44, height: line * 0.44)),
                          with: .color(.white.opacity(0.95)))
         }
     }
