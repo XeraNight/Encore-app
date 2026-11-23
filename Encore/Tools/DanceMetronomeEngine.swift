@@ -210,7 +210,8 @@ public final class DanceMetronomeEngine: ObservableObject {
             sessionQueue.async {
                 let session = AVAudioSession.sharedInstance()
                 do {
-                    if session.category != .playAndRecord {
+                    // A voice note leaves .playAndRecord without .mixWithOthers: kept, the metronome would pause the hall's music.
+                    if session.category != .playAndRecord || !session.categoryOptions.contains(.mixWithOthers) {
                         // .playAndRecord with .defaultToSpeaker plays next to the camera's microphone and past
                         // the mute switch; .mixWithOthers plays over the hall's music.
                         try session.setCategory(
