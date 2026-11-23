@@ -33,8 +33,9 @@ actor AudioSessionCoordinator {
 
         case .voiceNote:
             // Plain voice recording and playback of it: default mode (no measurement/raw processing),
-            // no Bluetooth hands-free input (it would drop the recording to phone-call quality).
-            try avSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker])
+            // no Bluetooth hands-free input (it would drop the recording to phone-call quality). Stereo Bluetooth output
+            // (AirPods) is allowed, or a recording would play from the iPhone's speaker with AirPods in the ears.
+            try avSession.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
             try avSession.setPreferredSampleRate(48_000)
             try avSession.setActive(true)
 
