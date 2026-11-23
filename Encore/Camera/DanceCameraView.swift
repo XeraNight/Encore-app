@@ -211,6 +211,8 @@ struct DanceCameraView: View {
             let item = AVPlayerItem(url: url)
             let player = AVPlayer(playerItem: item)
             player.actionAtItemEnd = .none
+            // The ghost is a guide to watch: its sound would go into the take through the microphone.
+            player.isMuted = true
             removeGhostLoop()
             // The loop: back to the start when the video ends. The observer does not hold the player, and is taken
             // down with it, so a ghost does not outlive the screen.
