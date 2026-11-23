@@ -159,6 +159,9 @@ struct NoteDetailSheet: View {
 
     /// A voice note or a video goes to a figure as it is; only a text note is written here.
     private var showsText: Bool { (note.audioPath == nil && note.videoPath == nil && note.imagePath == nil) || note.hasText }
+    /// Once the text field is shown it stays: deleting all of the text of a voice note must not make the field vanish
+    /// under the dancer's hand.
+    @State private var keepsEditor = false
     private var canAdd: Bool { note.hasText || note.audioPath != nil || note.videoPath != nil || note.imagePath != nil }
 
     var body: some View {
@@ -211,7 +214,7 @@ struct NoteDetailSheet: View {
                             }
                         }
 
-                        if showsText {
+                        if showsText || keepsEditor {
                             section("TEXT", systemImage: "text.alignleft") { editor }
                         }
 
@@ -248,6 +251,7 @@ struct NoteDetailSheet: View {
             .onChange(of: isWriting) { _, writing in
                 if writing { sweepTrigger += 1 }
             }
+            .onChange(of: showsText, initial: true) { _, shows in if shows { keepsEditor = true } }
             .task { reflection = note.reflection(in: modelContext) }
             .onChange(of: note.text) { _, _ in reflection?.follow(note) }
             .onChange(of: note.danceName) { _, _ in reflection?.follow(note) }
