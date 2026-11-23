@@ -146,6 +146,20 @@ final class TrainingLogEntry {
             feelingRaw = newValue.first?.feelingRaw
         }
     }
+
+    /// The note in Denník that carries this reflection's words (the debrief saves it with the reflection), or nil.
+    func note(in context: ModelContext) -> InstantNote? {
+        guard let noteId else { return nil }
+        var descriptor = FetchDescriptor<InstantNote>(predicate: #Predicate { $0.id == noteId })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+
+    /// Deletes the reflection together with its note in Denník: the note holds the same words and would keep them.
+    func delete(in context: ModelContext) {
+        if let note = note(in: context) { context.delete(note) }
+        context.delete(self)
+    }
 }
 
 // MARK: - Competitions

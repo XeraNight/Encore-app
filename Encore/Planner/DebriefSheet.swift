@@ -460,10 +460,10 @@ struct DebriefSheet: View {
 
         if trimmed.isEmpty {
             // Text deleted: the note in Poznámky goes too, it would keep the old words.
-            if let noteId = entry.noteId, let existing = fetchNote(noteId) { modelContext.delete(existing) }
+            if let existing = entry.note(in: modelContext) { modelContext.delete(existing) }
             entry.noteId = nil
         } else {
-            if let noteId = entry.noteId, let existing = fetchNote(noteId) {
+            if let existing = entry.note(in: modelContext) {
                 existing.text = trimmed
                 existing.danceName = danceName
             } else {
@@ -476,11 +476,5 @@ struct DebriefSheet: View {
         modelContext.saveOrLog()
         saveTick += 1
         dismiss()
-    }
-
-    private func fetchNote(_ id: UUID) -> InstantNote? {
-        var descriptor = FetchDescriptor<InstantNote>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        return try? modelContext.fetch(descriptor).first
     }
 }

@@ -65,7 +65,7 @@ struct SessionEditorSheet: View {
                         ? [.init(title: "Zmazať") { session.delete(in: modelContext) }]
                         : [.init(title: "Zmazať, reflexia ostane") { session.delete(in: modelContext) },
                            .init(title: "Zmazať aj reflexiu") {
-                               written.forEach { modelContext.delete($0) }
+                               written.forEach { $0.delete(in: modelContext) }
                                session.delete(in: modelContext)
                            }]
                 )

@@ -102,4 +102,50 @@ struct ReflectionMirrorTests {
         #expect(entry.feeling == .tired)
         #expect(entry.noteId == note.id)
     }
+
+    // MARK: Deleting
+
+    @Test func theNoteOfAReflectionIsFoundThroughTheReflection() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let (entry, note) = reflectionWithNote(in: context)
+        let withoutNote = TrainingLogEntry(day: Date(), cadenceId: UUID(), title: "STD")
+        context.insert(withoutNote)
+        try context.save()
+
+        #expect(entry.note(in: context)?.id == note.id)
+        #expect(withoutNote.note(in: context) == nil)
+    }
+
+    /// Deleting a reflection used to leave its note in Denník, with the same words and the old dance.
+    @Test func deletingAReflectionDeletesItsNoteToo() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let (entry, _) = reflectionWithNote(in: context)
+        let ownNote = InstantNote(text: "Poznámka sama o sebe")
+        let ownId = ownNote.id
+        context.insert(ownNote)
+        try context.save()
+
+        entry.delete(in: context)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<TrainingLogEntry>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<InstantNote>()).map(\.id) == [ownId])
+    }
+
+    @Test func aReflectionWhoseNoteIsAlreadyGoneIsDeletedAlone() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let entry = TrainingLogEntry(day: Date(), cadenceId: UUID(), title: "LAT")
+        entry.reflectionNote = "Slová"
+        entry.noteId = UUID()
+        context.insert(entry)
+        try context.save()
+
+        entry.delete(in: context)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<TrainingLogEntry>()).isEmpty)
+    }
 }

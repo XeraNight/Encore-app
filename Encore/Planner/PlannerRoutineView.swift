@@ -279,7 +279,7 @@ struct CadenceEditorSheet: View {
                         ? [.init(title: "Zmazať všetky budúce") { cadence.delete(in: modelContext) }]
                         : [.init(title: "Zmazať, reflexie ostanú") { cadence.delete(in: modelContext) },
                            .init(title: "Zmazať aj reflexie") {
-                               written.forEach { modelContext.delete($0) }
+                               written.forEach { $0.delete(in: modelContext) }
                                cadence.delete(in: modelContext)
                            }]
                 )

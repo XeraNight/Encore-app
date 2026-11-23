@@ -519,7 +519,7 @@ struct TrainingJournalView: View {
     }
 
     private func delete(_ entry: TrainingLogEntry) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { modelContext.delete(entry) }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { entry.delete(in: modelContext) }
         try? modelContext.save()
         showToast("Reflexia je zmazaná")
     }
