@@ -270,9 +270,19 @@ nonisolated private final class RecordingDelegate: NSObject, AVCaptureFileOutput
 
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         if let error {
-            Logger.camera.error("Recording failed: \(error.localizedDescription, privacy: .public)")
+            Logger.camera.error("Recording ended with an error: \(error.localizedDescription, privacy: .public)")
         }
-        finished(error == nil ? outputFileURL : nil)
+        finished(CameraRecording.isPlayable(afterError: error) ? outputFileURL : nil)
+    }
+}
+
+/// What a recording that ended with an error is worth.
+nonisolated enum CameraRecording {
+    /// A call, an alarm or a full disk ends a recording with an error, but what was recorded until then is often fine:
+    /// AVFoundation says so in the error itself. No error is a normal end.
+    static func isPlayable(afterError error: Error?) -> Bool {
+        guard let error else { return true }
+        return (error as NSError).userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool ?? false
     }
 }
 
@@ -287,6 +297,8 @@ final class DanceCameraModel {
     var isCountingDown: Bool { countdownRemaining > 0 }
     /// The finished take, until the screen picks it up.
     var recordedVideoURL: URL?
+    /// The recording ended by itself (a call, an alarm, a full disk) and nothing of it could be saved; the screen says so.
+    var takeLost = false
     var countdown: CountdownDuration = .off
     /// The zoom as dancers read it: 1 is the main lens, 0.5 the ultra wide.
     private(set) var zoom: Double = 1
@@ -372,6 +384,15 @@ final class DanceCameraModel {
         Task { await capture.stopRecording() }
     }
 
+    /// The file output finished: by the dancer's stop, or by itself (a call, an alarm, a full disk). Then the clock, the Lock
+    /// Screen and the shutter go back as after a stop, and the take is offered, or its loss is told.
+    private func recordingEnded(_ url: URL?) {
+        let endedByItself = isRecording
+        stopRecording()
+        recordedVideoURL = url
+        takeLost = url == nil && endedByItself
+    }
+
     func setZoom(_ preset: CameraZoomFactor) {
         zoom = preset.rawValue
         Task { await capture.setZoom(preset.rawValue, smoothly: true) }
@@ -429,7 +450,7 @@ final class DanceCameraModel {
             }
         Task {
             await capture.startRecording { url in
-                Task { @MainActor [weak self] in self?.recordedVideoURL = url }
+                Task { @MainActor [weak self] in self?.recordingEnded(url) }
             }
         }
     }

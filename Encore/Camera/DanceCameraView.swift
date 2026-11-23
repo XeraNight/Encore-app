@@ -196,6 +196,8 @@ struct DanceCameraView: View {
         .onAppear {
             camera.start()
             if showGridAndLevel { level.start() }
+            // A lesson is filmed from a tripod and not touched for minutes: the screen must not lock in the middle of a take.
+            UIApplication.shared.isIdleTimerDisabled = true
         }
         // Back from Nastavenia with the camera allowed: it starts without leaving the screen.
         .onChange(of: scenePhase) { _, phase in
@@ -219,6 +221,7 @@ struct DanceCameraView: View {
             self.ghostPlayer = player
         }
         .onDisappear {
+            UIApplication.shared.isIdleTimerDisabled = false
             DanceMetronomeEngine.shared.stop()
             ghostPlayer?.pause()
             ghostPlayer = nil
@@ -237,6 +240,11 @@ struct DanceCameraView: View {
             } else if !recording {
                 ghostPlayer?.pause()
             }
+        }
+        .alert("Video sa nepodarilo uložiť", isPresented: Binding(get: { camera.takeLost }, set: { camera.takeLost = $0 })) {
+            Button("Rozumiem", role: .cancel) {}
+        } message: {
+            Text("Nahrávanie sa prerušilo (hovor, budík alebo plné úložisko) skôr, než sa z neho dalo niečo zachrániť. Skús to znova.")
         }
         .onChange(of: camera.recordedVideoURL) { _, newURL in
             guard let url = newURL else { return }
