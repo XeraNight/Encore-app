@@ -1222,6 +1222,15 @@ class SpeechRecognizerHelper: ObservableObject {
 
             let inputNode = audioEngine.inputNode
             let recordingFormat = inputNode.outputFormat(forBus: 0)
+            // No microphone (a call in progress, no input) gives a format of 0 Hz, and tapping it raises an exception that
+            // cannot be caught and stops the app.
+            guard recordingFormat.sampleRate > 0, recordingFormat.channelCount > 0 else {
+                errorMessage = "Mikrofón teraz nie je dostupný. Skús to znova."
+                self.audioEngine = nil
+                self.request = nil
+                await AudioSessionCoordinator.shared.deactivate(.speech)
+                return
+            }
 
             inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { [weak self] buffer, _ in
                 request.append(buffer)
