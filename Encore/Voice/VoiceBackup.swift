@@ -1,5 +1,6 @@
 import Auth
 import Foundation
+import Observation
 import OSLog
 import SwiftData
 
@@ -20,6 +21,7 @@ import SwiftData
 /// - A copy is removed only after this account's backup of the notes was brought back to this iPhone (DeviceBackup): a
 ///   database that was rebuilt empty must not look like every note was deleted.
 @MainActor
+@Observable
 final class VoiceBackup {
     static let shared = VoiceBackup()
 
@@ -34,17 +36,18 @@ final class VoiceBackup {
         var remove: (_ name: String) async throws -> Void
     }
 
-    private let cloud: Cloud
+    @ObservationIgnored private let cloud: Cloud
     /// The account the backup may act for: the one signed in, when its data is the one open on this iPhone.
-    private let currentAccount: @MainActor () -> UUID?
-    private let folder: URL
+    @ObservationIgnored private let currentAccount: @MainActor () -> UUID?
+    @ObservationIgnored private let folder: URL
 
-    private var isSyncing = false
-    private var downloads: [String: Task<Bool?, Never>] = [:]
+    @ObservationIgnored private var isSyncing = false
+    @ObservationIgnored private var downloads: [String: Task<Bool?, Never>] = [:]
     /// Recordings the storage has no copy of (made before the copies began): asked once per run, not on every look.
+    /// Watched, so the screens show them as unavailable instead of a play button that does nothing.
     private var withoutCopy: Set<String> = []
     /// Recordings the storage refused for good: left out until the app is opened again.
-    private var refused: Set<String> = []
+    @ObservationIgnored private var refused: Set<String> = []
 
     init(cloud: Cloud = .live, currentAccount: @escaping @MainActor () -> UUID? = VoiceBackup.signedInOpenAccount,
          folder: URL = MediaStorageManager.documentsDirectory) {
@@ -52,6 +55,9 @@ final class VoiceBackup {
         self.currentAccount = currentAccount
         self.folder = folder
     }
+
+    /// The cloud has no copy of this recording and it is not on this iPhone, so it can never be played.
+    func isGone(_ name: String) -> Bool { withoutCopy.contains(name) }
 
     /// The recordings in the cloud for an account, as this iPhone knows them: sent from here or brought back.
     static func savedKey(for account: UUID) -> String { "encore.voiceBackup.saved." + account.uuidString }

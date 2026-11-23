@@ -271,6 +271,14 @@ struct VoiceNotePlayerView: View {
     @StateObject private var player = VoiceNotePlayer()
 
     var body: some View {
+        if VoiceBackup.shared.isGone(fileName) {
+            VoiceGoneRow()
+        } else {
+            playerRow
+        }
+    }
+
+    private var playerRow: some View {
         HStack(spacing: 12) {
             Button { player.toggle() } label: {
                 Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")

@@ -726,6 +726,14 @@ private struct VoiceRow: View {
     private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
 
     var body: some View {
+        if VoiceBackup.shared.isGone(fileName) {
+            VoiceGoneRow()
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 Button {

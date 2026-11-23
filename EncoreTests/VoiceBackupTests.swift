@@ -493,6 +493,24 @@ struct VoiceBackupTests {
         #expect(rig.downloads.count == 2)
     }
 
+    /// The screens say "nie je dostupná" for a recording the cloud has no copy of, never for a bad moment (it may come back).
+    @Test func aRecordingWithNoCopyIsGoneButABadMomentIsNot() async throws {
+        let rig = try Rig()
+        defer { rig.cleanUp() }
+        let a = try rig.newAccount()
+        rig.account = a
+        let name = try rig.record(inFolder: false)
+
+        #expect(rig.backup.isGone(name) == false)
+        rig.downloadFails = .later
+        #expect(await rig.backup.download(name) == false)
+        #expect(rig.backup.isGone(name) == false)
+
+        rig.downloadFails = nil
+        #expect(await rig.backup.download(name) == false)
+        #expect(rig.backup.isGone(name))
+    }
+
     @Test func nothingIsAskedWhileNobodyIsSignedInAndItIsAskedAfterwards() async throws {
         let rig = try Rig()
         defer { rig.cleanUp() }

@@ -18,6 +18,8 @@ struct InlineVoiceToken: View {
     @State private var levels: [CGFloat] = []
 
     private var isRecording: Bool { ref == nil }
+    /// A recording that is not on this iPhone and has no copy in the cloud: shown as such, not as a play button that does nothing.
+    private var isGone: Bool { ref.map { VoiceBackup.shared.isGone($0.fileName) } ?? false }
     private var isMine: Bool { ref.map { player.fileName == $0.fileName } ?? false }
     private var isPlaying: Bool { isMine && player.isPlaying }
     private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
@@ -25,30 +27,38 @@ struct InlineVoiceToken: View {
     var body: some View {
         HStack(spacing: 7) {
             icon
-            CarouselWave(levels: isRecording ? liveLevels : levels, progress: progress,
-                         mode: isRecording ? .recording : (isMine && progress > 0 ? .playing : .overview))
-                .frame(width: 52, height: 18)
-            Text(voiceTimeString(timeShown))
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-                .foregroundColor(isRecording ? .white : Color.gold300)
-                .lineLimit(1)
-                .fixedSize()
+            if isGone {
+                Text("nedostupná")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(Color.textSecondary)
+                    .lineLimit(1)
+                    .fixedSize()
+            } else {
+                CarouselWave(levels: isRecording ? liveLevels : levels, progress: progress,
+                             mode: isRecording ? .recording : (isMine && progress > 0 ? .playing : .overview))
+                    .frame(width: 52, height: 18)
+                Text(voiceTimeString(timeShown))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundColor(isRecording ? .white : Color.gold300)
+                    .lineLimit(1)
+                    .fixedSize()
+            }
             Spacer(minLength: 0)
         }
         .padding(.leading, 5)
         .padding(.trailing, 10)
         .frame(width: Self.size.width, height: Self.size.height)
         .background(background, in: Capsule())
-        .overlay(Capsule().stroke(isRecording ? Color.latinRed.opacity(0.5) : Color.gold400.opacity(0.35), lineWidth: 1))
+        .overlay(Capsule().stroke(isRecording ? Color.latinRed.opacity(0.5) : (isGone ? Color.white.opacity(0.15) : Color.gold400.opacity(0.35)), lineWidth: 1))
         .scaleEffect(isPlaying ? 1.05 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPlaying)
         .contentShape(Capsule())
         .onTapGesture { tap() }
         .task(id: ref) { await loadLevels() }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isRecording ? "Nahrávam hlasovku, \(voiceTimeString(elapsed))" : "Hlasovka \(voiceTimeString(ref?.duration ?? 0))")
-        .accessibilityHint(isRecording ? "Ťuknutím nahrávanie zastavíš" : (isPlaying ? "Ťuknutím pozastavíš" : "Ťuknutím prehráš"))
+        .accessibilityLabel(isRecording ? "Nahrávam hlasovku, \(voiceTimeString(elapsed))" : (isGone ? "Hlasovka nie je dostupná" : "Hlasovka \(voiceTimeString(ref?.duration ?? 0))"))
+        .accessibilityHint(isRecording ? "Ťuknutím nahrávanie zastavíš" : (isGone ? "" : (isPlaying ? "Ťuknutím pozastavíš" : "Ťuknutím prehráš")))
         .accessibilityAddTraits(.isButton)
     }
 
@@ -60,6 +70,7 @@ struct InlineVoiceToken: View {
 
     private var background: Color {
         if isRecording { return Color.latinRed.opacity(0.24) }
+        if isGone { return Color.white.opacity(0.07) }
         return Color.gold500.opacity(isPlaying ? 0.32 : 0.18)
     }
 
@@ -72,6 +83,12 @@ struct InlineVoiceToken: View {
                 .frame(width: 22, height: 22)
                 .background(Color.latinRed, in: Circle())
                 .phaseAnimator([1.0, 0.45]) { dot, phase in dot.opacity(phase) } animation: { _ in .easeInOut(duration: 0.6) }
+        } else if isGone {
+            Image(systemName: "speaker.slash.fill")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(Color.textSecondary)
+                .frame(width: 22, height: 22)
+                .background(Color.white.opacity(0.1), in: Circle())
         } else {
             Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 10, weight: .black))
@@ -87,6 +104,7 @@ struct InlineVoiceToken: View {
             onStopRecording?()
             return
         }
+        guard !isGone else { return }
         if isPlaying { player.pause() } else { player.play(fileName: ref.fileName) }
     }
 
@@ -161,5 +179,26 @@ private struct CarouselWave: View {
         Capsule()
             .fill(color.opacity(lit ? 1 : 0.4))
             .frame(width: 2, height: max(3, level * height))
+    }
+}
+
+
+/// A recording that is not on this iPhone and has no copy in the cloud (a voice note on a row of its own): said plainly, not a
+/// play button that does nothing.
+struct VoiceGoneRow: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.slash.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(Color.textSecondary)
+                .frame(width: 44, height: 44)
+                .background(Color.white.opacity(0.08), in: Circle())
+            Text("Nahrávka nie je dostupná")
+                .font(.subheadline.weight(.medium))
+                .foregroundColor(Color.textSecondary)
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Hlasovka nie je dostupná")
     }
 }
