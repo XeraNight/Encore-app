@@ -797,6 +797,8 @@ struct RoutineCanvasView: View {
         try? modelContext.save()
         // The server's version is not a change of ours: only later edits here go up.
         Task { await SyncLedger.shared.downloaded(dbNodes) }
+        // The figures came with their plain text only: their formatted notes (voice notes in them) come from the backup.
+        Task { await DeviceBackup.restoreFigureNotes(for: newNodes, in: modelContext) }
     }
 
     private func scheduleRemoteMoveSave() {

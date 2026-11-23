@@ -72,6 +72,11 @@ nonisolated enum NoteMedia: Hashable {
         }
     }
 
+    var isVoice: Bool {
+        if case .voice = self { return true }
+        return false
+    }
+
     /// The single character standing for it in the note.
     var piece: AttributedString {
         var piece = AttributedString(RichNote.attachmentCharacter)
@@ -147,6 +152,21 @@ enum RichNote {
         guard let data = node.notesRichData, let rich = decode(data) else { return AttributedString(node.notes) }
         if plain(rich) == node.notes { return readableOnDark(rich) }
         return restoring(media(in: rich), in: node.notes)
+    }
+
+    /// Formatted notes as they can be shown on an iPhone that did not make them. A voice note comes back from its copy in
+    /// the cloud; a photo (a file on the old iPhone) and a video (a place in its Fotky) cannot, so each goes back to its
+    /// marker in the text and no empty picture or video is left. The plain text stays the same.
+    static func keepingOnlyVoice(_ text: AttributedString) -> AttributedString {
+        var result = AttributedString()
+        for run in text.runs {
+            if let media = media(of: run), media.isVoice == false {
+                result.append(AttributedString(media.marker))
+            } else {
+                result.append(AttributedString(text[run.range]))
+            }
+        }
+        return result
     }
 
     /// Plain text changed elsewhere: each marker that is still there gets its recording or video back.

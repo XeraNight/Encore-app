@@ -7,7 +7,9 @@ import SwiftData
 // MARK: - Backup of what lives only on this iPhone
 /// The diary, the plan and the notes live on the iPhone (local-first). Their text and the links to their media go to
 /// `device_records`, so a new iPhone, or this one after another account used it, gets them back. Media stay where they
-/// are: videos in Fotky, voice notes and photos on the iPhone.
+/// are: videos in Fotky, photos on the iPhone, voice notes in their private copies (VoiceBackup). The formatted notes of
+/// figures (the voice notes inside them, bold text) go up as records of their own: the routine sync carries only the
+/// plain text, so without them a new iPhone would show "[hlasovka 0:12]" and nothing to play.
 ///
 /// - What went up is remembered as a fingerprint per record, so only what changed goes, in batches, when the app opens,
 ///   goes to the background or the network comes back (PendingSyncRunner). A failure keeps it for the next try.
@@ -24,6 +26,12 @@ enum DeviceBackup {
     private static var checkedKey: String { checkedKey(for: AccountStore.shared.accountId) }
     static func checkedKey(for account: UUID?) -> String { "encore.deviceBackup.checkedUser.v2" + suffix(of: account) }
     private static func suffix(of account: UUID?) -> String { account.map { ".\($0.uuidString)" } ?? "" }
+    /// The figures this account's backup was already asked for (once each, see `restoreFigureNotes`).
+    static func figureNotesAskedKey(for account: UUID) -> String { "encore.deviceBackup.figureNotesAsked." + account.uuidString }
+    /// The kind of the formatted notes of a figure (device_records.kind).
+    static let figureNotesKind = "figure_notes"
+    /// The database refuses a record of 64 KB; formatted notes longer than this stay on the iPhone only.
+    static let figureNotesLimit = 40_000
     private static let batchSize = 200
     private static let pageSize = 1000
     private static var isUploading = false
@@ -92,20 +100,25 @@ enum DeviceBackup {
             pending.append((key, Row(user_id: userId, kind: kind, id: id, payload: .object([:]), updated_at: now, deleted: true), nil))
         }
 
-        for start in stride(from: 0, to: pending.count, by: batchSize) {
-            let batch = pending[start..<min(start + batchSize, pending.count)]
-            do {
-                try await SupabaseConfig.client
-                    .from("device_records")
-                    .upsert(batch.map(\.row), onConflict: "user_id,kind,id")
-                    .execute()
-            } catch {
-                Logger.sync.error("Device backup failed, kept for the next try: \(error.localizedDescription, privacy: .public)")
-                return false
+        // The diary, plan and notes go first and the formatted notes of figures last, each in batches of their own, so a
+        // record the database refuses can never hold the diary back.
+        let groups = [pending.filter { $0.row.kind != figureNotesKind }, pending.filter { $0.row.kind == figureNotesKind }]
+        for group in groups {
+            for start in stride(from: 0, to: group.count, by: batchSize) {
+                let batch = group[start..<min(start + batchSize, group.count)]
+                do {
+                    try await SupabaseConfig.client
+                        .from("device_records")
+                        .upsert(batch.map(\.row), onConflict: "user_id,kind,id")
+                        .execute()
+                } catch {
+                    Logger.sync.error("Device backup failed, kept for the next try: \(error.localizedDescription, privacy: .public)")
+                    return false
+                }
+                guard generation == startedIn else { return true }
+                for item in batch { fingerprints[item.key] = item.fingerprint }
+                UserDefaults.standard.set(fingerprints, forKey: fingerprintsKey)
             }
-            guard generation == startedIn else { return true }
-            for item in batch { fingerprints[item.key] = item.fingerprint }
-            UserDefaults.standard.set(fingerprints, forKey: fingerprintsKey)
         }
         return true
     }
@@ -129,6 +142,7 @@ enum DeviceBackup {
                     .select("user_id, kind, id, payload, updated_at, deleted")
                     .eq("user_id", value: userId)
                     .eq("deleted", value: false)
+                    .neq("kind", value: figureNotesKind)
                     .order("kind")
                     .order("id")
                     .range(from: rows.count, to: rows.count + pageSize - 1)
@@ -176,6 +190,7 @@ enum DeviceBackup {
         generation += 1
         UserDefaults.standard.removeObject(forKey: fingerprintsKey(for: account))
         UserDefaults.standard.removeObject(forKey: checkedKey(for: account))
+        UserDefaults.standard.removeObject(forKey: figureNotesAskedKey(for: account))
     }
 
     /// The open account's data was wiped (the account is being deleted): nothing of it went up any more.
@@ -183,11 +198,12 @@ enum DeviceBackup {
         generation += 1
         UserDefaults.standard.removeObject(forKey: fingerprintsKey)
         UserDefaults.standard.removeObject(forKey: checkedKey)
+        if let account = AccountStore.shared.accountId { UserDefaults.standard.removeObject(forKey: figureNotesAskedKey(for: account)) }
     }
 
     // MARK: Records
     private static func localRecords(in context: ModelContext) -> [Record] {
-        types.flatMap { records(of: $0, in: context) }
+        types.flatMap { records(of: $0, in: context) } + figureNotesRecords(in: context)
     }
 
     private static func records<M: BackedUp>(of type: M.Type, in context: ModelContext) -> [Record] {
@@ -215,6 +231,82 @@ enum DeviceBackup {
         let parts = key.split(separator: "|", maxSplits: 1).map(String.init)
         guard parts.count == 2, let id = UUID(uuidString: parts[1]) else { return nil }
         return (parts[0], id)
+    }
+
+    // MARK: Figure notes
+    private struct FigureNotes: Codable { let rich: Data }
+
+    private struct FigureNotesRow: Decodable {
+        let id: UUID
+        let payload: AnyJSON
+    }
+
+    /// What goes up for a figure: its formatted notes, or nil when it has none or they are too long for a record.
+    static func figureNotesPayload(of node: CanvasNode) -> Data? {
+        guard let rich = node.notesRichData, rich.count <= figureNotesLimit else { return nil }
+        return try? encoder.encode(FigureNotes(rich: rich))
+    }
+
+    /// The formatted notes inside a payload that came down.
+    static func figureNotes(in payload: Data) -> Data? {
+        (try? decoder.decode(FigureNotes.self, from: payload))?.rich
+    }
+
+    private static func figureNotesRecords(in context: ModelContext) -> [Record] {
+        let withNotes = FetchDescriptor<CanvasNode>(predicate: #Predicate { $0.notesRichData != nil })
+        return ((try? context.fetch(withNotes)) ?? []).compactMap { node in
+            figureNotesPayload(of: node).map { Record(kind: figureNotesKind, id: node.id, payload: $0) }
+        }
+    }
+
+    /// A new iPhone gets the figures from the routine sync with their plain text only. When a routine opens, the backup is
+    /// asked once for the figures that have no formatted notes here, so the voice notes inside them are there again: their
+    /// recordings come back from their private copies when they are played. A photo or a video cannot come back (a file
+    /// on the old iPhone, a place in its Fotky), so they stay as their marker in the text. A failure asks again next time.
+    static func restoreFigureNotes(for nodes: [CanvasNode], in context: ModelContext) async {
+        guard let userId = SupabaseConfig.client.auth.currentUser?.id, AccountStore.shared.accountId == userId else { return }
+        let askedKey = figureNotesAskedKey(for: userId)
+        var asked = Set(UserDefaults.standard.stringArray(forKey: askedKey) ?? [])
+        let wanted = nodes.filter { $0.notesRichData == nil && !asked.contains($0.id.uuidString) }.map(\.id)
+        guard !wanted.isEmpty else { return }
+        let startedIn = generation
+
+        var found: [UUID: Data] = [:]
+        do {
+            for start in stride(from: 0, to: wanted.count, by: 100) {
+                let rows: [FigureNotesRow] = try await SupabaseConfig.client
+                    .from("device_records")
+                    .select("id, payload")
+                    .eq("user_id", value: userId)
+                    .eq("kind", value: figureNotesKind)
+                    .eq("deleted", value: false)
+                    .in("id", values: Array(wanted[start..<min(start + 100, wanted.count)]))
+                    .execute()
+                    .value
+                for row in rows {
+                    if let payload = try? JSONEncoder().encode(row.payload), let rich = figureNotes(in: payload) { found[row.id] = rich }
+                }
+            }
+        } catch {
+            Logger.sync.error("Figure notes not brought back, asked again next time: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        // Another account meanwhile: nothing of this one goes into its store.
+        guard generation == startedIn, AccountStore.shared.accountId == userId else { return }
+
+        var fingerprints = storedFingerprints()
+        let asking = Set(wanted)
+        for node in nodes where asking.contains(node.id) {
+            asked.insert(node.id.uuidString)
+            guard node.notesRichData == nil, let rich = found[node.id], let text = RichNote.decode(rich),
+                  let kept = RichNote.encode(RichNote.keepingOnlyVoice(text)) else { continue }
+            node.notesRichData = kept
+            // What came down is what the cloud holds: it does not go up again.
+            if let payload = figureNotesPayload(of: node) { fingerprints[key(figureNotesKind, node.id)] = fingerprint(payload) }
+        }
+        try? context.save()
+        UserDefaults.standard.set(Array(asked), forKey: askedKey)
+        UserDefaults.standard.set(fingerprints, forKey: fingerprintsKey)
     }
 }
 
