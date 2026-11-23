@@ -514,7 +514,7 @@ struct TrainingJournalView: View {
     }
 
     private func restore(_ note: InstantNote) {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { note.importedAt = nil }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) { note.backToNew() }
         try? modelContext.save()
     }
 
@@ -585,6 +585,13 @@ extension InstantNote {
     var canGoToFigure: Bool { hasText || audioPath != nil || videoPath != nil }
     /// Short recordings sit inside the sentence; longer ones get their own row with speed and seeking.
     var hasInlineVoice: Bool { audioPath != nil && hasText && (audioDuration ?? 0) <= 20 }
+
+    /// Back among the new notes: no longer in a figure, so the card shows no figure and the filter "Bez figúry" counts it again.
+    func backToNew() {
+        importedAt = nil
+        linkedFigureId = nil
+        linkedRoutineId = nil
+    }
 }
 
 // MARK: - One note

@@ -87,6 +87,20 @@ struct NotePhotoAndFilterTests {
         #expect(!filter.matches(imported))
     }
 
+    /// "Vrátiť medzi nové" used to clear only the date, so the card kept the name of the figure and "Bez figúry" skipped it.
+    @Test func aNotePutBackAmongTheNewOnesLeavesItsFigure() {
+        let note = InstantNote(text: "Rám")
+        note.importedAt = Date()
+        note.linkedFigureId = UUID()
+        note.linkedRoutineId = UUID()
+
+        note.backToNew()
+
+        #expect(!note.isImported)
+        #expect(note.linkedFigureId == nil && note.linkedRoutineId == nil)
+        #expect(TrainingJournalView.JournalFilter.unassigned.matches(note))
+    }
+
     @Test func aPhotoNoteReadsAsAPhoto() {
         #expect(InstantNote(imagePath: "p.jpg").previewText == "Fotka")
         #expect(InstantNote(imagePath: "p.jpg").kindIcon == "photo.fill")
