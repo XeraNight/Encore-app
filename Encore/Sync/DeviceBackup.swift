@@ -296,7 +296,8 @@ enum DeviceBackup {
 
         var fingerprints = storedFingerprints()
         let asking = Set(wanted)
-        for node in nodes where asking.contains(node.id) {
+        // A figure may have been deleted while the backup was asked: a deleted model must not be touched.
+        for node in nodes where !node.isGone && asking.contains(node.id) {
             asked.insert(node.id.uuidString)
             guard node.notesRichData == nil, let rich = found[node.id], let text = RichNote.decode(rich),
                   let kept = RichNote.encode(RichNote.keepingOnlyVoice(text)) else { continue }
