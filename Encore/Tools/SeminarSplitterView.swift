@@ -48,6 +48,10 @@ struct SeminarSplitterView: View {
         let length: Double
     }
 
+    /// The video's window, in the picker card and in the player alike.
+    private static let videoRatio: CGFloat = 16 / 9
+    private static let videoCorner: CGFloat = 18
+
     private var clipLength: Double { clipEnd - clipStart }
     private var canSave: Bool { player != nil && clipLength >= 0.5 && !isSaving }
 
@@ -95,37 +99,45 @@ struct SeminarSplitterView: View {
     }
 
     // MARK: Import
+    /// The window the video will fill: a 16:9 card with the player's corners, so the picked video comes up in the same
+    /// place and size. While the video loads, the gold light runs round this window and nowhere else.
     private var importCard: some View {
         PhotosPicker(selection: $selectedPhotoItem, matching: .videos) {
-            VStack(spacing: 12) {
-                if isLoadingVideo {
-                    ProgressView().tint(Color.gold400).controlSize(.large)
-                    Text("Načítavam video…")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text("Dlhé video môže chvíľu trvať.")
-                        .font(.footnote)
-                        .foregroundColor(Color.textSecondary)
-                } else {
-                    Image(systemName: "film.stack.fill")
-                        .font(.largeTitle)
-                        .foregroundColor(Color.gold400)
-                    Text("Vyber video z lekcie")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                    Text(loadFailed
-                         ? "Video sa nepodarilo načítať. Skús iné alebo ho najprv stiahni do iPhonu."
-                         : "Aj hodinovú nahrávku z lekcie alebo seminára rozdelíš na jednotlivé figúry.")
-                        .font(.footnote)
-                        .foregroundColor(loadFailed ? Color.latinRed : .white.opacity(0.6))
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
+            ZStack {
+                Color.clear.aspectRatio(Self.videoRatio, contentMode: .fit)
+                VStack(spacing: 12) {
+                    if isLoadingVideo {
+                        // The text below already says what is going on; VoiceOver should not say it twice.
+                        InfinityLoopView(width: 96)
+                            .accessibilityHidden(true)
+                        Text("Načítavam video…")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text("Dlhé video môže chvíľu trvať.")
+                            .font(.footnote)
+                            .foregroundColor(Color.textSecondary)
+                    } else {
+                        Image(systemName: "film.stack.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(Color.gold400)
+                        Text("Vyber video z lekcie")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text(loadFailed
+                             ? "Video sa nepodarilo načítať. Skús iné alebo ho najprv stiahni do iPhonu."
+                             : "Aj hodinovú nahrávku z lekcie alebo seminára rozdelíš na jednotlivé figúry.")
+                            .font(.footnote)
+                            .foregroundColor(loadFailed ? Color.latinRed : .white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
+                .padding(.vertical, 20)
+                .padding(.horizontal, 20)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 40)
-            .padding(.horizontal, 20)
-            .homeCard(cornerRadius: 22)
+            .homeCard(cornerRadius: Self.videoCorner)
+            .encoreGlowBorder(isActive: isLoadingVideo, cornerRadius: Self.videoCorner)
         }
         .buttonStyle(.pressable(scale: 0.98))
         .disabled(isLoadingVideo)
@@ -136,8 +148,8 @@ struct SeminarSplitterView: View {
         VStack(spacing: 12) {
             ZStack {
                 VideoTrimPlayerRepresentable(player: player)
-                    .aspectRatio(16 / 9, contentMode: .fit)
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .aspectRatio(Self.videoRatio, contentMode: .fit)
+                    .clipShape(RoundedRectangle(cornerRadius: Self.videoCorner, style: .continuous))
                 Button(action: togglePlay) {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.title2.weight(.bold))
