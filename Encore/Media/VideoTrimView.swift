@@ -110,6 +110,7 @@ struct VideoTrimView: View {
                         Button("Zrušiť") {
                             dismiss()
                         }
+                        .disabled(isExporting)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
                         .padding(.vertical, 14)
@@ -144,9 +145,12 @@ struct VideoTrimView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Zavrieť") { dismiss() }
                         .foregroundColor(Color.gold400)
+                        .disabled(isExporting)
                 }
             }
         }
+        // Closed during the export, it would still hand the trimmed file over and replace the take.
+        .interactiveDismissDisabled(isExporting)
         .onAppear {
             setupTrimmer()
         }
@@ -288,7 +292,8 @@ struct VideoTrimView: View {
         timeObserverToken = p.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak p] time in
             let current = CMTimeGetSeconds(time)
             self.currentTime = current
-            if current >= self.endTime {
+            // Back to the start only while playing: dragging the right handle seeks to the end, and the end frame must stay.
+            if current >= self.endTime && self.isPlaying {
                 p?.seek(to: CMTime(seconds: self.startTime, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
             }
         }
@@ -372,27 +377,23 @@ struct VideoTrimView: View {
         }
         
         Task {
-            if #available(iOS 18.0, *) {
-                do {
-                    try await session.export(to: outputURL, as: .mp4)
-                } catch {
-                    Logger.camera.error("Video trim export failed: \(error.localizedDescription, privacy: .public)")
-                }
-            } else {
-                await withCheckedContinuation { continuation in
-                    session.exportAsynchronously {
-                        continuation.resume()
-                    }
-                }
+            // Only a finished export replaces the take. A failed one (a full disk) may leave half a file, which is not a video.
+            var isExported = false
+            do {
+                try await session.export(to: outputURL, as: .mp4)
+                isExported = true
+            } catch {
+                Logger.camera.error("Video trim export failed: \(error.localizedDescription, privacy: .public)")
+                try? FileManager.default.removeItem(at: outputURL)
             }
-            
+
             await MainActor.run {
                 self.isExporting = false
-                if FileManager.default.fileExists(atPath: outputURL.path) {
+                if isExported {
                     self.onTrimCompleted(outputURL)
                     self.dismiss()
                 } else {
-                    self.exportErrorMessage = "Nepodarilo sa vytvoriť orezané video."
+                    self.exportErrorMessage = "Nepodarilo sa vytvoriť orezané video. Pôvodné ostalo, ako bolo."
                 }
             }
         }
