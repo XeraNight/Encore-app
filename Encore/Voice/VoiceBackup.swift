@@ -57,7 +57,7 @@ final class VoiceBackup {
     }
 
     /// The cloud has no copy of this recording and it is not on this iPhone, so it can never be played.
-    func isGone(_ name: String) -> Bool { withoutCopy.contains(name) }
+    func isUnavailable(_ name: String) -> Bool { withoutCopy.contains(name) }
 
     /// The recordings in the cloud for an account, as this iPhone knows them: sent from here or brought back.
     static func savedKey(for account: UUID) -> String { "encore.voiceBackup.saved." + account.uuidString }

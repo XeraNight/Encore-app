@@ -726,7 +726,7 @@ private struct VoiceRow: View {
     private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
 
     var body: some View {
-        if VoiceBackup.shared.isGone(fileName) {
+        if VoiceBackup.shared.isUnavailable(fileName) {
             VoiceGoneRow()
         } else {
             row

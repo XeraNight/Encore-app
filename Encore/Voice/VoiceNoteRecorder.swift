@@ -271,7 +271,7 @@ struct VoiceNotePlayerView: View {
     @StateObject private var player = VoiceNotePlayer()
 
     var body: some View {
-        if VoiceBackup.shared.isGone(fileName) {
+        if VoiceBackup.shared.isUnavailable(fileName) {
             VoiceGoneRow()
         } else {
             playerRow

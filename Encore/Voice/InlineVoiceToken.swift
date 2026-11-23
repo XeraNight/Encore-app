@@ -19,7 +19,7 @@ struct InlineVoiceToken: View {
 
     private var isRecording: Bool { ref == nil }
     /// A recording that is not on this iPhone and has no copy in the cloud: shown as such, not as a play button that does nothing.
-    private var isGone: Bool { ref.map { VoiceBackup.shared.isGone($0.fileName) } ?? false }
+    private var isUnavailable: Bool { ref.map { VoiceBackup.shared.isUnavailable($0.fileName) } ?? false }
     private var isMine: Bool { ref.map { player.fileName == $0.fileName } ?? false }
     private var isPlaying: Bool { isMine && player.isPlaying }
     private var progress: Double { isMine && player.duration > 0 ? player.currentTime / player.duration : 0 }
@@ -27,7 +27,7 @@ struct InlineVoiceToken: View {
     var body: some View {
         HStack(spacing: 7) {
             icon
-            if isGone {
+            if isUnavailable {
                 Text("nedostupná")
                     .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundColor(Color.textSecondary)
@@ -50,15 +50,15 @@ struct InlineVoiceToken: View {
         .padding(.trailing, 10)
         .frame(width: Self.size.width, height: Self.size.height)
         .background(background, in: Capsule())
-        .overlay(Capsule().stroke(isRecording ? Color.latinRed.opacity(0.5) : (isGone ? Color.white.opacity(0.15) : Color.gold400.opacity(0.35)), lineWidth: 1))
+        .overlay(Capsule().stroke(isRecording ? Color.latinRed.opacity(0.5) : (isUnavailable ? Color.white.opacity(0.15) : Color.gold400.opacity(0.35)), lineWidth: 1))
         .scaleEffect(isPlaying ? 1.05 : 1)
         .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isPlaying)
         .contentShape(Capsule())
         .onTapGesture { tap() }
         .task(id: ref) { await loadLevels() }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(isRecording ? "Nahrávam hlasovku, \(voiceTimeString(elapsed))" : (isGone ? "Hlasovka nie je dostupná" : "Hlasovka \(voiceTimeString(ref?.duration ?? 0))"))
-        .accessibilityHint(isRecording ? "Ťuknutím nahrávanie zastavíš" : (isGone ? "" : (isPlaying ? "Ťuknutím pozastavíš" : "Ťuknutím prehráš")))
+        .accessibilityLabel(isRecording ? "Nahrávam hlasovku, \(voiceTimeString(elapsed))" : (isUnavailable ? "Hlasovka nie je dostupná" : "Hlasovka \(voiceTimeString(ref?.duration ?? 0))"))
+        .accessibilityHint(isRecording ? "Ťuknutím nahrávanie zastavíš" : (isUnavailable ? "" : (isPlaying ? "Ťuknutím pozastavíš" : "Ťuknutím prehráš")))
         .accessibilityAddTraits(.isButton)
     }
 
@@ -70,7 +70,7 @@ struct InlineVoiceToken: View {
 
     private var background: Color {
         if isRecording { return Color.latinRed.opacity(0.24) }
-        if isGone { return Color.white.opacity(0.07) }
+        if isUnavailable { return Color.white.opacity(0.07) }
         return Color.gold500.opacity(isPlaying ? 0.32 : 0.18)
     }
 
@@ -83,7 +83,7 @@ struct InlineVoiceToken: View {
                 .frame(width: 22, height: 22)
                 .background(Color.latinRed, in: Circle())
                 .phaseAnimator([1.0, 0.45]) { dot, phase in dot.opacity(phase) } animation: { _ in .easeInOut(duration: 0.6) }
-        } else if isGone {
+        } else if isUnavailable {
             Image(systemName: "speaker.slash.fill")
                 .font(.system(size: 9, weight: .bold))
                 .foregroundColor(Color.textSecondary)
@@ -104,7 +104,7 @@ struct InlineVoiceToken: View {
             onStopRecording?()
             return
         }
-        guard !isGone else { return }
+        guard !isUnavailable else { return }
         if isPlaying { player.pause() } else { player.play(fileName: ref.fileName) }
     }
 
