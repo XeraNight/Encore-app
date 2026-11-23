@@ -153,6 +153,8 @@ struct NoteDetailSheet: View {
     @State private var showFigurePicker = false
     @State private var confirmDelete = false
     @State private var sweepTrigger = 0
+    /// The reflection whose words this note carries into Denník, when it is one: it follows what is changed here.
+    @State private var reflection: TrainingLogEntry?
     @FocusState private var isWriting: Bool
 
     /// A voice note or a video goes to a figure as it is; only a text note is written here.
@@ -246,6 +248,9 @@ struct NoteDetailSheet: View {
             .onChange(of: isWriting) { _, writing in
                 if writing { sweepTrigger += 1 }
             }
+            .task { reflection = note.reflection(in: modelContext) }
+            .onChange(of: note.text) { _, _ in reflection?.follow(note) }
+            .onChange(of: note.danceName) { _, _ in reflection?.follow(note) }
         }
         .preferredColorScheme(.dark)
     }
@@ -330,6 +335,29 @@ struct NoteDetailSheet: View {
             HomeSectionHeader(title: title, systemImage: systemImage)
             content()
         }
+    }
+}
+
+// MARK: - A note that is also a reflection
+extension InstantNote {
+    /// The reflection of a training whose words this note carries into Denník (the debrief saves them as a note), or nil
+    /// for a note of its own.
+    func reflection(in context: ModelContext) -> TrainingLogEntry? {
+        let noteId = id
+        var descriptor = FetchDescriptor<TrainingLogEntry>(predicate: #Predicate { $0.noteId == noteId })
+        descriptor.fetchLimit = 1
+        return try? context.fetch(descriptor).first
+    }
+}
+
+extension TrainingLogEntry {
+    /// A reflection and its note in Denník are one text written twice. What changes in the note changes here too: the plan
+    /// and the trends read this copy, and the next save of the reflection would put the old words and the old dance back
+    /// into the note.
+    func follow(_ note: InstantNote) {
+        let words = note.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if reflectionNote != words { reflectionNote = words }
+        if danceName != note.danceName { danceName = note.danceName }
     }
 }
 
