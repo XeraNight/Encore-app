@@ -294,6 +294,26 @@ Inšpirované aplikáciami ako *Apple Camera, Halide, Blackmagic Cam, Hudl Techn
 
 ---
 
+### Kategória VIII: Poznámky, reflexie a hlasovky: zálohy a zmena účtu (Scenáre B1 – B12)
+
+> Zistené 23. 11. 2026 pri teste na iPhone a kontrole servera (záznamy v `device_records`, logy funkcie `media-share`).
+> Stav ako v kategórii VII. Po oprave zapíš commit a výsledok testu.
+
+| # | Situácia | Stav | Dôsledok / Oprava |
+|---|---|---|---|
+| B1 | „Bez tanca" na poznámke, ktorá je reflexiou po tréningu | ✅ | Poznámka a reflexia boli ten istý text zapísaný dvakrát. Reflexia (plán, trendy, Top 3) ostala so starým tancom a jej ďalšie uloženie vrátilo tanec aj do poznámky. Oprava 327a8ed: poznámka a reflexia sa držia spolu (tanec aj slová), testy `ReflectionMirrorTests`. |
+| B2 | Zmazanie reflexie (v Denníku, alebo zmazanie tréningu s reflexiami) | ❌ | Poznámka s rovnakými slovami ostane v Denníku, hoci dialóg sľubuje, že sa zmaže aj poznámka. Mazanie reflexie je na troch miestach (`TrainingJournalView`, `PlannerRoutineView`, `PlannerSessionViews`). Čaká na súhlas: jedno miesto, ktoré zmaže reflexiu aj jej poznámku. |
+| B3 | „Vrátiť medzi nové" na poznámke pridanej k figúre | ✅ | Karta držala názov figúry a filter „Bez figúry" ju vynechal. Oprava fb581b1. |
+| B4 | Nahrávka, ktorú cloud odmietne (neznámy názov, príliš veľká) | ✅ | Zastavila nahrávanie všetkých ďalších hlasoviek. Oprava 16561a0: preskočí sa, ostatné idú ďalej. |
+| B5 | Server pri sťahovaní hlasovky odpovie chybou (zlá chvíľa, nedokončené prihlásenie) | ✅ | Nahrávka sa zapamätala ako „bez kópie" a nevrátila sa až do reštartu appky. Oprava 16561a0: zapamätá sa len odpoveď „kópia neexistuje". |
+| B6 | Zmena účtu uprostred nahrávania hlasoviek do cloudu | ✅ | Zvyšok nahrávok účtu A by sa nahral pod účet B. Oprava 16561a0: každý krok overí, že otvorený účet je stále prihlásený. |
+| B7 | Databáza prebudovaná prázdna (DatabaseRecoveryManager) | ✅ | Vyzerala ako zmazanie všetkých poznámok, z cloudu by sa zmazali kópie všetkých hlasoviek. Oprava 16561a0: kópia sa maže až po obnovení zálohy poznámok. |
+| B8 | Hlasovka vo figúre na novom iPhone | ❌ | Nahrávky sú v cloude, ale ich miesto v texte figúry (`CanvasNode.notesRichData`) je len v starom iPhone; figúra príde len s textom „[hlasovka 0:12]". Čaká na rozhodnutie, vyžaduje zmenu schémy (SQL najprv ukázať). Na tom istom iPhone sa pri zmene účtu nestratí nič. |
+| B9 | Nahratie hlasovky zlyhá (slabé Wi-Fi) | ⚠️ | Záloha hlasoviek nemá vlastné opakovanie, čaká na ďalší príchod do appky alebo zmenu siete. Čaká na súhlas: opakovanie ako pri iných zmenách (1 s, 5 s, 30 s, 5 min) a odoslanie hneď po prihlásení. |
+| B10 | Dlhá hlasovka (do 10 minút, okolo 10 MB) a odchod z appky | ❓ | Podľa kódu iOS appku uspí a nahrávanie sa začne od začiatku pri ďalšom návrate. Neoverené na iPhone. |
+| B11 | Hlasovky z čias pred 8. 11. | ➖ | Pri vtedajšej zmene účtu sa súbory zmazali a kópie ešte neexistovali: poznámky s hlasovkou bez zvuku (v cloude 404). Nevratné, od 8. 11. sa nestratia. |
+| B12 | Zmazaná poznámka z reflexie a ďalšie uloženie reflexie | ⚠️ | Reflexia si poznámku vytvorí znova. Rozhodnúť, či to tak má byť. |
+
 ## 🎯 Záver & Strategický Plán Implementácie
 
 1. **Stav kamery je stabilný:** Natívny systém `UIImagePickerController` s bleskom vypnutým v predvolenom stave a pripravenou infraštruktúrou.
