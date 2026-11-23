@@ -62,13 +62,15 @@ nonisolated enum KSISCalendarPage {
 
     static func parse(_ html: String) throws -> [KSISEvent] {
         if isChallengePage(html) { throw Failure.challenge }
-        // The filter form is on every calendar page, also on one with no competition in the period.
+        // The filter form is on every calendar page.
         guard html.utf8.count <= maxPageSize, html.contains("name=\"vekova_ktg\"") else { throw Failure.layoutChanged }
         // One row at a time. A pattern run over the whole page searches to the page's end from every row start, so a
         // page of the wrong shape kept the app busy for minutes.
         let rows = html.components(separatedBy: "<tr").dropFirst().compactMap { ("<tr" + $0).prefixMatch(of: row) }
         let events = rows.compactMap { event(rowClass: String($0.1), dateCell: String($0.2), body: String($0.3)) }
-        guard events.count == rows.count else { throw Failure.layoutChanged }
+        // The calendar of the next 13 months is never really empty: no row at all means KSIS changed its page, and an empty
+        // calendar would erase the one saved (better the old one than none).
+        guard !rows.isEmpty, events.count == rows.count else { throw Failure.layoutChanged }
         // A line listed twice is one competition: the list is keyed by `id`, and two of the same would confuse it.
         var seen: Set<String> = []
         return events.filter { seen.insert($0.id).inserted }

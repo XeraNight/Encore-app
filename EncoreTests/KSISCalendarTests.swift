@@ -104,6 +104,13 @@ struct KSISCalendarTests {
         }
     }
 
+    /// 0 rows read and 0 events made used to count as "all rows read", so a page KSIS changed erased the saved calendar.
+    @Test func aPageWithTheFormButNoRowsIsNotAnEmptyCalendar() {
+        #expect(throws: KSISCalendarPage.Failure.layoutChanged) {
+            try KSISCalendarPage.parse("<form><select name=\"vekova_ktg\"></select></form><table><tr><td>nič</td></tr></table>")
+        }
+    }
+
     @Test func mapsLinkCarriesOnlyTheAddress() throws {
         let url = try #require(KSISEvent.mapsURL(venue: "OC Optima, Moldavská cesta 32, Košice"))
         #expect(url.absoluteString.hasPrefix("https://www.google.com/maps/search/?api=1&query=OC%20Optima"))
