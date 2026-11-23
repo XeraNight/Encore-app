@@ -658,7 +658,10 @@ struct KSISUpdateSheet: View {
             // The yes was for these couples; the ones found next are asked about on their own.
             consent = false
         }
-        secondaryButton("Preskočiť") { run.answerNewCouples(save: false) }
+        secondaryButton("Preskočiť") {
+            run.answerNewCouples(save: false)
+            consent = false
+        }
     }
 
     /// The earlier couples, each ticked: a namesake abroad has the same name and is unticked by hand.
@@ -681,8 +684,13 @@ struct KSISUpdateSheet: View {
         PrimarySheetButton(title: run.ticked.isEmpty ? "Ani jeden nie je môj" : "Uložiť", isLoading: false,
                            isEnabled: run.ticked.isEmpty || consent) {
             run.answerFoundCouples(save: true)
+            // The yes was for these couples; the next ones are asked about on their own.
+            consent = false
         }
-        secondaryButton("Preskočiť") { run.answerFoundCouples(save: false) }
+        secondaryButton("Preskočiť") {
+            run.answerFoundCouples(save: false)
+            consent = false
+        }
     }
 
     private func foundRows(_ couples: [KSISPageReply.FoundCouple]) -> some View {
