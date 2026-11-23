@@ -1141,8 +1141,6 @@ struct RoutineCanvasView: View {
     private func startLiveActivity() {
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         
-        stopLiveActivity()
-        
         let attributes = EncoreAttributes(
             routineName: routine.name,
             danceName: routine.danceName
@@ -1160,15 +1158,21 @@ struct RoutineCanvasView: View {
             lastUpdated: Date()
         )
         
-        do {
-            _ = try Activity.request(
-                attributes: attributes,
-                content: .init(state: initialState, staleDate: nil),
-                pushType: nil
-            )
-            Logger.canvas.info("Live Activity started.")
-        } catch {
-            Logger.canvas.error("Live Activity start failed: \(error.localizedDescription, privacy: .public)")
+        // The old ones end first, in this same task. A separate stop ran only after the new activity was requested, and ended it.
+        Task {
+            for activity in Activity<EncoreAttributes>.activities {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+            do {
+                _ = try Activity.request(
+                    attributes: attributes,
+                    content: .init(state: initialState, staleDate: nil),
+                    pushType: nil
+                )
+                Logger.canvas.info("Live Activity started.")
+            } catch {
+                Logger.canvas.error("Live Activity start failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
     
