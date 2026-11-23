@@ -60,7 +60,9 @@ final class VoiceNoteRecorder: NSObject, ObservableObject, AVAudioRecorderDelega
 
     func stop() {
         guard state == .recording, let recorder else { return }
-        elapsed = recorder.currentTime
+        // After a phone call or the 10-minute limit the recorder has already stopped by itself and no longer knows how long
+        // it ran (it says 0). Then the clock's last value stands; otherwise a long recording would be thrown away as an empty one.
+        if recorder.isRecording { elapsed = recorder.currentTime }
         recorder.stop()
         finish()
         if let fileName, elapsed >= 0.5, MediaStorageManager.fileExists(fileName) {
