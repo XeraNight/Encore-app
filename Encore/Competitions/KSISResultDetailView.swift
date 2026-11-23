@@ -48,7 +48,10 @@ struct KSISResultDetailView: View {
                     Button("Zavrieť") { dismiss() }
                         .foregroundColor(Color.gold400)
                 }
+                // The menu is for the dancer's own result: the KSIS pages open in the dancer's own window, and a connection's
+                // result has nothing to delete here.
                 ToolbarItem(placement: .primaryAction) {
+                    if isOwn {
                     Menu {
                         if result.hasKSISPage {
                             Button {
@@ -62,18 +65,17 @@ struct KSISResultDetailView: View {
                                 Label("Hodnotenie v KSIS", systemImage: "xmark.square")
                             }
                         }
-                        if isOwn {
-                            Button(role: .destructive) {
-                                confirmDelete = true
-                            } label: {
-                                Label("Odstrániť z denníka", systemImage: "trash")
-                            }
+                        Button(role: .destructive) {
+                            confirmDelete = true
+                        } label: {
+                            Label("Odstrániť z denníka", systemImage: "trash")
                         }
                     } label: {
                         Image(systemName: "ellipsis.circle")
                             .foregroundColor(Color.gold400)
                     }
                     .accessibilityLabel("Možnosti")
+                    }
                 }
             }
             .confirmationDialog("Odstrániť výsledok z denníka?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -313,11 +315,17 @@ struct KSISResultDetailView: View {
             Text("Krížiky od porotcov ešte nie sú uložené.")
                 .font(.subheadline.weight(.bold))
                 .foregroundColor(.white)
-            Text("Otvor hodnotenie tejto súťaže v KSIS a ťukni Uložiť krížiky.")
-                .font(.footnote)
-                .foregroundColor(.white.opacity(0.65))
-            PrimarySheetButton(title: "Otvoriť hodnotenie", isLoading: false, isEnabled: true) {
-                open("hodnot_sut.php?sutaz_id=\(result.sutazId)")
+            if isOwn {
+                Text("Otvor hodnotenie tejto súťaže v KSIS a ťukni Uložiť krížiky.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.65))
+                PrimarySheetButton(title: "Otvoriť hodnotenie", isLoading: false, isEnabled: true) {
+                    open("hodnot_sut.php?sutaz_id=\(result.sutazId)")
+                }
+            } else {
+                Text("Ukážu sa, keď ich uloží vlastník výsledkov.")
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.65))
             }
         }
         .padding(16)
