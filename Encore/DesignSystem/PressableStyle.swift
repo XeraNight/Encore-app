@@ -38,7 +38,7 @@ struct EncorePrimaryButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed
-        let lip: CGFloat = compact ? 3.5 : 5
+        let lip: CGFloat = compact ? 2 : 3
         let shape = RoundedRectangle(cornerRadius: 26, style: .continuous)
         configuration.label
             .font(.system(compact ? .subheadline : .headline, design: .rounded, weight: .bold))
