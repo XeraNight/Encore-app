@@ -143,7 +143,11 @@ struct TrainingJournalView: View {
                 Button("Zmazať", role: .destructive) { delete(note) }
                 Button("Ponechať", role: .cancel) {}
             } message: { note in
-                Text(note.audioPath != nil ? "Zmaže sa aj hlasovka. Nedá sa to vrátiť." : "Nedá sa to vrátiť.")
+                if logs.contains(where: { $0.noteId == note.id }) {
+                    Text(InstantNote.reflectionDeleteWarning)
+                } else {
+                    Text(note.audioPath != nil ? "Zmaže sa aj hlasovka. Nedá sa to vrátiť." : "Nedá sa to vrátiť.")
+                }
             }
             .sensoryFeedback(.selection, trigger: selectedDay)
             .sensoryFeedback(.selection, trigger: mode)
@@ -184,7 +188,7 @@ struct TrainingJournalView: View {
                                 Button("Zmazať", role: .destructive) { delete(entry) }
                                 Button("Ponechať", role: .cancel) {}
                             } message: { _ in
-                                Text("Zmaže sa celý zápis z tohto tréningu: poznámka, pocity aj záznam o účasti. Tréning v pláne ostane. Nedá sa to vrátiť.")
+                                Text(TrainingLogEntry.deleteWarning)
                             }
                         ForEach(dayReflections) { reflectionCard($0) }
                         ForEach(dayNotes) { card(for: $0, showsDate: false) }
@@ -526,9 +530,7 @@ struct TrainingJournalView: View {
 
     private func delete(_ note: InstantNote) {
         if player.fileName == note.audioPath { player.stop() }
-        MediaStorageManager.removeFile(named: note.audioPath)
-        MediaStorageManager.removeFile(named: note.imagePath)
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { modelContext.delete(note) }
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) { note.delete(in: modelContext) }
         try? modelContext.save()
     }
 

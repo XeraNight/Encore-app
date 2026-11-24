@@ -148,4 +148,55 @@ struct ReflectionMirrorTests {
 
         #expect(try context.fetch(FetchDescriptor<TrainingLogEntry>()).isEmpty)
     }
+
+    /// Deleting only the note in Denník used to leave the reflection behind, and the next save of the reflection made the
+    /// note again.
+    @Test func deletingTheNoteOfAReflectionDeletesTheReflectionToo() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let (_, note) = reflectionWithNote(in: context)
+        let ownNote = InstantNote(text: "Poznámka sama o sebe")
+        let ownId = ownNote.id
+        context.insert(ownNote)
+        try context.save()
+
+        note.delete(in: context)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<TrainingLogEntry>()).isEmpty)
+        #expect(try context.fetch(FetchDescriptor<InstantNote>()).map(\.id) == [ownId])
+    }
+
+    @Test func deletingANoteOfItsOwnLeavesTheReflectionsAlone() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let (entry, note) = reflectionWithNote(in: context)
+        let ownNote = InstantNote(text: "Poznámka sama o sebe")
+        context.insert(ownNote)
+        try context.save()
+
+        ownNote.delete(in: context)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<TrainingLogEntry>()).map(\.id) == [entry.id])
+        #expect(try context.fetch(FetchDescriptor<InstantNote>()).map(\.id) == [note.id])
+    }
+
+    @Test func deletingANoteRemovesItsRecordingAndPhoto() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let audio = "test_note_\(UUID().uuidString).m4a"
+        let photo = "test_note_\(UUID().uuidString).jpg"
+        for name in [audio, photo] { try Data([1]).write(to: MediaStorageManager.url(for: name)) }
+        defer { for name in [audio, photo] { MediaStorageManager.removeFile(named: name) } }
+        let note = InstantNote(imagePath: photo, audioPath: audio, audioDuration: 3)
+        context.insert(note)
+        try context.save()
+
+        note.delete(in: context)
+        try context.save()
+
+        #expect(!MediaStorageManager.fileExists(audio))
+        #expect(!MediaStorageManager.fileExists(photo))
+    }
 }

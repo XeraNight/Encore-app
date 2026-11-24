@@ -27,6 +27,8 @@ struct NotesInboxStrip: View {
     let onOpenNote: (InstantNote) -> Void
 
     @Environment(\.modelContext) private var modelContext
+    /// A note that is also a reflection asks first: deleting it deletes the reflection too.
+    @State private var noteToConfirm: InstantNote?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -73,6 +75,18 @@ struct NotesInboxStrip: View {
         }
         .animation(.spring(response: 0.38, dampingFraction: 0.8), value: notes.map(\.id))
         .sensoryFeedback(.selection, trigger: notes.first?.isPinned)
+        .confirmationDialog("Zmazať poznámku?", isPresented: Binding(get: { noteToConfirm != nil }, set: { if !$0 { noteToConfirm = nil } }),
+                            titleVisibility: .visible, presenting: noteToConfirm) { note in
+            Button("Zmazať", role: .destructive) { remove(note) }
+            Button("Ponechať", role: .cancel) {}
+        } message: { _ in
+            Text(InstantNote.reflectionDeleteWarning)
+        }
+    }
+
+    private func remove(_ note: InstantNote) {
+        note.delete(in: modelContext)
+        try? modelContext.save()
     }
 
     private func card(_ note: InstantNote, isFullWidth: Bool) -> some View {
@@ -86,10 +100,7 @@ struct NotesInboxStrip: View {
                     Label(note.isPinned ? "Odopnúť" : "Pripnúť", systemImage: note.isPinned ? "pin.slash" : "pin")
                 }
                 Button(role: .destructive) {
-                    MediaStorageManager.removeFile(named: note.audioPath)
-                    MediaStorageManager.removeFile(named: note.imagePath)
-                    modelContext.delete(note)
-                    try? modelContext.save()
+                    if note.reflection(in: modelContext) != nil { noteToConfirm = note } else { remove(note) }
                 } label: {
                     Label("Zmazať", systemImage: "trash")
                 }
@@ -242,11 +253,12 @@ struct NoteDetailSheet: View {
             }
             .confirmationDialog("Zmazať poznámku?", isPresented: $confirmDelete, titleVisibility: .visible) {
                 Button("Zmazať", role: .destructive) {
-                    MediaStorageManager.removeFile(named: note.audioPath)
-                    modelContext.delete(note)
+                    note.delete(in: modelContext)
                     try? modelContext.save()
                     dismiss()
                 }
+            } message: {
+                if reflection != nil { Text(InstantNote.reflectionDeleteWarning) }
             }
             .onChange(of: isWriting) { _, writing in
                 if writing { sweepTrigger += 1 }
@@ -351,6 +363,19 @@ extension InstantNote {
         var descriptor = FetchDescriptor<TrainingLogEntry>(predicate: #Predicate { $0.noteId == noteId })
         descriptor.fetchLimit = 1
         return try? context.fetch(descriptor).first
+    }
+
+    /// Said before a note that is also a reflection is deleted.
+    static let reflectionDeleteWarning = "Je to aj reflexia. " + TrainingLogEntry.deleteWarning
+
+    /// Deletes the note with what is only its own: its recording and photo, and the reflection whose words it carries.
+    /// A reflection and its note are one text shown twice, so neither is left behind (`TrainingLogEntry.delete(in:)`
+    /// does the same from the reflection's side). Every place that deletes a note comes here.
+    func delete(in context: ModelContext) {
+        if let reflection = reflection(in: context) { context.delete(reflection) }
+        MediaStorageManager.removeFile(named: audioPath)
+        MediaStorageManager.removeFile(named: imagePath)
+        context.delete(self)
     }
 }
 

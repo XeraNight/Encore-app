@@ -156,10 +156,14 @@ final class TrainingLogEntry {
     }
 
     /// Deletes the reflection together with its note in Denník: the note holds the same words and would keep them.
+    /// `InstantNote.delete(in:)` does the same from the note's side.
     func delete(in context: ModelContext) {
         if let note = note(in: context) { context.delete(note) }
         context.delete(self)
     }
+
+    /// Said before a reflection, or the note that carries it, is deleted.
+    static let deleteWarning = "Zmaže sa celý zápis z tohto tréningu: poznámka, pocity aj záznam o účasti. Tréning v pláne ostane. Nedá sa to vrátiť."
 }
 
 // MARK: - Competitions
