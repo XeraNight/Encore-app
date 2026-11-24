@@ -15,6 +15,9 @@
 //   voice_download { name }              -> { downloadUrl, expiresIn }      owner only; 404 when there is no copy
 //   voice_remove   { name }              -> { ok }                          owner only
 //
+// Calls are counted per user and day (300 for videos, 3 000 for voice notes): every call is a function invocation, and
+// the Free plan has 500 000 of them a month for everybody.
+//
 // Errors: { error, message } with a Slovak message the app can show as is.
 
 import { errorResponse, getAuthenticatedUser, getSupabaseAdmin, jsonResponse, corsHeaders } from "../_shared/supabase-client.ts";
@@ -30,6 +33,9 @@ const KEY = /^[0-9a-f-]{36}\/[0-9a-f-]{36}\.mp4$/;
 /** As VoiceNoteRecorder names a recording. */
 const VOICE_NAME = /^voice_[0-9A-Fa-f-]{36}\.m4a$/;
 const MAX_VOICE_BYTES = 25 * 1024 * 1024;   // about 25 minutes of AAC
+/** A share is a few calls; a voice note is an upload and a removal, and a new iPhone downloads every recording it had. */
+const RATE_VIDEO_PER_DAY = 300;
+const RATE_VOICE_PER_DAY = 3000;
 
 type Body = { action?: string; nodeId?: string; sizeBytes?: number; key?: string; name?: string };
 
@@ -56,6 +62,9 @@ Deno.serve(async (req: Request) => {
     if (profile?.account_status === "banned" || profile?.account_status === "suspended") {
       return errorResponse("forbidden", "Tvoj účet je zablokovaný.", 403);
     }
+    if (!(await withinRateLimit(admin, user.id, body.action ?? ""))) {
+      return errorResponse("rate_limited", "Priveľa požiadaviek. Skús to o chvíľu.", 429);
+    }
 
     switch (body.action) {
       case "upload": return await upload(admin, user.id, body);
@@ -75,6 +84,21 @@ Deno.serve(async (req: Request) => {
 
 // deno-lint-ignore no-explicit-any
 type Admin = any;
+
+/** Counts the call against the user's day. When counting itself fails, the call goes on: the dancer's recording matters more. */
+async function withinRateLimit(admin: Admin, userId: string, action: string): Promise<boolean> {
+  const voice = action.startsWith("voice_");
+  const { error } = await admin.rpc("check_user_rate_limit", {
+    p_user: userId,
+    p_action: voice ? "media_voice" : "media_video",
+    p_max: voice ? RATE_VOICE_PER_DAY : RATE_VIDEO_PER_DAY,
+    p_window: "1 day",
+  });
+  if (!error) return true;
+  if (error.hint === "rate_limited") return false;
+  console.error("media-share rate limit check failed:", error.message);
+  return true;
+}
 
 /** The figure must belong to a routine of this user. */
 async function ownsNode(admin: Admin, userId: string, nodeId: string): Promise<boolean> {
