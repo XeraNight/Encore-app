@@ -51,6 +51,8 @@ public struct DanceMirrorView: View {
                         .gesture(pinchToZoom)
                 }
                 .ignoresSafeArea()
+            } else if cameraManager.accessDenied {
+                CameraAccessNotice()
             } else {
                 VStack(spacing: 12) {
                     Image(systemName: "camera.fill")
@@ -59,7 +61,7 @@ public struct DanceMirrorView: View {
                     Text("Zrkadlo")
                         .font(.system(.title2, design: .rounded).weight(.bold))
                         .foregroundColor(.white)
-                    Text("Predná kamera nie je dostupná. Povoľ Encore prístup ku kamere v Nastaveniach iPhonu.")
+                    Text("Predná kamera nie je dostupná.")
                         .font(.subheadline)
                         .foregroundColor(.white.opacity(0.7))
                         .multilineTextAlignment(.center)
@@ -126,6 +128,8 @@ public struct DanceMirrorView: View {
             UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, phase in
+            // Back from Nastavenia with the camera allowed: the mirror starts without leaving the screen.
+            if phase == .active { cameraManager.retryIfAllowed() }
             guard isLightOn else { return }
             // Away from Encore the user's own brightness comes back; on return the light is full again.
             setScreenBrightness(full: phase == .active)
@@ -347,6 +351,8 @@ final class DanceMirrorCameraManager: NSObject, ObservableObject, @unchecked Sen
     
     @Published var isRunning = false
     @Published var isCameraAvailable = true
+    /// The camera was refused, now or before: the screen says so and takes the dancer to Nastavenia.
+    @Published var accessDenied = false
     @Published var currentZoom: CGFloat = 1.0
     
     override init() {
@@ -368,10 +374,14 @@ final class DanceMirrorCameraManager: NSObject, ObservableObject, @unchecked Sen
                 self.configureForBestPicture(frontCamera)
                 DispatchQueue.main.async {
                     self.isCameraAvailable = true
+                    self.accessDenied = false
                 }
             } else {
+                // No input after the system's question: a refusal, or no front camera at all.
+                let refused = [.denied, .restricted].contains(AVCaptureDevice.authorizationStatus(for: .video))
                 DispatchQueue.main.async {
                     self.isCameraAvailable = false
+                    self.accessDenied = refused
                 }
             }
             
@@ -404,6 +414,13 @@ final class DanceMirrorCameraManager: NSObject, ObservableObject, @unchecked Sen
             device.activeVideoMinFrameDuration = frame
             device.activeVideoMaxFrameDuration = frame
         }
+    }
+
+    /// Back from Nastavenia with the camera allowed: the mirror sets itself up again and starts.
+    func retryIfAllowed() {
+        guard !isCameraAvailable, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        setupSession()
+        start()
     }
 
     func start() {

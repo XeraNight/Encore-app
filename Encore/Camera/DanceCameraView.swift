@@ -555,37 +555,6 @@ struct DanceCameraView: View {
     }
 }
 
-// MARK: - The camera was refused
-/// A black screen says nothing: this says what is wrong and takes the dancer to the switch in Nastavenia.
-private struct CameraAccessNotice: View {
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "camera.fill")
-                .font(.largeTitle)
-                .foregroundColor(Color.amberGold)
-            Text("Encore nemá prístup ku kamere")
-                .font(.headline)
-                .foregroundColor(.white)
-            Text("Povoľ ho v Nastaveniach iPhonu. Keď sa vrátiš, kamera sa spustí sama.")
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.7))
-                .multilineTextAlignment(.center)
-            Button {
-                UIApplication.shared.openAppSettings()
-            } label: {
-                Text("Otvoriť Nastavenia")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(Color.obsidian900)
-                    .padding(.horizontal, 22)
-                    .frame(minHeight: 44)
-                    .background(Color.amberGold, in: Capsule())
-            }
-            .buttonStyle(.pressable)
-        }
-        .padding(.horizontal, 36)
-    }
-}
-
 // MARK: - The microphone was refused
 /// A take without sound is a surprise after a whole lesson: this says so before the first one and takes the dancer to
 /// the switch in Nastavenia.
