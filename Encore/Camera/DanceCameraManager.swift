@@ -21,6 +21,7 @@ actor CaptureService {
     private let movieOutput = AVCaptureMovieFileOutput()
     private var videoInput: AVCaptureDeviceInput?
     private var isConfigured = false
+    private var hasMicrophone = false
     private var recordingDelegate: RecordingDelegate?
     private var subjectAreaWatch: Task<Void, Never>?
     /// Turns a recording made with the iPhone on its side into a landscape video (the app itself stays portrait).
@@ -40,6 +41,7 @@ actor CaptureService {
             configure()
             isConfigured = true
         }
+        addMicrophoneIfAllowed()
         if !session.isRunning { session.startRunning() }
     }
 
@@ -72,13 +74,22 @@ actor CaptureService {
             session.addInput(input)
             videoInput = input
         }
-        if let microphone = AVCaptureDevice.default(for: .audio),
-           let input = try? AVCaptureDeviceInput(device: microphone),
-           session.canAddInput(input) {
-            session.addInput(input)
-        }
         if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
         prepareCurrentCamera(front: false)
+    }
+
+    /// The microphone joins the session once it is allowed. It may be allowed in Nastavenia after the camera was first
+    /// opened, and the next take then has sound without leaving the screen.
+    private func addMicrophoneIfAllowed() {
+        guard !hasMicrophone, AVCaptureDevice.authorizationStatus(for: .audio) == .authorized,
+              let microphone = AVCaptureDevice.default(for: .audio),
+              let input = try? AVCaptureDeviceInput(device: microphone) else { return }
+        session.beginConfiguration()
+        defer { session.commitConfiguration() }
+        if session.canAddInput(input) {
+            session.addInput(input)
+            hasMicrophone = true
+        }
     }
 
     /// The back camera that films a whole couple best: a virtual camera with the ultra wide (0.5×) when the
@@ -317,6 +328,8 @@ final class DanceCameraModel {
     @ObservationIgnored private var pinchStartZoom: Double = 1
     /// The camera was refused, now or before: no picture to show and nothing to record, and the screen says so.
     private(set) var accessDenied = false
+    /// The microphone was refused: the take has a picture and no sound, and the screen says so.
+    private(set) var microphoneDenied = false
 
     nonisolated var session: AVCaptureSession { capture.session }
 
@@ -327,21 +340,23 @@ final class DanceCameraModel {
 
     func start() {
         Task {
-            guard await Self.hasCameraAccess() else {
+            guard await Self.hasAccess(to: .video) else {
                 accessDenied = true
                 return
             }
             accessDenied = false
+            // Asked before the session is set up, so the first take already has sound when it is allowed.
+            microphoneDenied = !(await Self.hasAccess(to: .audio))
             await capture.start()
             await readLens()
         }
     }
 
     /// Asks the first time (the system's question); no when the answer was no, before or now.
-    private static func hasCameraAccess() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+    private static func hasAccess(to mediaType: AVMediaType) async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: mediaType) {
         case .authorized: return true
-        case .notDetermined: return await AVCaptureDevice.requestAccess(for: .video)
+        case .notDetermined: return await AVCaptureDevice.requestAccess(for: mediaType)
         default: return false
         }
     }

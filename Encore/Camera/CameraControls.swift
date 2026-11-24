@@ -1,5 +1,13 @@
 import SwiftUI
 
+// MARK: - Nastavenia
+extension UIApplication {
+    /// Takes the dancer to this app's switches in Nastavenia (camera, microphone), where a refusal is undone.
+    func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) { open(url) }
+    }
+}
+
 // MARK: - Camera look
 extension View {
     /// The camera's glass: Liquid Glass over the Lock Screen activity's red. A picture only, never interactive, so

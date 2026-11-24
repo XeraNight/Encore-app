@@ -141,8 +141,13 @@ struct DanceCameraView: View {
 
             CameraBeatFlash()
 
-            if let toast = bookmarkToastText {
-                VStack {
+            // What the dancer should know right now sits at the top: the take has no sound, a bookmark was set.
+            VStack(spacing: 8) {
+                if camera.microphoneDenied && !camera.accessDenied {
+                    MicrophoneNotice()
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+                if let toast = bookmarkToastText {
                     HStack(spacing: 8) {
                         Image(systemName: "bookmark.fill")
                             .font(.system(size: 13, weight: .bold))
@@ -156,12 +161,13 @@ struct DanceCameraView: View {
                     .cameraGlass(in: Capsule())
                     .overlay(Capsule().stroke(Color.amberGold.opacity(0.45), lineWidth: 1))
                     .transition(.move(edge: .top).combined(with: .opacity))
-
-                    Spacer()
                 }
-                .padding(.top, 56)
-                .zIndex(100)
+                Spacer()
             }
+            .padding(.top, 56)
+            .animation(reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85), value: camera.microphoneDenied)
+            .sensoryFeedback(.warning, trigger: camera.microphoneDenied) { _, denied in denied }
+            .zIndex(100)
 
             // Everything is in one glass deck in the thumb's reach.
             VStack(spacing: 0) {
@@ -199,9 +205,9 @@ struct DanceCameraView: View {
             // A lesson is filmed from a tripod and not touched for minutes: the screen must not lock in the middle of a take.
             UIApplication.shared.isIdleTimerDisabled = true
         }
-        // Back from Nastavenia with the camera allowed: it starts without leaving the screen.
+        // Back from Nastavenia with the camera or the microphone allowed: it starts without leaving the screen.
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active && camera.accessDenied { camera.start() }
+            if phase == .active && !camera.isRecording && (camera.accessDenied || camera.microphoneDenied) { camera.start() }
         }
         .task(id: ghostVideoPath) {
             // The ghost video may live in Fotky, so it is looked up asynchronously; leaving cancels the task.
@@ -565,7 +571,7 @@ private struct CameraAccessNotice: View {
                 .foregroundColor(.white.opacity(0.7))
                 .multilineTextAlignment(.center)
             Button {
-                if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                UIApplication.shared.openAppSettings()
             } label: {
                 Text("Otvoriť Nastavenia")
                     .font(.subheadline.weight(.bold))
@@ -577,5 +583,33 @@ private struct CameraAccessNotice: View {
             .buttonStyle(.pressable)
         }
         .padding(.horizontal, 36)
+    }
+}
+
+// MARK: - The microphone was refused
+/// A take without sound is a surprise after a whole lesson: this says so before the first one and takes the dancer to
+/// the switch in Nastavenia.
+private struct MicrophoneNotice: View {
+    var body: some View {
+        Button {
+            UIApplication.shared.openAppSettings()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "mic.slash.fill")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Color.amberGold)
+                Text("Bez zvuku · povoliť mikrofón")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .cameraGlass(in: Capsule())
+            .overlay(Capsule().stroke(Color.amberGold.opacity(0.45), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.pressable)
+        .accessibilityLabel("Video bude bez zvuku")
+        .accessibilityHint("Otvorí Nastavenia, kde povolíš mikrofón")
     }
 }
