@@ -415,11 +415,15 @@ struct ProfileSettingsView: View {
 
     private func resetFigureLibrary() {
         let descriptor = FetchDescriptor<FigureLibraryItem>(predicate: #Predicate { !$0.isCustom })
+        var videos = Set<String>()
         for figure in (try? modelContext.fetch(descriptor)) ?? [] {
             MediaStorageManager.removeFile(named: figure.imagePath)
-            MediaStorageManager.removeFile(named: figure.videoPath)
+            if let video = figure.videoPath { videos.insert(video) }
             modelContext.delete(figure)
         }
+        try? modelContext.save()
+        // A video a Denník note, a figure or a custom library figure also shows stays.
+        videos.forEach { MediaStorageManager.removeVideoIfUnused($0, in: modelContext) }
         FigureLibraryItem.seedDefaultFigures(in: modelContext)
         changeCount += 1
     }

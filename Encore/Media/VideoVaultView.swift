@@ -532,10 +532,9 @@ struct VideoVaultView: View {
     }
 
     private func deleteEntry(_ entry: VideoMediaEntry) {
-        if activeSlotAPath == entry.filePath { activeSlotAPath = nil }
-        if activeSlotBPath == entry.filePath { activeSlotBPath = nil }
-
-        MediaStorageManager.removeFile(named: entry.filePath)   // a Fotky video stays in Fotky
+        let path = entry.filePath
+        if activeSlotAPath == path { activeSlotAPath = nil }
+        if activeSlotBPath == path { activeSlotBPath = nil }
 
         if let routine {
             routine.mediaVault.removeAll { $0.id == entry.id }
@@ -549,6 +548,8 @@ struct VideoVaultView: View {
 
         modelContext.delete(entry)
         saveChanges()
+        // A Fotky video stays in Fotky, and so does a file a Denník note or a figure also shows.
+        MediaStorageManager.removeVideoIfUnused(path, in: modelContext)
     }
 
     private func titleForPath(_ path: String?) -> String? {

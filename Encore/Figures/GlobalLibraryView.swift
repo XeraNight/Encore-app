@@ -313,10 +313,12 @@ struct LibraryFigureDetailSheet: View {
 
     private func deleteFigure() {
         let id = figure.id
+        let video = figure.videoPath
         MediaStorageManager.removeFile(named: figure.imagePath)
-        MediaStorageManager.removeFile(named: figure.videoPath)
         modelContext.delete(figure)
         try? modelContext.save()
+        // A video a Denník note or another figure also shows stays; this one's own copy goes.
+        MediaStorageManager.removeVideoIfUnused(video, in: modelContext)
         FigureLibrarySync.delete(id)
         dismiss()
     }

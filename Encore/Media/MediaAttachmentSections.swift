@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 
 // MARK: - Video attached to a figure or a dance
@@ -8,6 +9,7 @@ struct AttachedVideoSection: View {
     @Binding var videoPath: String?
     var onChange: () -> Void
 
+    @Environment(\.modelContext) private var modelContext
     /// Each video starts at its real speed; the chips under it slow it down or speed it up.
     @State private var rate: Float = 1
     @State private var showCamera = false
@@ -81,14 +83,17 @@ struct AttachedVideoSection: View {
         }
         .confirmationDialog("Odstrániť video?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Odstrániť video", role: .destructive) {
-                MediaStorageManager.removeFile(named: videoPath)   // a Fotky video stays in Fotky
+                let removed = videoPath
                 videoPath = nil
                 onChange()
+                try? modelContext.save()
+                // A Fotky video stays in Fotky, and so does a file a Denník note or another figure also shows.
+                MediaStorageManager.removeVideoIfUnused(removed, in: modelContext)
             }
         } message: {
             Text(videoPath.map(PhotoLibraryVideoStore.isReference) == true
                  ? "Video sa odstráni odtiaľto. Vo Fotkách ti ostane."
-                 : "Video sa zmaže odtiaľto aj z telefónu.")
+                 : "Video sa odstráni odtiaľto a z telefónu sa zmaže, ak ho nepoužíva nič iné.")
         }
     }
 

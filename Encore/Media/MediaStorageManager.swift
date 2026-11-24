@@ -130,19 +130,46 @@ enum MediaStorageManager {
 }
 
 extension MediaStorageManager {
-    /// Deletes a video file kept in Encore unless something else still shows it: a Denník note, another
-    /// figure, or a figure's model. A video put into a figure from Denník must not vanish from Denník when
-    /// the figure or its video is deleted. A Fotky link is not a file here. True when the file was deleted.
+    /// Deletes a video file kept in Encore unless something else still shows it (`isVideoInUse`). A video put into a
+    /// figure from Denník must not vanish from Denník when the figure or its video is deleted, and the other way round.
+    /// A Fotky link is not a file here. True when the file was deleted.
     @MainActor
     @discardableResult
     static func removeVideoIfUnused(_ path: String?, in context: ModelContext, ignoring nodeId: UUID? = nil) -> Bool {
         guard let path, !path.isEmpty, !PhotoLibraryVideoStore.isReference(path) else { return false }
-        let target: String? = path
-        let notes = (try? context.fetchCount(FetchDescriptor<InstantNote>(predicate: #Predicate { $0.videoPath == target }))) ?? 1
-        let nodes = (try? context.fetch(FetchDescriptor<CanvasNode>(
-            predicate: #Predicate { $0.videoPath == target || $0.activeTargetVideoPath == target }))) ?? []
-        guard notes == 0, nodes.allSatisfy({ $0.id == nodeId }) else { return false }
+        guard !isVideoInUse(path, in: context, ignoring: nodeId) else { return false }
         removeFile(named: path)
         return true
+    }
+
+    /// True when anything in Encore still shows the video file: a Denník note, a figure (its video, its target video,
+    /// its vault or the notes written in it), a routine, a library figure, a dance. `ignoring` is a figure that is being
+    /// deleted or is losing its video itself: what it and its own vault entries hold does not count. A look that fails
+    /// counts as "in use": a file is never deleted on a guess. Call it after the model that held the video is deleted
+    /// and saved.
+    @MainActor
+    static func isVideoInUse(_ path: String, in context: ModelContext, ignoring nodeId: UUID? = nil) -> Bool {
+        let target: String? = path
+        if has(FetchDescriptor<InstantNote>(predicate: #Predicate { $0.videoPath == target }), in: context) { return true }
+        if has(FetchDescriptor<Routine>(predicate: #Predicate { $0.videoPath == target || $0.activeTargetVideoPath == target }), in: context) { return true }
+        if has(FetchDescriptor<FigureLibraryItem>(predicate: #Predicate { $0.videoPath == target }), in: context) { return true }
+        if has(FetchDescriptor<Dance>(predicate: #Predicate { $0.videoPath == target }), in: context) { return true }
+
+        guard let nodes = try? context.fetch(FetchDescriptor<CanvasNode>(
+            predicate: #Predicate { $0.videoPath == target || $0.activeTargetVideoPath == target })),
+              let entries = try? context.fetch(FetchDescriptor<VideoMediaEntry>(predicate: #Predicate { $0.filePath == path })),
+              let written = try? context.fetch(FetchDescriptor<CanvasNode>(predicate: #Predicate { $0.notesRichData != nil }))
+        else { return true }
+        if nodes.contains(where: { $0.id != nodeId }) { return true }
+        if entries.contains(where: { nodeId == nil || $0.canvasNode?.id != nodeId }) { return true }
+        // A video put into a figure's notes is named inside the written notes.
+        let name = Data(path.utf8)
+        return written.contains { $0.id != nodeId && $0.notesRichData?.range(of: name) != nil }
+    }
+
+    @MainActor
+    private static func has<Model: PersistentModel>(_ descriptor: FetchDescriptor<Model>, in context: ModelContext) -> Bool {
+        guard let count = try? context.fetchCount(descriptor) else { return true }
+        return count > 0
     }
 }
