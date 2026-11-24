@@ -185,13 +185,17 @@ Produkcia má migráciu `20261006141225 canvas_coach_notes_author_name` (stĺpec
 `20261022_canvas_node_bars.sql` ho používa. Kto by databázu stavial z repozitára, narazí. Po tvojom "áno" pridám súbor
 `20261007b_canvas_coach_notes_author_name.sql` s presným textom, ktorý už v produkcii je.
 
-## Servery (Edge Functions): zmeny sú v repozitári, v Supabase NIE SÚ
+## Servery (Edge Functions): NASADENÉ 24. 11. 2026 (jeho "nasaď")
+
+Verzie: `media-share` 7 → 8, `ksis-page` 15 → 16, `delete-account` 10 → 11, `owner-delete-account` 2 → 3, všetky ACTIVE s `verify_jwt` zapnutým.
+Po každom nasadení: OPTIONS 200, GET 405 a POST s verejným kľúčom bez používateľa 401 vlastnou správou funkcie (teda funkcia naštartuje a odpovedá),
+v logu štyri "booted" a žiadna chyba. Nasadené cez `supabase functions deploy <meno> --project-ref iukblwlttvrcdclmlyxu --use-api`.
+Pri návrate k starej verzii stačí nasadiť funkciu z commitu pred zmenou (7ce1a58, f037bab, e13404a, 885cab0, 092703e).
 
 | Funkcia | Čo sa zmenilo | Commit |
 |---|---|---|
-| `ksis-page` | uloženie jednej súťaže má rovnaký strop 2 000 ako stránka páru; uložené hodnotenie porotcov nad 64 KB (rozhodcovia nad 16 KB) sa odmietne | 7ce1a58 |
+| `ksis-page` | uloženie jednej súťaže má rovnaký strop 2 000 ako stránka páru; uložené hodnotenie porotcov nad 64 KB (rozhodcovia nad 16 KB) sa odmietne; stránka páru preskočí nečitateľné riadky namiesto zahodenia celej stránky | 7ce1a58, 092703e |
 | `media-share` | 300 volaní denne na video a 3 000 na hlasovky; funkcie majú 500 000 volaní mesačne pre všetkých | f037bab |
 | `delete-account` a `owner-delete-account` | súbory v R2 sa mažú po desiatich naraz (tisíc hlasoviek za sebou by funkcia nestihla a účet by sa nedal zmazať), meno trénera sa zmaže z poznámok figúr | e13404a |
 | `owner-delete-account` | pokusy o PIN sa počítajú atomicky pred porovnaním (päť za hodinu, správny PIN ich vráti) | 885cab0 |
 
-Nasadenie spravím až na tvoje "nasaď": cez Supabase po jednej funkcii, s kontrolou logu po každej.
