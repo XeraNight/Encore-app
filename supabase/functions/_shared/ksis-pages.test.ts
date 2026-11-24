@@ -479,6 +479,52 @@ Deno.test("couple page: a column added in front of the history does not hide it"
   assertEquals(page.history, original.history);
 });
 
+// A career of 90 competitions was thrown away for one row KSIS keeps without its competition page.
+const OTHER_SITE = '<a href="https://www.idsf.net/old/12094">Dospelí D ŠTT</a>';
+const FIRST_COMPETITION = '<a href="https://szts.ksis.eu/sutaz.php?sutaz_id=12094">Dospelí D ŠTT</a>';
+
+Deno.test("couple page: a row whose competition has no KSIS page is left out and the rest is kept", () => {
+  const original = parseCouplePage(fixture("couple_page_18978.html"));
+  const page = parseCouplePage(fixture("couple_page_18978.html").replace(FIRST_COMPETITION, OTHER_SITE));
+  assertEquals(page.history.length, original.history.length - 1);
+  assertEquals(page.history, original.history.filter((row) => row.sutazId !== 12094));
+  assertEquals(page.skippedRows, ["row 2: 10 cells, link to www.idsf.net"]);
+});
+
+Deno.test("couple page: a row with no link and a row with too few cells are left out, described without their content", () => {
+  const noLink = fixture("couple_page_18978.html").replace(FIRST_COMPETITION, "Dospelí D ŠTT");
+  assertEquals(parseCouplePage(noLink).skippedRows, ["row 2: 10 cells, no competition link"]);
+  const short = fixture("couple_page_18978.html").replace(
+    /<td>16<\/td><td>3\.<\/td><td style="width:20px">21\/F<\/td><td style="width:20px">91\/5F<\/td><td style="width:20px"><\/td><td style="width:10px">.*?<\/td><\/tr>/,
+    "<td>16</td></tr>",
+  );
+  const page = parseCouplePage(short);
+  assertEquals(page.history.length, 17);
+  assertEquals(page.skippedRows, ["row 3: 5 cells, competition link with a number"]);
+});
+
+Deno.test("couple page: when more than a quarter of the rows cannot be read it is a changed page", () => {
+  let changed = 0;
+  const html = fixture("couple_page_18978.html").replace(/sutaz\.php\?sutaz_id=/g, (match) => (changed++ < 6 ? "other.php?id=" : match));
+  const error = assertThrows(() => parseCouplePage(html), KsisPageError);
+  assertEquals(error.kind, "layout_changed");
+  assert(error.message.includes("history row"), error.message);
+});
+
+Deno.test("couple page: a few rows over the quarter's limit are still read (4 of 18)", () => {
+  let changed = 0;
+  const html = fixture("couple_page_18978.html").replace(/sutaz\.php\?sutaz_id=/g, (match) => (changed++ < 4 ? "other.php?id=" : match));
+  const page = parseCouplePage(html);
+  assertEquals(page.history.length, 14);
+  assertEquals(page.skippedRows.length, 4);
+});
+
+Deno.test("couple page: when no row can be read it is a changed page", () => {
+  const html = fixture("couple_page_18978.html").replace(/sutaz\.php\?sutaz_id=/g, "other.php?id=");
+  const error = assertThrows(() => parseCouplePage(html), KsisPageError);
+  assertEquals(error.kind, "layout_changed");
+});
+
 Deno.test("couple page: a history table with other titles is a changed page and the report names the titles", () => {
   const html = fixture("couple_page_18978.html").replace(">Dátum<", ">Termín<");
   const error = assertThrows(() => parseCouplePage(html), KsisPageError);

@@ -643,6 +643,10 @@ async function coupleDetail(
 
 async function couplePage(admin: Admin, userId: string, html: string, linked: LinkedCouple[], save: boolean) {
   const page = parseCouplePage(html);
+  // The report names how the rows differ (cells, kind of link), never what they say.
+  if (page.skippedRows.length > 0) {
+    console.warn(`ksis-page: ${page.skippedRows.length} history row(s) left out: ${page.skippedRows.slice(0, 5).join("; ")}`);
+  }
   const own = findOwn(linked, page.parId, page);
   const couple = {
     parId: page.parId,
@@ -656,7 +660,14 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
   const stored = historyToStore(page.history);
   const competitions = stored.length;
   if (!save) {
-    return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: own !== undefined, isLinked: linked.length > 0 });
+    return jsonResponse({
+      kind: "couple_page",
+      couple,
+      competitions,
+      isOwn: own !== undefined,
+      isLinked: linked.length > 0,
+      skippedRows: page.skippedRows.length,
+    });
   }
   if (!own || page.parId === null) {
     return errorResponse("forbidden", "Toto nie je stránka tvojho prepojeného páru.", 403);
@@ -720,7 +731,15 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
     const { error: staleError } = await stale;
     if (staleError) throw staleError;
   }
-  return jsonResponse({ kind: "couple_page", couple, competitions, isOwn: true, isLinked: true, saved: rows.length + wdsfRows.length });
+  return jsonResponse({
+    kind: "couple_page",
+    couple,
+    competitions,
+    isOwn: true,
+    isLinked: true,
+    saved: rows.length + wdsfRows.length,
+    skippedRows: page.skippedRows.length,
+  });
 }
 
 // ── Results: one competition ─────────────────────────────────────────────────────────────────────

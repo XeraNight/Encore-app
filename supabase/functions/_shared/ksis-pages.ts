@@ -441,6 +441,8 @@ export interface KsisCouplePage extends KsisPairNames {
   stt: KsisClassLabel | null;
   lat: KsisClassLabel | null;
   history: KsisHistoryRow[];
+  /** Rows of the history that could not be read and were left out, each as a short description without its content. */
+  skippedRows: string[];
 }
 
 const COUPLE_PAGE = "stránka páru";
@@ -452,8 +454,12 @@ const HISTORY_TITLES = ["Dátum", "Podujatie", "Súťaž", "Počet párov", "Umi
  * The competitions in the couple page's table, found by the column titles and not by position: a column added or
  * moved does not hide the history. A couple without competitions has a page without that table, which is an empty
  * history; a table with some of the known titles but not all of them, or with rows and none of them, is a changed page.
+ *
+ * A row that cannot be read (an old competition KSIS keeps without its page, a note row of another shape) is left out
+ * and described in `skipped`; the rest of the history is kept. When more than a quarter of the rows cannot be read, or
+ * none can, the page is a changed one: one such row used to throw away a career of 90 competitions.
  */
-function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
+function coupleHistory($: CheerioAPI): { history: KsisHistoryRow[]; skipped: string[] } {
   const tables: TableElement[] = $("table").toArray();
   const starts = tables.map((table) => columnStarts($, table));
   const found = starts.findIndex((titles) => HISTORY_TITLES.every((title) => titles.has(title)));
@@ -467,12 +473,13 @@ function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
       })
     );
     if (knownTitles || hasRows) throw layoutChanged(COUPLE_PAGE, `history table changed; ${outline($)}`);
-    return [];
+    return { history: [], skipped: [] };
   }
   const at = (title: string): number => starts[found].get(title) ?? 0;
   const last = Math.max(...HISTORY_TITLES.map(at));
+  const skipped: string[] = [];
   // A career has a few hundred competitions; the newest come first.
-  return $(tables[found]).find("tr").toArray().slice(0, MAX_HISTORY_ROWS + 1).flatMap((tr) => {
+  const history = $(tables[found]).find("tr").toArray().slice(0, MAX_HISTORY_ROWS + 1).flatMap((tr, index) => {
     const td = $(tr).children("td").toArray();
     if (td.length === 0) return [];
     // A note in place of a row ("no records") is not a competition.
@@ -482,7 +489,8 @@ function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
     const href = competition.attr("href") ?? "";
     const sutazId = idFrom(href, "sutaz_id");
     if (td.length <= last || (sutazId === null && !href.includes("worlddancesport.org"))) {
-      throw layoutChanged(COUPLE_PAGE, `history row; ${outline($)}`);
+      skipped.push(`row ${index + 1}: ${td.length} cells, ${sutazId !== null ? "competition link with a number" : linkKind(href)}`);
+      return [];
     }
     return [{
       date: parseKsisDate($(td[at("Dátum")]).text()),
@@ -497,6 +505,21 @@ function coupleHistory($: CheerioAPI): KsisHistoryRow[] {
       hasCheckMark: $(tr).find(".glyphicon-ok").length > 0,
     }];
   });
+  if (skipped.length > 0 && (history.length === 0 || skipped.length * 4 > history.length + skipped.length)) {
+    throw layoutChanged(COUPLE_PAGE, `history row; ${skipped.slice(0, 3).join("; ")}; ${outline($)}`);
+  }
+  return { history, skipped };
+}
+
+/** What a history row's competition link is, for the report: no link, a link to another site (its host only), or a KSIS one without a number. */
+function linkKind(href: string): string {
+  if (href === "") return "no competition link";
+  try {
+    const host = new URL(href, "https://szts.ksis.eu/").hostname;
+    return host === "szts.ksis.eu" ? "KSIS link without sutaz_id" : `link to ${host}`;
+  } catch {
+    return "link that is no address";
+  }
 }
 
 export function parseCouplePage(html: string): KsisCouplePage {
@@ -512,7 +535,7 @@ export function parseCouplePage(html: string): KsisCouplePage {
   };
   const age = info.match(/Veková kategória:\s*(.+?)\s*(?:Výkonnostná|$)/);
 
-  const history = coupleHistory($);
+  const { history, skipped } = coupleHistory($);
 
   return {
     ...splitPair(title),
@@ -523,6 +546,7 @@ export function parseCouplePage(html: string): KsisCouplePage {
     stt: classLabel("ŠTT"),
     lat: classLabel("LAT"),
     history,
+    skippedRows: skipped,
   };
 }
 
