@@ -360,6 +360,8 @@ struct MyResultsView: View {
     private var results: some View {
         if shown.isEmpty, manager.isLoading, !manager.loadFailed {
             resultsSkeleton
+        } else if shown.isEmpty, resultsFilter != nil, !coupleResults.isEmpty {
+            emptyFilter
         } else if shown.isEmpty {
             // With a couple missing its history, the card above already says what to do.
             if couplesWithoutHistory.isEmpty || manager.loadFailed {
@@ -393,6 +395,17 @@ struct MyResultsView: View {
                 seasonList(shown)
             }
         }
+    }
+
+    /// The couple has competitions, only none in this filter (a Latin couple under ŠTT): nothing is missing, so nothing
+    /// is offered to load.
+    private var emptyFilter: some View {
+        Text("V tomto výbere pár nemá žiadnu súťaž.")
+            .font(.footnote)
+            .foregroundColor(Color.textSecondary)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .homeCard(cornerRadius: 20)
     }
 
     /// Nothing is stored on this iPhone yet and the competitions are on their way: the real rows with made-up data.
