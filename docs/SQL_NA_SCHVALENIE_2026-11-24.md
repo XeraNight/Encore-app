@@ -42,7 +42,7 @@ ide pred nimi a vo vlastných dávkach, takže sa pri takej chybe nezastaví.
 Prečo: cez verejné API vie prihlásený používateľ zapísať riadky ľubovoľnej veľkosti do `canvas_nodes`, `figure_library_items`,
 `routines`, `profiles` a `invite_tokens` a 5 000 nových riadkov po 64 KB denne do `device_records`. Skript naplní 500 MB Free databázy
 za pár minút a projekt sa pre všetkých prepne len na čítanie. Odmietnutý zápis dostane appka ako chybu 400 s kódom `row_too_large` alebo
-`storage_budget` (rovnako ako pri dennom limite `rate_limited`), zmena zostane uložená v iPhone a pošle sa znova.
+`storage_budget` (rovnako ako pri dennom limite `rate_limited`). Zmena ostane v iPhone a appka ju skúša poslať znova, kým sa miesto neuvoľní.
 
 ```sql
 -- Budgets: one signed-in user can no longer fill the Free database.
@@ -54,7 +54,7 @@ za pár minút a projekt sa pre všetkých prepne len na čítanie. Odmietnutý 
 -- dancer's whole diary backup is about 1 MB after years).
 --
 -- 1. no row is bigger than 64 KB, like device_records already;
--- 2. one user's rows of device_records, canvas_nodes (of his routines) and figure_library_items together stay under
+-- 2. one user's rows of device_records, canvas_nodes (of their routines) and figure_library_items together stay under
 --    10, 10 and 5 MB;
 -- 3. the figures a user adds to the library are limited per day like the other writes.
 -- A write over a limit is refused with the hint 'row_too_large' or 'storage_budget'. Deleting data frees the budget
