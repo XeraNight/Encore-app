@@ -8,6 +8,19 @@ import { getR2 } from "./r2.ts";
 
 const BUCKET = "encore-media";
 const PAGE = 100;
+/** Files removed from R2 at the same time. */
+const R2_PARALLEL = 10;
+
+/**
+ * Removes the files in small groups. One by one, a dancer with a thousand voice notes was a thousand calls in a row,
+ * longer than the function may run, and then the account could not be deleted at all. The first failure rejects, so the
+ * account stays and the user can try again.
+ */
+export async function removeAll(r2: { remove(key: string): Promise<void> }, keys: string[], parallel = R2_PARALLEL): Promise<void> {
+  for (let start = 0; start < keys.length; start += parallel) {
+    await Promise.all(keys.slice(start, start + parallel).map((key) => r2.remove(key)));
+  }
+}
 
 // deno-lint-ignore no-explicit-any
 async function listAllFiles(admin: any, root: string): Promise<string[]> {
@@ -47,10 +60,15 @@ export async function deleteAccountAndFiles(admin: any, userId: string): Promise
   const { data: shared, error: sharedError } = await admin.from("shared_videos").select("key").eq("owner_id", userId);
   if (sharedError) throw sharedError;
   const r2 = getR2();
-  for (const row of shared ?? []) await r2.remove(row.key);
+  await removeAll(r2, (shared ?? []).map((row: { key: string }) => row.key));
   // The copies of the owner's voice notes have no rows; they are listed by their place.
   const voice = await r2.list(`voice/${userId}/`);
-  for (const item of voice) await r2.remove(item.key);
+  await removeAll(r2, voice.map((item) => item.key));
+
+  // A coach's name on the students' figure notes would outlive the account: the link to it is cleared with the account
+  // (on delete set null), the written name is not.
+  const { error: nameError } = await admin.from("canvas_nodes").update({ coach_notes_by_name: null }).eq("coach_notes_by", userId);
+  if (nameError) throw nameError;
 
   const { error: deleteError } = await admin.auth.admin.deleteUser(userId);
   if (deleteError) throw deleteError;
