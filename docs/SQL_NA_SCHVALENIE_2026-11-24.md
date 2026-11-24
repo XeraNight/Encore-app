@@ -41,7 +41,8 @@ ide pred nimi a vo vlastných dávkach, takže sa pri takej chybe nezastaví.
 
 Prečo: cez verejné API vie prihlásený používateľ zapísať riadky ľubovoľnej veľkosti do `canvas_nodes`, `figure_library_items`,
 `routines`, `profiles` a `invite_tokens` a 5 000 nových riadkov po 64 KB denne do `device_records`. Skript naplní 500 MB Free databázy
-za pár minút a projekt sa pre všetkých prepne len na čítanie.
+za pár minút a projekt sa pre všetkých prepne len na čítanie. Odmietnutý zápis dostane appka ako chybu 400 s kódom `row_too_large` alebo
+`storage_budget` (rovnako ako pri dennom limite `rate_limited`), zmena zostane uložená v iPhone a pošle sa znova.
 
 ```sql
 -- Budgets: one signed-in user can no longer fill the Free database.
@@ -72,7 +73,7 @@ set search_path = ''
 as $$
 begin
   if pg_column_size(new) > 65536 then
-    raise exception 'Row too large' using errcode = '54000', hint = 'row_too_large';
+    raise exception 'Row too large' using errcode = 'P0001', hint = 'row_too_large';
   end if;
   return new;
 end;
@@ -128,7 +129,7 @@ begin
     ) into v_over;
   end if;
   if v_over then
-    raise exception 'Storage budget exceeded' using errcode = '54000', hint = 'storage_budget';
+    raise exception 'Storage budget exceeded' using errcode = 'P0001', hint = 'storage_budget';
   end if;
   return null;
 end;
