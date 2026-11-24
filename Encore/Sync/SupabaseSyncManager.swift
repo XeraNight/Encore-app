@@ -15,6 +15,30 @@ nonisolated struct DBFigureRow: Codable, Sendable {
     let is_custom: Bool
 }
 
+/// A library figure as it is sent, taken at one moment, so no model is held across the network call.
+nonisolated struct LibraryFigureSnapshot: Sendable {
+    let id: UUID
+    let name: String
+    let danceName: String
+    let rhythm: String
+    let notes: String
+    let imagePath: String?
+    let videoPath: String?
+    let isCustom: Bool
+
+    @MainActor
+    init(_ figure: FigureLibraryItem) {
+        id = figure.id
+        name = figure.name
+        danceName = figure.danceName
+        rhythm = figure.rhythm
+        notes = figure.techniqueNotes
+        imagePath = figure.imagePath
+        videoPath = figure.videoPath
+        isCustom = figure.isCustom
+    }
+}
+
 nonisolated struct DBRoutineRow: Codable, Sendable {
     let id: UUID
     let name: String
@@ -194,36 +218,40 @@ final class SupabaseSyncManager: Sendable {
 
     // MARK: - Database Synchronisation
     
+    /// True when the server has the figure.
     @SyncActor
-    func syncFigure(_ figureId: UUID, name: String, danceName: String, rhythm: String, notes: String, imagePath: String?, videoPath: String?, isCustom: Bool) async {
-        guard let client else { return }
-        
+    func syncFigure(_ figure: LibraryFigureSnapshot) async -> Bool {
+        guard let client else { return false }
+
         let row = DBFigureRow(
-            id: figureId,
-            name: name,
-            dance_name: danceName,
-            rhythm: rhythm,
-            technique_notes: notes,
-            image_path: imagePath,
-            video_path: videoPath,
-            is_custom: isCustom
+            id: figure.id,
+            name: figure.name,
+            dance_name: figure.danceName,
+            rhythm: figure.rhythm,
+            technique_notes: figure.notes,
+            image_path: figure.imagePath,
+            video_path: figure.videoPath,
+            is_custom: figure.isCustom
         )
-        
+
         do {
             try await client
                 .from("figure_library_items")
                 .upsert(row)
                 .execute()
-            Logger.sync.info("Synced figure '\(name, privacy: .public)'")
+            Logger.sync.info("Synced figure '\(figure.name, privacy: .public)'")
+            return true
         } catch {
-            Logger.sync.error("Failed to sync figure '\(name, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+            Logger.sync.error("Failed to sync figure '\(figure.name, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
-    
+
+    /// True when the figure is gone from the server.
     @SyncActor
-    func deleteFigure(_ figureId: UUID) async {
-        guard let client else { return }
-        
+    func deleteFigure(_ figureId: UUID) async -> Bool {
+        guard let client else { return false }
+
         do {
             try await client
                 .from("figure_library_items")
@@ -231,11 +259,13 @@ final class SupabaseSyncManager: Sendable {
                 .eq("id", value: figureId)
                 .execute()
             Logger.sync.info("Deleted figure \(figureId.uuidString, privacy: .public)")
+            return true
         } catch {
             Logger.sync.error("Failed to delete figure: \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
-    
+
     /// Uploads what changed in a routine: the routine itself, the figures whose content differs from the last
     /// upload or download, and the figures deleted on this iPhone. Nothing else on the server is touched, so an
     /// old copy cannot overwrite a partner's figures or delete ones it never knew (a routine just downloaded to
@@ -446,12 +476,42 @@ final class SupabaseSyncManager: Sendable {
         return await push(snapshot, version: version)
     }
 
+    /// Library figures changed or deleted while offline. True when all of them went through.
+    @MainActor
+    func sendPendingFigures(in context: ModelContext) async -> Bool {
+        var allSent = true
+        for id in await SyncLedger.shared.deletedFigureIds {
+            if await deleteFigure(id) { await SyncLedger.shared.figureDeletedOnServer(id) } else { allSent = false }
+        }
+        for id in await SyncLedger.shared.pendingFigureIds {
+            let descriptor = FetchDescriptor<FigureLibraryItem>(predicate: #Predicate { $0.id == id })
+            guard let figure = try? context.fetch(descriptor).first else {
+                await SyncLedger.shared.forgetFigure(id)
+                continue
+            }
+            allSent = await send(LibraryFigureSnapshot(figure)) && allSent
+        }
+        return allSent
+    }
+
+    /// One library figure, as it was when the change was made. It stops waiting only if nothing changed meanwhile; a
+    /// change made during the upload keeps it waiting for the next try.
+    @MainActor
+    func send(_ figure: LibraryFigureSnapshot) async -> Bool {
+        let version = await SyncLedger.shared.figureVersion(of: figure.id)
+        guard await syncFigure(figure) else { return false }
+        await SyncLedger.shared.figureUploaded(figure.id, version: version)
+        // A change made during the upload keeps it waiting: the caller tries again soon, and sends it as it is then.
+        return !(await SyncLedger.shared.isFigurePending(figure.id))
+    }
+
     /// Everything that waits: routines deleted or changed while offline. True when all of it went through.
     @MainActor
     func sendPending(in context: ModelContext) async -> Bool {
         // Signed out: nothing can go up now; it waits for the next sign-in of the same account.
         guard AuthManager.shared.isAuthenticated else { return true }
         var allSent = true
+        allSent = await sendPendingFigures(in: context) && allSent
         for id in await SyncLedger.shared.deletedRoutineIds {
             allSent = await deleteRoutine(id) && allSent
         }

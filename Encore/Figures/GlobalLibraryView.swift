@@ -24,37 +24,41 @@ struct GlobalLibraryView: View {
 /// One place that sends a library figure to the cloud and pulls the library back.
 /// Videos and photos stay on the phone (Fotky); the cloud only keeps the text and the file names
 /// (docs/VIDEO_STORAGE_AND_SHARING.md).
+///
+/// Like a message: a figure added, changed or deleted here is marked as waiting on the iPhone first (kept when the app is
+/// closed, with no network, in a hotel), and the pending sender sends it, again and again, as soon as it can.
 enum FigureLibrarySync {
     static func push(_ figure: FigureLibraryItem) {
         let id = figure.id
-        let name = figure.name
-        let dance = figure.danceName
-        let rhythm = figure.rhythm
-        let notes = figure.techniqueNotes
-        let imagePath = figure.imagePath
-        let videoPath = figure.videoPath
-        let isCustom = figure.isCustom
-        Task.detached(priority: .background) {
-            await SupabaseSyncManager.shared.syncFigure(
-                id, name: name, danceName: dance, rhythm: rhythm, notes: notes,
-                imagePath: imagePath, videoPath: videoPath, isCustom: isCustom
-            )
+        Task {
+            await SyncLedger.shared.markFigureChanged(id)
+            PendingSyncRunner.shared.run()
         }
     }
 
     static func delete(_ id: UUID) {
-        Task.detached(priority: .background) {
-            await SupabaseSyncManager.shared.deleteFigure(id)
+        Task {
+            await SyncLedger.shared.recordFigureDeletion(id)
+            PendingSyncRunner.shared.run()
         }
     }
 
     /// Cloud wins for figures it knows; figures only on this phone stay.
     static func pull(into context: ModelContext) async {
         guard let cloudFigures = await SupabaseSyncManager.shared.fetchFigures() else { return }
+        let waiting = await SyncLedger.shared.pendingFigureIds
+        let deleted = await SyncLedger.shared.deletedFigureIds
+        merge(cloudFigures, into: context, waiting: waiting, deleted: deleted)
+    }
+
+    /// What the cloud says about the library, applied here. A download never overwrites a change that has not gone up yet,
+    /// and a figure deleted here that the cloud still has (its deletion is on the way) is not brought back.
+    static func merge(_ cloudFigures: [DBFigureRow], into context: ModelContext, waiting: Set<UUID>, deleted: Set<UUID>) {
         let localFigures = (try? context.fetch(FetchDescriptor<FigureLibraryItem>())) ?? []
         let localMap = Dictionary(localFigures.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        for cloud in cloudFigures {
+        for cloud in cloudFigures where !deleted.contains(cloud.id) {
             if let existing = localMap[cloud.id] {
+                guard !waiting.contains(cloud.id) else { continue }
                 existing.name = cloud.name
                 existing.danceName = cloud.dance_name
                 existing.rhythm = cloud.rhythm

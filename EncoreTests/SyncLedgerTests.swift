@@ -82,4 +82,69 @@ struct SyncLedgerTests {
         let sameAccountAgain = SyncLedger(defaults: defaults)
         #expect(await sameAccountAgain.pendingRoutineIds == [routine])
     }
+
+    // MARK: Library figures (like a message that waits for the network)
+
+    @Test func aLibraryFigureWaitsUntilItsUploadReachesItsLatestChange() async throws {
+        let (ledger, _) = try makeLedger()
+        let figure = UUID()
+        let first = await ledger.markFigureChanged(figure)
+        let second = await ledger.markFigureChanged(figure)
+
+        await ledger.figureUploaded(figure, version: first)
+        #expect(await ledger.isFigurePending(figure))
+        await ledger.figureUploaded(figure, version: second)
+        #expect(await !ledger.isFigurePending(figure))
+    }
+
+    @Test func aFigureDeletedHereDropsItsUploadAndWaitsForTheServer() async throws {
+        let (ledger, _) = try makeLedger()
+        let figure = UUID()
+        await ledger.markFigureChanged(figure)
+
+        await ledger.recordFigureDeletion(figure)
+        #expect(await !ledger.isFigurePending(figure))
+        #expect(await ledger.deletedFigureIds == [figure])
+
+        await ledger.figureDeletedOnServer(figure)
+        #expect(await ledger.deletedFigureIds.isEmpty)
+    }
+
+    @Test func aFigureChangedAgainAfterItsDeletionIsNotDeleted() async throws {
+        let (ledger, _) = try makeLedger()
+        let figure = UUID()
+        await ledger.recordFigureDeletion(figure)
+        await ledger.markFigureChanged(figure)
+
+        #expect(await ledger.deletedFigureIds.isEmpty)
+        #expect(await ledger.pendingFigureIds == [figure])
+    }
+
+    @Test func whatWaitsSurvivesARestart() async throws {
+        let (ledger, defaults) = try makeLedger()
+        let figure = UUID(), gone = UUID()
+        await ledger.markFigureChanged(figure)
+        await ledger.recordFigureDeletion(gone)
+
+        let reopened = SyncLedger(defaults: defaults)
+        #expect(await reopened.pendingFigureIds == [figure])
+        #expect(await reopened.deletedFigureIds == [gone])
+    }
+
+    /// A ledger written before library figures were kept in it must still open: what waits in it is a dancer's work.
+    @Test func aLedgerFromAnEarlierVersionStillOpensWithItsRoutines() async throws {
+        let (ledger, defaults) = try makeLedger()
+        let routine = UUID()
+        await ledger.markChanged(routine)
+        let key = "encore.syncLedger.v1"
+        let data = try #require(defaults.data(forKey: key))
+        var stored = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        stored.removeValue(forKey: "pendingFigures")
+        stored.removeValue(forKey: "deletedFigures")
+        defaults.set(try JSONSerialization.data(withJSONObject: stored), forKey: key)
+
+        let reopened = SyncLedger(defaults: defaults)
+        #expect(await reopened.isPending(routine))
+        #expect(await reopened.pendingFigureIds.isEmpty)
+    }
 }
