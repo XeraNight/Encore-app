@@ -60,6 +60,21 @@ enum MediaStorageManager {
         guard let filename else { return }
         try? FileManager.default.removeItem(at: url(for: filename))
     }
+
+    /// What the app left in its temporary folder: a video import closed halfway can sit there for months (it can be 2 GB),
+    /// because the system clears the folder only when it needs the room. Whatever is older than a day goes at launch.
+    nonisolated static func removeOldTemporaryFiles(
+        in directory: URL = FileManager.default.temporaryDirectory,
+        olderThan age: TimeInterval = 86_400,
+        now: Date = Date()
+    ) {
+        let key = URLResourceKey.contentModificationDateKey
+        guard let items = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: [key]) else { return }
+        for item in items {
+            guard let modified = try? item.resourceValues(forKeys: [key]).contentModificationDate, now.timeIntervalSince(modified) > age else { continue }
+            try? FileManager.default.removeItem(at: item)
+        }
+    }
     
     /// Check available disk space on device
     nonisolated static func getFreeDiskSpaceMB() -> Int64 {

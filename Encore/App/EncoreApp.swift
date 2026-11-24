@@ -31,6 +31,7 @@ struct EncoreApp: App {
             // Changes made offline go up whenever the network or the app comes back.
             PendingSyncRunner.shared.start()
         }
+        Task.detached(priority: .utility) { MediaStorageManager.removeOldTemporaryFiles() }
     }
 
     var body: some Scene {
