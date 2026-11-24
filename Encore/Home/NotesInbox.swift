@@ -368,14 +368,21 @@ extension InstantNote {
     /// Said before a note that is also a reflection is deleted.
     static let reflectionDeleteWarning = "Je to aj reflexia. " + TrainingLogEntry.deleteWarning
 
-    /// Deletes the note with what is only its own: its recording and photo, and the reflection whose words it carries.
+    /// Deletes the note with what is only its own: its recording, photo and video, and the reflection whose words it carries.
     /// A reflection and its note are one text shown twice, so neither is left behind (`TrainingLogEntry.delete(in:)`
     /// does the same from the reflection's side). Every place that deletes a note comes here.
+    @MainActor
     func delete(in context: ModelContext) {
+        let video = videoPath
         if let reflection = reflection(in: context) { context.delete(reflection) }
         MediaStorageManager.removeFile(named: audioPath)
         MediaStorageManager.removeFile(named: imagePath)
         context.delete(self)
+        // The video was never deleted with its note and stayed on the iPhone for good. It goes now, unless a figure (its
+        // video, its notes) or something else also shows it.
+        guard let video else { return }
+        try? context.save()
+        MediaStorageManager.removeVideoIfUnused(video, in: context)
     }
 }
 

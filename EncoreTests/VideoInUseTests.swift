@@ -145,6 +145,41 @@ struct VideoInUseTests {
         #expect(!MediaStorageManager.isVideoInUse(name, in: context, ignoring: writer.id))
     }
 
+    /// The video of a deleted note used to stay on the iPhone for good (it can be a gigabyte); a figure that shows it keeps it.
+    @Test func deletingANoteDeletesItsVideoOnlyWhenNothingElseShowsIt() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let alone = try makeVideoFile()
+        let shared = try makeVideoFile()
+        defer { [alone, shared].forEach { MediaStorageManager.removeFile(named: $0) } }
+        let noteAlone = InstantNote(videoPath: alone)
+        let noteShared = InstantNote(videoPath: shared)
+        let figure = CanvasNode(x: 0, y: 0, figureName: "Telemark", videoPath: shared)
+        [noteAlone, noteShared].forEach { context.insert($0) }
+        context.insert(figure)
+        try context.save()
+
+        noteAlone.delete(in: context)
+        noteShared.delete(in: context)
+        try context.save()
+
+        #expect(!MediaStorageManager.fileExists(alone))
+        #expect(MediaStorageManager.fileExists(shared))
+    }
+
+    @Test func aNoteWithAFotkyVideoHasNoFileToDelete() throws {
+        let (container, context) = try makeContext()
+        _ = container
+        let note = InstantNote(videoPath: "photos:ABC")
+        context.insert(note)
+        try context.save()
+
+        note.delete(in: context)
+        try context.save()
+
+        #expect(try context.fetch(FetchDescriptor<InstantNote>()).isEmpty)
+    }
+
     @Test func aFotkyLinkIsNeverAFileHere() throws {
         let (container, context) = try makeContext()
         _ = container
