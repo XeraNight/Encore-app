@@ -1,41 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// MARK: - Public Invite Details Endpoint
-// Returns non-sensitive public profile details (name, club, avatar) by invite_code
+const TOKEN_RE = /^tok_[0-9a-f]{16,64}$/i
+
+/**
+ * Public invite preview endpoint — only resolves opaque, revocable invite tokens (tok_*)
+ * through the hardened get_friend_invite_preview RPC with IP rate limiting.
+ */
 export async function GET(
   request: NextRequest,
-  context: { params: Promise<{ code: string }> }
+  context: { params: Promise<{ code: string }> },
 ) {
+  const ip = getClientIp(request)
+  const limit = checkRateLimit(`invite:${ip}`, 30, 10 * 60 * 1000)
+  if (!limit.allowed) {
+    return NextResponse.json(
+      { error: 'rate_limited', message: 'Príliš veľa pokusov. Skús to znova o chvíľu.' },
+      { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } },
+    )
+  }
+
   try {
     const { code } = await context.params
-    const cleanCode = (code || '').trim().toUpperCase()
+    const cleanToken = (code || '').trim()
 
-    if (!cleanCode || cleanCode.length < 4 || cleanCode.length > 12) {
+    if (!TOKEN_RE.test(cleanToken)) {
       return NextResponse.json(
         { error: 'invalid_code', message: 'Neplatný formát kódu pozvánky.' },
-        { status: 400 }
+        { status: 400 },
       )
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://iukblwlttvrcdclmlyxu.supabase.co'
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    const supabase = createClient(supabaseUrl, supabaseAnonKey)
-
-    // Query profile by invite_code
-    const { data: profile, error } = await supabase
-      .from('profiles')
-      .select('name, club, avatar_url, invite_code')
-      .eq('invite_code', cleanCode)
-      .single()
-
-    if (error || !profile) {
+    if (!supabaseAnonKey) {
       return NextResponse.json(
-        { error: 'not_found', message: 'Tanečník s týmto kódom pozvánky sa nenašiel.' },
-        { status: 404 }
+        { error: 'service_unavailable', message: 'Služba je momentálne nedostupná.' },
+        { status: 503 },
+      )
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseAnonKey)
+    const { data: preview, error } = await supabase.rpc('get_friend_invite_preview', { p_token: cleanToken })
+
+    if (error || !preview?.success || !preview?.inviter) {
+      return NextResponse.json(
+        { error: 'not_found', message: 'Pozvánka neexistuje alebo už vypršala.' },
+        { status: 404 },
       )
     }
 
@@ -43,23 +58,24 @@ export async function GET(
       {
         success: true,
         invite: {
-          code: profile.invite_code,
-          name: profile.name || 'Tanečník',
-          club: profile.club || '',
-          avatarUrl: profile.avatar_url || null
-        }
+          code: preview.inviter.dancer_code || '',
+          name: preview.inviter.name || 'Tanečník',
+          club: preview.inviter.club || '',
+          avatarUrl: preview.inviter.avatar_url || null,
+        },
       },
       {
         status: 200,
         headers: {
-          'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300'
-        }
-      }
+          'Cache-Control': 'private, no-cache',
+        },
+      },
     )
-  } catch (error: any) {
+  } catch (err) {
+    console.error('Invite lookup failed:', err)
     return NextResponse.json(
-      { error: 'server_error', message: error.message || 'Chyba servera.' },
-      { status: 500 }
+      { error: 'server_error', message: 'Nepodarilo sa overiť pozvánku.' },
+      { status: 500 },
     )
   }
 }

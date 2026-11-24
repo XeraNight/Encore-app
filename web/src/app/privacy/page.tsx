@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata } from 'next'
+import LandingNavbar from '@/components/landing/LandingNavbar'
+import LandingFooter from '@/components/landing/LandingFooter'
 
 export const metadata: Metadata = {
   title: 'Zásady ochrany osobných údajov',
@@ -9,54 +10,24 @@ export const metadata: Metadata = {
 
 export default function PrivacyPolicyPage() {
   return (
-    <main className="min-h-screen bg-[#050505] text-[#F5F5F5] px-6 py-16 sm:py-24 font-sans selection:bg-[#D4AF37]/30">
-      {/* Ambient theatrical stage lighting */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_75%_50%_at_50%_0%,rgba(212,175,55,0.08),transparent_70%)] pointer-events-none" />
+    <div className="relative min-h-screen overflow-x-clip bg-[#140206] text-[#F5F5F5]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(75%_55%_at_50%_18%,rgba(154,13,31,0.42),rgba(120,5,20,0.2)_52%,transparent_80%),radial-gradient(50%_40%_at_82%_14%,rgba(212,175,55,0.08),transparent_70%)]"
+      />
 
-      <div className="max-w-3xl mx-auto relative z-10">
-        {/* Header navigation */}
-        <div className="flex items-center justify-between mb-12 border-b border-[#D4AF37]/15 pb-6">
-          <Link 
-            href="/" 
-            className="flex items-center gap-3 text-gold-400 font-serif tracking-wider hover:opacity-80 transition"
-          >
-            <div className="relative w-8 h-8">
-              <Image
-                src="/logo_mark.svg"
-                alt="Encore Ribbon Logo"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-[#F5D77F] via-[#D4AF37] to-[#AA7C11] bg-clip-text text-transparent">
-              ENCORE
-            </span>
-          </Link>
+      <LandingNavbar />
 
-          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-widest text-zinc-400">
-            <Link href="/terms" className="hover:text-[#D4AF37] transition">
-              Podmienky
-            </Link>
-            <span className="text-zinc-700">•</span>
-            <Link href="/delete-account" className="hover:text-[#E11D48] transition">
-              Zmazanie účtu
-            </Link>
-            <span className="text-zinc-700">•</span>
-            <Link href="/support" className="hover:text-[#D4AF37] transition">
-              Podpora
-            </Link>
-          </div>
-        </div>
-
-        <article className="space-y-10 text-zinc-300 leading-relaxed text-sm sm:text-base">
+      <main className="relative mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-36">
+        <article className="space-y-10 text-sm leading-relaxed text-white/80 sm:text-base">
           <div>
-            <span className="text-xs font-semibold tracking-widest uppercase text-[#D4AF37] block mb-2 font-mono">
-              Právne informácie & Ochrana súkromia (GDPR)
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
+            <p className="font-rounded text-xs font-black uppercase tracking-[0.16em] text-[#FFE088]">
+              PRÁVNE INFORMÁCIE & OCHRANA SÚKROMIA (GDPR)
+            </p>
+            <h1 className="font-rounded mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
               Zásady ochrany osobných údajov (Privacy Policy)
             </h1>
-            <p className="text-xs text-zinc-500 mt-2">
+            <p className="mt-2 text-xs text-white/60">
               Posledná aktualizácia: 28. 10. 2026 • Verzia 1.2 (iOS / Web)
             </p>
           </div>
@@ -200,11 +171,9 @@ export default function PrivacyPolicyPage() {
             </p>
           </section>
         </article>
+      </main>
 
-        <footer className="mt-16 pt-8 border-t border-zinc-900 text-center text-xs text-zinc-600">
-          © {new Date().getFullYear()} Encore Studio. Všetky práva vyhradené.
-        </footer>
-      </div>
-    </main>
+      <LandingFooter />
+    </div>
   )
 }

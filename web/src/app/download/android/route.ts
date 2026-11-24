@@ -11,7 +11,7 @@ export async function GET() {
   return NextResponse.redirect(googlePlayUrl, {
     status: 307,
     headers: {
-      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      'Cache-Control': 'no-cache',
     },
   })
 }

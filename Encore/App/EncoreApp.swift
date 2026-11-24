@@ -246,12 +246,20 @@ struct RootAppView: View {
         .onChange(of: isSplashActive) { _, splash in
             guard !splash, let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return }
             AppLockWindow.shared.start(in: scene)
+            PrivacyCoverWindow.shared.prepare()
         }
         .task {
             await PlannerNotifications.rescheduleFromStore()
             await remoteConfig.syncConfig()
         }
         .onChange(of: scenePhase) { _, newPhase in
+            // Face ID lock on: while Encore is not in front, the app switcher shows the logo and not the screen.
+            if PrivacyCoverWindow.shouldCover(isActive: newPhase == .active, lockIsOn: authManager.isBiometricsEnabled,
+                                              isSignedIn: authManager.isAuthenticated, isLocked: authManager.isAppLocked) {
+                PrivacyCoverWindow.shared.show()
+            } else if newPhase == .active {
+                PrivacyCoverWindow.shared.hide()
+            }
             if newPhase == .background {
                 leftForBackground = true
                 authManager.appDidEnterBackground()

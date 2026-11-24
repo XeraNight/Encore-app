@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { PKPass, PassType } from 'passkit-generator'
 import fs from 'fs'
 import path from 'path'
+import { checkRateLimit } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     if (!token) {
       return NextResponse.json(
-        { error: 'unauthorized', message: 'Vyžaduje sa prihlásenie (Supabase JWT token).' },
+        { error: 'unauthorized', message: 'Vyžaduje sa prihlásenie.' },
         { status: 401 }
       )
     }
@@ -43,12 +44,21 @@ export async function GET(request: NextRequest) {
 
     const user = userData.user
 
+    // Prevent CPU exhaustion via repeated PKCS#7 signing
+    const limit = checkRateLimit(`wallet:${user.id}`, 10, 60 * 60 * 1000)
+    if (!limit.allowed) {
+      return NextResponse.json(
+        { error: 'rate_limited', message: 'Karta sa nedá generovať tak často. Skús to prosím neskôr.' },
+        { status: 429, headers: { 'Retry-After': String(limit.retryAfterSeconds) } }
+      )
+    }
+
     // Everything the card shows, asked for at once: the profile, the KSIS number the dancer picked, the classes of the
     // current couple and the current invite token. Row level security hands each user only their own.
-    const [{ data: profile }, { data: ksisDancer }, { data: couple }, { data: activeToken }] = await Promise.all([
+    const [{ data: profile, error: profileError }, { data: ksisDancer }, { data: couple }, { data: activeToken }] = await Promise.all([
       supabase
         .from('profiles')
-        .select('id, name, invite_code, club, card_theme, dancer_code')
+        .select('id, name, invite_code, club, card_theme, dancer_code, account_status')
         .eq('id', user.id)
         .single(),
       supabase.from('ksis_dancers').select('person_number').eq('user_id', user.id).maybeSingle(),
@@ -64,18 +74,33 @@ export async function GET(request: NextRequest) {
         .maybeSingle(),
     ])
 
-    const userName = profile?.name || user.user_metadata?.full_name || 'Tanečník'
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { error: 'profile_not_found', message: 'Profil tanečníka sa nenašiel.' },
+        { status: 404 }
+      )
+    }
+
+    if (profile.account_status && profile.account_status !== 'active') {
+      return NextResponse.json(
+        { error: 'account_restricted', message: 'Účet nemá oprávnenie generovať kartu.' },
+        { status: 403 }
+      )
+    }
+
+    const userName = profile.name || user.user_metadata?.full_name || 'Tanečník'
     // No made-up club: without one the pass simply says it is a member card.
-    const userClub: string | null = profile?.club || user.user_metadata?.club || null
-    const inviteCode = profile?.invite_code || user.id.substring(0, 8).toUpperCase()
+    const userClub: string | null = profile.club || user.user_metadata?.club || null
+    const rawInviteCode = profile.invite_code || user.id.substring(0, 8).toUpperCase()
+    const inviteCode = rawInviteCode.replace(/[^A-Z0-9-]/gi, '') || 'PASS'
     // The pass lives for years: always the real domain (the app's universal links), never an env leftover.
     const domain = 'www.encore-sk.com'
     // The QR code is the dancer's current invite token, the same one the card in Encore shows (random,
     // 30 days, revoked by "Nový QR"). The app makes sure one exists before it asks and swaps the Wallet card
     // when it changes. Without a token: the dancer code link, as in the app.
     const qrInviteUrl = activeToken?.token
-      ? `https://${domain}/add?t=${activeToken.token}`
-      : `https://${domain}/add${profile?.dancer_code ? `/${profile.dancer_code}` : ''}`
+      ? `https://${domain}/add?t=${encodeURIComponent(activeToken.token)}`
+      : `https://${domain}/add${profile.dancer_code ? `/${encodeURIComponent(profile.dancer_code)}` : ''}`
 
     const passCertB64 = process.env.APPLE_PASS_CERT_BASE64
     const passKeyB64 = process.env.APPLE_PASS_KEY_BASE64
@@ -83,35 +108,21 @@ export async function GET(request: NextRequest) {
     const passTypeIdentifier = process.env.APPLE_PASS_TYPE_IDENTIFIER || 'pass.com.jakub.encore'
     const teamIdentifier = process.env.APPLE_TEAM_IDENTIFIER || '2MD5BS4DLM'
 
-    // If Apple certificates are not yet configured in environment variables, return clear diagnostic
     if (!passCertB64 || !passKeyB64 || !wwdrCertB64) {
+      console.error('Apple Wallet pass generation: missing Apple PassKit env certificates')
       return NextResponse.json(
-        {
-          error: 'certificates_missing',
-          message: 'Apple PassKit certifikáty zatiaľ nie sú nahrané v prostredí Vercel. Karta sa vygeneruje po nahraní Base64 certifikátov.',
-          passTypeIdentifier,
-          teamIdentifier
-        },
+        { error: 'service_unavailable', message: 'Generovanie Apple Wallet karty je momentálne nedostupné.' },
         { status: 503 }
       )
     }
 
-    // Certificates and key: base64 of the .pem file, or the .pem text itself. A wrong value is named
-    // (never shown), so it can be fixed in Vercel.
     const signerCert = pemFrom(passCertB64, /-----BEGIN CERTIFICATE-----/)
     const signerKey = pemFrom(passKeyB64, /-----BEGIN (RSA |ENCRYPTED )?PRIVATE KEY-----/)
     const wwdr = pemFrom(wwdrCertB64, /-----BEGIN CERTIFICATE-----/)
-    const invalid = [
-      signerCert ? null : 'APPLE_PASS_CERT_BASE64',
-      signerKey ? null : 'APPLE_PASS_KEY_BASE64',
-      wwdr ? null : 'APPLE_WWDR_CERT_BASE64',
-    ].filter(Boolean)
     if (!signerCert || !signerKey || !wwdr) {
+      console.error('Apple Wallet pass generation: invalid PEM format in certificate env vars')
       return NextResponse.json(
-        {
-          error: 'pass_config_invalid',
-          message: `Vo Verceli nie je platná hodnota: ${invalid.join(', ')}. Vlož výstup príkazu base64 -i <súbor.pem> | pbcopy.`,
-        },
+        { error: 'pass_config_invalid', message: 'Generovanie Apple Wallet karty zlyhalo. Skús to prosím neskôr.' },
         { status: 500 }
       )
     }
@@ -244,7 +255,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('Apple Wallet pass generation error:', error)
     return NextResponse.json(
-      { error: 'pass_generation_failed', message: error instanceof Error && error.message ? error.message : 'Nepodarilo sa vygenerovať Apple Wallet preukaz.' },
+      { error: 'pass_generation_failed', message: 'Nepodarilo sa vygenerovať Apple Wallet kartu.' },
       { status: 500 }
     )
   }
@@ -274,7 +285,11 @@ function pemFrom(value: string, header: RegExp): string | null {
   return header.test(text) ? text : null
 }
 
-/** Only a plain "rgb(r, g, b)" from the profile reaches the pass; anything else falls back. */
+/** Only a valid "rgb(0..255, 0..255, 0..255)" from the profile reaches the pass; anything else falls back. */
 function rgbOr(value: unknown, fallback: string): string {
-  return typeof value === 'string' && /^rgb\(\d{1,3}, ?\d{1,3}, ?\d{1,3}\)$/.test(value) ? value : fallback
+  if (typeof value !== 'string') return fallback
+  const match = /^rgb\((\d{1,3}), ?(\d{1,3}), ?(\d{1,3})\)$/.exec(value)
+  if (!match) return fallback
+  const channels = [Number(match[1]), Number(match[2]), Number(match[3])]
+  return channels.every((c) => c >= 0 && c <= 255) ? `rgb(${channels.join(', ')})` : fallback
 }

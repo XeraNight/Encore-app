@@ -2,9 +2,34 @@
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+type RevealCallback = () => void
+
+let sharedObserver: IntersectionObserver | null = null
+const callbacks = new WeakMap<Element, RevealCallback>()
+
+function getSharedObserver(): IntersectionObserver {
+  if (!sharedObserver) {
+    sharedObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const cb = callbacks.get(entry.target)
+          if (cb) {
+            cb()
+            callbacks.delete(entry.target)
+          }
+          sharedObserver?.unobserve(entry.target)
+        }
+      },
+      { rootMargin: '0px 0px 15% 0px' },
+    )
+  }
+  return sharedObserver
+}
+
 /**
- * Fades content in a little before it scrolls into view. Without JavaScript, with Reduce Motion, or
- * when it is already on screen, the content is simply visible: no empty areas while scrolling.
+ * Fades content in gently before it scrolls into view using one shared IntersectionObserver.
+ * Without JS, with Reduce Motion, or when already in viewport, content remains immediately visible.
  */
 export default function Reveal({ children, delay = 0, className = '' }: { children: ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -14,20 +39,20 @@ export default function Reveal({ children, delay = 0, className = '' }: { childr
     const element = ref.current
     if (!element) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    if (element.getBoundingClientRect().top < window.innerHeight) return
 
-    setHidden(true)
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setHidden(false)
-          observer.disconnect()
-        }
-      },
-      { rootMargin: '0px 0px 15% 0px' },
-    )
-    observer.observe(element)
-    return () => observer.disconnect()
+    const observer = getSharedObserver()
+    const raf = requestAnimationFrame(() => {
+      if (element.getBoundingClientRect().top < window.innerHeight) return
+      setHidden(true)
+      callbacks.set(element, () => setHidden(false))
+      observer.observe(element)
+    })
+
+    return () => {
+      cancelAnimationFrame(raf)
+      callbacks.delete(element)
+      observer.unobserve(element)
+    }
   }, [])
 
   return (

@@ -75,17 +75,28 @@ export default function ShowreelVideo() {
     >
       {tall === null ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={WIDE.poster} alt="" className="h-full w-full object-cover" />
+        <img
+          src={WIDE.poster}
+          alt="Náhľad ukážkového videa aplikácie Encore"
+          width={1920}
+          height={1080}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : (
         <video
           key={tall ? 'tall' : 'wide'}
           ref={videoRef}
+          suppressHydrationWarning
+          width={tall ? 720 : 1920}
+          height={tall ? 1280 : 1080}
           className="h-full w-full object-cover"
           poster={source.poster}
           muted
           loop
           playsInline
-          preload="metadata"
+          preload="none"
           aria-label="Ukážka aplikácie Encore: poznámka po lekcii, Top 3 priority, zostava na parkete, metronóm a kalendár"
         >
           <source src={source.webm} type="video/webm" />

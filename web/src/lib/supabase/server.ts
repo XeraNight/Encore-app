@@ -14,10 +14,10 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, {
                 ...options,
-                // Cookie hardening (Security #18)
-                httpOnly: true,
+                // Cookie hardening: SameSite=Lax preserves cross-site PKCE auth redirects
+                httpOnly: options?.httpOnly ?? true,
                 secure: process.env.NODE_ENV === 'production',
-                sameSite: 'strict',
+                sameSite: 'lax',
                 path: '/',
               })
             )

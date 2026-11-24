@@ -1,6 +1,7 @@
 import Link from 'next/link'
-import Image from 'next/image'
 import type { Metadata } from 'next'
+import LandingNavbar from '@/components/landing/LandingNavbar'
+import LandingFooter from '@/components/landing/LandingFooter'
 
 export const metadata: Metadata = {
   title: 'Zmazanie účtu',
@@ -9,162 +10,106 @@ export const metadata: Metadata = {
 
 export default function DeleteAccountPage() {
   return (
-    <main className="min-h-screen bg-[#050505] text-[#F5F5F5] px-6 py-16 sm:py-24 font-sans selection:bg-[#D4AF37]/30">
-      {/* Ambient theatrical stage lighting */}
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-[radial-gradient(ellipse_75%_50%_at_50%_0%,rgba(212,175,55,0.08),transparent_70%)] pointer-events-none" />
+    <div className="relative min-h-screen overflow-x-clip bg-[#140206] text-[#F5F5F5]">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 bg-[radial-gradient(75%_55%_at_50%_18%,rgba(154,13,31,0.42),rgba(120,5,20,0.2)_52%,transparent_80%),radial-gradient(50%_40%_at_82%_14%,rgba(212,175,55,0.08),transparent_70%)]"
+      />
 
-      <div className="max-w-3xl mx-auto relative z-10">
-        {/* Header navigation */}
-        <div className="flex items-center justify-between mb-12 border-b border-[#D4AF37]/15 pb-6">
-          <Link
-            href="/"
-            className="flex items-center gap-3 text-gold-400 font-serif tracking-wider hover:opacity-80 transition"
-          >
-            <div className="relative w-8 h-8">
-              <Image
-                src="/logo_mark.svg"
-                alt="Encore Ribbon Logo"
-                fill
-                className="object-contain"
-              />
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-[#F5D77F] via-[#D4AF37] to-[#AA7C11] bg-clip-text text-transparent">
-              ENCORE
-            </span>
-          </Link>
+      <LandingNavbar />
 
-          <div className="flex items-center gap-4 text-xs font-semibold uppercase tracking-widest text-zinc-400">
-            <Link href="/privacy" className="hover:text-[#D4AF37] transition">
-              Súkromie
-            </Link>
-            <span className="text-zinc-700">•</span>
-            <Link href="/support" className="hover:text-[#D4AF37] transition">
-              Podpora
-            </Link>
-          </div>
-        </div>
-
-        <article className="space-y-10 text-zinc-300 leading-relaxed text-sm sm:text-base">
+      <main className="relative mx-auto max-w-3xl px-5 pb-24 pt-28 sm:px-6 sm:pt-36">
+        <article className="space-y-10 text-sm leading-relaxed text-white/80 sm:text-base">
           <div>
-            <span className="text-xs font-semibold tracking-widest uppercase text-[#E11D48] block mb-2 font-mono">
-              Apple Guideline 5.1.1(v) & GDPR Právo na výmaz
-            </span>
-            <h1 className="text-3xl sm:text-4xl font-serif font-bold text-white tracking-tight">
+            <p className="font-rounded text-xs font-black uppercase tracking-[0.16em] text-[#FFE088]">
+              APPLE GUIDELINE 5.1.1(V) & GDPR PRÁVO NA VÝMAZ
+            </p>
+            <h1 className="font-rounded mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
               Správa a trvalé zmazanie účtu Encore
             </h1>
-            <p className="text-xs text-zinc-500 mt-2">
-              Vaše právo na okamžité a nezvratné vymazanie všetkých osobných a tréningových údajov.
+            <p className="mt-3 text-sm text-white/65">
+              Tvoje právo na okamžité a nezvratné vymazanie všetkých osobných a tréningových údajov.
             </p>
           </div>
 
-          {/* Section 1: In-App Deletion Instructions */}
           <section className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">
-              Metóda 1: Okamžité zmazanie priamo v aplikácii (Odporúčané)
+            <h2 className="font-rounded text-xl font-bold text-white">
+              1. Okamžité zmazanie priamo v aplikácii (Odporúčané)
             </h2>
             <p>
-              Ak máte nainštalovanú aplikáciu Encore na svojom iPhone, účet a všetky Vaše dáta zmažete bez čakania za 3 sekundy:
+              Ak máš aplikáciu Encore nainštalovanú na svojom iPhone, účet aj všetky dáta zmažeš okamžite:
             </p>
 
-            <div className="bg-[#121118] border border-[#D4AF37]/25 rounded-2xl p-6 space-y-4">
-              <ol className="list-decimal pl-5 space-y-3 text-zinc-300">
-                <li>
-                  Otvorte aplikáciu <strong>Encore</strong> na Vašom iPhone.
-                </li>
-                <li>
-                  V pravom hornom rohu kliknite na ikonu svojho <strong>Profilu</strong>.
-                </li>
-                <li>
-                  Prejdite nadol do sekcie <strong>Údržba a Dáta</strong>.
-                </li>
-                <li>
-                  Ťuknite na červené tlačidlo <span className="text-[#E11D48] font-bold">„Zmazať účet a osobné dáta“</span>.
-                </li>
-                <li>
-                  Potvrďte deštruktívny bezpečnostný dialóg.
-                </li>
+            <div className="space-y-4 rounded-[20px] border border-[#FFE088]/25 bg-white/[0.07] p-6 backdrop-blur-md">
+              <ol className="list-decimal space-y-3 pl-5 text-white/85">
+                <li>Otvor aplikáciu <strong>Encore</strong> na svojom iPhone.</li>
+                <li>V spodnej lište ťukni na záložku <strong>Profil</strong>.</li>
+                <li>Otvor <strong>Nastavenia</strong>.</li>
+                <li>Prejdi nadol a ťukni na červené tlačidlo <strong className="text-red-300">„Zmazať účet a osobné dáta“</strong>.</li>
+                <li>Potvrď bezpečnostný dialóg.</li>
               </ol>
 
-              <div className="pt-2 border-t border-zinc-800 text-xs text-zinc-400">
-                ⚡ <strong>Výsledok:</strong> Vaša relácia sa okamžite ukončí, vymažú sa prihlasovacie tokeny z Keychainu a v Supabase databáze sa spustí kaskádové mazanie, ktoré okamžite odstráni Vaše choreografie, poznámky a profil.
-              </div>
+              <p className="border-t border-white/10 pt-3 text-xs text-white/65">
+                Relácia sa okamžite ukončí, prihlasovacie tokeny z Kľúčenky sa odstránia a na serveri Supabase sa trvalo vymažú tvoje zostavy, poznámky, výsledky a profil.
+              </p>
             </div>
           </section>
 
-          {/* Section 2: What is deleted */}
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold text-white">Aké údaje sa pri zmazaní účtu odstránia?</h2>
-            <ul className="list-disc pl-5 space-y-2 text-zinc-300">
-              <li>Prihlasovacie konto v Supabase Auth (e-mail, bcrypt heslo, Apple / Google prepojenie).</li>
-              <li>Profil tanečníka (meno, prezývka, klub, avatar).</li>
-              <li>Všetky choreografie a uzly z 2D parketu (routines, canvas nodes).</li>
-              <li>Tréningové poznámky a hlasové nahrávky.</li>
-              <li>Priradené licenčné preukazy Apple Wallet.</li>
+            <h2 className="font-rounded text-xl font-bold text-white">Aké údaje sa pri zmazaní odstránia?</h2>
+            <ul className="list-disc space-y-2 pl-5 text-white/80">
+              <li>Prihlasovacie konto v Supabase Auth (e-mail, heslo, Apple / Google prepojenie).</li>
+              <li>Profil tanečníka (meno, klub, rok narodenia, ID tanečníka).</li>
+              <li>Všetky zostavy a figúry z 2D parketu (routines, canvas nodes).</li>
+              <li>Zálohy Denníka, Plánu, Top 3 priorít, hlasových poznámok a výsledkov z KSIS.</li>
+              <li>Spojenia, pozývacie tokeny a priradené registrácie Apple Peňaženky.</li>
             </ul>
-            <p className="text-xs text-zinc-500">
-              * Upozornenie: Ak máte aktívne predplatné Encore Plus alebo Premium cez Apple StoreKit, zmazanie účtu v aplikácii automaticky neruší predplatné v Apple ID (to vyžaduje Apple pravidlá). Predplatné zrušíte v <em>Nastavenia → Apple ID → Predplatné</em>.
+            <p className="text-xs text-white/60">
+              * Ak máš aktívne predplatné Encore Plus alebo Premium cez Apple App Store, zmazanie účtu v aplikácii podľa pravidiel Apple automaticky neruší fakturáciu v Apple ID. Predplatné zrušíš v <em>Nastavenia iPhonu → Apple ID → Predplatné</em>.
             </p>
           </section>
 
-          {/* Section 3: Web-based Deletion Request */}
           <section className="space-y-4">
-            <h2 className="text-lg font-semibold text-white">
-              Metóda 2: Nemáte prístup k zariadeniu? Žiadosť o výmaz cez web
+            <h2 className="font-rounded text-xl font-bold text-white">
+              2. Nemáš prístup k telefónu? Žiadosť cez e-mail
             </h2>
             <p>
-              Ak ste stratili iPhone, odinštalovali aplikáciu alebo nemôžete vykonať zmazanie v aplikácii, môžete podať priamu žiadosť o manuálne zmazanie:
+              Ak si aplikáciu odinštaloval alebo nemáš prístup k iPhonu, pošli nám žiadosť z e-mailu, na ktorom bol účet zaregistrovaný:
             </p>
 
-            <div className="bg-[#121118] border border-zinc-800 rounded-2xl p-6 space-y-4">
-              <p className="text-sm text-zinc-300">
-                Zašlite e-mail z adresy, na ktorú bol Váš účet Encore zaregistrovaný, na:
-              </p>
-              <div className="p-4 rounded-xl bg-black/40 border border-[#D4AF37]/30 text-center">
+            <div className="space-y-4 rounded-[20px] border border-white/10 bg-white/[0.07] p-6 backdrop-blur-md">
+              <div className="rounded-2xl border border-[#FFE088]/30 bg-black/30 p-4 text-center">
                 <a
                   href="mailto:support@encore-sk.com?subject=Ziadost%20o%20zmazanie%20uctu%20Encore"
-                  className="text-base sm:text-lg font-mono font-bold text-[#FFE088] hover:underline"
+                  className="font-mono text-base font-bold text-[#FFE088] hover:underline sm:text-lg"
                 >
                   support@encore-sk.com
                 </a>
-                <p className="text-xs text-zinc-500 mt-1">
-                  Predmet: Žiadosť o zmazanie účtu Encore
-                </p>
+                <p className="mt-1 text-xs text-white/60">Predmet: Žiadosť o zmazanie účtu Encore</p>
               </div>
-              <p className="text-xs text-zinc-400">
-                Vaša žiadosť bude overená a spracovaná do 48 hodín v súlade s článkom 17 GDPR (Právo na vymazanie / právo na zabudnutie). O úspešnom výmaze budete informovaní potvrdzujúcim e-mailom.
+              <p className="text-xs text-white/70">
+                Žiadosť overíme a spracujeme do 48 hodín v súlade s článkom 17 GDPR. O dokončení výmazu ťa budeme informovať potvrdzujúcim e-mailom.
               </p>
             </div>
           </section>
 
-          {/* Section 4: Return links */}
-          <div className="pt-6 border-t border-zinc-900 flex flex-wrap gap-4">
-            <Link
-              href="/"
-              className="text-xs font-semibold text-[#D4AF37] hover:underline"
-            >
+          <div className="flex flex-wrap gap-4 border-t border-white/10 pt-6 text-xs font-semibold">
+            <Link href="/" className="text-[#FFE088] hover:underline">
               ← Späť na hlavnú stránku
             </Link>
-            <span className="text-zinc-700">•</span>
-            <Link
-              href="/privacy"
-              className="text-xs font-semibold text-zinc-400 hover:text-white"
-            >
+            <span className="text-white/30">•</span>
+            <Link href="/privacy" className="text-white/70 hover:text-white">
               Zásady ochrany osobných údajov
             </Link>
-            <span className="text-zinc-700">•</span>
-            <Link
-              href="/support"
-              className="text-xs font-semibold text-zinc-400 hover:text-white"
-            >
-              Zákaznícka podpora
+            <span className="text-white/30">•</span>
+            <Link href="/support" className="text-white/70 hover:text-white">
+              Podpora
             </Link>
           </div>
         </article>
+      </main>
 
-        <footer className="mt-16 pt-8 border-t border-zinc-900 text-center text-xs text-zinc-600">
-          © {new Date().getFullYear()} Encore Studio. Všetky práva vyhradené.
-        </footer>
-      </div>
-    </main>
+      <LandingFooter />
+    </div>
   )
 }

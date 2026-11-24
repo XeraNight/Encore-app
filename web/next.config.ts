@@ -22,7 +22,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            value: 'same-origin-allow-popups',
           },
           {
             key: 'Cross-Origin-Embedder-Policy',
@@ -44,8 +44,9 @@ const nextConfig: NextConfig = {
     return [{ source: '/quick/:action*', destination: '/download/ios', permanent: false }]
   },
 
-  // Images: only allow Supabase storage domain
+  // Images: serve modern AVIF/WebP formats and only allow Supabase storage domain
   images: {
+    formats: ['image/avif', 'image/webp'],
     remotePatterns: [
       {
         protocol: 'https',

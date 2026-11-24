@@ -28,7 +28,7 @@ export async function GET() {
     announcement: null as string | null,
 
     // App Store URL pre rýchlu aktualizáciu
-    app_store_url: 'https://apps.apple.com/app/encore-dance/id0000000000',
+    app_store_url: process.env.NEXT_PUBLIC_APP_STORE_URL || 'https://www.encore-sk.com/download/ios',
   };
 
   return NextResponse.json(config, {

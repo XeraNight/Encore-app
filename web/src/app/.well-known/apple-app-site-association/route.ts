@@ -18,9 +18,9 @@ export async function GET() {
         {
           appID,
           paths: [
+            '/add',
             '/add*',
             '/add/*',
-            '/u/*',
             '/quick/*',
             '/download*',
             '/routine/*',
@@ -28,10 +28,10 @@ export async function GET() {
           ],
           components: [
             {
-              '/': '/add/*'
+              '/': '/add'
             },
             {
-              '/': '/u/*'
+              '/': '/add/*'
             },
             {
               '/': '/quick/*'
@@ -58,7 +58,7 @@ export async function GET() {
     status: 200,
     headers: {
       'Content-Type': 'application/json',
-      'Cache-Control': 'public, max-age=86400, immutable'
+      'Cache-Control': 'public, max-age=3600'
     }
   })
 }

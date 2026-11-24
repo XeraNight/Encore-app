@@ -18,5 +18,5 @@ export async function GET(request: NextRequest) {
   }
 
   // Desktop visitors: redirect to the landing page download anchor
-  return NextResponse.redirect(`${origin}/#download`, { status: 307 })
+  return NextResponse.redirect(`${origin}/#stiahnut`, { status: 307 })
 }

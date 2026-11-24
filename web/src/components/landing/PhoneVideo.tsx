@@ -1,22 +1,31 @@
 'use client'
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
-
-const subscribeToNothing = () => () => {}
+import { useEffect, useRef, useState } from 'react'
 
 /**
- * A short loop of the real app inside the phone frame (files: /video/app/app-<name>.webm, .mp4 and a still .jpg).
- * It plays muted while it is on screen and stops when it scrolls away; with Reduce Motion it stays on the still.
+ * A short loop of the real app inside the phone frame (/video/app/app-<name>.webm, .mp4 and .jpg).
+ * Renders the still poster <img> on SSR to guarantee crisp LCP and avoid browser-extension hydration
+ * mismatches on <video>, then mounts <video> on the client and plays only while visible.
  */
-export default function PhoneVideo({ name, alt }: { name: string; alt: string }) {
+export default function PhoneVideo({
+  name,
+  alt,
+  priority = false,
+  active = true,
+}: {
+  name: string
+  alt: string
+  priority?: boolean
+  active?: boolean
+}) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  // false on the server and during hydration (the still is rendered), true afterwards (the video takes over)
-  const mounted = useSyncExternalStore(subscribeToNothing, () => true, () => false)
+  const [mounted, setMounted] = useState(false)
   const [visible, setVisible] = useState(false)
   const [reducedMotion, setReducedMotion] = useState(false)
-  const playing = mounted && visible && !reducedMotion
+  const playing = mounted && active && visible && !reducedMotion
 
   useEffect(() => {
+    setMounted(true)
     const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
     const read = () => setReducedMotion(motion.matches)
     read()
@@ -45,14 +54,27 @@ export default function PhoneVideo({ name, alt }: { name: string; alt: string })
   }, [playing])
 
   if (!mounted) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`/video/app/app-${name}.jpg`} alt={alt} className="h-full w-full object-cover" />
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={`/video/app/app-${name}.jpg`}
+        alt={alt}
+        width={1179}
+        height={2556}
+        fetchPriority={priority ? 'high' : 'low'}
+        loading={priority ? 'eager' : 'lazy'}
+        decoding={priority ? 'sync' : 'async'}
+        className="h-full w-full object-cover"
+      />
+    )
   }
 
   return (
     <video
       ref={videoRef}
       suppressHydrationWarning
+      width={1179}
+      height={2556}
       className="h-full w-full object-cover"
       poster={`/video/app/app-${name}.jpg`}
       muted

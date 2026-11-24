@@ -115,3 +115,76 @@ final class AppLockWindow {
         })
     }
 }
+
+// MARK: - Cover for the app switcher
+/// What the app switcher keeps of Encore while the Face ID lock is on: the logo, not a page of the diary. iOS takes the
+/// picture when the app stops being in front, so the cover goes up then and comes down when the app is back.
+struct PrivacyCoverView: View {
+    var body: some View {
+        ZStack {
+            EllegancePageBackground()
+            VStack(spacing: 14) {
+                Image("EncoreLogo")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 72, height: 72)
+                EncoreWordmark(size: 15, color: .gold400)
+            }
+        }
+        .ignoresSafeArea()
+        .accessibilityHidden(true)
+    }
+}
+
+/// The cover in its own window above everything, like the lock: over a sheet or the camera a cover inside the app's own
+/// view would leave them in the picture. It takes no touches and no focus, so the keyboard and the field stay as they
+/// were. The lock itself still closes only after a real trip to the background (`AppLockState`).
+@MainActor
+final class PrivacyCoverWindow {
+    static let shared = PrivacyCoverWindow()
+    private var window: UIWindow?
+    private var isShown = false
+
+    private init() {}
+
+    /// Only when the lock is on and there is something to hide: a signed-out iPhone shows a login screen, and a locked
+    /// Encore is already covered by the lock.
+    static func shouldCover(isActive: Bool, lockIsOn: Bool, isSignedIn: Bool, isLocked: Bool) -> Bool {
+        !isActive && lockIsOn && isSignedIn && !isLocked
+    }
+
+    /// Builds the window ahead of time, so the cover is there the moment the app goes out of focus.
+    func prepare() {
+        coverWindow()?.rootViewController?.view.layoutIfNeeded()
+    }
+
+    func show() {
+        isShown = true
+        guard let window = coverWindow() else { return }
+        window.layer.removeAllAnimations()
+        window.alpha = 1
+        window.isHidden = false
+    }
+
+    func hide() {
+        guard isShown, let window else { return }
+        isShown = false
+        UIView.animate(withDuration: 0.15, animations: { window.alpha = 0 }, completion: { [weak self] _ in
+            // The app went out of focus again before the cover was gone: it stays.
+            if self?.isShown == false { window.isHidden = true }
+        })
+    }
+
+    private func coverWindow() -> UIWindow? {
+        if let window { return window }
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return nil }
+        let window = UIWindow(windowScene: scene)
+        window.windowLevel = .alert + 1
+        window.overrideUserInterfaceStyle = .dark
+        window.isUserInteractionEnabled = false
+        window.isHidden = true
+        window.rootViewController = UIHostingController(rootView: PrivacyCoverView())
+        self.window = window
+        return window
+    }
+}
