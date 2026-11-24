@@ -1004,12 +1004,14 @@ struct DualVideoComparisonView: View {
     private func playTogether(from time: Double) async {
         playerA?.pause()
         playerB?.pause()
+        let placeOfB = DuelAlignment.placeOfB(whenAIsAt: time, offset: offsetB, rate: playbackRate)
         await seek(playerA, to: time)
-        await seek(playerB, to: time + offsetB)
+        await seek(playerB, to: placeOfB.position)
         guard isPlaying, !isScrubbing else { return }
         let start = CMTimeAdd(CMClockGetTime(CMClockGetHostTimeClock()), CMTime(value: 1, timescale: 20))
         playerA?.setRate(playbackRate, time: .invalid, atHostTime: start)
-        playerB?.setRate(playbackRate, time: .invalid, atHostTime: start)
+        // Video B aligned to a moment before its own first frame waits there until video A catches up.
+        playerB?.setRate(playbackRate, time: .invalid, atHostTime: CMTimeAdd(start, CMTime(seconds: placeOfB.wait, preferredTimescale: 600)))
     }
 
     private func seek(_ player: AVPlayer?, to seconds: Double) async {
@@ -1160,6 +1162,19 @@ private struct CorrectionSnapshotView: View {
             }
         }
         .clipped()
+    }
+}
+
+// MARK: - Aligned start
+/// Video B is aligned to video A by an offset: B's moment is A's moment plus the offset.
+nonisolated enum DuelAlignment {
+    /// Where B stands when A is at `time`. When that is before B's first frame (a negative offset at the start of A), B
+    /// stays on its first frame and `wait` is the seconds of the clock until it must start moving, while A plays on at
+    /// `rate`. Started together with A it would run ahead and be pulled back by the drift correction a moment later.
+    static func placeOfB(whenAIsAt time: Double, offset: Double, rate: Float) -> (position: Double, wait: Double) {
+        let moment = time + offset
+        guard moment < 0 else { return (moment, 0) }
+        return (0, -moment / Double(max(rate, 0.01)))
     }
 }
 
