@@ -66,6 +66,9 @@ const RATE_WINDOW = "10 minutes";
 /** A dancer has a few hundred results and about ten couples in a career. */
 const MAX_RESULTS_PER_USER = 2000;
 const MAX_COUPLES_PER_USER = 15;
+/** The marks of one couple at one competition: the largest saved so far is 17 KB (4 rounds) and 1.5 KB of judges. */
+const MAX_ROUNDS_JSON = 64_000;
+const MAX_JUDGES_JSON = 16_000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 type Kind = "members_list" | "couples_list" | "search" | "couple_detail" | "couple_page" | "results" | "marks" | "registrations" | "slp_standings";
@@ -698,20 +701,8 @@ async function couplePage(admin: Admin, userId: string, html: string, linked: Li
   // A WDSF result has no KSIS page to read the place from: the event's own name ("Kosice,Slovakia") is the place.
   // Its own save, because one batch needs the same columns in every row and the others keep the place they have.
   const wdsfRows = stored.filter((item) => item.isWdsf).map((item) => ({ ...resultRow(item), venue: item.entry.eventName }));
-  if (rows.length + wdsfRows.length > 0) {
-    const { count, error: countError } = await admin
-      .from("competition_results")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId);
-    if (countError) throw countError;
-    // The save overwrites a result the user already has, so only the new ones count against the cap. Looked up only
-    // when the whole batch would go over it: a dancer far from the cap costs no second query.
-    if ((count ?? 0) + rows.length + wdsfRows.length > MAX_RESULTS_PER_USER) {
-      const added = await countNewOfUser(admin, userId, [...rows, ...wdsfRows]);
-      if ((count ?? 0) + added > MAX_RESULTS_PER_USER) {
-        return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
-      }
-    }
+  if (await exceedsResultsCap(admin, userId, [...rows, ...wdsfRows])) {
+    return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
   }
   if (rows.length > 0) {
     const { error } = await admin.from("competition_results").upsert(rows, { onConflict: "user_id,sutaz_id,couple_id" });
@@ -753,6 +744,9 @@ async function results(admin: Admin, userId: string, html: string, linked: Linke
     return errorResponse("invalid_input", "Táto súťaž má dátum, ktorý ešte nenastal alebo je príliš starý.", 400);
   }
   await rememberCoupleId(admin, own, row.parId);
+  if (await exceedsResultsCap(admin, userId, [{ sutaz_id: page.competition.sutazId, couple_id: row.parId }])) {
+    return errorResponse("too_large", "Máš uložených príliš veľa súťaží.", 413);
+  }
 
   const { error } = await admin.from("competition_results").upsert({
     user_id: userId,
@@ -823,6 +817,9 @@ async function marks(admin: Admin, userId: string, url: URL, html: string, linke
   const sutazId = page.competition.sutazId ?? Number(sutazParam);
   if (!Number.isInteger(sutazId) || sutazId <= 0) {
     return errorResponse("parse_failed", "Pri tomto hodnotení chýba číslo súťaže.", 422);
+  }
+  if (JSON.stringify(rounds).length > MAX_ROUNDS_JSON || JSON.stringify(judges).length > MAX_JUDGES_JSON) {
+    return errorResponse("too_large", "Hodnotenie je príliš veľké na uloženie.", 413);
   }
   await rememberCoupleId(admin, own, entry.parId);
 
@@ -913,6 +910,27 @@ async function deleteResult(admin: Admin, userId: string, resultId: unknown): Pr
   const { error } = await admin.from("competition_results").delete().eq("id", resultId).eq("user_id", userId);
   if (error) throw error;
   return jsonResponse({ ok: true });
+}
+
+/**
+ * True when saving the batch would take the user over the cap of saved results. The save overwrites a result the user
+ * already has, so only the new ones count. Looked up only when the whole batch would go over the cap: a dancer far from
+ * it costs no second query.
+ */
+async function exceedsResultsCap(
+  admin: ReturnType<typeof getSupabaseAdmin>,
+  userId: string,
+  batch: { sutaz_id: number; couple_id: number | null }[],
+): Promise<boolean> {
+  if (batch.length === 0) return false;
+  const { count, error } = await admin
+    .from("competition_results")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId);
+  if (error) throw error;
+  if ((count ?? 0) + batch.length <= MAX_RESULTS_PER_USER) return false;
+  const added = await countNewOfUser(admin, userId, batch);
+  return (count ?? 0) + added > MAX_RESULTS_PER_USER;
 }
 
 /** How many of the rows are not saved for the user yet. The saved ones are looked up by competition, in small groups. */
