@@ -64,9 +64,11 @@ Stav: ✅ opravené (commit) · 🟡 čaká na schválenie (viac súborov alebo 
 
 ## Balíky na schválenie
 
-- **A, účty a zálohy** (SyncLedger, SupabaseSyncManager, DeviceBackup, VoiceBackup, GlobalLibraryView, FriendManager, UserProfileStore): identita kontajnera v behu synchronizácie, opakovanie vlastných figúr, nezasekávať opakovanie jedným zlým riadkom.
-- **B, mazanie médií** (GlobalLibraryView, ProfileSettingsView, MediaAttachmentSections, VideoVaultView, MediaStorageManager): mazať video len ak ho nikto nepoužíva, obrázok pri mazaní poznámky, upratanie `tmp/` pri štarte.
-- **C, súkromie a zámok** (AppLockView, EncoreApp, MainTabView, HomeCaptureWorkspace, QuickActions): štít v App Switcheri, rýchle akcie až po odomknutí, obrazovka banu namiesto prekrytia.
-- **D, kamera a hlas** (DanceCameraManager, DanceCameraView, DanceMirrorView, DualVideoComparisonView, FullScreenVideo): varovanie pri zakázanom mikrofóne, oznámenie v zrkadle, posun videa B pri zápornom offsete, uvoľnenie audio session.
-- **E, databáza a servery** (SQL a Edge, nasadzuješ ty; SQL najprv ukážem): limity veľkosti, rate limit `media-share`, limity `ksis-page`, politiky bucketu, `dancer_code`, mazanie účtu, PIN limit, repo hygiena.
-- **F, ostatné drobnosti**: `pullRoutines`, časové pásmo, `.id(today)`, KSIS drobnosti, dvojklik.
+Stav 24. 11. po jeho odpovedi: **D áno, E áno, F neskôr (zapamätať), A, B a C nepochopil** (vysvetliť jednoducho a počkať na jeho slovo).
+
+- **A, účty a zálohy** (SyncLedger, SupabaseSyncManager, DeviceBackup, VoiceBackup, GlobalLibraryView, FriendManager, UserProfileStore): identita kontajnera v behu synchronizácie, opakovanie vlastných figúr, nezasekávať opakovanie jedným zlým riadkom. 🟡 čaká na jeho slovo.
+- **B, mazanie médií** (GlobalLibraryView, ProfileSettingsView, MediaAttachmentSections, VideoVaultView, MediaStorageManager): mazať video len ak ho nikto nepoužíva, obrázok pri mazaní poznámky (hotové v 0b09138), upratanie `tmp/` pri štarte. 🟡 čaká na jeho slovo.
+- **C, súkromie a zámok** (AppLockView, EncoreApp, MainTabView, HomeCaptureWorkspace, QuickActions): štít v App Switcheri, rýchle akcie až po odomknutí, obrazovka banu namiesto prekrytia. 🟡 čaká na jeho slovo.
+- **D, kamera a hlas** ✅ 24. 11.: refused microphone notice in the camera (09638c1), mirror notice + restart (a7d7e8f), negative offset in the duel (003b361, `DuelAlignment`), full-screen note video gives the audio session back (05cadcc). Nehotové z M9: zlé súradnice ťuknutia na zaostrenie v zrkadle (nízke).
+- **E, databáza a servery**: pripravené 24. 11., **nič nespustené ani nenasadené**. SQL (limity veľkosti, bucket, `figure_notes`, voliteľný Dancer ID) je v `docs/SQL_NA_SCHVALENIE_2026-11-24.md`, otestované na kópii Postgres 17. Zmeny funkcií sú v repozitári: ksis-page 7ce1a58, media-share f037bab, delete-account e13404a, owner-delete-account 885cab0. Čaká na jeho "áno" (SQL) a "nasaď" (funkcie). Odložené nízke: `user_blocks` vs hosťujúci tréner a `enforce_single_partner` (obe až pred zapnutím trénera), RLS `auth.uid()` ako `(select auth.uid())` (výkon, upozornenie poradcu).
+- **F, ostatné drobnosti** (`pullRoutines`, časové pásmo, `.id(today)`, KSIS drobnosti, dvojklik): jeho slovo 24. 11.: "potom doriešime, zatiaľ zapamätaj". Nezačínať.
