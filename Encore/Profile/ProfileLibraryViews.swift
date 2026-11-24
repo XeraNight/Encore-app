@@ -145,6 +145,14 @@ struct ProfileFiguresListView: View {
                 }
             }
             Spacer(minLength: 8)
+            // Not sent yet, like a message that waits for the network.
+            if SyncStatus.shared.waitingFigureIds.contains(figure.id) {
+                Image(systemName: "clock")
+                    .font(.caption)
+                    .foregroundColor(Color.white.opacity(0.6))
+                    .accessibilityLabel("Čaká na odoslanie")
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            }
             if figure.videoPath != nil {
                 Image(systemName: "video.fill")
                     .font(.caption)
@@ -167,6 +175,8 @@ struct ProfileFiguresListView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .homeCard(cornerRadius: 16)
         .accessibilityElement(children: .combine)
+        .animation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8),
+                   value: SyncStatus.shared.waitingFigureIds.contains(figure.id))
     }
 }
 
