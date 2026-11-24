@@ -9,21 +9,19 @@ nonisolated struct SlovakCity: Equatable, Identifiable, Sendable {
     let longitude: Double
     /// Other forms found in KSIS addresses ("v Nitre").
     var forms: [String] = []
-    /// Marked on the map even without a competition, so the map reads as Slovakia.
-    var isLandmark = false
 
     var id: String { name }
 
     static let all: [SlovakCity] = [
-        SlovakCity(name: "Bratislava", latitude: 48.148, longitude: 17.107, forms: ["Bratislave"], isLandmark: true),
-        SlovakCity(name: "Košice", latitude: 48.716, longitude: 21.261, forms: ["Košiciach"], isLandmark: true),
-        SlovakCity(name: "Prešov", latitude: 48.998, longitude: 21.240, forms: ["Prešove"], isLandmark: true),
-        SlovakCity(name: "Žilina", latitude: 49.223, longitude: 18.739, forms: ["Žiline"], isLandmark: true),
-        SlovakCity(name: "Banská Bystrica", latitude: 48.736, longitude: 19.146, forms: ["Banskej Bystrici"], isLandmark: true),
-        SlovakCity(name: "Nitra", latitude: 48.307, longitude: 18.087, forms: ["Nitre"], isLandmark: true),
-        SlovakCity(name: "Trnava", latitude: 48.377, longitude: 17.588, forms: ["Trnave"], isLandmark: true),
-        SlovakCity(name: "Trenčín", latitude: 48.894, longitude: 18.044, forms: ["Trenčíne"], isLandmark: true),
-        SlovakCity(name: "Poprad", latitude: 49.056, longitude: 20.297, forms: ["Poprade"], isLandmark: true),
+        SlovakCity(name: "Bratislava", latitude: 48.148, longitude: 17.107, forms: ["Bratislave"]),
+        SlovakCity(name: "Košice", latitude: 48.716, longitude: 21.261, forms: ["Košiciach"]),
+        SlovakCity(name: "Prešov", latitude: 48.998, longitude: 21.240, forms: ["Prešove"]),
+        SlovakCity(name: "Žilina", latitude: 49.223, longitude: 18.739, forms: ["Žiline"]),
+        SlovakCity(name: "Banská Bystrica", latitude: 48.736, longitude: 19.146, forms: ["Banskej Bystrici"]),
+        SlovakCity(name: "Nitra", latitude: 48.307, longitude: 18.087, forms: ["Nitre"]),
+        SlovakCity(name: "Trnava", latitude: 48.377, longitude: 17.588, forms: ["Trnave"]),
+        SlovakCity(name: "Trenčín", latitude: 48.894, longitude: 18.044, forms: ["Trenčíne"]),
+        SlovakCity(name: "Poprad", latitude: 49.056, longitude: 20.297, forms: ["Poprade"]),
         SlovakCity(name: "Martin", latitude: 49.066, longitude: 18.923, forms: ["Martine"]),
         SlovakCity(name: "Prievidza", latitude: 48.775, longitude: 18.624, forms: ["Prievidzi"]),
         SlovakCity(name: "Zvolen", latitude: 48.575, longitude: 19.125, forms: ["Zvolene"]),
@@ -159,7 +157,8 @@ struct SlovakiaOutline: Shape {
 }
 
 // MARK: - Map
-/// Competitions on Slovakia: a pin with the count in each town. The border draws itself and the pins come in one by
+/// Competitions on Slovakia: a pin with the count in each town, and nothing else: a town named without a count read as a
+/// competition that did not load. The border draws itself and the pins come in one by
 /// one; a tap moves in on the town, another tap steps back. The town's name is shown where its competitions are
 /// listed, never over the map, where it would cover the next pin. Meant to fill its card edge to edge.
 struct SlovakiaMapView: View {
@@ -192,11 +191,6 @@ struct SlovakiaMapView: View {
                     .trim(from: 0, to: drawn)
                     .stroke(Color.gold400.opacity(0.55), style: StrokeStyle(lineWidth: 1, lineJoin: .round))
                 ties(from: towns, to: pins)
-                ForEach(landmarks(clearOf: pins, in: size)) { city in
-                    landmark(city)
-                        .position(position(of: city, in: size))
-                        .transition(.opacity)
-                }
                 ForEach(Array(cities.enumerated()), id: \.element.id) { index, city in
                     pin(city, order: index)
                         .position(pins[index])
@@ -272,27 +266,6 @@ struct SlovakiaMapView: View {
         }
         .stroke(Color.gold400.opacity(0.6), lineWidth: 1)
         .allowsHitTesting(false)
-    }
-
-    /// Main towns without a pin, so the map reads as Slovakia; a name under a pin would only be half seen.
-    private func landmarks(clearOf pins: [CGPoint], in size: CGSize) -> [SlovakCity] {
-        SlovakCity.all.filter { city in
-            guard city.isLandmark, counts[city.name] == nil else { return false }
-            let point = position(of: city, in: size)
-            return !pins.contains { abs($0.x - point.x) < 46 && abs($0.y - point.y) < 30 }
-        }
-    }
-
-    private func landmark(_ city: SlovakCity) -> some View {
-        VStack(spacing: 2) {
-            Circle().fill(Color.white.opacity(0.35)).frame(width: 4, height: 4)
-            Text(city.name)
-                .font(.system(size: 9, weight: .medium, design: .rounded))
-                .foregroundColor(.white.opacity(0.45))
-                .fixedSize()
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     private func pin(_ city: SlovakCity, order: Int) -> some View {
