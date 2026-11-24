@@ -3,7 +3,8 @@
 // Three checks on the server, none taken from the app:
 // 1. the caller is the owner (`is_owner_account`),
 // 2. the PIN matches the OWNER_DELETE_PIN secret, which lives only in Supabase (not in the app, not in git), so a
-//    stolen session or phone alone deletes nobody; 5 wrong PINs in an hour lock it,
+//    stolen session or phone alone deletes nobody; 5 attempts in an hour lock it (counted in one step in the database,
+//    so parallel requests cannot all pass a count that none of them has raised yet; a right PIN gives them back),
 // 3. the owner typed that account's e-mail, so a wrong row in the list cannot be deleted by mistake.
 // Every attempt goes to `owner_delete_log`. Deleting is the same as delete-account, except Sign in with Apple:
 // revoking needs a code only the user's own device can give, so that link stays in their Apple ID settings.
@@ -17,7 +18,8 @@ import {
 } from "../_shared/supabase-client.ts";
 import { deleteAccountAndFiles } from "../_shared/account-deletion.ts";
 
-const WRONG_PIN_LIMIT = 5;
+const PIN_ATTEMPTS = "owner_delete_pin";
+const PIN_ATTEMPT_LIMIT = 5;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Compares two PINs in a time that does not depend on where they differ. */
@@ -61,21 +63,6 @@ Deno.serve(async (req: Request) => {
   }
   if (targetId === user.id) return errorResponse("invalid_input", "Vlastný účet sa tu zmazať nedá.", 400);
 
-  const hourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const { count: wrongPins, error: countError } = await admin
-    .from("owner_delete_log")
-    .select("id", { count: "exact", head: true })
-    .eq("owner_id", user.id)
-    .eq("outcome", "wrong_pin")
-    .gte("created_at", hourAgo);
-  if (countError) {
-    console.error("owner-delete-account: reading the log failed:", countError.message);
-    return errorResponse("server_error", "Server teraz neodpovedá. Skús to o chvíľu.", 500);
-  }
-  if ((wrongPins ?? 0) >= WRONG_PIN_LIMIT) {
-    return errorResponse("rate_limited", "Priveľa nesprávnych PIN-ov. Skús to znova o hodinu.", 429);
-  }
-
   const { data: target, error: targetError } = await admin.auth.admin.getUserById(targetId);
   if (targetError || !target?.user) return errorResponse("not_found", "Taký účet už neexistuje.", 404);
   if ((target.user.email ?? "").toLowerCase() !== confirmEmail) {
@@ -87,10 +74,25 @@ Deno.serve(async (req: Request) => {
     if (error) console.error("owner-delete-account: writing the log failed:", error.message);
   };
 
+  // The attempt is counted before the PIN is looked at. A destructive call that cannot count stops.
+  const { error: attemptError } = await admin.rpc("check_user_rate_limit", {
+    p_user: user.id,
+    p_action: PIN_ATTEMPTS,
+    p_max: PIN_ATTEMPT_LIMIT,
+    p_window: "1 hour",
+  });
+  if (attemptError?.hint === "rate_limited") {
+    return errorResponse("rate_limited", "Priveľa pokusov o PIN. Skús to znova o hodinu.", 429);
+  }
+  if (attemptError) {
+    console.error("owner-delete-account: counting the attempt failed:", attemptError.message);
+    return errorResponse("server_error", "Server teraz neodpovedá. Skús to o chvíľu.", 500);
+  }
   if (!(await samePin(pin, expectedPin))) {
     await log("wrong_pin");
     return errorResponse("forbidden", "Nesprávny PIN.", 403);
   }
+  await admin.from("rate_limits").delete().eq("user_id", user.id).eq("action", PIN_ATTEMPTS);
 
   try {
     const removed = await deleteAccountAndFiles(admin, targetId);
